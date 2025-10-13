@@ -1,0 +1,80 @@
+# Imagineer Configuration File
+
+# Model settings
+model:
+  # Default model to use (Hugging Face model ID or local path)
+  default: "runwayml/stable-diffusion-v1-5"
+
+  # Alternative models you can switch to
+  alternatives:
+    - "stabilityai/stable-diffusion-2-1"
+    - "stabilityai/stable-diffusion-xl-base-1.0"
+
+  # Model cache directory
+  cache_dir: "./models"
+
+# Generation settings
+generation:
+  # Default generation parameters
+  width: 512
+  height: 512
+  steps: 25
+  guidance_scale: 7.5
+  negative_prompt: "blurry, low quality, distorted, deformed"
+
+  # Batch generation
+  batch_size: 1
+  num_images: 1
+
+# Output settings
+output:
+  directory: "./outputs"
+  format: "png"
+  save_metadata: true
+
+# Training settings
+training:
+  # Learning rate
+  learning_rate: 1e-5
+
+  # Training steps
+  max_train_steps: 1000
+
+  # Batch size
+  train_batch_size: 1
+  gradient_accumulation_steps: 4
+
+  # Checkpointing
+  checkpoint_dir: "./checkpoints"
+  save_steps: 500
+
+  # LoRA settings (for fine-tuning)
+  lora:
+    rank: 4
+    alpha: 32
+    dropout: 0.1
+
+# Dataset settings
+dataset:
+  # Training data directory
+  data_dir: "./data/training"
+
+  # Image resolution for training
+  resolution: 512
+
+  # Data preprocessing
+  center_crop: true
+  random_flip: true
+
+# Hardware settings
+hardware:
+  # Device: "cuda", "cpu", or "mps" (for Mac)
+  device: "auto"  # auto-detect
+
+  # Mixed precision: "no", "fp16", or "bf16"
+  mixed_precision: "fp16"
+
+  # Enable memory optimizations
+  enable_attention_slicing: true
+  enable_vae_slicing: false
+  enable_xformers: false
