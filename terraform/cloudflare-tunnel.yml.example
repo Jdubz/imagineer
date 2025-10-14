@@ -1,0 +1,41 @@
+# Cloudflare Tunnel Configuration
+# Copy this to cloudflare-tunnel.yml and fill in your tunnel ID
+
+# Tunnel name (must match: cloudflared tunnel list)
+tunnel: imagineer-api
+
+# Tunnel credentials file path
+# This file is created when you run: cloudflared tunnel create imagineer-api
+# Location: ~/.cloudflared/<tunnel-id>.json
+credentials-file: /home/jdubz/.cloudflared/<TUNNEL-ID>.json
+
+# Ingress rules define how traffic is routed
+ingress:
+  # Route API traffic to local backend
+  - hostname: api.example.com
+    service: http://127.0.0.1:10050
+    originRequest:
+      # Do not verify TLS (backend is local HTTP)
+      noTLSVerify: true
+      # Connection timeout
+      connectTimeout: 30s
+      # Keep alive settings
+      keepAliveTimeout: 90s
+      keepAliveConnections: 10
+      # HTTP2 origin (optional - enable if backend supports it)
+      # http2Origin: true
+
+  # Health check endpoint (optional but recommended)
+  - hostname: api.example.com
+    path: /api/health
+    service: http://127.0.0.1:10050
+
+  # Catch-all rule (required - must be last)
+  - service: http_status:404
+
+# Metrics server (optional)
+metrics: 127.0.0.1:9126
+
+# Logging
+loglevel: info
+# logfile: /var/log/cloudflared.log
