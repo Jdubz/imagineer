@@ -8,6 +8,8 @@ function App() {
   const [config, setConfig] = useState(null)
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
+  const [currentJob, setCurrentJob] = useState(null)
+  const [queuePosition, setQueuePosition] = useState(null)
 
   // Load config on mount
   useEffect(() => {
@@ -37,6 +39,7 @@ function App() {
 
   const handleGenerate = async (params) => {
     setLoading(true)
+    setQueuePosition(null)
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -44,13 +47,17 @@ function App() {
         body: JSON.stringify(params)
       })
 
-      const result = await response.json()
+      if (response.status === 201) {
+        // Job created successfully
+        const result = await response.json()
+        setCurrentJob(result)
+        setQueuePosition(result.queue_position)
 
-      if (result.success) {
         // Poll for completion
-        pollJobStatus(result.job.id)
+        pollJobStatus(result.id)
       } else {
-        alert('Failed to submit job: ' + result.error)
+        const error = await response.json()
+        alert('Failed to submit job: ' + error.error)
         setLoading(false)
       }
     } catch (error) {
@@ -66,12 +73,26 @@ function App() {
         const response = await fetch(`/api/jobs/${jobId}`)
         const job = await response.json()
 
+        // Update queue position
+        if (job.queue_position !== undefined) {
+          setQueuePosition(job.queue_position)
+        }
+
         if (job.status === 'completed') {
           setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
           fetchImages() // Refresh image grid
         } else if (job.status === 'failed') {
           setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
           alert('Generation failed: ' + (job.error || 'Unknown error'))
+        } else if (job.status === 'cancelled') {
+          setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
+          alert('Job was cancelled')
         } else {
           // Still running or queued, check again
           setTimeout(checkStatus, 2000)
@@ -79,6 +100,8 @@ function App() {
       } catch (error) {
         console.error('Error checking job status:', error)
         setLoading(false)
+        setCurrentJob(null)
+        setQueuePosition(null)
       }
     }
 
@@ -95,6 +118,19 @@ function App() {
       <div className="container">
         <div className="main-content">
           <GenerateForm onGenerate={handleGenerate} loading={loading} config={config} />
+
+          {loading && queuePosition !== null && (
+            <div className="queue-status">
+              {queuePosition === 0 ? (
+                <p>🎨 Generating your image...</p>
+              ) : (
+                <p>⏳ Position in queue: {queuePosition}</p>
+              )}
+              {currentJob && (
+                <p className="job-prompt">Prompt: "{currentJob.prompt}"</p>
+              )}
+            </div>
+          )}
 
           {config && <ConfigDisplay config={config} />}
 

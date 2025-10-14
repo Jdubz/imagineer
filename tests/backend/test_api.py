@@ -102,16 +102,18 @@ class TestGenerateEndpoint:
         assert response.status_code == 400
 
     def test_generate_valid_prompt(self, client, sample_job_data):
-        """Test POST /api/generate with valid data succeeds"""
+        """Test POST /api/generate with valid data returns 201 Created"""
         response = client.post('/api/generate',
                               data=json.dumps(sample_job_data),
                               content_type='application/json')
-        assert response.status_code == 200
+        assert response.status_code == 201
         data = json.loads(response.data)
-        assert data['success'] is True
-        assert 'job' in data
-        assert data['job']['prompt'] == sample_job_data['prompt']
-        assert data['job']['status'] == 'queued'
+        assert 'id' in data
+        assert data['status'] == 'queued'
+        assert data['prompt'] == sample_job_data['prompt']
+        assert 'queue_position' in data
+        assert 'Location' in response.headers
+        assert f"/api/jobs/{data['id']}" in response.headers['Location']
 
     def test_generate_invalid_seed(self, client):
         """Test POST /api/generate with invalid seed returns 400"""
