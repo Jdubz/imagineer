@@ -1,4 +1,4 @@
-.PHONY: help install install-web dev api build start test clean reorganize kill
+.PHONY: help install install-web dev api build start test test-backend test-frontend test-coverage clean reorganize kill
 
 # Port configuration (high ports to avoid conflicts)
 API_PORT ?= 10050
@@ -18,7 +18,10 @@ help:
 	@echo "  make start          - Start production server (API + built frontend)"
 	@echo "  make generate       - Quick image generation (use PROMPT=...)"
 	@echo "  make kill           - Kill all running Imagineer services"
-	@echo "  make test           - Run tests (future)"
+	@echo "  make test           - Run all tests (backend + frontend)"
+	@echo "  make test-backend   - Run backend tests only"
+	@echo "  make test-frontend  - Run frontend tests only"
+	@echo "  make test-coverage  - Run tests with coverage report"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make reorganize     - Reorganize project structure"
 	@echo ""
@@ -103,10 +106,33 @@ generate:
 	@echo "Generating image with prompt: $(PROMPT)"
 	. venv/bin/activate && python examples/generate.py --prompt "$(PROMPT)"
 
-# Run tests (placeholder for future)
-test:
-	@echo "Running tests..."
-	@echo "Tests not yet implemented"
+# Run all tests
+test: test-backend test-frontend
+	@echo "✓ All tests complete"
+
+# Run backend tests
+test-backend:
+	@echo "Running backend tests..."
+	. venv/bin/activate && pytest tests/backend/ -v
+
+# Run frontend tests
+test-frontend:
+	@echo "Running frontend tests..."
+	cd web && npm test
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	@echo ""
+	@echo "Backend coverage:"
+	. venv/bin/activate && pytest tests/backend/ --cov=server --cov=src --cov-report=term --cov-report=html:coverage/backend
+	@echo ""
+	@echo "Frontend coverage:"
+	cd web && npm run test:coverage
+	@echo ""
+	@echo "✓ Coverage reports generated:"
+	@echo "  Backend:  coverage/backend/index.html"
+	@echo "  Frontend: web/coverage/index.html"
 
 # Clean build artifacts
 clean:
