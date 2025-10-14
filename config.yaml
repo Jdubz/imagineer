@@ -11,16 +11,19 @@ model:
     - "stabilityai/stable-diffusion-xl-base-1.0"
 
   # Model cache directory
-  cache_dir: "./models"
+  cache_dir: "/mnt/speedy/imagineer/models"
 
 # Generation settings
 generation:
   # Default generation parameters
   width: 512
   height: 512
-  steps: 25
+  steps: 30
   guidance_scale: 7.5
-  negative_prompt: "blurry, low quality, distorted, deformed"
+
+  # Default negative prompt (applied to all generations unless overridden)
+  # Exhaustive list to avoid common quality issues and artifacts
+  negative_prompt: "blurry, low quality, low resolution, low detail, poorly drawn, bad anatomy, bad proportions, bad composition, distorted, deformed, disfigured, ugly, unattractive, gross, disgusting, mutation, mutated, extra limbs, extra legs, extra arms, extra fingers, extra hands, missing limbs, missing legs, missing arms, missing fingers, fused limbs, fused fingers, fused toes, cloned face, duplicate, clone, cropped, cut off, out of frame, watermark, signature, text, font, words, letters, username, error, jpeg artifacts, compression artifacts, aliasing, pixelated, pixel art, mosaic, censored, blurred face, blurred eyes, unclear, hazy, grainy, noisy, overexposed, underexposed, oversaturated, desaturated, washed out, flat colors, bad lighting, dark, darkness, silhouette, shadow, low contrast, unfinished, sketch, draft, amateur, unprofessional, childish, simple, basic, plain, boring, cluttered, busy, chaotic, messy, disorganized, tilted, crooked, asymmetric, imbalanced, disproportionate, elongated, stretched, squashed, compressed, warped, twisted, bent, broken, shattered, cracked, torn, ripped, damaged, destroyed, ruined, rotting, decaying, decomposed, moldy, dirty, filthy, stained, smudged, scratched, scribbled, scrawled, messy lines, rough lines, jagged edges, harsh edges, unnatural pose, stiff pose, awkward pose, impossible pose, floating limbs, disconnected limbs, phantom limbs, merged bodies, conjoined, Siamese, multiple heads, multiple faces, two heads, three arms, four legs, too many, not enough, incorrect anatomy, wrong anatomy, misplaced features, unrealistic proportions, cartoon, anime, 3d render, cgi, digital art, illustration, painting, drawing, animated, stylized, abstract, surreal, fantasy, sci-fi, unless intended"
 
   # Batch generation
   batch_size: 1
@@ -28,7 +31,7 @@ generation:
 
 # Output settings
 output:
-  directory: "./outputs"
+  directory: "/mnt/speedy/imagineer/outputs"
   format: "png"
   save_metadata: true
 
@@ -45,7 +48,7 @@ training:
   gradient_accumulation_steps: 4
 
   # Checkpointing
-  checkpoint_dir: "./checkpoints"
+  checkpoint_dir: "/mnt/speedy/imagineer/checkpoints"
   save_steps: 500
 
   # LoRA settings (for fine-tuning)
@@ -57,7 +60,7 @@ training:
 # Dataset settings
 dataset:
   # Training data directory
-  data_dir: "./data/training"
+  data_dir: "/mnt/speedy/imagineer/data/training"
 
   # Image resolution for training
   resolution: 512

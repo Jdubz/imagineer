@@ -1,73 +1,56 @@
+# Virtual environment
+venv/
+
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual environments
-venv/
-ENV/
-env/
+# Environment
+.env
+*.local
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Model files and caches
+# Outputs (stored on Speedy drive)
 models/
-*.ckpt
-*.safetensors
-*.pth
-*.pt
-*.bin
-*.onnx
-
-# Hugging Face cache
-.cache/
-huggingface/
-
-# Generated outputs
 outputs/
 checkpoints/
-logs/
+data/training/*
+!data/training/README.md
 
-# Training data (optional - uncomment if you want to ignore training data)
-# data/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Environment variables
-.env
-.env.local
+# Backups
+*.backup-*
+*.bak
 
 # Logs
 *.log
 
+# Frontend
+web/node_modules/    # Node dependencies (inside web/)
+public/              # Built frontend (generated)
+web/dist/            # Alternative build output
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+
 # Temporary files
 *.tmp
 *.temp
+
+# Large model files
+*.safetensors
+*.ckpt
+*.bin
+*.pth
