@@ -328,6 +328,38 @@ button[type="submit"]:disabled {
   transform: none;
 }
 
+/* Queue Status */
+.queue-status {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.queue-status p {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.queue-status .job-prompt {
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: normal;
+  font-style: italic;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #667eea30;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.95; }
+}
+
 .loading-indicator {
   margin-top: 1rem;
   text-align: center;

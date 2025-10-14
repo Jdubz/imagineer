@@ -189,6 +189,8 @@ def generate():
 
         # Validate prompt length
         prompt = str(data['prompt']).strip()
+        if not prompt:
+            return jsonify({'success': False, 'error': 'Prompt is required'}), 400
         if len(prompt) > 2000:
             return jsonify({'success': False, 'error': 'Prompt too long (max 2000 chars)'}), 400
 
@@ -259,14 +261,21 @@ def generate():
 
         job_queue.put(job)
 
-        return jsonify({
-            'success': True,
-            'job': job,
-            'queue_position': job_queue.qsize()
+        # Return 201 Created with Location header pointing to job status
+        response = jsonify({
+            'id': job['id'],
+            'status': job['status'],
+            'submitted_at': job['submitted_at'],
+            'queue_position': job_queue.qsize(),
+            'prompt': job['prompt']
         })
+        response.status_code = 201
+        response.headers['Location'] = f"/api/jobs/{job['id']}"
+
+        return response
 
     except Exception as e:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
+        return jsonify({'error': 'Invalid request'}), 400
 
 
 @app.route('/api/jobs', methods=['GET'])
@@ -286,17 +295,74 @@ def get_job(job_id):
     """Get specific job details"""
     # Check current job
     if current_job and current_job['id'] == job_id:
-        return jsonify(current_job)
+        job_response = {
+            **current_job,
+            'queue_position': 0,  # Currently running
+            'estimated_time_remaining': None  # Could calculate based on steps
+        }
+        return jsonify(job_response)
 
     # Check queue
-    for job in job_queue.queue:
+    position = 1
+    for job in list(job_queue.queue):
         if job['id'] == job_id:
-            return jsonify(job)
+            job_response = {
+                **job,
+                'queue_position': position,
+                'estimated_time_remaining': None  # Could estimate based on position
+            }
+            return jsonify(job_response)
+        position += 1
 
     # Check history
     for job in job_history:
         if job['id'] == job_id:
+            # Add duration if completed
+            if job.get('started_at') and job.get('completed_at'):
+                start = datetime.fromisoformat(job['started_at'])
+                end = datetime.fromisoformat(job['completed_at'])
+                job['duration_seconds'] = (end - start).total_seconds()
             return jsonify(job)
+
+    return jsonify({'error': 'Job not found'}), 404
+
+
+@app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+def cancel_job(job_id):
+    """Cancel a queued job"""
+    global job_queue
+
+    # Cannot cancel currently running job
+    if current_job and current_job['id'] == job_id:
+        return jsonify({'error': 'Cannot cancel job that is currently running'}), 409
+
+    # Cannot cancel completed job
+    for job in job_history:
+        if job['id'] == job_id:
+            return jsonify({'error': 'Cannot cancel completed job'}), 410
+
+    # Try to remove from queue
+    queue_list = list(job_queue.queue)
+    found = False
+    for job in queue_list:
+        if job['id'] == job_id:
+            job['status'] = 'cancelled'
+            job['cancelled_at'] = datetime.now().isoformat()
+            job_history.append(job)
+            found = True
+            break
+
+    if found:
+        # Rebuild queue without cancelled job
+        new_queue = queue.Queue()
+        for job in queue_list:
+            if job['id'] != job_id:
+                new_queue.put(job)
+
+        # Replace the queue
+        job_queue = new_queue
+
+        return jsonify({'message': 'Job cancelled successfully'}), 200
 
     return jsonify({'error': 'Job not found'}), 404
 
