@@ -1,4 +1,4 @@
-.PHONY: help install install-web dev api build start test test-backend test-frontend test-coverage clean reorganize kill
+.PHONY: help install install-web install-hooks dev api build start test test-backend test-frontend test-coverage lint lint-backend lint-frontend lint-fix clean reorganize kill
 
 # Port configuration (high ports to avoid conflicts)
 API_PORT ?= 10050
@@ -11,6 +11,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make install        - Install Python dependencies"
 	@echo "  make install-web    - Install frontend dependencies"
+	@echo "  make install-hooks  - Install git hooks (pre-commit, pre-push)"
 	@echo "  make dev            - Start API + frontend dev servers"
 	@echo "  make api            - Start Flask API server only (port $(API_PORT))"
 	@echo "  make web-dev        - Start frontend dev server only (port $(WEB_PORT))"
@@ -22,6 +23,10 @@ help:
 	@echo "  make test-backend   - Run backend tests only"
 	@echo "  make test-frontend  - Run frontend tests only"
 	@echo "  make test-coverage  - Run tests with coverage report"
+	@echo "  make lint           - Lint all code (backend + frontend)"
+	@echo "  make lint-backend   - Lint backend code only"
+	@echo "  make lint-frontend  - Lint frontend code only"
+	@echo "  make lint-fix       - Auto-fix linting issues"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make reorganize     - Reorganize project structure"
 	@echo ""
@@ -47,6 +52,11 @@ install-web:
 	@echo "Installing frontend dependencies..."
 	cd web && npm install
 	@echo "✓ Frontend dependencies installed"
+
+# Install git hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	bash scripts/install-hooks.sh
 
 # Start both API and frontend dev servers
 dev:
@@ -133,6 +143,34 @@ test-coverage:
 	@echo "✓ Coverage reports generated:"
 	@echo "  Backend:  coverage/backend/index.html"
 	@echo "  Frontend: web/coverage/index.html"
+
+# Lint all code
+lint: lint-backend lint-frontend
+	@echo "✓ All linting complete"
+
+# Lint backend code
+lint-backend:
+	@echo "Linting Python code..."
+	. venv/bin/activate && black --check .
+	. venv/bin/activate && flake8 .
+	. venv/bin/activate && isort --check-only .
+	@echo "✓ Backend linting passed"
+
+# Lint frontend code
+lint-frontend:
+	@echo "Linting JavaScript code..."
+	cd web && npm run lint
+	@echo "✓ Frontend linting passed"
+
+# Auto-fix linting issues
+lint-fix:
+	@echo "Auto-fixing linting issues..."
+	@echo "Backend..."
+	. venv/bin/activate && black .
+	. venv/bin/activate && isort .
+	@echo "Frontend..."
+	cd web && npm run lint:fix
+	@echo "✓ Linting fixes applied"
 
 # Clean build artifacts
 clean:
