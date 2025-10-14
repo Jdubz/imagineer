@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imagineer-api
+    restart: unless-stopped
+
+    ports:
+      - "10050:10050"
+
+    volumes:
+      # Mount external storage for models and outputs
+      - /mnt/speedy/imagineer/models:/app/models:ro
+      - /mnt/speedy/imagineer/outputs:/app/outputs:rw
+      - /mnt/speedy/imagineer/sets:/app/sets:ro
+      - /mnt/speedy/imagineer/checkpoints:/app/checkpoints:rw
+      # Mount logs
+      - ./logs:/app/logs:rw
+
+    environment:
+      - FLASK_ENV=production
+      - FLASK_RUN_PORT=10050
+      - FLASK_DEBUG=false
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - CLOUDFLARE_VERIFY=${CLOUDFLARE_VERIFY:-false}
+      - RATELIMIT_ENABLED=${RATELIMIT_ENABLED:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    env_file:
+      - .env.production
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10050/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - imagineer-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Auto-deploy webhook listener
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile.webhook
+    container_name: imagineer-webhook
+    restart: unless-stopped
+
+    ports:
+      - "9000:9000"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app:ro
+      - ./scripts:/scripts:ro
+
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-changeme}
+      - GITHUB_REPO=${GITHUB_REPO:-yourusername/imagineer}
+      - BRANCH=${DEPLOY_BRANCH:-main}
+
+    networks:
+      - imagineer-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  imagineer-network:
+    driver: bridge
+
+volumes:
+  logs:

@@ -91,10 +91,29 @@ python examples/generate.py --prompt "a beautiful sunset over mountains"
 
 ## 📖 Documentation
 
-- **[Setup Guide](docs/SETUP.md)** - Detailed installation and configuration
-- **[API Reference](docs/API.md)** - REST API endpoints and usage
-- **[Makefile Commands](docs/MAKEFILE_REFERENCE.md)** - All available make commands
-- **[Contributing](docs/CONTRIBUTING.md)** - Development guidelines
+**[📚 Complete Documentation Index](docs/INDEX.md)** - Full documentation catalog
+
+### Quick Links
+
+**Getting Started:**
+- **[Setup Guide](docs/guides/SETUP.md)** - Installation and configuration
+- **[Architecture](docs/ARCHITECTURE.md)** - System architecture overview
+- **[Makefile Reference](docs/guides/MAKEFILE_REFERENCE.md)** - All available commands
+
+**Deployment (Production):**
+- **[Deployment Cheat Sheet](docs/deployment/DEPLOYMENT_CHEATSHEET.md)** - Quick reference
+- **[Credentials Guide](docs/deployment/CREDENTIALS_QUICK_REFERENCE.md)** - Required credentials
+- **[Deployment Guide](docs/deployment/DEPLOYMENT_ORCHESTRATION_COMPLETE.md)** - Complete deployment
+
+**LoRA Management:**
+- **[LoRA Setup](docs/lora/LORA_SETUP.md)** - Getting started with LoRAs
+- **[LoRA Organization](docs/lora/LORA_ORGANIZATION.md)** - Managing LoRAs
+- **[Preview Generation](docs/lora/LORA_PREVIEW_GENERATION.md)** - Generating previews
+
+**Development:**
+- **[API Reference](docs/API.md)** - REST API documentation
+- **[Testing](docs/guides/TESTING.md)** - Running tests
+- **[Contributing](docs/guides/CONTRIBUTING.md)** - Development guidelines
 
 ## 🎨 Web Interface Features
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
+import PasswordGate from './components/PasswordGate'
 import Tabs from './components/Tabs'
 import GenerateTab from './components/GenerateTab'
 import GalleryTab from './components/GalleryTab'
@@ -160,42 +161,44 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <header className="header">
-        <h1>✨ Imagineer</h1>
-        <p>AI Image Generation Toolkit</p>
-      </header>
+    <PasswordGate>
+      <div className="App">
+        <header className="header">
+          <h1>✨ Imagineer</h1>
+          <p>AI Image Generation Toolkit</p>
+        </header>
 
-      <div className="container">
-        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <div className="container">
+          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <div className="main-content">
-          {activeTab === 'generate' && (
-            <GenerateTab
-              config={config}
-              loading={loading}
-              queuePosition={queuePosition}
-              currentJob={currentJob}
-              onGenerate={handleGenerate}
-              onGenerateBatch={handleGenerateBatch}
-            />
-          )}
+          <div className="main-content">
+            {activeTab === 'generate' && (
+              <GenerateTab
+                config={config}
+                loading={loading}
+                queuePosition={queuePosition}
+                currentJob={currentJob}
+                onGenerate={handleGenerate}
+                onGenerateBatch={handleGenerateBatch}
+              />
+            )}
 
-          {activeTab === 'gallery' && (
-            <GalleryTab
-              batches={batches}
-              images={images}
-              onRefreshImages={fetchImages}
-              onRefreshBatches={fetchBatches}
-            />
-          )}
+            {activeTab === 'gallery' && (
+              <GalleryTab
+                batches={batches}
+                images={images}
+                onRefreshImages={fetchImages}
+                onRefreshBatches={fetchBatches}
+              />
+            )}
 
-          {activeTab === 'queue' && <QueueTab />}
+            {activeTab === 'queue' && <QueueTab />}
 
-          {activeTab === 'loras' && <LorasTab />}
+            {activeTab === 'loras' && <LorasTab />}
+          </div>
         </div>
       </div>
-    </div>
+    </PasswordGate>
   )
 }
 

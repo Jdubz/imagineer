@@ -1,0 +1,28 @@
+# Example Terraform variables
+# Copy this file to terraform.tfvars and fill in your actual values
+
+# Cloudflare API Token
+# Create at: https://dash.cloudflare.com/profile/api-tokens
+# Permissions needed: Zone.DNS (Edit), Zone.Firewall Services (Edit)
+cloudflare_api_token = "your-cloudflare-api-token-here"
+
+# Your domain name
+domain = "example.com"
+
+# API subdomain (will create api.example.com)
+api_subdomain = "api"
+
+# Cloudflare Tunnel ID
+# Get from: cloudflared tunnel list
+tunnel_id = "your-tunnel-id-here"
+
+# Environment
+environment = "production"
+
+# Optional features
+enable_geo_blocking      = false
+enable_cloudflare_access = false
+enable_logpush          = false
+
+# If enabling logpush, set destination:
+# logpush_destination = "s3://my-bucket/imagineer-logs"
