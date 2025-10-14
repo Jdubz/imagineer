@@ -79,7 +79,7 @@ def main():
     print(f"Loading model: {args.model}")
     pipe = StableDiffusionPipeline.from_pretrained(
         args.model,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        dtype=torch.float16 if device == "cuda" else torch.float32,
         safety_checker=None  # Remove for faster inference
     )
 
