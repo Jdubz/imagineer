@@ -65,6 +65,8 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 coverage.xml
+coverage/
+web/coverage/
 
 # Audit and planning docs (keep in repo but ignore if recreated)
 # AUDIT_REPORT.md
