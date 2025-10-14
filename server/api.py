@@ -9,6 +9,7 @@ import yaml
 import json
 import os
 import sys
+import csv
 from pathlib import Path
 from datetime import datetime
 import subprocess
@@ -26,6 +27,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
 VENV_PYTHON = PROJECT_ROOT / 'venv' / 'bin' / 'python'
 GENERATE_SCRIPT = PROJECT_ROOT / 'examples' / 'generate.py'
+DATA_SETS_DIR = PROJECT_ROOT / 'data' / 'sets'
 
 # Job queue
 job_queue = queue.Queue()
@@ -43,6 +45,64 @@ def save_config(config):
     """Save config.yaml"""
     with open(CONFIG_PATH, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+def load_set_data(set_name):
+    """Load data from a CSV set file
+
+    Args:
+        set_name: Name of the set (without .csv extension)
+
+    Returns:
+        List of dicts with 'name' and 'description' keys
+
+    Raises:
+        FileNotFoundError: If set doesn't exist
+        ValueError: If CSV is malformed
+    """
+    # Security: Validate set_name to prevent path traversal
+    if '..' in set_name or '/' in set_name or '\\' in set_name:
+        raise ValueError('Invalid set name')
+
+    set_path = DATA_SETS_DIR / f"{set_name}.csv"
+
+    if not set_path.exists():
+        raise FileNotFoundError(f'Set "{set_name}" not found')
+
+    items = []
+    with open(set_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+
+        # Validate CSV has required columns
+        if 'name' not in reader.fieldnames or 'description' not in reader.fieldnames:
+            raise ValueError('CSV must have "name" and "description" columns')
+
+        for row in reader:
+            items.append({
+                'name': row['name'].strip(),
+                'description': row['description'].strip()
+            })
+
+    if not items:
+        raise ValueError('Set is empty')
+
+    return items
+
+
+def list_available_sets():
+    """List all available CSV sets
+
+    Returns:
+        List of set names (without .csv extension)
+    """
+    if not DATA_SETS_DIR.exists():
+        return []
+
+    sets = []
+    for csv_file in DATA_SETS_DIR.glob('*.csv'):
+        sets.append(csv_file.stem)
+
+    return sorted(sets)
 
 
 def process_jobs():
@@ -79,6 +139,15 @@ def process_jobs():
                 cmd.extend(['--guidance-scale', str(job['guidance_scale'])])
             if job.get('negative_prompt'):
                 cmd.extend(['--negative-prompt', job['negative_prompt']])
+
+            # For batch jobs, specify output directory
+            if job.get('output_dir') and job.get('batch_item_name'):
+                # Create sanitized filename from batch item name
+                safe_name = "".join(c for c in job['batch_item_name'] if c.isalnum() or c in (' ', '_', '-')).strip()
+                safe_name = safe_name.replace(' ', '_')
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_path = Path(job['output_dir']) / f"{timestamp}_{safe_name}.png"
+                cmd.extend(['--output', str(output_path)])
 
             # Run generation
             result = subprocess.run(
@@ -271,6 +340,156 @@ def generate():
         })
         response.status_code = 201
         response.headers['Location'] = f"/api/jobs/{job['id']}"
+
+        return response
+
+    except Exception as e:
+        return jsonify({'error': 'Invalid request'}), 400
+
+
+@app.route('/api/sets', methods=['GET'])
+def get_sets():
+    """List available CSV sets"""
+    try:
+        sets = list_available_sets()
+        return jsonify({'sets': sets})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/generate/batch', methods=['POST'])
+def generate_batch():
+    """Submit batch generation from CSV set
+
+    Creates multiple jobs by combining set data with a prompt template.
+    All images will be saved in a subfolder named after the batch.
+    """
+    try:
+        data = request.json
+
+        if not data or not data.get('set_name'):
+            return jsonify({'error': 'set_name is required'}), 400
+
+        if not data.get('prompt_template'):
+            return jsonify({'error': 'prompt_template is required'}), 400
+
+        set_name = str(data['set_name']).strip()
+        prompt_template = str(data['prompt_template']).strip()
+
+        if not prompt_template:
+            return jsonify({'error': 'prompt_template cannot be empty'}), 400
+
+        if len(prompt_template) > 2000:
+            return jsonify({'error': 'prompt_template too long (max 2000 chars)'}), 400
+
+        # Load set data
+        try:
+            set_items = load_set_data(set_name)
+        except FileNotFoundError:
+            return jsonify({'error': f'Set "{set_name}" not found'}), 404
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+
+        # Get optional parameters (applied to all jobs in batch)
+        seed = data.get('seed')
+        if seed is not None:
+            try:
+                seed = int(seed)
+                if seed < 0 or seed > 2147483647:
+                    return jsonify({'error': 'Seed must be between 0 and 2147483647'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid seed value'}), 400
+
+        steps = data.get('steps')
+        if steps is not None:
+            try:
+                steps = int(steps)
+                if steps < 1 or steps > 150:
+                    return jsonify({'error': 'Steps must be between 1 and 150'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid steps value'}), 400
+
+        width = data.get('width')
+        if width is not None:
+            try:
+                width = int(width)
+                if width < 64 or width > 2048 or width % 8 != 0:
+                    return jsonify({'error': 'Width must be between 64-2048 and divisible by 8'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid width value'}), 400
+
+        height = data.get('height')
+        if height is not None:
+            try:
+                height = int(height)
+                if height < 64 or height > 2048 or height % 8 != 0:
+                    return jsonify({'error': 'Height must be between 64-2048 and divisible by 8'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid height value'}), 400
+
+        guidance_scale = data.get('guidance_scale')
+        if guidance_scale is not None:
+            try:
+                guidance_scale = float(guidance_scale)
+                if guidance_scale < 0 or guidance_scale > 30:
+                    return jsonify({'error': 'Guidance scale must be between 0 and 30'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid guidance scale value'}), 400
+
+        negative_prompt = data.get('negative_prompt')
+        if negative_prompt is not None:
+            negative_prompt = str(negative_prompt).strip()
+            if len(negative_prompt) > 2000:
+                return jsonify({'error': 'Negative prompt too long (max 2000 chars)'}), 400
+
+        # Create batch ID and output subfolder
+        batch_id = f"{set_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        config = load_config()
+        batch_output_dir = Path(config['output']['directory']) / batch_id
+
+        # Create the subfolder
+        batch_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create jobs for each item in the set
+        job_ids = []
+        for item in set_items:
+            # Combine template with item description
+            # Template can use {name} and {description} placeholders
+            prompt = prompt_template.replace('{name}', item['name'])
+            prompt = prompt.replace('{description}', item['description'])
+
+            job_id = len(job_history) + job_queue.qsize() + 1
+
+            job = {
+                'id': job_id,
+                'prompt': prompt,
+                'seed': seed,
+                'steps': steps,
+                'width': width,
+                'height': height,
+                'guidance_scale': guidance_scale,
+                'negative_prompt': negative_prompt,
+                'status': 'queued',
+                'submitted_at': datetime.now().isoformat(),
+                'batch_id': batch_id,
+                'batch_item_name': item['name'],
+                'output_dir': str(batch_output_dir)  # Custom output directory for this job
+            }
+
+            job_queue.put(job)
+            job_ids.append(job_id)
+
+        # Return 201 Created with batch info
+        response = jsonify({
+            'batch_id': batch_id,
+            'set_name': set_name,
+            'total_jobs': len(job_ids),
+            'job_ids': job_ids,
+            'output_directory': str(batch_output_dir),
+            'submitted_at': datetime.now().isoformat()
+        })
+        response.status_code = 201
+        response.headers['Location'] = f"/api/batches/{batch_id}"
 
         return response
 
