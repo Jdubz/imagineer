@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
-import GenerateForm from './components/GenerateForm'
-import ConfigDisplay from './components/ConfigDisplay'
-import ImageGrid from './components/ImageGrid'
-import BatchList from './components/BatchList'
-import BatchGallery from './components/BatchGallery'
+import Tabs from './components/Tabs'
+import GenerateTab from './components/GenerateTab'
+import GalleryTab from './components/GalleryTab'
+import LorasTab from './components/LorasTab'
+import QueueTab from './components/QueueTab'
 
 function App() {
   const [config, setConfig] = useState(null)
@@ -12,11 +12,16 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [currentJob, setCurrentJob] = useState(null)
   const [queuePosition, setQueuePosition] = useState(null)
-
-  // Batch state
   const [batches, setBatches] = useState([])
-  const [selectedBatchId, setSelectedBatchId] = useState(null)
-  const [viewMode, setViewMode] = useState('main') // 'main' or 'batch'
+  const [activeTab, setActiveTab] = useState('generate')
+
+  // Tab configuration
+  const tabs = [
+    { id: 'generate', label: 'Generate', icon: '✨' },
+    { id: 'gallery', label: 'Gallery', icon: '🖼️' },
+    { id: 'queue', label: 'Queue', icon: '📋' },
+    { id: 'loras', label: 'LoRAs', icon: '🎨' }
+  ]
 
   // Load config on mount
   useEffect(() => {
@@ -97,8 +102,9 @@ function App() {
       if (response.status === 201) {
         const result = await response.json()
         alert(`Batch generation started!\n${result.total_jobs} jobs queued for ${result.set_name}`)
-        // Refresh batches list
+        // Refresh batches list and switch to gallery tab
         fetchBatches()
+        setActiveTab('gallery')
       } else {
         const error = await response.json()
         alert('Failed to submit batch: ' + error.error)
@@ -153,17 +159,6 @@ function App() {
     checkStatus()
   }
 
-  const handleSelectBatch = (batchId) => {
-    setSelectedBatchId(batchId)
-    setViewMode('batch')
-  }
-
-  const handleBackToMain = () => {
-    setViewMode('main')
-    setSelectedBatchId(null)
-    fetchBatches() // Refresh in case batch was updated
-  }
-
   return (
     <div className="App">
       <header className="header">
@@ -172,38 +167,32 @@ function App() {
       </header>
 
       <div className="container">
+        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
         <div className="main-content">
-          {viewMode === 'main' ? (
-            <>
-              <GenerateForm
-                onGenerate={handleGenerate}
-                onGenerateBatch={handleGenerateBatch}
-                loading={loading}
-                config={config}
-              />
-
-              {loading && queuePosition !== null && (
-                <div className="queue-status">
-                  {queuePosition === 0 ? (
-                    <p>🎨 Generating your image...</p>
-                  ) : (
-                    <p>⏳ Position in queue: {queuePosition}</p>
-                  )}
-                  {currentJob && (
-                    <p className="job-prompt">Prompt: "{currentJob.prompt}"</p>
-                  )}
-                </div>
-              )}
-
-              {config && <ConfigDisplay config={config} />}
-
-              <BatchList batches={batches} onSelectBatch={handleSelectBatch} />
-
-              <ImageGrid images={images} onRefresh={fetchImages} />
-            </>
-          ) : (
-            <BatchGallery batchId={selectedBatchId} onBack={handleBackToMain} />
+          {activeTab === 'generate' && (
+            <GenerateTab
+              config={config}
+              loading={loading}
+              queuePosition={queuePosition}
+              currentJob={currentJob}
+              onGenerate={handleGenerate}
+              onGenerateBatch={handleGenerateBatch}
+            />
           )}
+
+          {activeTab === 'gallery' && (
+            <GalleryTab
+              batches={batches}
+              images={images}
+              onRefreshImages={fetchImages}
+              onRefreshBatches={fetchBatches}
+            />
+          )}
+
+          {activeTab === 'queue' && <QueueTab />}
+
+          {activeTab === 'loras' && <LorasTab />}
         </div>
       </div>
     </div>
