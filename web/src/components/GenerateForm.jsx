@@ -1,11 +1,61 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
-function GenerateForm({ onGenerate, loading, config }) {
+function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
   const [prompt, setPrompt] = useState('')
   const [steps, setSteps] = useState(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState(config?.generation?.guidance_scale || 7.5)
   const [seed, setSeed] = useState('')
   const [useRandomSeed, setUseRandomSeed] = useState(true)
+
+  // Batch generation state
+  const [availableSets, setAvailableSets] = useState([])
+  const [selectedSet, setSelectedSet] = useState('')
+  const [userTheme, setUserTheme] = useState('')
+  const [selectedSetInfo, setSelectedSetInfo] = useState(null)
+
+  // Load available sets on mount
+  useEffect(() => {
+    fetchAvailableSets()
+  }, [])
+
+  const fetchAvailableSets = async () => {
+    try {
+      const response = await fetch('/api/sets')
+      const data = await response.json()
+      setAvailableSets(data.sets || [])
+    } catch (error) {
+      console.error('Failed to fetch sets:', error)
+    }
+  }
+
+  const fetchRandomTheme = async () => {
+    try {
+      const response = await fetch('/api/themes/random')
+      const data = await response.json()
+      setUserTheme(data.theme || '')
+    } catch (error) {
+      console.error('Failed to fetch random theme:', error)
+    }
+  }
+
+  // When set selection changes, load set info
+  useEffect(() => {
+    if (selectedSet) {
+      fetchSetInfo(selectedSet)
+    } else {
+      setSelectedSetInfo(null)
+    }
+  }, [selectedSet])
+
+  const fetchSetInfo = async (setName) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/info`)
+      const data = await response.json()
+      setSelectedSetInfo(data)
+    } catch (error) {
+      console.error('Failed to fetch set info:', error)
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -30,6 +80,26 @@ function GenerateForm({ onGenerate, loading, config }) {
     const randomSeed = Math.floor(Math.random() * 2147483647)
     setSeed(randomSeed.toString())
     setUseRandomSeed(false)
+  }
+
+  const handleBatchSubmit = (e) => {
+    e.preventDefault()
+    if (selectedSet && userTheme.trim()) {
+      const params = {
+        set_name: selectedSet,
+        user_theme: userTheme.trim(),
+        steps,
+        guidance_scale: guidanceScale
+      }
+
+      // Only include seed if user provided one
+      if (!useRandomSeed && seed) {
+        params.seed = parseInt(seed)
+      }
+
+      onGenerateBatch(params)
+      setUserTheme('')
+    }
   }
 
   return (
@@ -181,6 +251,94 @@ function GenerateForm({ onGenerate, loading, config }) {
           <div className="loading-indicator">
             <div className="spinner"></div>
             <p>Generating your image... This may take 10-30 seconds</p>
+          </div>
+        )}
+      </form>
+
+      <div className="form-divider"></div>
+
+      <h2>Generate Set</h2>
+      <form onSubmit={handleBatchSubmit} className="batch-form">
+        <div className="form-group">
+          <label htmlFor="set-select">
+            Select Set
+            <span className="tooltip">?
+              <span className="tooltip-text">
+                Choose a predefined set (e.g., card deck, tarot deck) to generate multiple images.
+                <br/>Each item in the set will be styled with your art theme.
+              </span>
+            </span>
+          </label>
+          <select
+            id="set-select"
+            value={selectedSet}
+            onChange={(e) => setSelectedSet(e.target.value)}
+            disabled={loading}
+            required
+          >
+            <option value="">-- Select a set --</option>
+            {availableSets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name}
+              </option>
+            ))}
+          </select>
+          {selectedSetInfo && (
+            <p className="set-info">
+              {selectedSetInfo.description} ({selectedSetInfo.item_count} items)
+            </p>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="user-theme">
+            Art Style Theme
+            <span className="tooltip">?
+              <span className="tooltip-text">
+                Describe the artistic style and atmosphere for your card set.
+                <br/><br/>Examples:
+                <br/>• "watercolor pastels with soft dreamy lighting"
+                <br/>• "cyberpunk neon with dark urban background"
+                <br/>• "vintage botanical illustrations"
+                {selectedSetInfo && selectedSetInfo.example_theme && (
+                  <>
+                    <br/><br/>Suggestion for {selectedSetInfo.name}:
+                    <br/>"{selectedSetInfo.example_theme}"
+                  </>
+                )}
+              </span>
+            </span>
+          </label>
+          <div className="theme-input-group">
+            <textarea
+              id="user-theme"
+              value={userTheme}
+              onChange={(e) => setUserTheme(e.target.value)}
+              placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
+              rows="3"
+              disabled={loading}
+              required
+            />
+            <button
+              type="button"
+              onClick={fetchRandomTheme}
+              disabled={loading}
+              className="random-theme-btn"
+              title="Generate random theme"
+            >
+              🎲 Random Theme
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" disabled={loading || !selectedSet || !userTheme.trim()} className="batch-submit-btn">
+          {loading ? 'Generating Set...' : 'Generate Complete Set'}
+        </button>
+
+        {loading && (
+          <div className="loading-indicator">
+            <div className="spinner"></div>
+            <p>Queuing batch generation... This will create multiple jobs</p>
           </div>
         )}
       </form>
