@@ -8,6 +8,7 @@ export default defineConfig({
     emptyOutDir: true
   },
   server: {
+    host: true, // Listen on all network interfaces
     port: parseInt(process.env.PORT || '10051'),
     proxy: {
       '/api': {

@@ -1,4 +1,4 @@
-.PHONY: help install install-web install-hooks dev api build start test test-backend test-frontend test-coverage lint lint-backend lint-frontend lint-fix clean reorganize kill
+.PHONY: help install install-web install-hooks dev api build start test test-backend test-frontend test-coverage lint lint-backend lint-frontend lint-fix clean reorganize kill lora-check lora-clean lora-organize lora-organize-fast lora-previews lora-previews-queue lora-previews-test lora-previews-regenerate lora-reconcile
 
 # Port configuration (high ports to avoid conflicts)
 API_PORT ?= 10050
@@ -27,6 +27,19 @@ help:
 	@echo "  make lint-backend   - Lint backend code only"
 	@echo "  make lint-frontend  - Lint frontend code only"
 	@echo "  make lint-fix       - Auto-fix linting issues"
+	@echo ""
+	@echo "LoRA Management:"
+	@echo "  make lora-check                - Check LoRA compatibility (dry run)"
+	@echo "  make lora-clean                - Move incompatible LoRAs to _incompatible/"
+	@echo "  make lora-organize             - Organize new LoRAs with local preview generation"
+	@echo "  make lora-organize-fast        - Organize new LoRAs without previews (fast)"
+	@echo "  make lora-previews-queue       - Queue preview generation via API (recommended)"
+	@echo "  make lora-previews             - Generate previews locally (synchronous)"
+	@echo "  make lora-previews-test        - Test trigger word extraction (dry run)"
+	@echo "  make lora-previews-regenerate  - Regenerate ALL previews with better prompts"
+	@echo "  make lora-reconcile            - Reconcile index with folders (validation)"
+	@echo ""
+	@echo "Other:"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make reorganize     - Reorganize project structure"
 	@echo ""
@@ -35,6 +48,8 @@ help:
 	@echo "Examples:"
 	@echo "  make dev                                    # Start development"
 	@echo "  make generate PROMPT='a cute cat'           # Generate image"
+	@echo "  make lora-organize-fast                     # Organize LoRAs (fast)"
+	@echo "  make lora-previews-queue                    # Generate previews via API"
 	@echo "  make kill                                   # Stop all services"
 	@echo "  API_PORT=6000 make api                      # Use custom port"
 
@@ -171,6 +186,59 @@ lint-fix:
 	@echo "Frontend..."
 	cd web && npm run lint:fix
 	@echo "✓ Linting fixes applied"
+
+# Check LoRA compatibility (dry run)
+lora-check:
+	@echo "Checking LoRA compatibility..."
+	. venv/bin/activate && python scripts/clean_loras.py
+
+# Clean incompatible LoRAs (move to _incompatible/)
+lora-clean:
+	@echo "Cleaning incompatible LoRAs..."
+	. venv/bin/activate && python scripts/clean_loras.py --clean
+	@echo ""
+	@echo "✓ LoRA cleanup complete"
+	@echo "Review moved files in: /mnt/speedy/imagineer/models/lora/_incompatible/"
+
+# Organize new LoRAs (auto-detect, folder, preview, index)
+lora-organize:
+	@echo "Organizing new LoRAs..."
+	. venv/bin/activate && python scripts/organize_loras.py
+	@echo ""
+	@echo "✓ LoRA organization complete"
+
+# Reconcile index (validation only)
+lora-reconcile:
+	@echo "Reconciling LoRA index..."
+	. venv/bin/activate && python scripts/organize_loras.py --reconcile-only
+
+lora-organize-fast:
+	@echo "Organizing new LoRAs (skipping preview generation)..."
+	. venv/bin/activate && python scripts/organize_loras.py --no-preview
+	@echo ""
+	@echo "✓ LoRA organization complete (no previews)"
+	@echo "  To generate previews: make lora-previews-queue"
+
+lora-previews-queue:
+	@echo "Queueing preview generation jobs via API server..."
+	@echo "(Requires API server running: python server/api.py)"
+	. venv/bin/activate && python scripts/generate_previews.py --queue --missing-only
+	@echo ""
+
+lora-previews:
+	@echo "Generating previews locally (synchronous, may be slow)..."
+	. venv/bin/activate && python scripts/generate_previews.py --missing-only
+	@echo ""
+
+lora-previews-test:
+	@echo "Testing trigger word extraction..."
+	. venv/bin/activate && python scripts/test_trigger_words.py
+
+lora-previews-regenerate:
+	@echo "Regenerating ALL previews with auto-detected trigger words..."
+	@echo "(This will replace existing previews)"
+	. venv/bin/activate && python scripts/regenerate_previews.py --queue
+	@echo ""
 
 # Clean build artifacts
 clean:

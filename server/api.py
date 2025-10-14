@@ -117,6 +117,47 @@ def get_set_config(set_name):
     return sets_config.get(set_name)
 
 
+def discover_set_loras(set_name, config):
+    """Dynamically discover LoRAs from set-specific folder
+
+    Looks for LoRAs in /mnt/speedy/imagineer/models/lora/{set_name}/
+    and returns list of LoRA configurations with paths and weights.
+
+    Args:
+        set_name: Name of the set
+        config: Main config dict containing model paths
+
+    Returns:
+        List of dicts with 'path' and 'weight' keys, or empty list if no LoRAs found
+    """
+    # Get lora base directory from config
+    lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+    set_lora_dir = lora_base_dir / set_name
+
+    if not set_lora_dir.exists() or not set_lora_dir.is_dir():
+        return []
+
+    # Find all .safetensors files in the set folder
+    lora_files = sorted(set_lora_dir.glob('*.safetensors'))
+
+    if not lora_files:
+        return []
+
+    # Build list of LoRA configs with default weights
+    # Default weight distributed evenly, but not exceeding 1.0 total
+    num_loras = len(lora_files)
+    default_weight = min(0.8 / num_loras, 0.6)  # Cap individual weights at 0.6
+
+    loras = []
+    for lora_file in lora_files:
+        loras.append({
+            'path': str(lora_file),
+            'weight': default_weight
+        })
+
+    return loras
+
+
 def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):
     """Construct the final prompt from components
 
@@ -314,9 +355,12 @@ def process_jobs():
                 if job.get('lora_weight'):
                     cmd.extend(['--lora-weight', str(job['lora_weight'])])
 
-            # For batch jobs, specify output directory
-            if job.get('output_dir') and job.get('batch_item_name'):
-                # Create sanitized filename from batch item name
+            # Handle output path
+            if job.get('output'):
+                # Direct output path specified (e.g., for preview generation)
+                cmd.extend(['--output', job['output']])
+            elif job.get('output_dir') and job.get('batch_item_name'):
+                # For batch jobs, specify output directory
                 safe_name = "".join(c for c in job['batch_item_name'] if c.isalnum() or c in (' ', '_', '-')).strip()
                 safe_name = safe_name.replace(' ', '_')
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -489,6 +533,19 @@ def generate():
             if len(negative_prompt) > 2000:
                 return jsonify({'success': False, 'error': 'Negative prompt too long (max 2000 chars)'}), 400
 
+        # Handle output path
+        output = data.get('output')
+        if output is not None:
+            output = str(output).strip()
+            # Security: Validate output path doesn't escape allowed directories
+            if '..' in output or output.startswith('/'):
+                if not Path(output).is_absolute():
+                    return jsonify({'success': False, 'error': 'Invalid output path'}), 400
+
+        # Handle LoRA paths and weights
+        lora_paths = data.get('lora_paths')
+        lora_weights = data.get('lora_weights')
+
         job = {
             'id': len(job_history) + job_queue.qsize() + 1,
             'prompt': prompt,
@@ -498,6 +555,9 @@ def generate():
             'height': height,
             'guidance_scale': guidance_scale,
             'negative_prompt': negative_prompt,
+            'output': output,
+            'lora_paths': lora_paths,
+            'lora_weights': lora_weights,
             'status': 'queued',
             'submitted_at': datetime.now().isoformat()
         }
@@ -737,14 +797,41 @@ def generate_batch():
                 'output_dir': str(batch_output_dir)  # Custom output directory for this job
             }
 
-            # Add LoRA parameters if set has LoRA config
-            # Support both old single LoRA format and new multiple LoRAs format
+            # Add LoRA parameters - try multiple sources in priority order:
+            # 1. Explicit 'loras' config in set config (multi-LoRA)
+            # 2. Dynamic discovery from set-specific folder
+            # 3. Old 'lora' config in set config (single LoRA, backward compatibility)
+            loras_to_load = None
+
             if 'loras' in set_config and set_config['loras']:
-                # New multi-LoRA format
+                # Explicit multi-LoRA format in config
                 loras = set_config['loras']
                 if isinstance(loras, list) and len(loras) > 0:
-                    job['lora_paths'] = [lora['path'] for lora in loras if 'path' in lora]
-                    job['lora_weights'] = [lora.get('weight', 0.5) for lora in loras if 'path' in lora]
+                    loras_to_load = loras
+            else:
+                # Try dynamic discovery from set folder
+                discovered_loras = discover_set_loras(set_name, config)
+                if discovered_loras:
+                    loras_to_load = discovered_loras
+                    # Apply weight overrides from config if specified
+                    if 'lora_weights' in set_config:
+                        weight_overrides = set_config['lora_weights']
+                        if isinstance(weight_overrides, dict):
+                            # Dict format: {filename: weight}
+                            for lora in loras_to_load:
+                                lora_filename = Path(lora['path']).name
+                                if lora_filename in weight_overrides:
+                                    lora['weight'] = weight_overrides[lora_filename]
+                        elif isinstance(weight_overrides, list):
+                            # List format: apply weights in order
+                            for i, weight in enumerate(weight_overrides):
+                                if i < len(loras_to_load):
+                                    loras_to_load[i]['weight'] = weight
+
+            if loras_to_load:
+                # Multi-LoRA format
+                job['lora_paths'] = [lora['path'] for lora in loras_to_load if 'path' in lora]
+                job['lora_weights'] = [lora.get('weight', 0.5) for lora in loras_to_load if 'path' in lora]
             elif 'lora' in set_config and set_config['lora']:
                 # Old single LoRA format (backward compatibility)
                 lora_config = set_config['lora']
@@ -1003,6 +1090,246 @@ def health():
         'current_job': current_job is not None,
         'total_completed': len(job_history)
     })
+
+
+@app.route('/api/loras', methods=['GET'])
+def list_loras():
+    """List all organized LoRAs from index"""
+    try:
+        config = load_config()
+        lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+        index_path = lora_base_dir / 'index.json'
+
+        if not index_path.exists():
+            return jsonify({'loras': []})
+
+        with open(index_path, 'r') as f:
+            index = json.load(f)
+
+        loras = []
+        for folder_name, entry in index.items():
+            lora_folder = lora_base_dir / folder_name
+            preview_path = lora_folder / 'preview.png'
+
+            # Check for actual preview file existence instead of trusting the index
+            has_preview = preview_path.exists()
+
+            loras.append({
+                'folder': folder_name,
+                'filename': entry.get('filename'),
+                'format': entry.get('format', 'sd15'),
+                'compatible': entry.get('compatible', True),
+                'has_preview': has_preview,  # Use actual file existence
+                'has_config': entry.get('has_config', False),
+                'organized_at': entry.get('organized_at'),
+                'default_weight': entry.get('default_weight')
+            })
+
+        # Sort by most recently organized
+        loras.sort(key=lambda x: x.get('organized_at', ''), reverse=True)
+
+        return jsonify({'loras': loras})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/loras/<folder>/preview', methods=['GET'])
+def serve_lora_preview(folder):
+    """Serve LoRA preview image"""
+    try:
+        # Security: Validate folder name to prevent path traversal
+        if '..' in folder or '/' in folder or '\\' in folder:
+            return jsonify({'error': 'Invalid folder name'}), 400
+
+        config = load_config()
+        lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+        preview_path = lora_base_dir / folder / 'preview.png'
+
+        if not preview_path.exists():
+            return jsonify({'error': 'Preview not found'}), 404
+
+        return send_from_directory(preview_path.parent, preview_path.name)
+
+    except Exception as e:
+        return jsonify({'error': 'Invalid request'}), 400
+
+
+@app.route('/api/loras/<folder>', methods=['GET'])
+def get_lora_details(folder):
+    """Get detailed information about a specific LoRA"""
+    try:
+        # Security: Validate folder name
+        if '..' in folder or '/' in folder or '\\' in folder:
+            return jsonify({'error': 'Invalid folder name'}), 400
+
+        config = load_config()
+        lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+        lora_folder = lora_base_dir / folder
+        config_path = lora_folder / 'config.yaml'
+
+        if not lora_folder.exists():
+            return jsonify({'error': 'LoRA not found'}), 404
+
+        details = {}
+
+        # Load config if it exists
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                details = yaml.safe_load(f) or {}
+
+        # Add index info
+        index_path = lora_base_dir / 'index.json'
+        if index_path.exists():
+            with open(index_path, 'r') as f:
+                index = json.load(f)
+                if folder in index:
+                    details.update(index[folder])
+
+        return jsonify(details)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sets/<set_name>/loras', methods=['GET'])
+def get_set_loras(set_name):
+    """Get LoRA configuration for a specific set
+
+    Returns list of LoRAs with their paths, weights, and metadata
+    """
+    try:
+        # Security: Validate set_name
+        if '..' in set_name or '/' in set_name or '\\' in set_name:
+            return jsonify({'error': 'Invalid set name'}), 400
+
+        set_config = get_set_config(set_name)
+        if not set_config:
+            return jsonify({'error': f'Set "{set_name}" not found'}), 404
+
+        config = load_config()
+        lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+
+        loras = []
+
+        # Check if set has explicit 'loras' configuration
+        if 'loras' in set_config and set_config['loras']:
+            for lora_config in set_config['loras']:
+                lora_path = Path(lora_config['path'])
+
+                # Try to find this LoRA in the index to get metadata
+                folder_name = lora_path.parent.name if lora_path.parent != lora_base_dir else None
+                metadata = {}
+
+                if folder_name:
+                    index_path = lora_base_dir / 'index.json'
+                    if index_path.exists():
+                        with open(index_path, 'r') as f:
+                            index = json.load(f)
+                            if folder_name in index:
+                                metadata = index[folder_name]
+
+                loras.append({
+                    'path': lora_config['path'],
+                    'weight': lora_config.get('weight', 0.5),
+                    'folder': folder_name,
+                    'filename': lora_path.name,
+                    'metadata': metadata
+                })
+
+        return jsonify({'loras': loras})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sets/<set_name>/loras', methods=['PUT'])
+def update_set_loras(set_name):
+    """Update LoRA configuration for a specific set
+
+    Expected JSON body:
+    {
+        "loras": [
+            {"folder": "card_style", "weight": 0.6},
+            {"folder": "tarot_theme", "weight": 0.4}
+        ]
+    }
+    """
+    try:
+        # Security: Validate set_name
+        if '..' in set_name or '/' in set_name or '\\' in set_name:
+            return jsonify({'error': 'Invalid set name'}), 400
+
+        data = request.json
+        if not data or 'loras' not in data:
+            return jsonify({'error': 'loras field is required'}), 400
+
+        loras_config = data['loras']
+        if not isinstance(loras_config, list):
+            return jsonify({'error': 'loras must be a list'}), 400
+
+        # Load main config
+        config = load_config()
+        lora_base_dir = Path(config['model'].get('cache_dir', '/mnt/speedy/imagineer/models')) / 'lora'
+
+        # Convert folder names to full paths and validate
+        loras_list = []
+        for lora in loras_config:
+            if not isinstance(lora, dict) or 'folder' not in lora:
+                return jsonify({'error': 'Each LoRA must have a folder field'}), 400
+
+            folder = lora['folder']
+            weight = lora.get('weight', 0.5)
+
+            # Validate weight
+            try:
+                weight = float(weight)
+                if weight < 0 or weight > 2.0:
+                    return jsonify({'error': f'Weight must be between 0 and 2.0, got {weight}'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid weight value'}), 400
+
+            # Find the .safetensors file in this folder
+            lora_folder = lora_base_dir / folder
+            if not lora_folder.exists():
+                return jsonify({'error': f'LoRA folder "{folder}" not found'}), 404
+
+            safetensors_files = list(lora_folder.glob('*.safetensors'))
+            if not safetensors_files:
+                return jsonify({'error': f'No .safetensors file found in folder "{folder}"'}), 404
+
+            lora_path = safetensors_files[0]  # Use first .safetensors file
+
+            loras_list.append({
+                'path': str(lora_path),
+                'weight': weight
+            })
+
+        # Load sets config
+        if not SETS_CONFIG_PATH or not SETS_CONFIG_PATH.exists():
+            return jsonify({'error': 'Sets configuration file not found'}), 404
+
+        with open(SETS_CONFIG_PATH, 'r') as f:
+            sets_config = yaml.safe_load(f) or {}
+
+        if set_name not in sets_config:
+            return jsonify({'error': f'Set "{set_name}" not found in configuration'}), 404
+
+        # Update the loras configuration for this set
+        sets_config[set_name]['loras'] = loras_list
+
+        # Save updated config
+        with open(SETS_CONFIG_PATH, 'w') as f:
+            yaml.dump(sets_config, f, default_flow_style=False, sort_keys=False)
+
+        return jsonify({
+            'success': True,
+            'message': f'Updated LoRA configuration for set "{set_name}"',
+            'loras': loras_list
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
