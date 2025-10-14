@@ -27,7 +27,10 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
 VENV_PYTHON = PROJECT_ROOT / 'venv' / 'bin' / 'python'
 GENERATE_SCRIPT = PROJECT_ROOT / 'examples' / 'generate.py'
-DATA_SETS_DIR = PROJECT_ROOT / 'data' / 'sets'
+
+# Load sets directory from config (will be set after config loads)
+SETS_DIR = None
+SETS_CONFIG_PATH = None
 
 # Job queue
 job_queue = queue.Queue()
@@ -36,15 +39,117 @@ current_job = None
 
 
 def load_config():
-    """Load config.yaml"""
+    """Load config.yaml and initialize sets paths"""
+    global SETS_DIR, SETS_CONFIG_PATH
+
     with open(CONFIG_PATH, 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+    # Initialize sets directory paths from config
+    if 'sets' in config and 'directory' in config['sets']:
+        SETS_DIR = Path(config['sets']['directory'])
+        SETS_CONFIG_PATH = SETS_DIR / 'config.yaml'
+    else:
+        # Fallback to repo location if not in config
+        SETS_DIR = PROJECT_ROOT / 'data' / 'sets'
+        SETS_CONFIG_PATH = SETS_DIR / 'config.yaml'
+
+    return config
 
 
 def save_config(config):
     """Save config.yaml"""
     with open(CONFIG_PATH, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+def load_sets_config():
+    """Load sets configuration, dynamically discovering sets from CSV files
+
+    Returns:
+        Dict with set configurations. Merges config.yaml with auto-discovered CSV files.
+    """
+    # Start with empty config
+    config = {}
+
+    # Load config.yaml if it exists
+    if SETS_CONFIG_PATH and SETS_CONFIG_PATH.exists():
+        with open(SETS_CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f) or {}
+
+    # Dynamically discover CSV files in sets directory
+    if SETS_DIR and SETS_DIR.exists():
+        for csv_file in SETS_DIR.glob('*.csv'):
+            set_id = csv_file.stem
+
+            # If not in config, create default config
+            if set_id not in config:
+                # Create friendly name from file name
+                name = set_id.replace('_', ' ').title()
+
+                config[set_id] = {
+                    'name': name,
+                    'description': f'Auto-discovered set: {name}',
+                    'csv_path': str(csv_file),
+                    'base_prompt': f'A {name.lower()} card',
+                    'prompt_template': '{name}, {description}' if set_id != 'card_deck' else '{value} of {suit}, {personality}',
+                    'style_suffix': 'card design, professional illustration',
+                    'example_theme': 'artistic style with creative lighting'
+                }
+            else:
+                # Ensure csv_path is set correctly from SETS_DIR
+                if 'csv_path' not in config[set_id] or not config[set_id]['csv_path'].startswith(str(SETS_DIR)):
+                    config[set_id]['csv_path'] = str(SETS_DIR / f"{set_id}.csv")
+
+    return config
+
+
+def get_set_config(set_name):
+    """Get configuration for a specific set
+
+    Args:
+        set_name: Name of the set
+
+    Returns:
+        Dict with set configuration or None if not found
+    """
+    sets_config = load_sets_config()
+    return sets_config.get(set_name)
+
+
+def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):
+    """Construct the final prompt from components
+
+    Order: [Base] [User Theme] [CSV Data via Template] [Style Suffix]
+    This order follows Stable Diffusion best practices where front words have strongest influence.
+
+    Args:
+        base_prompt: Base description (e.g., "A single playing card")
+        user_theme: User's art style theme (e.g., "barnyard animals under a full moon")
+        csv_data: Dict of CSV row data
+        prompt_template: Template string with {column} placeholders
+        style_suffix: Technical/style refinement terms
+
+    Returns:
+        Complete prompt string
+    """
+    # Replace placeholders in template with CSV data
+    csv_text = prompt_template
+    for key, value in csv_data.items():
+        csv_text = csv_text.replace(f'{{{key}}}', value)
+
+    # Construct final prompt with optimal ordering
+    parts = []
+    if base_prompt:
+        parts.append(base_prompt)
+    if user_theme:
+        parts.append(f"Art style: {user_theme}")
+    if csv_text:
+        parts.append(csv_text)
+    if style_suffix:
+        parts.append(style_suffix)
+
+    return ". ".join(parts)
 
 
 def load_set_data(set_name):
@@ -54,7 +159,7 @@ def load_set_data(set_name):
         set_name: Name of the set (without .csv extension)
 
     Returns:
-        List of dicts with 'name' and 'description' keys
+        List of dicts with all CSV columns as keys
 
     Raises:
         FileNotFoundError: If set doesn't exist
@@ -64,24 +169,30 @@ def load_set_data(set_name):
     if '..' in set_name or '/' in set_name or '\\' in set_name:
         raise ValueError('Invalid set name')
 
-    set_path = DATA_SETS_DIR / f"{set_name}.csv"
+    # Get set config to find CSV path
+    set_config = get_set_config(set_name)
+    if set_config and 'csv_path' in set_config:
+        set_path = Path(set_config['csv_path'])
+    else:
+        # Fallback to SETS_DIR if config doesn't specify path
+        if not SETS_DIR:
+            raise FileNotFoundError('Sets directory not configured')
+        set_path = SETS_DIR / f"{set_name}.csv"
 
     if not set_path.exists():
-        raise FileNotFoundError(f'Set "{set_name}" not found')
+        raise FileNotFoundError(f'Set "{set_name}" not found at {set_path}')
 
     items = []
     with open(set_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
 
-        # Validate CSV has required columns
-        if 'name' not in reader.fieldnames or 'description' not in reader.fieldnames:
-            raise ValueError('CSV must have "name" and "description" columns')
+        if not reader.fieldnames:
+            raise ValueError('CSV must have column headers')
 
         for row in reader:
-            items.append({
-                'name': row['name'].strip(),
-                'description': row['description'].strip()
-            })
+            # Strip whitespace from all values
+            item = {key: value.strip() for key, value in row.items()}
+            items.append(item)
 
     if not items:
         raise ValueError('Set is empty')
@@ -90,19 +201,72 @@ def load_set_data(set_name):
 
 
 def list_available_sets():
-    """List all available CSV sets
+    """List all available CSV sets from configuration
 
     Returns:
-        List of set names (without .csv extension)
+        List of set IDs
     """
-    if not DATA_SETS_DIR.exists():
-        return []
+    sets_config = load_sets_config()
+    return sorted(sets_config.keys())
 
-    sets = []
-    for csv_file in DATA_SETS_DIR.glob('*.csv'):
-        sets.append(csv_file.stem)
 
-    return sorted(sets)
+def generate_random_theme():
+    """Generate a random art style theme for inspiration
+
+    Returns:
+        A random theme string
+    """
+    import random
+
+    # Art styles
+    styles = [
+        "watercolor", "oil painting", "digital art", "pencil sketch", "ink drawing",
+        "pastel", "acrylic", "charcoal", "mixed media", "gouache", "airbrush",
+        "impressionist", "art nouveau", "art deco", "baroque", "renaissance",
+        "surrealist", "abstract", "minimalist", "pop art", "cyberpunk", "steampunk",
+        "vaporwave", "synthwave", "retro", "vintage", "modern", "contemporary"
+    ]
+
+    # Settings/environments
+    environments = [
+        "mystical forest", "cosmic nebula", "underwater world", "desert landscape",
+        "mountain peaks", "ancient ruins", "futuristic city", "enchanted garden",
+        "stormy ocean", "peaceful meadow", "dark cavern", "floating islands",
+        "crystal palace", "volcanic terrain", "frozen tundra", "tropical paradise",
+        "haunted mansion", "steampunk workshop", "neon-lit streets", "starlit sky"
+    ]
+
+    # Lighting/mood
+    moods = [
+        "ethereal glowing light", "dramatic shadows", "soft diffused lighting",
+        "golden hour glow", "moonlit atmosphere", "harsh sunlight", "bioluminescent glow",
+        "candlelit ambiance", "aurora borealis", "sunset colors", "dawn light",
+        "neon glow", "firelight", "lightning flashes", "rainbow light", "foggy mist"
+    ]
+
+    # Color palettes
+    colors = [
+        "deep purples and blues", "warm oranges and reds", "cool greens and teals",
+        "monochromatic grayscale", "vibrant rainbow", "pastel pinks and lavenders",
+        "earth tones", "metallic gold and silver", "black and gold", "navy and cream",
+        "emerald and sapphire", "crimson and gold", "turquoise and coral"
+    ]
+
+    # Construct random theme
+    style = random.choice(styles)
+    environment = random.choice(environments)
+    mood = random.choice(moods)
+    color = random.choice(colors)
+
+    # Randomly choose 2-3 components
+    components = random.sample([
+        f"{style} style",
+        environment,
+        mood,
+        color
+    ], k=random.randint(2, 3))
+
+    return ", ".join(components)
 
 
 def process_jobs():
@@ -139,6 +303,16 @@ def process_jobs():
                 cmd.extend(['--guidance-scale', str(job['guidance_scale'])])
             if job.get('negative_prompt'):
                 cmd.extend(['--negative-prompt', job['negative_prompt']])
+            # Handle LoRAs (backward compatible with single LoRA)
+            if job.get('lora_paths') and job.get('lora_weights'):
+                # Multi-LoRA format
+                cmd.extend(['--lora-paths'] + job['lora_paths'])
+                cmd.extend(['--lora-weights'] + [str(w) for w in job['lora_weights']])
+            elif job.get('lora_path'):
+                # Single LoRA format (backward compatibility)
+                cmd.extend(['--lora-path', job['lora_path']])
+                if job.get('lora_weight'):
+                    cmd.extend(['--lora-weight', str(job['lora_weight'])])
 
             # For batch jobs, specify output directory
             if job.get('output_dir') and job.get('batch_item_name'):
@@ -349,10 +523,58 @@ def generate():
 
 @app.route('/api/sets', methods=['GET'])
 def get_sets():
-    """List available CSV sets"""
+    """List available CSV sets with their configuration"""
     try:
-        sets = list_available_sets()
-        return jsonify({'sets': sets})
+        sets_config = load_sets_config()
+        sets_list = []
+
+        for set_name, config in sets_config.items():
+            sets_list.append({
+                'id': set_name,
+                'name': config.get('name', set_name),
+                'description': config.get('description', ''),
+                'example_theme': config.get('example_theme', '')
+            })
+
+        return jsonify({'sets': sets_list})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sets/<set_name>/info', methods=['GET'])
+def get_set_info(set_name):
+    """Get detailed information about a specific set"""
+    try:
+        set_config = get_set_config(set_name)
+        if not set_config:
+            return jsonify({'error': f'Set "{set_name}" not found'}), 404
+
+        # Load CSV to get item count
+        try:
+            set_items = load_set_data(set_name)
+            item_count = len(set_items)
+        except:
+            item_count = 0
+
+        return jsonify({
+            'id': set_name,
+            'name': set_config.get('name', set_name),
+            'description': set_config.get('description', ''),
+            'example_theme': set_config.get('example_theme', ''),
+            'item_count': item_count,
+            'base_prompt': set_config.get('base_prompt', ''),
+            'style_suffix': set_config.get('style_suffix', '')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/themes/random', methods=['GET'])
+def get_random_theme():
+    """Generate a random art style theme for inspiration"""
+    try:
+        theme = generate_random_theme()
+        return jsonify({'theme': theme})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -361,7 +583,7 @@ def get_sets():
 def generate_batch():
     """Submit batch generation from CSV set
 
-    Creates multiple jobs by combining set data with a prompt template.
+    Creates multiple jobs by combining user theme with set configuration.
     All images will be saved in a subfolder named after the batch.
     """
     try:
@@ -370,23 +592,28 @@ def generate_batch():
         if not data or not data.get('set_name'):
             return jsonify({'error': 'set_name is required'}), 400
 
-        if not data.get('prompt_template'):
-            return jsonify({'error': 'prompt_template is required'}), 400
+        if not data.get('user_theme'):
+            return jsonify({'error': 'user_theme is required'}), 400
 
         set_name = str(data['set_name']).strip()
-        prompt_template = str(data['prompt_template']).strip()
+        user_theme = str(data['user_theme']).strip()
 
-        if not prompt_template:
-            return jsonify({'error': 'prompt_template cannot be empty'}), 400
+        if not user_theme:
+            return jsonify({'error': 'user_theme cannot be empty'}), 400
 
-        if len(prompt_template) > 2000:
-            return jsonify({'error': 'prompt_template too long (max 2000 chars)'}), 400
+        if len(user_theme) > 500:
+            return jsonify({'error': 'user_theme too long (max 500 chars)'}), 400
+
+        # Load set configuration
+        set_config = get_set_config(set_name)
+        if not set_config:
+            return jsonify({'error': f'Set "{set_name}" not found in configuration'}), 404
 
         # Load set data
         try:
             set_items = load_set_data(set_name)
         except FileNotFoundError:
-            return jsonify({'error': f'Set "{set_name}" not found'}), 404
+            return jsonify({'error': f'Set "{set_name}" CSV file not found'}), 404
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
@@ -450,13 +677,46 @@ def generate_batch():
         # Create the subfolder
         batch_output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Extract set configuration
+        base_prompt = set_config.get('base_prompt', '')
+        prompt_template = set_config.get('prompt_template', '')
+        style_suffix = set_config.get('style_suffix', '')
+
+        # Use set-specific dimensions if not provided by user
+        if width is None and 'width' in set_config:
+            width = set_config['width']
+        if height is None and 'height' in set_config:
+            height = set_config['height']
+
+        # Use set-specific negative prompt if not provided by user
+        # If user provided one, append set's negative prompt to it
+        set_negative_prompt = set_config.get('negative_prompt', '')
+        if negative_prompt and set_negative_prompt:
+            negative_prompt = f"{negative_prompt}, {set_negative_prompt}"
+        elif set_negative_prompt:
+            negative_prompt = set_negative_prompt
+
         # Create jobs for each item in the set
         job_ids = []
         for item in set_items:
-            # Combine template with item description
-            # Template can use {name} and {description} placeholders
-            prompt = prompt_template.replace('{name}', item['name'])
-            prompt = prompt.replace('{description}', item['description'])
+            # Construct prompt using optimal ordering
+            prompt = construct_prompt(
+                base_prompt=base_prompt,
+                user_theme=user_theme,
+                csv_data=item,
+                prompt_template=prompt_template,
+                style_suffix=style_suffix
+            )
+
+            # Create a name for the file from available columns
+            # Priority: value+suit, name, first column
+            if 'value' in item and 'suit' in item:
+                item_name = f"{item['value']}_of_{item['suit']}"
+            elif 'name' in item:
+                item_name = item['name']
+            else:
+                # Use first column value
+                item_name = next(iter(item.values()))
 
             job_id = len(job_history) + job_queue.qsize() + 1
 
@@ -472,9 +732,25 @@ def generate_batch():
                 'status': 'queued',
                 'submitted_at': datetime.now().isoformat(),
                 'batch_id': batch_id,
-                'batch_item_name': item['name'],
+                'batch_item_name': item_name,
+                'batch_item_data': item,  # Store full item data for reference
                 'output_dir': str(batch_output_dir)  # Custom output directory for this job
             }
+
+            # Add LoRA parameters if set has LoRA config
+            # Support both old single LoRA format and new multiple LoRAs format
+            if 'loras' in set_config and set_config['loras']:
+                # New multi-LoRA format
+                loras = set_config['loras']
+                if isinstance(loras, list) and len(loras) > 0:
+                    job['lora_paths'] = [lora['path'] for lora in loras if 'path' in lora]
+                    job['lora_weights'] = [lora.get('weight', 0.5) for lora in loras if 'path' in lora]
+            elif 'lora' in set_config and set_config['lora']:
+                # Old single LoRA format (backward compatibility)
+                lora_config = set_config['lora']
+                if 'path' in lora_config:
+                    job['lora_path'] = lora_config['path']
+                    job['lora_weight'] = lora_config.get('weight', 0.5)
 
             job_queue.put(job)
             job_ids.append(job_id)
@@ -586,15 +862,86 @@ def cancel_job(job_id):
     return jsonify({'error': 'Job not found'}), 404
 
 
+@app.route('/api/batches', methods=['GET'])
+def list_batches():
+    """List all batch output directories"""
+    try:
+        config = load_config()
+        output_dir = Path(config['output']['directory'])
+
+        batches = []
+        if output_dir.exists():
+            # Find all subdirectories (batches)
+            for batch_dir in sorted(output_dir.iterdir(), key=os.path.getmtime, reverse=True):
+                if batch_dir.is_dir():
+                    # Count images in batch
+                    image_count = len(list(batch_dir.glob('*.png')))
+
+                    batches.append({
+                        'batch_id': batch_dir.name,
+                        'path': str(batch_dir),
+                        'image_count': image_count,
+                        'created': datetime.fromtimestamp(batch_dir.stat().st_mtime).isoformat()
+                    })
+
+        return jsonify({'batches': batches})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/batches/<batch_id>', methods=['GET'])
+def get_batch(batch_id):
+    """Get images from a specific batch"""
+    try:
+        # Security: Validate batch_id to prevent path traversal
+        if '..' in batch_id or '/' in batch_id or '\\' in batch_id:
+            return jsonify({'error': 'Invalid batch ID'}), 400
+
+        config = load_config()
+        batch_dir = Path(config['output']['directory']) / batch_id
+
+        if not batch_dir.exists() or not batch_dir.is_dir():
+            return jsonify({'error': 'Batch not found'}), 404
+
+        images = []
+        for img_file in sorted(batch_dir.glob('*.png'), key=os.path.getmtime):
+            metadata_file = img_file.with_suffix('.json')
+            metadata = {}
+
+            if metadata_file.exists():
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+
+            images.append({
+                'filename': img_file.name,
+                'path': str(img_file),
+                'relative_path': f"{batch_id}/{img_file.name}",
+                'size': img_file.stat().st_size,
+                'created': datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
+                'metadata': metadata
+            })
+
+        return jsonify({
+            'batch_id': batch_id,
+            'image_count': len(images),
+            'images': images
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/outputs', methods=['GET'])
 def list_outputs():
-    """List generated images"""
+    """List generated images (non-batch only)"""
     try:
         config = load_config()
         output_dir = Path(config['output']['directory'])
 
         images = []
         if output_dir.exists():
+            # Only get PNG files directly in output dir (not in subdirectories)
             for img_file in sorted(output_dir.glob('*.png'), key=os.path.getmtime, reverse=True):
                 metadata_file = img_file.with_suffix('.json')
                 metadata = {}
@@ -625,11 +972,12 @@ def serve_output(filename):
         output_dir = Path(config['output']['directory']).resolve()
 
         # Security: Validate filename to prevent path traversal
-        # Remove any directory traversal attempts
-        safe_filename = os.path.basename(filename)
+        # Check for path traversal attempts
+        if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+            return jsonify({'error': 'Access denied'}), 403
 
         # Construct the full path and resolve it
-        requested_path = (output_dir / safe_filename).resolve()
+        requested_path = (output_dir / filename).resolve()
 
         # Security check: Ensure the resolved path is within output_dir
         if not str(requested_path).startswith(str(output_dir)):
@@ -639,7 +987,8 @@ def serve_output(filename):
         if not requested_path.exists() or not requested_path.is_file():
             return jsonify({'error': 'File not found'}), 404
 
-        return send_from_directory(output_dir, safe_filename)
+        # Serve the file from its directory
+        return send_from_directory(requested_path.parent, requested_path.name)
 
     except Exception as e:
         return jsonify({'error': 'Invalid request'}), 400
