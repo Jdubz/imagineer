@@ -13,9 +13,15 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
   const [userTheme, setUserTheme] = useState('')
   const [selectedSetInfo, setSelectedSetInfo] = useState(null)
 
-  // Load available sets on mount
+  // LoRA configuration state
+  const [setLoras, setSetLoras] = useState([])
+  const [availableLoras, setAvailableLoras] = useState([])
+  const [showLoraConfig, setShowLoraConfig] = useState(false)
+
+  // Load available sets and LoRAs on mount
   useEffect(() => {
     fetchAvailableSets()
+    fetchAvailableLoras()
   }, [])
 
   const fetchAvailableSets = async () => {
@@ -25,6 +31,16 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
       setAvailableSets(data.sets || [])
     } catch (error) {
       console.error('Failed to fetch sets:', error)
+    }
+  }
+
+  const fetchAvailableLoras = async () => {
+    try {
+      const response = await fetch('/api/loras')
+      const data = await response.json()
+      setAvailableLoras(data.loras || [])
+    } catch (error) {
+      console.error('Failed to fetch LoRAs:', error)
     }
   }
 
@@ -38,12 +54,14 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  // When set selection changes, load set info
+  // When set selection changes, load set info and LoRAs
   useEffect(() => {
     if (selectedSet) {
       fetchSetInfo(selectedSet)
+      fetchSetLoras(selectedSet)
     } else {
       setSelectedSetInfo(null)
+      setSetLoras([])
     }
   }, [selectedSet])
 
@@ -55,6 +73,77 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     } catch (error) {
       console.error('Failed to fetch set info:', error)
     }
+  }
+
+  const fetchSetLoras = async (setName) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/loras`)
+      const data = await response.json()
+      setSetLoras(data.loras || [])
+    } catch (error) {
+      console.error('Failed to fetch set LoRAs:', error)
+    }
+  }
+
+  const updateSetLoras = async (setName, loras) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/loras`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ loras })
+      })
+      const data = await response.json()
+      if (data.success) {
+        fetchSetLoras(setName)  // Refresh the list
+      } else {
+        console.error('Failed to update LoRAs:', data.error)
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to update set LoRAs:', error)
+      alert('Failed to update LoRA configuration')
+    }
+  }
+
+  const addLoraToSet = (loraFolder) => {
+    if (!selectedSet || !loraFolder) return
+
+    // Check if already in set
+    if (setLoras.some(l => l.folder === loraFolder)) {
+      alert('This LoRA is already in the set')
+      return
+    }
+
+    const updatedLoras = [
+      ...setLoras,
+      { folder: loraFolder, weight: 0.5 }
+    ]
+
+    updateSetLoras(selectedSet, updatedLoras)
+  }
+
+  const removeLoraFromSet = (loraFolder) => {
+    if (!selectedSet) return
+
+    const updatedLoras = setLoras.filter(l => l.folder !== loraFolder)
+    updateSetLoras(selectedSet, updatedLoras)
+  }
+
+  const updateLoraWeight = (loraFolder, newWeight) => {
+    if (!selectedSet) return
+
+    const updatedLoras = setLoras.map(l =>
+      l.folder === loraFolder ? { ...l, weight: parseFloat(newWeight) } : l
+    )
+
+    setSetLoras(updatedLoras)  // Update UI immediately
+  }
+
+  const saveLoraWeights = () => {
+    if (!selectedSet) return
+    updateSetLoras(selectedSet, setLoras)
   }
 
   const handleSubmit = (e) => {
@@ -289,6 +378,104 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
             </p>
           )}
         </div>
+
+        {selectedSet && (
+          <div className="form-group lora-config-section">
+            <div className="lora-header">
+              <label>
+                LoRA Configuration
+                <span className="tooltip">?
+                  <span className="tooltip-text">
+                    Configure which LoRAs to apply to this set and their influence weights.
+                    <br/>• Weight 0.0 = No effect
+                    <br/>• Weight 0.5 = Moderate effect (recommended)
+                    <br/>• Weight 1.0 = Strong effect
+                    <br/>• Weight 1.5+ = Very strong (may distort)
+                  </span>
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowLoraConfig(!showLoraConfig)}
+                className="toggle-lora-btn"
+              >
+                {showLoraConfig ? '▼ Hide' : '▶ Show'} LoRAs ({setLoras.length})
+              </button>
+            </div>
+
+            {showLoraConfig && (
+              <>
+                {setLoras.length === 0 ? (
+                  <p className="no-loras-message">No LoRAs configured for this set. Add one below.</p>
+                ) : (
+                  <div className="lora-list">
+                    {setLoras.map((lora) => {
+                      const loraInfo = availableLoras.find(l => l.folder === lora.folder)
+                      return (
+                        <div key={lora.folder} className="lora-item">
+                          <div className="lora-info">
+                            <span className="lora-name">{loraInfo?.filename || lora.folder}</span>
+                          </div>
+                          <div className="lora-controls">
+                            <label htmlFor={`weight-${lora.folder}`} className="weight-label">
+                              Weight: {lora.weight.toFixed(2)}
+                            </label>
+                            <input
+                              type="range"
+                              id={`weight-${lora.folder}`}
+                              min="0"
+                              max="2"
+                              step="0.05"
+                              value={lora.weight}
+                              onChange={(e) => updateLoraWeight(lora.folder, e.target.value)}
+                              onMouseUp={saveLoraWeights}
+                              onTouchEnd={saveLoraWeights}
+                              className="weight-slider"
+                              disabled={loading}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeLoraFromSet(lora.folder)}
+                              className="remove-lora-btn"
+                              disabled={loading}
+                              title="Remove LoRA"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="add-lora-section">
+                  <label htmlFor="add-lora-select">Add LoRA:</label>
+                  <select
+                    id="add-lora-select"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addLoraToSet(e.target.value)
+                        e.target.value = ''  // Reset selection
+                      }
+                    }}
+                    disabled={loading}
+                    className="add-lora-select"
+                  >
+                    <option value="">-- Select LoRA to Add --</option>
+                    {availableLoras
+                      .filter(lora => !setLoras.some(sl => sl.folder === lora.folder))
+                      .map(lora => (
+                        <option key={lora.folder} value={lora.folder}>
+                          {lora.filename || lora.folder}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="form-group">
           <label htmlFor="user-theme">

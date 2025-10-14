@@ -934,3 +934,187 @@ button[type="submit"]:disabled {
     padding: 1rem;
   }
 }
+
+/* LoRA Configuration Styles */
+.lora-config-section {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9f9f9;
+}
+
+.lora-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.toggle-lora-btn {
+  padding: 0.5rem 1rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-lora-btn:hover {
+  background: #5568d3;
+}
+
+.no-loras-message {
+  text-align: center;
+  padding: 1rem;
+  color: #888;
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.lora-list {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lora-item {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  transition: border-color 0.2s;
+}
+
+.lora-item:hover {
+  border-color: #667eea;
+}
+
+.lora-info {
+  margin-bottom: 0.5rem;
+}
+
+.lora-name {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.lora-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.weight-label {
+  font-size: 0.85rem;
+  color: #666;
+  min-width: 80px;
+  font-weight: normal;
+}
+
+.weight-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.weight-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.weight-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.weight-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+
+.weight-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.remove-lora-btn {
+  padding: 0.5rem;
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-lora-btn:hover:not(:disabled) {
+  background: #cc0000;
+  transform: scale(1.1);
+}
+
+.remove-lora-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-lora-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px dashed #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.add-lora-section label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.add-lora-select {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.add-lora-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.add-lora-select:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
