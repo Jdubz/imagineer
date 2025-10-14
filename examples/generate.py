@@ -90,7 +90,7 @@ def main():
     print(f"Loading model: {model_id}")
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
-        dtype=torch.float16 if device == "cuda" else torch.float32,
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         cache_dir=config['model'].get('cache_dir'),
         safety_checker=None
     )
