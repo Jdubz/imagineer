@@ -43,7 +43,7 @@ Imagineer is a complete AI image generation system built on Stable Diffusion and
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/imagineer.git
+git clone https://github.com/Jdubz/imagineer.git
 cd imagineer
 ```
 
@@ -266,8 +266,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/yourusername/imagineer/issues)
-- 💬 [Discussions](https://github.com/yourusername/imagineer/discussions)
+- 🐛 [Issue Tracker](https://github.com/Jdubz/imagineer/issues)
+- 💬 [Discussions](https://github.com/Jdubz/imagineer/discussions)
 
 ---
 

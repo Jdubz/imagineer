@@ -54,3 +54,18 @@ Thumbs.db
 *.ckpt
 *.bin
 *.pth
+
+# Backup files
+*.backup
+*.py.backup
+*.js.backup
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# Audit and planning docs (keep in repo but ignore if recreated)
+# AUDIT_REPORT.md
+# SECURITY_AUDIT.md
