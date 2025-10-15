@@ -3,68 +3,46 @@ Basic Stable Diffusion inference example.
 This script demonstrates how to generate images using Stable Diffusion models.
 """
 
-import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
-from pathlib import Path
 import argparse
+from pathlib import Path
+
+import torch
+from diffusers import DPMSolverMultistepScheduler, StableDiffusionPipeline
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate images using Stable Diffusion")
     parser.add_argument(
-        "--prompt",
-        type=str,
-        required=True,
-        help="Text prompt for image generation"
+        "--prompt", type=str, required=True, help="Text prompt for image generation"
     )
     parser.add_argument(
         "--negative-prompt",
         type=str,
         default="blurry, low quality, distorted",
-        help="Negative prompt to guide what to avoid"
+        help="Negative prompt to guide what to avoid",
     )
     parser.add_argument(
         "--model",
         type=str,
         default="runwayml/stable-diffusion-v1-5",
-        help="Model ID from Hugging Face or local path"
+        help="Model ID from Hugging Face or local path",
     )
     parser.add_argument(
         "--output",
         type=str,
         default="outputs/generated.png",
-        help="Output path for generated image"
+        help="Output path for generated image",
     )
-    parser.add_argument(
-        "--steps",
-        type=int,
-        default=25,
-        help="Number of inference steps"
-    )
+    parser.add_argument("--steps", type=int, default=25, help="Number of inference steps")
     parser.add_argument(
         "--guidance-scale",
         type=float,
         default=7.5,
-        help="Guidance scale (higher = more adherence to prompt)"
+        help="Guidance scale (higher = more adherence to prompt)",
     )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducibility"
-    )
-    parser.add_argument(
-        "--width",
-        type=int,
-        default=512,
-        help="Image width"
-    )
-    parser.add_argument(
-        "--height",
-        type=int,
-        default=512,
-        help="Image height"
-    )
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
+    parser.add_argument("--width", type=int, default=512, help="Image width")
+    parser.add_argument("--height", type=int, default=512, help="Image height")
 
     args = parser.parse_args()
 
@@ -73,14 +51,16 @@ def main():
     print(f"Using device: {device}")
 
     if device == "cpu":
-        print("WARNING: Running on CPU. This will be very slow. Install CUDA-enabled PyTorch for GPU acceleration.")
+        print(
+            "WARNING: Running on CPU. This will be very slow. Install CUDA-enabled PyTorch for GPU acceleration."
+        )
 
     # Load the model
     print(f"Loading model: {args.model}")
     pipe = StableDiffusionPipeline.from_pretrained(
         args.model,
         dtype=torch.float16 if device == "cuda" else torch.float32,
-        safety_checker=None  # Remove for faster inference
+        safety_checker=None,  # Remove for faster inference
     )
 
     # Use DPM-Solver++ for faster inference
@@ -110,7 +90,7 @@ def main():
         guidance_scale=args.guidance_scale,
         generator=generator,
         width=args.width,
-        height=args.height
+        height=args.height,
     ).images[0]
 
     # Save the image

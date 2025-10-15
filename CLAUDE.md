@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Imagineer is an AI Image Generation Toolkit built on Stable Diffusion and Hugging Face Diffusers. It provides tools for generating images from text prompts and fine-tuning models using LoRA (Low-Rank Adaptation).
+Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card sets (playing cards, tarot, zodiac). The system supports multi-LoRA loading, set-based batch generation, and provides both REST API and web UI interfaces.
+
+**For detailed architecture documentation, see:** `docs/ARCHITECTURE.md`
 
 ## Environment Setup
 
@@ -32,22 +34,55 @@ pip install -e ".[dev]"  # Installs pytest, black, flake8, isort
 
 ## Common Commands
 
-### Image Generation
+### Start Services
 ```bash
-# Basic image generation
-python examples/basic_inference.py \
-  --prompt "your prompt here" \
-  --output outputs/image.png \
-  --steps 25
+# Terminal 1: API Server (Port 10050)
+source venv/bin/activate
+python server/api.py
 
-# With specific parameters
-python examples/basic_inference.py \
-  --prompt "your prompt" \
-  --negative-prompt "blurry, low quality" \
-  --width 512 \
-  --height 512 \
-  --guidance-scale 7.5 \
-  --seed 42
+# Terminal 2: Web UI Dev Server (Port 3000)
+cd web && npm run dev
+```
+
+### Image Generation
+
+**Single LoRA:**
+```bash
+python examples/generate.py \
+  --prompt "your prompt here" \
+  --lora-path /mnt/speedy/imagineer/models/lora/Card_Fronts-000008.safetensors \
+  --lora-weight 0.6 \
+  --width 512 --height 720 --steps 25
+```
+
+**Multiple LoRAs (Stacking):**
+```bash
+python examples/generate.py \
+  --prompt "PlayingCards. Ace of Spades..." \
+  --lora-paths /path/to/lora1.safetensors /path/to/lora2.safetensors \
+  --lora-weights 0.6 0.3 \
+  --width 512 --height 720 --steps 25
+```
+
+**Via API:**
+```bash
+# Single generation
+curl -X POST http://localhost:10050/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "your prompt", "steps": 25}'
+
+# Batch generation from set
+curl -X POST http://localhost:10050/api/generate/batch \
+  -H "Content-Type: application/json" \
+  -d '{"set_name": "card_deck", "user_theme": "gothic style"}'
+```
+
+### Testing LoRAs
+```bash
+# Test all LoRAs in lora directory
+./test_all_loras.sh
+
+# Results in: /mnt/speedy/imagineer/outputs/lora_tests/
 ```
 
 ### LoRA Training
@@ -55,7 +90,7 @@ python examples/basic_inference.py \
 # Fine-tune model with custom dataset
 python examples/train_lora.py \
   --data-dir data/training \
-  --output-dir checkpoints/my_lora \
+  --output-dir /mnt/speedy/imagineer/checkpoints/my_lora \
   --steps 1000 \
   --rank 4 \
   --learning-rate 1e-4
@@ -78,67 +113,121 @@ pytest
 
 ## Architecture
 
+**See `docs/ARCHITECTURE.md` for complete system architecture documentation.**
+
 ### Core Components
 
-**src/imagineer/utils.py**
-Central utility module providing:
-- `save_image_with_metadata()`: Saves images with JSON metadata sidecars
-- `create_image_grid()`: Creates grid layouts from multiple images
-- `get_device()`: Auto-detects optimal device (cuda/mps/cpu)
-- `get_optimal_dtype()`: Returns appropriate dtype for device (fp16 on cuda, fp32 elsewhere)
-- `preprocess_image()`: Handles image resizing and center cropping
-- `calculate_vram_usage()`: Monitors GPU memory on CUDA devices
-- `generate_filename()`: Creates timestamped filenames from prompts
-- `load_prompt_list()`: Loads batch prompts from text files
+**server/api.py** - Flask REST API (Port 10050)
+- Job queue with background worker
+- Set-based batch generation
+- Multi-LoRA configuration support
+- Dynamic CSV set discovery
 
-**examples/basic_inference.py**
-Inference pipeline using StableDiffusionPipeline with:
-- DPMSolverMultistepScheduler for faster generation
-- Automatic device detection and dtype selection
-- Memory optimizations (attention slicing)
-- Seed control for reproducibility
+**examples/generate.py** - Core generation script
+- Multi-LoRA loading via PEFT adapters
+- Backward compatible with single LoRA
+- DPMSolverMultistepScheduler for fast inference
+- Metadata JSON sidecars
 
-**examples/train_lora.py**
-LoRA fine-tuning implementation featuring:
-- `ImageCaptionDataset`: Loads image-caption pairs (looks for .txt files matching image names)
-- Custom LoRA layers via LoRAAttnProcessor applied to UNet attention processors
-- Training loop with noise prediction and MSE loss
-- Checkpoint saving at regular intervals
+**web/** - React Frontend (Port 3000)
+- Batch gallery with navigation
+- Set selection and batch generation UI
+- Real-time job queue monitoring
 
-### Configuration
+**examples/train_lora.py** - LoRA training
+- Custom LoRA fine-tuning on datasets
+- ImageCaptionDataset with .txt caption files
 
-**config.yaml**
-Central configuration for:
-- Model selection (default: runwayml/stable-diffusion-v1-5)
-- Generation parameters (size, steps, guidance_scale, negative_prompt)
-- Training hyperparameters (learning_rate, LoRA rank/alpha/dropout)
-- Hardware settings (device auto-detection, mixed precision, memory optimizations)
+### Configuration Files
+
+**config.yaml** - Main application config
+- Model, generation, training, hardware settings
+- Paths to external directories
+
+**/mnt/speedy/imagineer/sets/config.yaml** - Set definitions
+- Per-set prompts, dimensions, LoRAs, negative prompts
+- Multi-LoRA stacking configuration
 
 ### Data Organization
 
 ```
-data/training/           # Training images with .txt caption files
-models/                  # Hugging Face model cache
-outputs/                 # Generated images
-checkpoints/             # LoRA training checkpoints
+/home/jdubz/Development/imagineer/  # Repository
+├── server/api.py                    # Flask API
+├── examples/generate.py             # Generation script
+├── web/                             # React UI
+└── config.yaml                      # Main config
+
+/mnt/speedy/imagineer/              # External storage
+├── models/lora/*.safetensors        # LoRA weights
+├── sets/
+│   ├── config.yaml                  # Set configurations
+│   ├── card_deck.csv                # 54 playing cards
+│   ├── tarot_deck.csv               # 22 Major Arcana
+│   └── zodiac.csv                   # 12 zodiac signs
+├── checkpoints/                     # Training outputs
+└── outputs/
+    └── [batch_id]/                  # Batch subdirectories
+        ├── *.png                    # Generated images
+        └── *.json                   # Metadata sidecars
 ```
 
 ## Key Design Patterns
 
-**Model Loading:**
-All scripts load models via `StableDiffusionPipeline.from_pretrained()` with conditional dtype based on device (fp16 for CUDA, fp32 otherwise). Safety checker is disabled for faster inference.
+**Set-Based Batch Generation:**
+```yaml
+# /mnt/speedy/imagineer/sets/config.yaml
+card_deck:
+  prompt_template: "{value} of {suit}. CARD LAYOUT: {visual_layout}"
+  loras:
+    - path: "/path/to/lora1.safetensors"
+      weight: 0.6
+    - path: "/path/to/lora2.safetensors"
+      weight: 0.3
+```
+
+Prompt construction order: `[Base Prompt] [User Theme] [CSV Data] [Style Suffix]`
+
+**Multi-LoRA Loading:**
+```python
+# Single LoRA (backward compatible)
+--lora-path <path> --lora-weight <weight>
+
+# Multiple LoRAs (stacking)
+--lora-paths <path1> <path2> --lora-weights <w1> <w2>
+```
+
+LoRAs combine additively: `Output = Base + (LoRA1 * w1) + (LoRA2 * w2)`
+
+**Job Queue Architecture:**
+- API enqueues jobs → Background worker processes sequentially
+- Each job spawns `subprocess.run(examples/generate.py)`
+- Job history kept for last 50 completions
 
 **Memory Management:**
-- Attention slicing enabled by default on CUDA
-- VAE slicing and xformers available but opt-in
-- LoRA training uses memory-efficient parameter updates
-
-**Dataset Format:**
-Training expects image files (.jpg/.png) with matching .txt caption files in same directory. Falls back to filename as caption if .txt missing.
+- Attention slicing enabled by default on CUDA (saves ~1-2GB VRAM)
+- fp16 on CUDA, fp32 on CPU/MPS
+- Safety checker disabled for performance
 
 ## Important Notes
 
-- First run will download ~5GB models from Hugging Face Hub to `models/` cache
-- LoRA training modifies only attention processor parameters, keeping base model frozen
-- Generated images are saved with optional JSON metadata sidecars containing generation parameters
-- All scripts accept command-line arguments; check `--help` for full options
+**Dependencies:**
+- **CRITICAL:** `peft>=0.17.0` required for LoRA loading
+- **Version Lock:** `diffusers==0.31.0` and `transformers==4.47.0` are tested together
+- Newer versions may have compatibility issues
+
+**LoRA Compatibility:**
+- Only SD 1.5 LoRAs work (typically <150MB)
+- SDXL LoRAs (>150MB) will fail with dimension errors
+- 3 working LoRAs tested: Card_Fronts-000008, Devil Carnival, Tarot
+
+**First Run:**
+- Downloads ~5GB SD 1.5 model from Hugging Face to model cache
+- LoRAs must be manually downloaded to `/mnt/speedy/imagineer/models/lora/`
+
+**File References:**
+- Use `file_path:line_number` format when referencing code
+- Example: "LoRA loading happens in examples/generate.py:137"
+
+**Generated Images:**
+- Saved with JSON metadata sidecars (prompt, settings, LoRAs, seed)
+- Batch images organized in subdirectories: `outputs/{set_name}_{timestamp}/`

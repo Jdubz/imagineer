@@ -1,18 +1,34 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
-import GenerateForm from './components/GenerateForm'
-import ConfigDisplay from './components/ConfigDisplay'
-import ImageGrid from './components/ImageGrid'
+import PasswordGate from './components/PasswordGate'
+import Tabs from './components/Tabs'
+import GenerateTab from './components/GenerateTab'
+import GalleryTab from './components/GalleryTab'
+import LorasTab from './components/LorasTab'
+import QueueTab from './components/QueueTab'
 
 function App() {
   const [config, setConfig] = useState(null)
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
+  const [currentJob, setCurrentJob] = useState(null)
+  const [queuePosition, setQueuePosition] = useState(null)
+  const [batches, setBatches] = useState([])
+  const [activeTab, setActiveTab] = useState('generate')
+
+  // Tab configuration
+  const tabs = [
+    { id: 'generate', label: 'Generate', icon: '✨' },
+    { id: 'gallery', label: 'Gallery', icon: '🖼️' },
+    { id: 'queue', label: 'Queue', icon: '📋' },
+    { id: 'loras', label: 'LoRAs', icon: '🎨' }
+  ]
 
   // Load config on mount
   useEffect(() => {
     fetchConfig()
     fetchImages()
+    fetchBatches()
   }, [])
 
   const fetchConfig = async () => {
@@ -35,8 +51,19 @@ function App() {
     }
   }
 
+  const fetchBatches = async () => {
+    try {
+      const response = await fetch('/api/batches')
+      const data = await response.json()
+      setBatches(data.batches || [])
+    } catch (error) {
+      console.error('Failed to fetch batches:', error)
+    }
+  }
+
   const handleGenerate = async (params) => {
     setLoading(true)
+    setQueuePosition(null)
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -44,18 +71,49 @@ function App() {
         body: JSON.stringify(params)
       })
 
-      const result = await response.json()
+      if (response.status === 201) {
+        // Job created successfully
+        const result = await response.json()
+        setCurrentJob(result)
+        setQueuePosition(result.queue_position)
 
-      if (result.success) {
         // Poll for completion
-        pollJobStatus(result.job.id)
+        pollJobStatus(result.id)
       } else {
-        alert('Failed to submit job: ' + result.error)
+        const error = await response.json()
+        alert('Failed to submit job: ' + error.error)
         setLoading(false)
       }
     } catch (error) {
       console.error('Failed to generate:', error)
       alert('Error submitting job')
+      setLoading(false)
+    }
+  }
+
+  const handleGenerateBatch = async (params) => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      })
+
+      if (response.status === 201) {
+        const result = await response.json()
+        alert(`Batch generation started!\n${result.total_jobs} jobs queued for ${result.set_name}`)
+        // Refresh batches list and switch to gallery tab
+        fetchBatches()
+        setActiveTab('gallery')
+      } else {
+        const error = await response.json()
+        alert('Failed to submit batch: ' + error.error)
+      }
+    } catch (error) {
+      console.error('Failed to generate batch:', error)
+      alert('Error submitting batch')
+    } finally {
       setLoading(false)
     }
   }
@@ -66,12 +124,27 @@ function App() {
         const response = await fetch(`/api/jobs/${jobId}`)
         const job = await response.json()
 
+        // Update queue position
+        if (job.queue_position !== undefined) {
+          setQueuePosition(job.queue_position)
+        }
+
         if (job.status === 'completed') {
           setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
           fetchImages() // Refresh image grid
+          fetchBatches() // Refresh batches too
         } else if (job.status === 'failed') {
           setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
           alert('Generation failed: ' + (job.error || 'Unknown error'))
+        } else if (job.status === 'cancelled') {
+          setLoading(false)
+          setCurrentJob(null)
+          setQueuePosition(null)
+          alert('Job was cancelled')
         } else {
           // Still running or queued, check again
           setTimeout(checkStatus, 2000)
@@ -79,6 +152,8 @@ function App() {
       } catch (error) {
         console.error('Error checking job status:', error)
         setLoading(false)
+        setCurrentJob(null)
+        setQueuePosition(null)
       }
     }
 
@@ -86,22 +161,44 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <header className="header">
-        <h1>✨ Imagineer</h1>
-        <p>AI Image Generation Toolkit</p>
-      </header>
+    <PasswordGate>
+      <div className="App">
+        <header className="header">
+          <h1>✨ Imagineer</h1>
+          <p>AI Image Generation Toolkit</p>
+        </header>
 
-      <div className="container">
-        <div className="main-content">
-          <GenerateForm onGenerate={handleGenerate} loading={loading} config={config} />
+        <div className="container">
+          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-          {config && <ConfigDisplay config={config} />}
+          <div className="main-content">
+            {activeTab === 'generate' && (
+              <GenerateTab
+                config={config}
+                loading={loading}
+                queuePosition={queuePosition}
+                currentJob={currentJob}
+                onGenerate={handleGenerate}
+                onGenerateBatch={handleGenerateBatch}
+              />
+            )}
 
-          <ImageGrid images={images} onRefresh={fetchImages} />
+            {activeTab === 'gallery' && (
+              <GalleryTab
+                batches={batches}
+                images={images}
+                onRefreshImages={fetchImages}
+                onRefreshBatches={fetchBatches}
+              />
+            )}
+
+            {activeTab === 'queue' && <QueueTab />}
+
+            {activeTab === 'loras' && <LorasTab />}
+          </div>
         </div>
       </div>
-    </div>
+    </PasswordGate>
   )
 }
 

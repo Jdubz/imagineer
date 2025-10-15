@@ -1,11 +1,150 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
-function GenerateForm({ onGenerate, loading, config }) {
+function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
   const [prompt, setPrompt] = useState('')
   const [steps, setSteps] = useState(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState(config?.generation?.guidance_scale || 7.5)
   const [seed, setSeed] = useState('')
   const [useRandomSeed, setUseRandomSeed] = useState(true)
+
+  // Batch generation state
+  const [availableSets, setAvailableSets] = useState([])
+  const [selectedSet, setSelectedSet] = useState('')
+  const [userTheme, setUserTheme] = useState('')
+  const [selectedSetInfo, setSelectedSetInfo] = useState(null)
+
+  // LoRA configuration state
+  const [setLoras, setSetLoras] = useState([])
+  const [availableLoras, setAvailableLoras] = useState([])
+  const [showLoraConfig, setShowLoraConfig] = useState(false)
+
+  // Load available sets and LoRAs on mount
+  useEffect(() => {
+    fetchAvailableSets()
+    fetchAvailableLoras()
+  }, [])
+
+  const fetchAvailableSets = async () => {
+    try {
+      const response = await fetch('/api/sets')
+      const data = await response.json()
+      setAvailableSets(data.sets || [])
+    } catch (error) {
+      console.error('Failed to fetch sets:', error)
+    }
+  }
+
+  const fetchAvailableLoras = async () => {
+    try {
+      const response = await fetch('/api/loras')
+      const data = await response.json()
+      setAvailableLoras(data.loras || [])
+    } catch (error) {
+      console.error('Failed to fetch LoRAs:', error)
+    }
+  }
+
+  const fetchRandomTheme = async () => {
+    try {
+      const response = await fetch('/api/themes/random')
+      const data = await response.json()
+      setUserTheme(data.theme || '')
+    } catch (error) {
+      console.error('Failed to fetch random theme:', error)
+    }
+  }
+
+  // When set selection changes, load set info and LoRAs
+  useEffect(() => {
+    if (selectedSet) {
+      fetchSetInfo(selectedSet)
+      fetchSetLoras(selectedSet)
+    } else {
+      setSelectedSetInfo(null)
+      setSetLoras([])
+    }
+  }, [selectedSet])
+
+  const fetchSetInfo = async (setName) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/info`)
+      const data = await response.json()
+      setSelectedSetInfo(data)
+    } catch (error) {
+      console.error('Failed to fetch set info:', error)
+    }
+  }
+
+  const fetchSetLoras = async (setName) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/loras`)
+      const data = await response.json()
+      setSetLoras(data.loras || [])
+    } catch (error) {
+      console.error('Failed to fetch set LoRAs:', error)
+    }
+  }
+
+  const updateSetLoras = async (setName, loras) => {
+    try {
+      const response = await fetch(`/api/sets/${setName}/loras`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ loras })
+      })
+      const data = await response.json()
+      if (data.success) {
+        fetchSetLoras(setName)  // Refresh the list
+      } else {
+        console.error('Failed to update LoRAs:', data.error)
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to update set LoRAs:', error)
+      alert('Failed to update LoRA configuration')
+    }
+  }
+
+  const addLoraToSet = (loraFolder) => {
+    if (!selectedSet || !loraFolder) return
+
+    // Check if already in set
+    if (setLoras.some(l => l.folder === loraFolder)) {
+      alert('This LoRA is already in the set')
+      return
+    }
+
+    const updatedLoras = [
+      ...setLoras,
+      { folder: loraFolder, weight: 0.5 }
+    ]
+
+    updateSetLoras(selectedSet, updatedLoras)
+  }
+
+  const removeLoraFromSet = (loraFolder) => {
+    if (!selectedSet) return
+
+    const updatedLoras = setLoras.filter(l => l.folder !== loraFolder)
+    updateSetLoras(selectedSet, updatedLoras)
+  }
+
+  const updateLoraWeight = (loraFolder, newWeight) => {
+    if (!selectedSet) return
+
+    const updatedLoras = setLoras.map(l =>
+      l.folder === loraFolder ? { ...l, weight: parseFloat(newWeight) } : l
+    )
+
+    setSetLoras(updatedLoras)  // Update UI immediately
+  }
+
+  const saveLoraWeights = () => {
+    if (!selectedSet) return
+    updateSetLoras(selectedSet, setLoras)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -30,6 +169,26 @@ function GenerateForm({ onGenerate, loading, config }) {
     const randomSeed = Math.floor(Math.random() * 2147483647)
     setSeed(randomSeed.toString())
     setUseRandomSeed(false)
+  }
+
+  const handleBatchSubmit = (e) => {
+    e.preventDefault()
+    if (selectedSet && userTheme.trim()) {
+      const params = {
+        set_name: selectedSet,
+        user_theme: userTheme.trim(),
+        steps,
+        guidance_scale: guidanceScale
+      }
+
+      // Only include seed if user provided one
+      if (!useRandomSeed && seed) {
+        params.seed = parseInt(seed)
+      }
+
+      onGenerateBatch(params)
+      setUserTheme('')
+    }
   }
 
   return (
@@ -181,6 +340,192 @@ function GenerateForm({ onGenerate, loading, config }) {
           <div className="loading-indicator">
             <div className="spinner"></div>
             <p>Generating your image... This may take 10-30 seconds</p>
+          </div>
+        )}
+      </form>
+
+      <div className="form-divider"></div>
+
+      <h2>Generate Set</h2>
+      <form onSubmit={handleBatchSubmit} className="batch-form">
+        <div className="form-group">
+          <label htmlFor="set-select">
+            Select Set
+            <span className="tooltip">?
+              <span className="tooltip-text">
+                Choose a predefined set (e.g., card deck, tarot deck) to generate multiple images.
+                <br/>Each item in the set will be styled with your art theme.
+              </span>
+            </span>
+          </label>
+          <select
+            id="set-select"
+            value={selectedSet}
+            onChange={(e) => setSelectedSet(e.target.value)}
+            disabled={loading}
+            required
+          >
+            <option value="">-- Select a set --</option>
+            {availableSets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name}
+              </option>
+            ))}
+          </select>
+          {selectedSetInfo && (
+            <p className="set-info">
+              {selectedSetInfo.description} ({selectedSetInfo.item_count} items)
+            </p>
+          )}
+        </div>
+
+        {selectedSet && (
+          <div className="form-group lora-config-section">
+            <div className="lora-header">
+              <label>
+                LoRA Configuration
+                <span className="tooltip">?
+                  <span className="tooltip-text">
+                    Configure which LoRAs to apply to this set and their influence weights.
+                    <br/>• Weight 0.0 = No effect
+                    <br/>• Weight 0.5 = Moderate effect (recommended)
+                    <br/>• Weight 1.0 = Strong effect
+                    <br/>• Weight 1.5+ = Very strong (may distort)
+                  </span>
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowLoraConfig(!showLoraConfig)}
+                className="toggle-lora-btn"
+              >
+                {showLoraConfig ? '▼ Hide' : '▶ Show'} LoRAs ({setLoras.length})
+              </button>
+            </div>
+
+            {showLoraConfig && (
+              <>
+                {setLoras.length === 0 ? (
+                  <p className="no-loras-message">No LoRAs configured for this set. Add one below.</p>
+                ) : (
+                  <div className="lora-list">
+                    {setLoras.map((lora) => {
+                      const loraInfo = availableLoras.find(l => l.folder === lora.folder)
+                      return (
+                        <div key={lora.folder} className="lora-item">
+                          <div className="lora-info">
+                            <span className="lora-name">{loraInfo?.filename || lora.folder}</span>
+                          </div>
+                          <div className="lora-controls">
+                            <label htmlFor={`weight-${lora.folder}`} className="weight-label">
+                              Weight: {lora.weight.toFixed(2)}
+                            </label>
+                            <input
+                              type="range"
+                              id={`weight-${lora.folder}`}
+                              min="0"
+                              max="2"
+                              step="0.05"
+                              value={lora.weight}
+                              onChange={(e) => updateLoraWeight(lora.folder, e.target.value)}
+                              onMouseUp={saveLoraWeights}
+                              onTouchEnd={saveLoraWeights}
+                              className="weight-slider"
+                              disabled={loading}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeLoraFromSet(lora.folder)}
+                              className="remove-lora-btn"
+                              disabled={loading}
+                              title="Remove LoRA"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="add-lora-section">
+                  <label htmlFor="add-lora-select">Add LoRA:</label>
+                  <select
+                    id="add-lora-select"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addLoraToSet(e.target.value)
+                        e.target.value = ''  // Reset selection
+                      }
+                    }}
+                    disabled={loading}
+                    className="add-lora-select"
+                  >
+                    <option value="">-- Select LoRA to Add --</option>
+                    {availableLoras
+                      .filter(lora => !setLoras.some(sl => sl.folder === lora.folder))
+                      .map(lora => (
+                        <option key={lora.folder} value={lora.folder}>
+                          {lora.filename || lora.folder}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label htmlFor="user-theme">
+            Art Style Theme
+            <span className="tooltip">?
+              <span className="tooltip-text">
+                Describe the artistic style and atmosphere for your card set.
+                <br/><br/>Examples:
+                <br/>• "watercolor pastels with soft dreamy lighting"
+                <br/>• "cyberpunk neon with dark urban background"
+                <br/>• "vintage botanical illustrations"
+                {selectedSetInfo && selectedSetInfo.example_theme && (
+                  <>
+                    <br/><br/>Suggestion for {selectedSetInfo.name}:
+                    <br/>"{selectedSetInfo.example_theme}"
+                  </>
+                )}
+              </span>
+            </span>
+          </label>
+          <div className="theme-input-group">
+            <textarea
+              id="user-theme"
+              value={userTheme}
+              onChange={(e) => setUserTheme(e.target.value)}
+              placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
+              rows="3"
+              disabled={loading}
+              required
+            />
+            <button
+              type="button"
+              onClick={fetchRandomTheme}
+              disabled={loading}
+              className="random-theme-btn"
+              title="Generate random theme"
+            >
+              🎲 Random Theme
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" disabled={loading || !selectedSet || !userTheme.trim()} className="batch-submit-btn">
+          {loading ? 'Generating Set...' : 'Generate Complete Set'}
+        </button>
+
+        {loading && (
+          <div className="loading-indicator">
+            <div className="spinner"></div>
+            <p>Queuing batch generation... This will create multiple jobs</p>
           </div>
         )}
       </form>

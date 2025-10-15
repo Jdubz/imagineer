@@ -52,6 +52,7 @@ Update just generation settings
 ### POST `/api/generate`
 Submit image generation job
 
+**Request:**
 ```json
 {
   "prompt": "a beautiful landscape",
@@ -64,19 +65,32 @@ Submit image generation job
 }
 ```
 
-Response:
+**Response: 201 Created**
 ```json
 {
-  "success": true,
-  "job": {
-    "id": 1,
-    "prompt": "a beautiful landscape",
-    "status": "queued",
-    "submitted_at": "2025-10-13T..."
-  },
-  "queue_position": 1
+  "id": 1,
+  "status": "queued",
+  "submitted_at": "2025-10-13T14:32:15.123456",
+  "queue_position": 1,
+  "prompt": "a beautiful landscape"
 }
 ```
+
+**Headers:**
+- `Location: /api/jobs/1` - URL to poll job status
+
+**Required:**
+- `prompt` - Text prompt (1-2000 chars, non-empty)
+
+**Optional:**
+- `negative_prompt`, `seed`, `steps`, `width`, `height`, `guidance_scale`
+
+**Validation:**
+- Prompt: 1-2000 characters (trimmed)
+- Seed: 0-2147483647
+- Steps: 1-150
+- Width/Height: 64-2048, divisible by 8
+- Guidance scale: 0-30
 
 ### GET `/api/jobs`
 Get current queue and job history
@@ -91,7 +105,65 @@ Response:
 ```
 
 ### GET `/api/jobs/<id>`
-Get specific job details
+Get specific job details including queue position
+
+**Response for Queued Job:**
+```json
+{
+  "id": 1,
+  "status": "queued",
+  "prompt": "a beautiful landscape",
+  "seed": 42,
+  "steps": 30,
+  "width": 512,
+  "height": 512,
+  "guidance_scale": 7.5,
+  "negative_prompt": "low quality",
+  "submitted_at": "2025-10-13T14:32:15.123456",
+  "queue_position": 2,
+  "estimated_time_remaining": null
+}
+```
+
+**Response for Running Job:**
+```json
+{
+  "id": 1,
+  "status": "running",
+  "queue_position": 0,
+  "started_at": "2025-10-13T14:35:00.000000",
+  ...
+}
+```
+
+**Response for Completed Job:**
+```json
+{
+  "id": 1,
+  "status": "completed",
+  "completed_at": "2025-10-13T14:39:30.000000",
+  "duration_seconds": 270.5,
+  "output_path": "outputs/20251013_143930_a_beautiful_landscape.png",
+  ...
+}
+```
+
+### DELETE `/api/jobs/<id>`
+Cancel a queued job
+
+**Response: 200 OK**
+```json
+{
+  "message": "Job cancelled successfully"
+}
+```
+
+**Errors:**
+- `404` - Job not found
+- `409` - Cannot cancel currently running job
+- `410` - Cannot cancel completed job
+
+**Note:** Only jobs with status `queued` can be cancelled
 
 ### GET `/api/outputs`
 List all generated images with metadata
@@ -118,6 +190,7 @@ Response:
 
 ```python
 import requests
+import time
 
 # Submit generation job
 response = requests.post('http://localhost:5000/api/generate', json={
@@ -127,12 +200,26 @@ response = requests.post('http://localhost:5000/api/generate', json={
 })
 
 job = response.json()
-print(f"Job {job['job']['id']} submitted!")
+print(f"Job {job['id']} submitted, position: {job['queue_position']}")
 
-# Check job status
-job_id = job['job']['id']
-status = requests.get(f'http://localhost:5000/api/jobs/{job_id}').json()
-print(f"Status: {status['status']}")
+# Poll for completion
+job_id = job['id']
+while True:
+    status_response = requests.get(f'http://localhost:5000/api/jobs/{job_id}')
+    job_status = status_response.json()
+
+    if job_status['status'] == 'completed':
+        print(f"Job completed! Output: {job_status['output_path']}")
+        break
+    elif job_status['status'] == 'failed':
+        print(f"Job failed: {job_status['error']}")
+        break
+    elif job_status['status'] == 'cancelled':
+        print("Job was cancelled")
+        break
+    else:
+        print(f"Status: {job_status['status']}, position: {job_status.get('queue_position', 'N/A')}")
+        time.sleep(2)
 ```
 
 ### cURL Example
@@ -165,7 +252,26 @@ const response = await fetch('http://localhost:5000/api/generate', {
 });
 
 const job = await response.json();
-console.log(`Job ${job.job.id} submitted!`);
+console.log(`Job ${job.id} submitted, position: ${job.queue_position}`);
+
+// Poll for completion
+const pollJob = async (jobId) => {
+  const statusResponse = await fetch(`http://localhost:5000/api/jobs/${jobId}`);
+  const jobStatus = await statusResponse.json();
+
+  if (jobStatus.status === 'completed') {
+    console.log(`Image ready: ${jobStatus.output_path}`);
+  } else if (jobStatus.status === 'failed') {
+    console.error(`Job failed: ${jobStatus.error}`);
+  } else if (jobStatus.status === 'cancelled') {
+    console.log('Job was cancelled');
+  } else {
+    console.log(`Status: ${jobStatus.status}, position: ${jobStatus.queue_position || 'N/A'}`);
+    setTimeout(() => pollJob(jobId), 2000);
+  }
+};
+
+pollJob(job.id);
 ```
 
 ## Job Statuses
@@ -174,6 +280,7 @@ console.log(`Job ${job.job.id} submitted!`);
 - `running` - Job is currently being processed
 - `completed` - Job finished successfully
 - `failed` - Job encountered an error
+- `cancelled` - Job was cancelled by user
 
 ## Configuration
 

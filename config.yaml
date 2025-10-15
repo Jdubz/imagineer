@@ -1,83 +1,63 @@
-# Imagineer Configuration File
-
-# Model settings
 model:
-  # Default model to use (Hugging Face model ID or local path)
-  default: "runwayml/stable-diffusion-v1-5"
-
-  # Alternative models you can switch to
+  default: runwayml/stable-diffusion-v1-5
   alternatives:
-    - "stabilityai/stable-diffusion-2-1"
-    - "stabilityai/stable-diffusion-xl-base-1.0"
-
-  # Model cache directory
-  cache_dir: "/mnt/speedy/imagineer/models"
-
-# Generation settings
+  - stabilityai/stable-diffusion-2-1
+  - stabilityai/stable-diffusion-xl-base-1.0
+  cache_dir: /mnt/speedy/imagineer/models
 generation:
-  # Default generation parameters
   width: 512
   height: 512
   steps: 30
-  guidance_scale: 7.5
-
-  # Default negative prompt (applied to all generations unless overridden)
-  # Exhaustive list to avoid common quality issues and artifacts
-  negative_prompt: "blurry, low quality, low resolution, low detail, poorly drawn, bad anatomy, bad proportions, bad composition, distorted, deformed, disfigured, ugly, unattractive, gross, disgusting, mutation, mutated, extra limbs, extra legs, extra arms, extra fingers, extra hands, missing limbs, missing legs, missing arms, missing fingers, fused limbs, fused fingers, fused toes, cloned face, duplicate, clone, cropped, cut off, out of frame, watermark, signature, text, font, words, letters, username, error, jpeg artifacts, compression artifacts, aliasing, pixelated, pixel art, mosaic, censored, blurred face, blurred eyes, unclear, hazy, grainy, noisy, overexposed, underexposed, oversaturated, desaturated, washed out, flat colors, bad lighting, dark, darkness, silhouette, shadow, low contrast, unfinished, sketch, draft, amateur, unprofessional, childish, simple, basic, plain, boring, cluttered, busy, chaotic, messy, disorganized, tilted, crooked, asymmetric, imbalanced, disproportionate, elongated, stretched, squashed, compressed, warped, twisted, bent, broken, shattered, cracked, torn, ripped, damaged, destroyed, ruined, rotting, decaying, decomposed, moldy, dirty, filthy, stained, smudged, scratched, scribbled, scrawled, messy lines, rough lines, jagged edges, harsh edges, unnatural pose, stiff pose, awkward pose, impossible pose, floating limbs, disconnected limbs, phantom limbs, merged bodies, conjoined, Siamese, multiple heads, multiple faces, two heads, three arms, four legs, too many, not enough, incorrect anatomy, wrong anatomy, misplaced features, unrealistic proportions, cartoon, anime, 3d render, cgi, digital art, illustration, painting, drawing, animated, stylized, abstract, surreal, fantasy, sci-fi, unless intended"
-
-  # Batch generation
+  guidance_scale: 8.0
+  negative_prompt: blurry, low quality, low resolution, low detail, poorly drawn,
+    bad anatomy, bad proportions, bad composition, distorted, deformed, disfigured,
+    ugly, unattractive, gross, disgusting, mutation, mutated, extra limbs, extra legs,
+    extra arms, extra fingers, extra hands, missing limbs, missing legs, missing arms,
+    missing fingers, fused limbs, fused fingers, fused toes, cloned face, duplicate,
+    clone, cropped, cut off, out of frame, watermark, signature, text, font, words,
+    letters, username, error, jpeg artifacts, compression artifacts, aliasing, pixelated,
+    pixel art, mosaic, censored, blurred face, blurred eyes, unclear, hazy, grainy,
+    noisy, overexposed, underexposed, oversaturated, desaturated, washed out, flat
+    colors, bad lighting, dark, darkness, silhouette, shadow, low contrast, unfinished,
+    sketch, draft, amateur, unprofessional, childish, simple, basic, plain, boring,
+    cluttered, busy, chaotic, messy, disorganized, tilted, crooked, asymmetric, imbalanced,
+    disproportionate, elongated, stretched, squashed, compressed, warped, twisted,
+    bent, broken, shattered, cracked, torn, ripped, damaged, destroyed, ruined, rotting,
+    decaying, decomposed, moldy, dirty, filthy, stained, smudged, scratched, scribbled,
+    scrawled, messy lines, rough lines, jagged edges, harsh edges, unnatural pose,
+    stiff pose, awkward pose, impossible pose, floating limbs, disconnected limbs,
+    phantom limbs, merged bodies, conjoined, Siamese, multiple heads, multiple faces,
+    two heads, three arms, four legs, too many, not enough, incorrect anatomy, wrong
+    anatomy, misplaced features, unrealistic proportions, cartoon, anime, 3d render,
+    cgi, digital art, illustration, painting, drawing, animated, stylized, abstract,
+    surreal, fantasy, sci-fi, unless intended
   batch_size: 1
   num_images: 1
-
-# Output settings
 output:
-  directory: "/mnt/speedy/imagineer/outputs"
-  format: "png"
+  directory: /mnt/speedy/imagineer/outputs
+  format: png
   save_metadata: true
-
-# Training settings
+sets:
+  directory: /mnt/speedy/imagineer/sets
 training:
-  # Learning rate
   learning_rate: 1e-5
-
-  # Training steps
   max_train_steps: 1000
-
-  # Batch size
   train_batch_size: 1
   gradient_accumulation_steps: 4
-
-  # Checkpointing
-  checkpoint_dir: "/mnt/speedy/imagineer/checkpoints"
+  checkpoint_dir: /mnt/speedy/imagineer/checkpoints
   save_steps: 500
-
-  # LoRA settings (for fine-tuning)
   lora:
     rank: 4
     alpha: 32
     dropout: 0.1
-
-# Dataset settings
 dataset:
-  # Training data directory
-  data_dir: "/mnt/speedy/imagineer/data/training"
-
-  # Image resolution for training
+  data_dir: /mnt/speedy/imagineer/data/training
   resolution: 512
-
-  # Data preprocessing
   center_crop: true
   random_flip: true
-
-# Hardware settings
 hardware:
-  # Device: "cuda", "cpu", or "mps" (for Mac)
-  device: "auto"  # auto-detect
-
-  # Mixed precision: "no", "fp16", or "bf16"
-  mixed_precision: "fp16"
-
-  # Enable memory optimizations
+  device: auto
+  mixed_precision: fp16
   enable_attention_slicing: true
   enable_vae_slicing: false
   enable_xformers: false
