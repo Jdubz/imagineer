@@ -2,19 +2,17 @@
 Utility functions for image processing and model management.
 """
 
-import torch
-from PIL import Image
-import numpy as np
-from pathlib import Path
-from typing import Union, List, Optional
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Union
+
+import torch
+from PIL import Image
 
 
 def save_image_with_metadata(
-    image: Image.Image,
-    output_path: Union[str, Path],
-    metadata: Optional[dict] = None
+    image: Image.Image, output_path: Union[str, Path], metadata: Optional[dict] = None
 ) -> None:
     """
     Save an image with optional metadata in JSON sidecar file.
@@ -32,8 +30,8 @@ def save_image_with_metadata(
 
     # Save metadata if provided
     if metadata:
-        metadata_path = output_path.with_suffix('.json')
-        with open(metadata_path, 'w') as f:
+        metadata_path = output_path.with_suffix(".json")
+        with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
 
@@ -53,7 +51,7 @@ def create_image_grid(images: List[Image.Image], rows: int, cols: int) -> Image.
         raise ValueError(f"Number of images ({len(images)}) must match grid size ({rows}x{cols})")
 
     w, h = images[0].size
-    grid = Image.new('RGB', size=(cols * w, rows * h))
+    grid = Image.new("RGB", size=(cols * w, rows * h))
 
     for i, img in enumerate(images):
         grid.paste(img, box=((i % cols) * w, (i // cols) * h))
@@ -93,9 +91,7 @@ def get_optimal_dtype(device: str) -> torch.dtype:
 
 
 def preprocess_image(
-    image: Union[str, Path, Image.Image],
-    size: tuple = (512, 512),
-    center_crop: bool = True
+    image: Union[str, Path, Image.Image], size: tuple = (512, 512), center_crop: bool = True
 ) -> Image.Image:
     """
     Preprocess an image for model input.
@@ -111,7 +107,7 @@ def preprocess_image(
     if isinstance(image, (str, Path)):
         image = Image.open(image)
 
-    image = image.convert('RGB')
+    image = image.convert("RGB")
 
     # Resize while maintaining aspect ratio
     if center_crop:
@@ -149,7 +145,7 @@ def calculate_vram_usage() -> dict:
         "allocated_gb": round(allocated, 2),
         "reserved_gb": round(reserved, 2),
         "total_gb": round(total, 2),
-        "free_gb": round(total - allocated, 2)
+        "free_gb": round(total - allocated, 2),
     }
 
 
@@ -184,7 +180,7 @@ def load_prompt_list(file_path: Union[str, Path]) -> List[str]:
     Returns:
         List of prompts
     """
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         prompts = [line.strip() for line in f if line.strip()]
 
     return prompts

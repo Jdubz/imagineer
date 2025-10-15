@@ -4,15 +4,15 @@ This is a memory-efficient method for fine-tuning on custom datasets.
 """
 
 import argparse
-import torch
 from pathlib import Path
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+
+import torch
+from diffusers import StableDiffusionPipeline
 from diffusers.loaders import AttnProcsLayers
 from diffusers.models.attention_processor import LoRAAttnProcessor
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 from PIL import Image
-import json
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 from tqdm import tqdm
 
 
@@ -24,12 +24,14 @@ class ImageCaptionDataset(Dataset):
         self.size = size
         self.image_paths = list(self.data_dir.glob("*.jpg")) + list(self.data_dir.glob("*.png"))
 
-        self.transform = transforms.Compose([
-            transforms.Resize(size, interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.CenterCrop(size),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5])
-        ])
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(size, interpolation=transforms.InterpolationMode.BILINEAR),
+                transforms.CenterCrop(size),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5], [0.5]),
+            ]
+        )
 
     def __len__(self):
         return len(self.image_paths)
@@ -41,7 +43,7 @@ class ImageCaptionDataset(Dataset):
         # Look for caption in JSON or text file
         caption_path = image_path.with_suffix(".txt")
         if caption_path.exists():
-            with open(caption_path, 'r') as f:
+            with open(caption_path, "r") as f:
                 caption = f.read().strip()
         else:
             # Fallback to filename as caption
@@ -57,50 +59,25 @@ def main():
         "--model",
         type=str,
         default="runwayml/stable-diffusion-v1-5",
-        help="Base model to fine-tune"
+        help="Base model to fine-tune",
     )
     parser.add_argument(
         "--data-dir",
         type=str,
         required=True,
-        help="Directory containing training images and captions"
+        help="Directory containing training images and captions",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default="./checkpoints/lora",
-        help="Directory to save LoRA weights"
+        help="Directory to save LoRA weights",
     )
-    parser.add_argument(
-        "--rank",
-        type=int,
-        default=4,
-        help="LoRA rank (lower = fewer parameters)"
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=1e-4,
-        help="Learning rate"
-    )
-    parser.add_argument(
-        "--steps",
-        type=int,
-        default=1000,
-        help="Number of training steps"
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1,
-        help="Training batch size"
-    )
-    parser.add_argument(
-        "--save-steps",
-        type=int,
-        default=500,
-        help="Save checkpoint every N steps"
-    )
+    parser.add_argument("--rank", type=int, default=4, help="LoRA rank (lower = fewer parameters)")
+    parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--steps", type=int, default=1000, help="Number of training steps")
+    parser.add_argument("--batch-size", type=int, default=1, help="Training batch size")
+    parser.add_argument("--save-steps", type=int, default=500, help="Save checkpoint every N steps")
 
     args = parser.parse_args()
 
@@ -112,7 +89,7 @@ def main():
     pipe = StableDiffusionPipeline.from_pretrained(
         args.model,
         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        safety_checker=None
+        safety_checker=None,
     )
     pipe = pipe.to(device)
 
@@ -122,7 +99,9 @@ def main():
     lora_attn_procs = {}
 
     for name in unet.attn_processors.keys():
-        cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+        cross_attention_dim = (
+            None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+        )
         if name.startswith("mid_block"):
             hidden_size = unet.config.block_out_channels[-1]
         elif name.startswith("up_blocks"):
@@ -133,9 +112,7 @@ def main():
             hidden_size = unet.config.block_out_channels[block_id]
 
         lora_attn_procs[name] = LoRAAttnProcessor(
-            hidden_size=hidden_size,
-            cross_attention_dim=cross_attention_dim,
-            rank=args.rank
+            hidden_size=hidden_size, cross_attention_dim=cross_attention_dim, rank=args.rank
         )
 
     unet.set_attn_processor(lora_attn_procs)
@@ -175,7 +152,7 @@ def main():
                 padding="max_length",
                 max_length=pipe.tokenizer.model_max_length,
                 truncation=True,
-                return_tensors="pt"
+                return_tensors="pt",
             )
             text_embeddings = pipe.text_encoder(text_inputs.input_ids.to(device))[0]
 
@@ -185,7 +162,9 @@ def main():
 
             # Add noise
             noise = torch.randn_like(latents)
-            timesteps = torch.randint(0, pipe.scheduler.config.num_train_timesteps, (latents.shape[0],), device=device)
+            timesteps = torch.randint(
+                0, pipe.scheduler.config.num_train_timesteps, (latents.shape[0],), device=device
+            )
             noisy_latents = pipe.scheduler.add_noise(latents, noise, timesteps)
 
             # Predict noise
