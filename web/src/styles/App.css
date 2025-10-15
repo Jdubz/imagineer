@@ -328,6 +328,38 @@ button[type="submit"]:disabled {
   transform: none;
 }
 
+/* Queue Status */
+.queue-status {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.queue-status p {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.queue-status .job-prompt {
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: normal;
+  font-style: italic;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #667eea30;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.95; }
+}
+
 .loading-indicator {
   margin-top: 1rem;
   text-align: center;
@@ -605,6 +637,258 @@ button[type="submit"]:disabled {
   margin-right: 0.5rem;
 }
 
+/* Batch Form Styles */
+.form-divider {
+  border: none;
+  border-top: 2px dashed #e0e0e0;
+  margin: 2rem 0;
+}
+
+.batch-form {
+  margin-top: 1.5rem;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.form-group select:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.set-info {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+}
+
+.theme-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.theme-input-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.3s;
+}
+
+.theme-input-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.random-theme-btn {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.random-theme-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.random-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.batch-submit-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.batch-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(118, 75, 162, 0.4);
+}
+
+.batch-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Batch List Styles */
+.batch-list {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.batch-list h3 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 0.5rem;
+}
+
+.no-batches {
+  text-align: center;
+  padding: 2rem;
+  color: #999;
+  font-style: italic;
+}
+
+.batch-items {
+  display: grid;
+  gap: 1rem;
+}
+
+.batch-item {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.batch-item:hover {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea05 0%, #764ba205 100%);
+  transform: translateX(5px);
+}
+
+.batch-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.batch-item-header h4 {
+  color: #764ba2;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.batch-count {
+  background: #667eea;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.batch-date {
+  font-size: 0.85rem;
+  color: #888;
+  margin: 0;
+}
+
+/* Batch Gallery Styles */
+.batch-gallery {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.batch-header {
+  margin-bottom: 2rem;
+}
+
+.back-button {
+  padding: 0.75rem 1.5rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.back-button:hover {
+  background: #5568d3;
+  transform: translateX(-3px);
+}
+
+.batch-header h2 {
+  color: #667eea;
+  margin: 1rem 0 0.5rem;
+  word-break: break-word;
+}
+
+.batch-info {
+  color: #888;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.batch-gallery .image-info {
+  padding: 1rem;
+  background: #f8f8f8;
+}
+
+.batch-gallery .image-prompt {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.batch-gallery .image-metadata {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.batch-gallery .image-metadata span {
+  padding: 0.25rem 0.5rem;
+  background: white;
+  border-radius: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header h1 {
@@ -649,4 +933,188 @@ button[type="submit"]:disabled {
   .modal-info {
     padding: 1rem;
   }
+}
+
+/* LoRA Configuration Styles */
+.lora-config-section {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9f9f9;
+}
+
+.lora-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.toggle-lora-btn {
+  padding: 0.5rem 1rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-lora-btn:hover {
+  background: #5568d3;
+}
+
+.no-loras-message {
+  text-align: center;
+  padding: 1rem;
+  color: #888;
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.lora-list {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lora-item {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  transition: border-color 0.2s;
+}
+
+.lora-item:hover {
+  border-color: #667eea;
+}
+
+.lora-info {
+  margin-bottom: 0.5rem;
+}
+
+.lora-name {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.lora-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.weight-label {
+  font-size: 0.85rem;
+  color: #666;
+  min-width: 80px;
+  font-weight: normal;
+}
+
+.weight-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.weight-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.weight-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.weight-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+
+.weight-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.remove-lora-btn {
+  padding: 0.5rem;
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-lora-btn:hover:not(:disabled) {
+  background: #cc0000;
+  transform: scale(1.1);
+}
+
+.remove-lora-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-lora-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px dashed #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.add-lora-section label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.add-lora-select {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.add-lora-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.add-lora-select:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.5;
 }

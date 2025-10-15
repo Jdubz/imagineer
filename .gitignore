@@ -10,7 +10,37 @@ __pycache__/
 
 # Environment
 .env
+.env.production
 *.local
+
+# Frontend environment files (secrets)
+web/.env.development
+web/.env.production
+web/.env.local
+# Keep web/.env.example in repo (it's a template)
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+
+# Cloudflare Tunnel
+terraform/cloudflare-tunnel.yml
+.cloudflared/*.json
+!.cloudflared/cert.pem
+
+# Docker
+logs/
+*.log
 
 # Outputs (stored on Speedy drive)
 models/
@@ -27,7 +57,8 @@ data/training/*
 *.log
 
 # Frontend
-web/node_modules/    # Node dependencies (inside web/)
+node_modules/
+**/node_modules/
 public/              # Built frontend (generated)
 web/dist/            # Alternative build output
 .vite/
@@ -65,6 +96,8 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 coverage.xml
+coverage/
+web/coverage/
 
 # Audit and planning docs (keep in repo but ignore if recreated)
 # AUDIT_REPORT.md
