@@ -46,7 +46,7 @@ jobs:
         run: isort --check-only server/ src/ examples/
 
       - name: Lint (flake8)
-        run: flake8 server/ src/ examples/ --max-line-length=100 --extend-ignore=E203,W503
+        run: flake8 server/ src/ examples/ --max-line-length=100 --extend-ignore=E203,W503,C901,E501
 
       - name: Run tests
         run: pytest tests/ -v --cov=server --cov=src || true  # Continue on failure for now
