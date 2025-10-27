@@ -1746,6 +1746,136 @@ def get_album(album_id):
         return jsonify({"error": "Failed to get album"}), 500
 
 
+# Admin album endpoints
+@app.route("/api/albums", methods=["POST"])
+@require_admin
+def create_album():
+    """Create new album (admin only)"""
+    try:
+        data = request.json
+
+        album = Album(
+            name=data['name'],
+            description=data.get('description', ''),
+            album_type=data.get('album_type', 'manual'),
+            is_public=data.get('is_public', True),
+            generation_prompt=data.get('generation_prompt'),
+            generation_config=data.get('generation_config')
+        )
+
+        db.session.add(album)
+        db.session.commit()
+
+        logger.info(f"Created album: {album.name}", extra={"operation": "create_album", "album_id": album.id})
+        return jsonify(album.to_dict()), 201
+    except Exception as e:
+        logger.error(f"Error creating album: {e}", exc_info=True)
+        return jsonify({"error": "Failed to create album"}), 500
+
+
+@app.route("/api/albums/<int:album_id>", methods=["PUT"])
+@require_admin
+def update_album(album_id):
+    """Update album (admin only)"""
+    try:
+        album = Album.query.get_or_404(album_id)
+        data = request.json
+
+        if 'name' in data:
+            album.name = data['name']
+        if 'description' in data:
+            album.description = data['description']
+        if 'album_type' in data:
+            album.album_type = data['album_type']
+        if 'is_public' in data:
+            album.is_public = data['is_public']
+        if 'generation_prompt' in data:
+            album.generation_prompt = data['generation_prompt']
+        if 'generation_config' in data:
+            album.generation_config = data['generation_config']
+
+        db.session.commit()
+
+        logger.info(f"Updated album: {album.name}", extra={"operation": "update_album", "album_id": album.id})
+        return jsonify(album.to_dict())
+    except Exception as e:
+        logger.error(f"Error updating album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to update album"}), 500
+
+
+@app.route("/api/albums/<int:album_id>", methods=["DELETE"])
+@require_admin
+def delete_album(album_id):
+    """Delete album (admin only)"""
+    try:
+        album = Album.query.get_or_404(album_id)
+
+        db.session.delete(album)
+        db.session.commit()
+
+        logger.info(f"Deleted album: {album.name}", extra={"operation": "delete_album", "album_id": album_id})
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to delete album"}), 500
+
+
+@app.route("/api/albums/<int:album_id>/images", methods=["POST"])
+@require_admin
+def add_images_to_album(album_id):
+    """Add images to album (admin only)"""
+    try:
+        album = Album.query.get_or_404(album_id)
+        data = request.json
+
+        image_ids = data.get('image_ids', [])
+
+        for image_id in image_ids:
+            # Check if already in album
+            existing = AlbumImage.query.filter_by(
+                album_id=album_id,
+                image_id=image_id
+            ).first()
+
+            if not existing:
+                assoc = AlbumImage(
+                    album_id=album_id,
+                    image_id=image_id,
+                    sort_order=len(album.album_images) + 1
+                )
+                db.session.add(assoc)
+
+        db.session.commit()
+
+        logger.info(f"Added {len(image_ids)} images to album {album.name}", 
+                   extra={"operation": "add_images_to_album", "album_id": album_id, "image_count": len(image_ids)})
+        return jsonify({'success': True, 'added': len(image_ids)})
+    except Exception as e:
+        logger.error(f"Error adding images to album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to add images to album"}), 500
+
+
+@app.route("/api/albums/<int:album_id>/images/<int:image_id>", methods=["DELETE"])
+@require_admin
+def remove_image_from_album(album_id, image_id):
+    """Remove image from album (admin only)"""
+    try:
+        assoc = AlbumImage.query.filter_by(
+            album_id=album_id,
+            image_id=image_id
+        ).first_or_404()
+
+        db.session.delete(assoc)
+        db.session.commit()
+
+        logger.info(f"Removed image {image_id} from album {album_id}", 
+                   extra={"operation": "remove_image_from_album", "album_id": album_id, "image_id": image_id})
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error removing image {image_id} from album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to remove image from album"}), 500
+
+
 @app.route("/api/images", methods=["GET"])
 def get_images():
     """Get all public images (public endpoint)"""
@@ -1805,6 +1935,135 @@ def get_image(image_id):
     except Exception as e:
         logger.error(f"Error getting image {image_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to get image"}), 500
+
+
+# Image upload and admin management endpoints
+@app.route("/api/images/upload", methods=["POST"])
+@require_admin
+def upload_images():
+    """Upload images (admin only)"""
+    try:
+        if 'files' not in request.files:
+            return jsonify({'error': 'No files provided'}), 400
+
+        files = request.files.getlist('files')
+        album_id = request.form.get('album_id', type=int)
+
+        # Create upload directory
+        upload_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        upload_dir = Path(f'/mnt/speedy/imagineer/outputs/uploads/{upload_id}')
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        uploaded_images = []
+
+        for file in files:
+            if file.filename == '':
+                continue
+
+            # Save file
+            from werkzeug.utils import secure_filename
+            filename = secure_filename(file.filename)
+            filepath = upload_dir / filename
+            file.save(filepath)
+
+            # Get image dimensions
+            from PIL import Image as PILImage
+            with PILImage.open(filepath) as img:
+                width, height = img.size
+
+            # Calculate checksum
+            import hashlib
+            sha256 = hashlib.sha256()
+            with open(filepath, 'rb') as f:
+                for chunk in iter(lambda: f.read(8192), b''):
+                    sha256.update(chunk)
+            checksum = sha256.hexdigest()
+
+            # Create database record
+            image = Image(
+                filename=filename,
+                file_path=str(filepath),
+                width=width,
+                height=height,
+                is_public=True  # Default to public for uploads
+            )
+
+            db.session.add(image)
+            db.session.flush()  # Get image.id
+
+            # Add to album if specified
+            if album_id:
+                assoc = AlbumImage(
+                    album_id=album_id,
+                    image_id=image.id,
+                    sort_order=len(Album.query.get(album_id).album_images) + 1
+                )
+                db.session.add(assoc)
+
+            uploaded_images.append(image.to_dict())
+
+        db.session.commit()
+
+        logger.info(f"Uploaded {len(uploaded_images)} images", 
+                   extra={"operation": "upload_images", "image_count": len(uploaded_images), "album_id": album_id})
+        return jsonify({
+            'success': True,
+            'uploaded': len(uploaded_images),
+            'images': uploaded_images
+        }), 201
+    except Exception as e:
+        logger.error(f"Error uploading images: {e}", exc_info=True)
+        return jsonify({"error": "Failed to upload images"}), 500
+
+
+@app.route("/api/images/<int:image_id>", methods=["DELETE"])
+@require_admin
+def delete_image(image_id):
+    """Delete image (admin only)"""
+    try:
+        image = Image.query.get_or_404(image_id)
+
+        # Delete file from filesystem
+        filepath = Path(image.file_path)
+        if filepath.exists():
+            filepath.unlink()
+
+        # Delete from database (cascade deletes labels and album associations)
+        db.session.delete(image)
+        db.session.commit()
+
+        logger.info(f"Deleted image {image_id}", extra={"operation": "delete_image", "image_id": image_id})
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting image {image_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to delete image"}), 500
+
+
+@app.route("/api/images/<int:image_id>/thumbnail", methods=["GET"])
+def get_thumbnail(image_id):
+    """Get image thumbnail (300px, public)"""
+    try:
+        image = Image.query.get_or_404(image_id)
+        if not image.is_public:
+            return jsonify({"error": "Image not found"}), 404
+
+        # Check for cached thumbnail
+        thumbnail_dir = Path('/mnt/speedy/imagineer/outputs/thumbnails')
+        thumbnail_dir.mkdir(exist_ok=True)
+        thumbnail_path = thumbnail_dir / f"{image_id}.webp"
+
+        if not thumbnail_path.exists():
+            # Generate thumbnail
+            from PIL import Image as PILImage
+            with PILImage.open(image.file_path) as img:
+                img.thumbnail((300, 300))
+                img.save(thumbnail_path, 'WEBP', quality=85)
+
+        from flask import send_file
+        return send_file(thumbnail_path, mimetype='image/webp')
+    except Exception as e:
+        logger.error(f"Error generating thumbnail for image {image_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to generate thumbnail"}), 500
 
 
 @app.route("/api/database/stats", methods=["GET"])
