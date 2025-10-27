@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './TrainingTab.css';
+import '../styles/TrainingTab.css';
 
 const TrainingTab = () => {
   const [trainingRuns, setTrainingRuns] = useState([]);

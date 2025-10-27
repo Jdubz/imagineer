@@ -63,7 +63,7 @@ function AlbumsTab({ isAdmin }) {
   const deleteAlbum = async (albumId) => {
     if (!isAdmin) return
 
-    if (!confirm('Are you sure you want to delete this album?')) return
+    if (!window.confirm('Are you sure you want to delete this album?')) return
 
     try {
       const response = await fetch(`/api/albums/${albumId}`, {

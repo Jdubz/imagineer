@@ -1,17 +1,23 @@
 {
   "name": "imagineer-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build --outDir ../public",
+    "build:prod": "NODE_ENV=production vite build --outDir ../public",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "version:patch": "cd .. && python scripts/version.py bump --part patch",
+    "version:minor": "cd .. && python scripts/version.py bump --part minor",
+    "version:major": "cd .. && python scripts/version.py bump --part major",
+    "version:current": "cd .. && python scripts/version.py current",
+    "deploy:build": "npm run build:prod && cd .. && python scripts/version.py build-info"
   },
   "dependencies": {
     "axios": "^1.7.9",
