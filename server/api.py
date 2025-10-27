@@ -20,6 +20,7 @@ from flask import Flask, jsonify, redirect, request, send_from_directory, sessio
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
+from PIL import Image as PILImage
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -2003,8 +2004,6 @@ def upload_images():
             file.save(filepath)
 
             # Get image dimensions
-            from PIL import Image as PILImage
-
             with PILImage.open(filepath) as img:
                 width, height = img.size
 
@@ -2099,8 +2098,6 @@ def get_thumbnail(image_id):
 
         if not thumbnail_path.exists():
             # Generate thumbnail
-            from PIL import Image as PILImage
-
             with PILImage.open(image.file_path) as img:
                 img.thumbnail((300, 300))
                 img.save(thumbnail_path, "WEBP", quality=85)
