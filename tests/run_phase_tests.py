@@ -24,6 +24,8 @@ def run_tests():
         'tests/backend/test_phase1_security.py',
         'tests/backend/test_phase2_albums.py', 
         'tests/backend/test_phase3_labeling.py',
+        'tests/backend/test_phase4_scraping.py',
+        'tests/backend/test_phase4_integration.py',
         'tests/backend/test_integration.py'
     ]
     
@@ -66,6 +68,8 @@ def run_specific_phase(phase):
         '1': 'tests/backend/test_phase1_security.py',
         '2': 'tests/backend/test_phase2_albums.py',
         '3': 'tests/backend/test_phase3_labeling.py',
+        '4': 'tests/backend/test_phase4_scraping.py',
+        '4-integration': 'tests/backend/test_phase4_integration.py',
         'integration': 'tests/backend/test_integration.py'
     }
     
