@@ -9,12 +9,34 @@ from unittest.mock import MagicMock, patch, mock_open
 
 import pytest
 
-from server.database import Album, Image, Label, TrainingRun, db
+from server.database import Album, AlbumImage, Image, Label, TrainingRun, db
 from server.tasks.training import (
     train_lora_task,
     prepare_training_data,
     cleanup_training_data,
 )
+
+
+@pytest.fixture(autouse=True)
+def clean_database(app):
+    """Clean database before each test"""
+    with app.app_context():
+        # Clean up all tables
+        db.session.query(TrainingRun).delete()
+        db.session.query(AlbumImage).delete()
+        db.session.query(Label).delete()
+        db.session.query(Image).delete()
+        db.session.query(Album).delete()
+        db.session.commit()
+    yield
+    # Clean up after test as well
+    with app.app_context():
+        db.session.query(TrainingRun).delete()
+        db.session.query(AlbumImage).delete()
+        db.session.query(Label).delete()
+        db.session.query(Image).delete()
+        db.session.query(Album).delete()
+        db.session.commit()
 
 
 class TestTrainingRunModel:
@@ -85,6 +107,7 @@ class TestTrainingTasks:
             )
             db.session.add(run)
             db.session.commit()
+            run_id = run.id
 
             # Mock prepare_training_data
             mock_prepare.return_value = Path("/tmp/training_data")
@@ -105,17 +128,17 @@ class TestTrainingTasks:
                 mock_glob.return_value = [Path("/tmp/checkpoint.safetensors")]
 
                 # Execute task
-                result = train_lora_task(run.id)
+                result = train_lora_task(run_id)
 
                 # Verify result
                 assert result["status"] == "completed"
                 assert "checkpoint" in result
 
                 # Verify database updates
-                updated_run = TrainingRun.query.get(run.id)
-                assert updated_run.status == "completed"
-                assert updated_run.progress == 100
-                assert updated_run.training_loss == 0.123
+                db.session.refresh(run)
+                assert run.status == "completed"
+                assert run.progress == 100
+                assert run.training_loss == 0.123
 
     @patch("server.tasks.training.subprocess.Popen")
     @patch("server.tasks.training.prepare_training_data")
@@ -132,6 +155,7 @@ class TestTrainingTasks:
             )
             db.session.add(run)
             db.session.commit()
+            run_id = run.id
 
             # Mock prepare_training_data
             mock_prepare.return_value = Path("/tmp/training_data")
@@ -143,16 +167,16 @@ class TestTrainingTasks:
             mock_popen.return_value = mock_process
 
             # Execute task
-            result = train_lora_task(run.id)
+            result = train_lora_task(run_id)
 
             # Verify result
             assert result["status"] == "failed"
             assert "code 1" in result["message"]
 
             # Verify database updates
-            updated_run = TrainingRun.query.get(run.id)
-            assert updated_run.status == "failed"
-            assert updated_run.error_message is not None
+            db.session.refresh(run)
+            assert run.status == "failed"
+            assert run.error_message is not None
 
     def test_train_lora_task_not_found(self, app):
         """Test training task with non-existent run"""
@@ -161,15 +185,49 @@ class TestTrainingTasks:
             assert result["status"] == "error"
             assert "not found" in result["message"]
 
-    def test_prepare_training_data(self, app, sample_album_with_images):
+    def test_prepare_training_data(self, app):
         """Test training data preparation"""
         with app.app_context():
+            # Create test album with images
+            album = Album(name="Test Album", is_training_source=True)
+            db.session.add(album)
+            db.session.commit()
+
+            # Create test images
+            images = []
+            import time
+            timestamp = int(time.time() * 1000)  # Use timestamp for uniqueness
+            for i in range(3):
+                image = Image(
+                    filename=f"test_{timestamp}_{i}.png",
+                    file_path=f"/tmp/test_{timestamp}_{i}.png",
+                    prompt=f"Test prompt {i}",
+                )
+                db.session.add(image)
+                db.session.flush()
+
+                # Add to album
+                album_image = AlbumImage(album_id=album.id, image_id=image.id)
+                db.session.add(album_image)
+
+                # Add caption label
+                label = Label(
+                    image_id=image.id,
+                    label_text=f"Test caption {i}",
+                    label_type="caption",
+                )
+                db.session.add(label)
+
+                images.append(image)
+
+            db.session.commit()
+
             # Create training run
             run = TrainingRun(
                 name="Test Training",
                 dataset_path="/tmp/test_data",
                 output_path="/tmp/test_output",
-                training_config='{"album_ids": [1]}',
+                training_config=f'{{"album_ids": [{album.id}]}}',
                 status="pending",
             )
             db.session.add(run)
@@ -296,11 +354,8 @@ class TestTrainingAPI:
         response = client.get("/api/training/99999")
         assert response.status_code == 404
 
-    @patch("server.routes.training.require_admin")
-    def test_create_training_run(self, mock_auth, client, app):
+    def test_create_training_run(self, client, app):
         """Test creating training run (admin)"""
-        mock_auth.return_value = lambda f: f
-
         with app.app_context():
             # Create test album
             album = Album(name="Test Album", is_training_source=True)
@@ -314,27 +369,28 @@ class TestTrainingAPI:
                 "config": {"steps": 1000, "rank": 4},
             }
 
-            response = client.post("/api/training", json=data)
-            assert response.status_code == 201
+            with patch("server.routes.training.require_admin") as mock_auth:
+                mock_auth.return_value = lambda f: f
+                response = client.post("/api/training", json=data)
+                assert response.status_code == 201
 
-            data = response.get_json()
-            assert data["name"] == "Test Training"
+                data = response.get_json()
+                assert data["name"] == "Test Training"
 
     def test_create_training_run_validation(self, client):
         """Test training run creation validation"""
-        # Missing name
-        response = client.post("/api/training", json={"album_ids": [1]})
-        assert response.status_code == 400
+        with patch("server.routes.training.require_admin") as mock_auth:
+            mock_auth.return_value = lambda f: f
+            # Missing name
+            response = client.post("/api/training", json={"album_ids": [1]})
+            assert response.status_code == 400
 
-        # Missing albums
-        response = client.post("/api/training", json={"name": "Test"})
-        assert response.status_code == 400
+            # Missing albums
+            response = client.post("/api/training", json={"name": "Test"})
+            assert response.status_code == 400
 
-    @patch("server.routes.training.require_admin")
-    def test_start_training(self, mock_auth, client, app):
+    def test_start_training(self, client, app):
         """Test starting training run (admin)"""
-        mock_auth.return_value = lambda f: f
-
         with app.app_context():
             run = TrainingRun(
                 name="Test Run",
@@ -345,8 +401,9 @@ class TestTrainingAPI:
             db.session.add(run)
             db.session.commit()
 
-            with patch("server.tasks.training.train_lora_task.delay") as mock_task:
+            with patch("server.tasks.training.train_lora_task.delay") as mock_task, patch("server.routes.training.require_admin") as mock_auth:
                 mock_task.return_value = MagicMock(id="task-123")
+                mock_auth.return_value = lambda f: f
 
                 response = client.post(f"/api/training/{run.id}/start")
                 assert response.status_code == 200
@@ -355,11 +412,8 @@ class TestTrainingAPI:
                 assert data["message"] == "Training started"
                 assert "task_id" in data
 
-    @patch("server.routes.training.require_admin")
-    def test_cancel_training(self, mock_auth, client, app):
+    def test_cancel_training(self, client, app):
         """Test cancelling training run (admin)"""
-        mock_auth.return_value = lambda f: f
-
         with app.app_context():
             run = TrainingRun(
                 name="Test Run",
@@ -370,15 +424,17 @@ class TestTrainingAPI:
             db.session.add(run)
             db.session.commit()
 
-            response = client.post(f"/api/training/{run.id}/cancel")
-            assert response.status_code == 200
+            with patch("server.routes.training.require_admin") as mock_auth:
+                mock_auth.return_value = lambda f: f
+                response = client.post(f"/api/training/{run.id}/cancel")
+                assert response.status_code == 200
 
-            data = response.get_json()
-            assert data["message"] == "Training cancelled"
+                data = response.get_json()
+                assert data["message"] == "Training cancelled"
 
-            # Verify status updated
-            updated_run = TrainingRun.query.get(run.id)
-            assert updated_run.status == "cancelled"
+                # Verify status updated
+                updated_run = TrainingRun.query.get(run.id)
+                assert updated_run.status == "cancelled"
 
     def test_list_available_albums(self, client, app):
         """Test listing albums available for training"""
@@ -422,11 +478,8 @@ class TestTrainingAPI:
                 assert len(data["trained_loras"]) == 1
                 assert data["trained_loras"][0]["name"] == "Test Training"
 
-    @patch("server.routes.training.require_admin")
-    def test_integrate_trained_lora(self, mock_auth, client, app):
+    def test_integrate_trained_lora(self, client, app):
         """Test integrating trained LoRA (admin)"""
-        mock_auth.return_value = lambda f: f
-
         with app.app_context():
             run = TrainingRun(
                 name="Test Training",
@@ -440,7 +493,8 @@ class TestTrainingAPI:
 
             with patch("pathlib.Path.exists", return_value=True), patch(
                 "shutil.copy2"
-            ) as mock_copy, patch("pathlib.Path.mkdir"):
+            ) as mock_copy, patch("pathlib.Path.mkdir"), patch("server.routes.training.require_admin") as mock_auth:
+                mock_auth.return_value = lambda f: f
                 response = client.post(f"/api/training/loras/{run.id}/integrate")
                 assert response.status_code == 200
 
