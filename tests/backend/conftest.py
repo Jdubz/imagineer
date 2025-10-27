@@ -112,3 +112,39 @@ def sample_job_data():
         "guidance_scale": 7.5,
         "negative_prompt": "blurry, low quality",
     }
+
+
+@pytest.fixture
+def mock_admin_auth():
+    """Mock admin authentication"""
+    from unittest.mock import MagicMock, patch
+
+    # Create a mock admin user
+    admin_user = MagicMock()
+    admin_user.email = "admin@test.com"
+    admin_user.name = "Admin User"
+    admin_user.picture = ""
+    admin_user.role = "admin"
+    admin_user.is_authenticated = True
+    admin_user.is_admin.return_value = True
+
+    with patch("server.auth.current_user", admin_user):
+        yield admin_user
+
+
+@pytest.fixture
+def mock_public_auth():
+    """Mock public user authentication"""
+    from unittest.mock import MagicMock, patch
+
+    # Create a mock public user
+    public_user = MagicMock()
+    public_user.email = "public@test.com"
+    public_user.name = "Public User"
+    public_user.picture = ""
+    public_user.role = None
+    public_user.is_authenticated = True
+    public_user.is_admin.return_value = False
+
+    with patch("server.auth.current_user", public_user):
+        yield public_user

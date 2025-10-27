@@ -3,12 +3,8 @@ Integration tests for complete workflows across all phases
 """
 
 import io
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
@@ -17,10 +13,8 @@ from server.database import Album, AlbumImage, Image, Label, db
 class TestCompleteWorkflow:
     """Test complete workflows from image upload to AI labeling"""
 
-    @patch("server.auth.check_auth")
-    def test_complete_image_workflow(self, mock_auth, client):
+    def test_complete_image_workflow(self, client, mock_admin_auth):
         """Test complete workflow: upload -> create album -> add image -> label"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
 
         with client.application.app_context():
             # Step 1: Create album
@@ -44,12 +38,12 @@ class TestCompleteWorkflow:
 
             response = client.post(
                 "/api/images/upload",
-                data={"images": (img_data, "workflow_test.jpg")},
+                data={"files": (img_data, "workflow_test.jpg")},
                 content_type="multipart/form-data",
                 headers={"Authorization": "Bearer admin_token"},
             )
             assert response.status_code == 201
-            uploaded_images = response.get_json()["uploaded_images"]
+            uploaded_images = response.get_json()["images"]
             image_id = uploaded_images[0]["id"]
 
             # Step 3: Add image to album
@@ -67,11 +61,9 @@ class TestCompleteWorkflow:
             assert len(album_data["images"]) == 1
             assert album_data["images"][0]["id"] == image_id
 
-    @patch("server.auth.check_auth")
     @patch("server.services.labeling.label_image_with_claude")
-    def test_complete_labeling_workflow(self, mock_label, mock_auth, client):
+    def test_complete_labeling_workflow(self, mock_label, client, mock_admin_auth):
         """Test complete labeling workflow with database updates"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
         mock_label.return_value = {
             "status": "success",
             "description": "A beautiful blue square for testing",
@@ -114,11 +106,9 @@ class TestCompleteWorkflow:
             assert "blue" in tag_texts
             assert "square" in tag_texts
 
-    @patch("server.auth.check_auth")
     @patch("server.services.labeling.batch_label_images")
-    def test_batch_labeling_workflow(self, mock_batch, mock_auth, client):
+    def test_batch_labeling_workflow(self, mock_batch, client, mock_admin_auth):
         """Test batch labeling workflow for entire album"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
         mock_batch.return_value = {
             "total": 2,
             "success": 2,
@@ -214,10 +204,8 @@ class TestCompleteWorkflow:
             response = client.get(f"/api/albums/{album_id}")
             assert response.status_code == 404  # Should not find private album
 
-    @patch("server.auth.check_auth")
-    def test_admin_can_access_private_albums(self, mock_auth, client):
+    def test_admin_can_access_private_albums(self, client, mock_admin_auth):
         """Test that admin can access private albums"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
 
         with client.application.app_context():
             # Create private album
