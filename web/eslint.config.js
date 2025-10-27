@@ -28,6 +28,10 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         process: 'readonly',
+        fetch: 'readonly',
+        alert: 'readonly',
+        localStorage: 'readonly',
+        btoa: 'readonly',
       },
     },
     rules: {
