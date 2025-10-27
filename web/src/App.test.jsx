@@ -222,7 +222,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     // Should show generating state
-    expect(screen.getByRole('button', { name: /generating.../i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generating...$/i })).toBeDisabled()
   })
 
   it('handles config loading error', async () => {
