@@ -71,8 +71,8 @@ function ScrapingTab({ isAdmin }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        console.log('Scrape job started:', data);
+        await response.json(); // Consume response
+        // Job started successfully
         fetchJobs();
         setShowStartDialog(false);
       } else {
