@@ -86,6 +86,7 @@ class Label(db.Model):
     # Source information
     source_model = db.Column(db.String(100))  # e.g., "claude-3-sonnet"
     source_prompt = db.Column(db.Text)  # The prompt used to generate the label
+    created_by = db.Column(db.String(255))  # User who created the label
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -99,6 +100,7 @@ class Label(db.Model):
             "label_type": self.label_type,
             "source_model": self.source_model,
             "source_prompt": self.source_prompt,
+            "created_by": self.created_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -116,6 +118,7 @@ class Album(db.Model):
     album_type = db.Column(db.String(50), default="batch")  # batch, set, collection, manual
     is_public = db.Column(db.Boolean, default=True)
     is_training_source = db.Column(db.Boolean, default=False)  # Can be used for training
+    created_by = db.Column(db.String(255))  # User who created the album
 
     # Generation context (for batch albums)
     generation_prompt = db.Column(db.Text)
@@ -130,6 +133,11 @@ class Album(db.Model):
         "AlbumImage", backref="album", lazy=True, cascade="all, delete-orphan"
     )
 
+    @property
+    def images(self):
+        """Get images in this album"""
+        return [ai.image for ai in self.album_images if ai.image]
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -140,6 +148,7 @@ class Album(db.Model):
             "is_training_source": self.is_training_source,
             "generation_prompt": self.generation_prompt,
             "generation_config": self.generation_config,
+            "created_by": self.created_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "image_count": len(self.album_images) if self.album_images else 0,
@@ -157,6 +166,7 @@ class AlbumImage(db.Model):
 
     # Ordering within album
     sort_order = db.Column(db.Integer, default=0)
+    added_by = db.Column(db.String(255))  # User who added the image to the album
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -170,6 +180,7 @@ class AlbumImage(db.Model):
             "album_id": self.album_id,
             "image_id": self.image_id,
             "sort_order": self.sort_order,
+            "added_by": self.added_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

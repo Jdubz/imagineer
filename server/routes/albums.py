@@ -12,16 +12,33 @@ albums_bp = Blueprint("albums", __name__, url_prefix="/api/albums")
 
 @albums_bp.route("", methods=["GET"])
 def list_albums():
-    """List all albums (public)"""
-    albums = Album.query.order_by(Album.created_at.desc()).all()
-    return jsonify({"albums": [album.to_dict() for album in albums]})
+    """List all albums (public, with pagination)"""
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 50, type=int), 100)
+
+    query = Album.query.order_by(Album.created_at.desc())
+
+    # Paginate
+    pagination = query.paginate(page=page, per_page=per_page)
+
+    return jsonify(
+        {
+            "albums": [album.to_dict() for album in pagination.items],
+            "total": pagination.total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pagination.pages,
+        }
+    )
 
 
 @albums_bp.route("/<int:album_id>", methods=["GET"])
 def get_album(album_id):
     """Get album details with images (public)"""
     album = Album.query.get_or_404(album_id)
-    return jsonify(album.to_dict(include_images=True))
+    album_data = album.to_dict()
+    album_data["images"] = [img.to_dict() for img in album.images]
+    return jsonify(album_data)
 
 
 @albums_bp.route("", methods=["POST"])
