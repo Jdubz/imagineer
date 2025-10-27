@@ -10,6 +10,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -17,18 +18,108 @@ import yaml
 from flask import Flask, jsonify, request, send_from_directory, session, url_for, redirect
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
+from flask_talisman import Talisman
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import auth module
-from server.auth import init_auth, User, get_user_role, load_users
+from server.auth import init_auth, User, get_user_role, load_users, save_users, require_admin, ROLE_ADMIN
+from server.logging_config import configure_logging
+from server.database import db, init_database, Image, Album, AlbumImage, Label, ScrapeJob, TrainingRun
 
 app = Flask(__name__, static_folder="../public", static_url_path="")
-CORS(app, supports_credentials=True)  # Enable credentials for cookies
+
+# Configure database
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///imagineer.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Configure CORS with environment-based origins
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '').split(',')
+if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == ['']:
+    ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173'
+    ]
+
+CORS(app,
+     resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE"])
+
+# Configure security headers
+if os.environ.get('FLASK_ENV') == 'production':
+    Talisman(app,
+        force_https=True,
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,
+        content_security_policy={
+            'default-src': "'self'",
+            'script-src': ["'self'", "'unsafe-inline'", "accounts.google.com"],
+            'style-src': ["'self'", "'unsafe-inline'"],
+            'img-src': ["'self'", "data:", "*.googleusercontent.com"],
+            'connect-src': ["'self'"],
+            'frame-src': ["'none'"]
+        },
+        frame_options='DENY'
+    )
 
 # Initialize authentication
 oauth, google = init_auth(app)
+
+# Configure logging
+logger = configure_logging(app)
+
+# Initialize database
+init_database(app)
+
+# Add request timing and performance logging
+@app.before_request
+def before_request():
+    """Log request start and set timing"""
+    from flask import g
+    g.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    """Log request completion with timing and status"""
+    from flask import g, request
+    import time
+    
+    # Calculate request duration
+    duration_ms = 0
+    if hasattr(g, 'start_time'):
+        duration_ms = int((time.time() - g.start_time) * 1000)
+    
+    # Log request completion
+    logger.info(f"Request completed: {request.method} {request.path}", extra={
+        'operation': 'request_completed',
+        'status_code': response.status_code,
+        'duration_ms': duration_ms
+    })
+    
+    return response
+
+# Add centralized error handling
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global exception handler"""
+    logger.error(f"Unhandled exception: {e}", exc_info=True, extra={
+        'operation': 'exception_handled',
+        'exception_type': type(e).__name__
+    })
+    
+    if app.debug:
+        return jsonify({
+            "error": "Internal server error",
+            "detail": str(e),
+            "type": type(e).__name__
+        }), 500
+    else:
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -79,12 +170,25 @@ def auth_callback():
         # Log in user with Flask-Login
         login_user(user)
 
+        # Log successful authentication
+        security_logger = logging.getLogger('security')
+        security_logger.info(f"Successful login: {user.email}", extra={
+            "event": "authentication_success",
+            "user_email": user.email,
+            "role": user.role
+        })
+
         # Redirect to frontend (assuming it's on same domain or configured origin)
         frontend_url = request.args.get("state") or "/"
         return redirect(frontend_url)
 
     except Exception as e:
-        print(f"OAuth callback error: {e}")
+        logger.error(f"OAuth callback error: {e}", exc_info=True)
+        security_logger = logging.getLogger('security')
+        security_logger.warning(f"Failed login attempt", extra={
+            "event": "authentication_failure",
+            "error": str(e)
+        })
         return jsonify({"error": "Authentication failed"}), 500
 
 
@@ -106,7 +210,6 @@ def auth_me():
             "name": current_user.name,
             "picture": current_user.picture,
             "role": current_user.role,
-            "is_editor": current_user.is_editor(),
             "is_admin": current_user.is_admin()
         })
     else:
@@ -1553,6 +1656,245 @@ def update_set_loras(set_name):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# Database API Endpoints
+# ============================================================================
+
+@app.route("/api/albums", methods=["GET"])
+def get_albums():
+    """Get all albums (public endpoint)"""
+    try:
+        logger.info("Fetching public albums", extra={'operation': 'get_albums'})
+        albums = Album.query.filter_by(is_public=True).order_by(Album.created_at.desc()).all()
+        
+        album_count = len(albums)
+        logger.info(f"Retrieved {album_count} public albums", extra={
+            'operation': 'get_albums',
+            'album_count': album_count
+        })
+        
+        return jsonify([album.to_dict() for album in albums])
+    except Exception as e:
+        logger.error(f"Error getting albums: {e}", exc_info=True, extra={
+            'operation': 'get_albums',
+            'error_type': type(e).__name__
+        })
+        return jsonify({"error": "Failed to get albums"}), 500
+
+
+@app.route("/api/albums/<int:album_id>", methods=["GET"])
+def get_album(album_id):
+    """Get specific album with images (public endpoint)"""
+    try:
+        album = Album.query.get_or_404(album_id)
+        if not album.is_public:
+            return jsonify({"error": "Album not found"}), 404
+        
+        album_data = album.to_dict()
+        
+        # Get images in this album
+        album_images = AlbumImage.query.filter_by(album_id=album_id).order_by(AlbumImage.sort_order).all()
+        images = []
+        for album_image in album_images:
+            image_data = album_image.image.to_dict()
+            images.append(image_data)
+        
+        album_data['images'] = images
+        return jsonify(album_data)
+    except Exception as e:
+        logger.error(f"Error getting album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get album"}), 500
+
+
+@app.route("/api/images", methods=["GET"])
+def get_images():
+    """Get all public images (public endpoint)"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        logger.info(f"Fetching public images - page {page}, per_page {per_page}", extra={
+            'operation': 'get_images',
+            'page': page,
+            'per_page': per_page
+        })
+        
+        images = Image.query.filter_by(is_public=True).order_by(Image.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        logger.info(f"Retrieved {len(images.items)} images (page {page}/{images.pages})", extra={
+            'operation': 'get_images',
+            'image_count': len(images.items),
+            'total_images': images.total,
+            'current_page': page,
+            'total_pages': images.pages
+        })
+        
+        return jsonify({
+            'images': [image.to_dict() for image in images.items],
+            'total': images.total,
+            'pages': images.pages,
+            'current_page': page,
+            'per_page': per_page
+        })
+    except Exception as e:
+        logger.error(f"Error getting images: {e}", exc_info=True, extra={
+            'operation': 'get_images',
+            'error_type': type(e).__name__
+        })
+        return jsonify({"error": "Failed to get images"}), 500
+
+
+@app.route("/api/images/<int:image_id>", methods=["GET"])
+def get_image(image_id):
+    """Get specific image (public endpoint)"""
+    try:
+        image = Image.query.get_or_404(image_id)
+        if not image.is_public:
+            return jsonify({"error": "Image not found"}), 404
+        
+        return jsonify(image.to_dict())
+    except Exception as e:
+        logger.error(f"Error getting image {image_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get image"}), 500
+
+
+@app.route("/api/database/stats", methods=["GET"])
+def get_database_stats():
+    """Get database statistics (public endpoint)"""
+    try:
+        stats = {
+            'albums': Album.query.count(),
+            'images': Image.query.count(),
+            'public_images': Image.query.filter_by(is_public=True).count(),
+            'labels': db.session.query(Label).count(),
+            'scrape_jobs': db.session.query(ScrapeJob).count(),
+            'training_runs': db.session.query(TrainingRun).count()
+        }
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting database stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get database stats"}), 500
+
+
+# ============================================================================
+# Admin-Only API Endpoints
+# ============================================================================
+
+@app.route("/api/admin/users", methods=["GET"])
+@require_admin
+def get_admin_users():
+    """Get all users (admin only)"""
+    try:
+        logger.info("Admin accessing user list", extra={
+            'operation': 'admin_get_users',
+            'user_id': current_user.email if current_user.is_authenticated else 'unknown'
+        })
+        users = load_users()
+        
+        user_count = len([u for u in users.values() if isinstance(u, dict)])
+        logger.info(f"Retrieved {user_count} users for admin", extra={
+            'operation': 'admin_get_users',
+            'user_count': user_count
+        })
+        
+        return jsonify(users)
+    except Exception as e:
+        logger.error(f"Error getting users: {e}", exc_info=True, extra={
+            'operation': 'admin_get_users',
+            'error_type': type(e).__name__
+        })
+        return jsonify({"error": "Failed to get users"}), 500
+
+
+@app.route("/api/admin/users/<email>", methods=["PUT"])
+@require_admin
+def update_user_role(email):
+    """Update user role (admin only)"""
+    try:
+        data = request.json
+        if not data or "role" not in data:
+            return jsonify({"error": "role field is required"}), 400
+        
+        role = data["role"]
+        if role not in [None, ROLE_ADMIN]:
+            return jsonify({"error": "Invalid role. Must be null (public) or 'admin'"}), 400
+        
+        users = load_users()
+        if email not in users:
+            users[email] = {}
+        
+        users[email]["role"] = role
+        save_users(users)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Updated user {email} role to {role or 'public'}"
+        })
+    except Exception as e:
+        logger.error(f"Error updating user role: {e}", exc_info=True)
+        return jsonify({"error": "Failed to update user role"}), 500
+
+
+@app.route("/api/admin/images", methods=["GET"])
+@require_admin
+def get_admin_images():
+    """Get all images including private ones (admin only)"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        images = Image.query.order_by(Image.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        return jsonify({
+            'images': [image.to_dict() for image in images.items],
+            'total': images.total,
+            'pages': images.pages,
+            'current_page': page,
+            'per_page': per_page
+        })
+    except Exception as e:
+        logger.error(f"Error getting admin images: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get images"}), 500
+
+
+@app.route("/api/admin/images/<int:image_id>/visibility", methods=["PUT"])
+@require_admin
+def update_image_visibility(image_id):
+    """Update image visibility (admin only)"""
+    try:
+        data = request.json
+        if not data or "is_public" not in data:
+            return jsonify({"error": "is_public field is required"}), 400
+        
+        image = Image.query.get_or_404(image_id)
+        image.is_public = bool(data["is_public"])
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Updated image visibility to {'public' if image.is_public else 'private'}"
+        })
+    except Exception as e:
+        logger.error(f"Error updating image visibility: {e}", exc_info=True)
+        return jsonify({"error": "Failed to update image visibility"}), 500
+
+
+@app.route("/api/admin/albums", methods=["GET"])
+@require_admin
+def get_admin_albums():
+    """Get all albums including private ones (admin only)"""
+    try:
+        albums = Album.query.order_by(Album.created_at.desc()).all()
+        return jsonify([album.to_dict() for album in albums])
+    except Exception as e:
+        logger.error(f"Error getting admin albums: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get albums"}), 500
 
 
 if __name__ == "__main__":
