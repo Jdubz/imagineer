@@ -285,6 +285,7 @@ def load_config():
             config = yaml.safe_load(f)
     except FileNotFoundError:
         # Fallback config for CI environments
+        logger.info("Config file not found, using fallback config for CI")
         config = {
             "model": {"cache_dir": "/tmp/imagineer/models"},
             "outputs": {"base_dir": "/tmp/imagineer/outputs"},
@@ -383,7 +384,7 @@ def discover_set_loras(set_name, config):
         List of dicts with 'path' and 'weight' keys, or empty list if no LoRAs found
     """
     # Get lora base directory from config
-    lora_base_dir = Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
+    lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
     set_lora_dir = lora_base_dir / set_name
 
     if not set_lora_dir.exists() or not set_lora_dir.is_dir():
@@ -1455,9 +1456,7 @@ def list_loras():
     """List all organized LoRAs from index"""
     try:
         config = load_config()
-        lora_base_dir = (
-            Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
-        )
+        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
         index_path = lora_base_dir / "index.json"
 
         if not index_path.exists():
@@ -1505,9 +1504,7 @@ def serve_lora_preview(folder):
             return jsonify({"error": "Invalid folder name"}), 400
 
         config = load_config()
-        lora_base_dir = (
-            Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
-        )
+        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
         preview_path = lora_base_dir / folder / "preview.png"
 
         if not preview_path.exists():
@@ -1528,9 +1525,7 @@ def get_lora_details(folder):
             return jsonify({"error": "Invalid folder name"}), 400
 
         config = load_config()
-        lora_base_dir = (
-            Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
-        )
+        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
         lora_folder = lora_base_dir / folder
         config_path = lora_folder / "config.yaml"
 
@@ -1574,9 +1569,7 @@ def get_set_loras(set_name):
             return jsonify({"error": f'Set "{set_name}" not found'}), 404
 
         config = load_config()
-        lora_base_dir = (
-            Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
-        )
+        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
 
         loras = []
 
@@ -1640,9 +1633,7 @@ def update_set_loras(set_name):  # noqa: C901
 
         # Load main config
         config = load_config()
-        lora_base_dir = (
-            Path(config["model"].get("cache_dir", "/mnt/speedy/imagineer/models")) / "lora"
-        )
+        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
 
         # Convert folder names to full paths and validate
         loras_list = []
