@@ -152,8 +152,18 @@ class TestTrainingTasks:
 
     @patch("server.tasks.training.subprocess.Popen")
     @patch("server.tasks.training.prepare_training_data")
-    def test_train_lora_task_failure(self, mock_prepare, mock_popen, app):
+    @patch("pathlib.Path.mkdir")
+    @patch("server.api.load_config")
+    def test_train_lora_task_failure(
+        self, mock_load_config, mock_mkdir, mock_prepare, mock_popen, app
+    ):
         """Test failed LoRA training task"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "model": {"cache_dir": "/tmp/imagineer/models"},
+            "training": {"checkpoint_dir": "/tmp/imagineer/checkpoints"},
+        }
+
         with app.app_context():
             # Create training run
             run = TrainingRun(

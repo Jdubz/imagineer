@@ -3,7 +3,7 @@ Tests for Phase 2: Album System & Image Management
 """
 
 import io
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from PIL import Image as PILImage
 
@@ -167,8 +167,24 @@ class TestAlbumAPI:
 class TestImageAPI:
     """Test image API endpoints"""
 
-    def test_upload_images_admin(self, client, mock_admin_auth):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("server.api.load_config")
+    @patch("builtins.open", create=True)
+    def test_upload_images_admin(
+        self, mock_open, mock_load_config, mock_exists, mock_mkdir, client, mock_admin_auth
+    ):
         """Test uploading images as admin"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
+        # Mock file operations
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
         # Create test image data
         img_data = io.BytesIO()
         test_img = PILImage.new("RGB", (100, 100), color="red")
@@ -214,8 +230,20 @@ class TestImageAPI:
                 deleted_image = Image.query.get(image_id)
                 assert deleted_image is None
 
-    def test_get_thumbnail_public(self, client):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("PIL.Image.open")
+    @patch("server.api.load_config")
+    def test_get_thumbnail_public(
+        self, mock_load_config, mock_pil_open, mock_exists, mock_mkdir, client
+    ):
         """Test getting image thumbnail as public user"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
         with client.application.app_context():
             # Create test image
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
@@ -223,13 +251,17 @@ class TestImageAPI:
             db.session.commit()
             image_id = image.id
 
-        # Mock thumbnail generation
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("flask.send_file") as mock_send:
-                mock_send.return_value = "thumbnail_data"
+        # Mock PIL Image operations
+        mock_img = MagicMock()
+        mock_img.thumbnail.return_value = None
+        mock_pil_open.return_value.__enter__.return_value = mock_img
 
-                response = client.get(f"/api/images/{image_id}/thumbnail")
-                assert response.status_code == 200
+        # Mock thumbnail generation
+        with patch("flask.send_file") as mock_send:
+            mock_send.return_value = "thumbnail_data"
+
+            response = client.get(f"/api/images/{image_id}/thumbnail")
+            assert response.status_code == 200
 
     def test_get_thumbnail_private_image(self, client):
         """Test getting thumbnail of private image"""
