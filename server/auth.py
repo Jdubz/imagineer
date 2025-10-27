@@ -9,8 +9,8 @@ from functools import wraps
 from pathlib import Path
 
 from authlib.integrations.flask_client import OAuth
-from flask import redirect, session, url_for, jsonify
-from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user
+from flask import jsonify, session
+from flask_login import LoginManager, UserMixin, current_user
 
 # Configuration
 USERS_FILE = Path(__file__).parent / "users.json"
@@ -67,7 +67,7 @@ def get_user_role(email):
 def get_secret_key():
     """Get Flask secret key - MUST be set in production"""
     secret = os.environ.get("FLASK_SECRET_KEY")
-    
+
     if not secret:
         if os.environ.get("FLASK_ENV") == "production":
             raise RuntimeError(
@@ -76,10 +76,11 @@ def get_secret_key():
             )
         # Development only - generate and warn
         import secrets
+
         secret = secrets.token_hex(32)
         print(f"WARNING: Generated dev secret key: {secret}")
         print("Set FLASK_SECRET_KEY environment variable for production!")
-    
+
     return secret
 
 
@@ -129,10 +130,10 @@ def require_admin(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return jsonify({"error": "Authentication required"}), 401
-        
+
         if not current_user.is_admin():
             return jsonify({"error": "Admin role required"}), 403
-        
+
         return f(*args, **kwargs)
 
     return decorated_function
