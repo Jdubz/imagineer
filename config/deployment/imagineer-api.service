@@ -1,0 +1,22 @@
+[Unit]
+Description=Imagineer AI Image Generation API
+After=network.target
+
+[Service]
+Type=simple
+User=jdubz
+Group=jdubz
+WorkingDirectory=/home/jdubz/Development/imagineer
+Environment="PATH=/home/jdubz/Development/imagineer/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/jdubz/Development/imagineer/.env.production
+ExecStart=/home/jdubz/Development/imagineer/venv/bin/python server/api.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=imagineer-api
+
+[Install]
+WantedBy=multi-user.target

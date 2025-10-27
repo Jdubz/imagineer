@@ -1,0 +1,21 @@
+{
+  "_comment": "User roles database. Copy this file to users.json and add authorized users.",
+  "_instructions": "Add email addresses with their roles. Only 'admin' role users can edit content.",
+  "_example": {
+    "email@example.com": {
+      "role": "admin",
+      "name": "Example User",
+      "created": "2025-10-27"
+    }
+  },
+  "contact@joshwentworth.com": {
+    "role": "admin",
+    "name": "Josh Wentworth",
+    "created": "2025-10-27"
+  },
+  "jessica.castaldi@gmail.com": {
+    "role": "admin",
+    "name": "Jessica Castaldi",
+    "created": "2025-10-27"
+  }
+}

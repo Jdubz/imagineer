@@ -14,14 +14,108 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session, url_for, redirect
 from flask_cors import CORS
+from flask_login import current_user, login_user, logout_user
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import auth module
+from server.auth import init_auth, User, get_user_role, load_users
+
 app = Flask(__name__, static_folder="../public", static_url_path="")
-CORS(app)
+CORS(app, supports_credentials=True)  # Enable credentials for cookies
+
+# Initialize authentication
+oauth, google = init_auth(app)
+
+
+# ============================================================================
+# Authentication Routes
+# ============================================================================
+
+
+@app.route("/auth/login")
+def auth_login():
+    """Initiate Google OAuth flow"""
+    redirect_uri = url_for("auth_callback", _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/google/callback")
+def auth_callback():
+    """Handle Google OAuth callback"""
+    try:
+        # Get token from Google
+        token = google.authorize_access_token()
+
+        # Get user info from Google
+        user_info = token.get("userinfo")
+        if not user_info:
+            return jsonify({"error": "Failed to get user info"}), 400
+
+        # Get user role from users.json
+        email = user_info.get("email")
+        role = get_user_role(email)
+
+        # Create user object
+        user = User(
+            email=email,
+            name=user_info.get("name", ""),
+            picture=user_info.get("picture", ""),
+            role=role
+        )
+
+        # Store user data in session
+        session["user"] = {
+            "email": user.email,
+            "name": user.name,
+            "picture": user.picture,
+            "role": user.role
+        }
+        session.permanent = True
+
+        # Log in user with Flask-Login
+        login_user(user)
+
+        # Redirect to frontend (assuming it's on same domain or configured origin)
+        frontend_url = request.args.get("state") or "/"
+        return redirect(frontend_url)
+
+    except Exception as e:
+        print(f"OAuth callback error: {e}")
+        return jsonify({"error": "Authentication failed"}), 500
+
+
+@app.route("/auth/logout")
+def auth_logout():
+    """Logout user"""
+    logout_user()
+    session.clear()
+    return jsonify({"success": True, "message": "Logged out successfully"})
+
+
+@app.route("/auth/me")
+def auth_me():
+    """Get current user info"""
+    if current_user.is_authenticated:
+        return jsonify({
+            "authenticated": True,
+            "email": current_user.email,
+            "name": current_user.name,
+            "picture": current_user.picture,
+            "role": current_user.role,
+            "is_editor": current_user.is_editor(),
+            "is_admin": current_user.is_admin()
+        })
+    else:
+        return jsonify({"authenticated": False})
+
+
+# ============================================================================
+# Configuration
+# ============================================================================
 
 # Configuration
 PROJECT_ROOT = Path(__file__).parent.parent

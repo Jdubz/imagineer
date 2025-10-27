@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
 import PasswordGate from './components/PasswordGate'
+import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
 import GenerateTab from './components/GenerateTab'
 import GalleryTab from './components/GalleryTab'
@@ -164,8 +165,13 @@ function App() {
     <PasswordGate>
       <div className="App">
         <header className="header">
-          <h1>✨ Imagineer</h1>
-          <p>AI Image Generation Toolkit</p>
+          <div className="header-content">
+            <div className="header-title">
+              <h1>✨ Imagineer</h1>
+              <p>AI Image Generation Toolkit</p>
+            </div>
+            <AuthButton />
+          </div>
         </header>
 
         <div className="container">

@@ -1,0 +1,15 @@
+tunnel: db1a99dd-3d12-4315-b241-da2a55a5c30f
+credentials-file: /home/jdubz/.cloudflared/db1a99dd-3d12-4315-b241-da2a55a5c30f.json
+
+ingress:
+  # API endpoints go to Flask backend
+  - hostname: imagineer.joshwentworth.com
+    path: /api/*
+    service: http://localhost:10050
+
+  # Everything else goes to nginx (React app)
+  - hostname: imagineer.joshwentworth.com
+    service: http://localhost:8080
+
+  # Fallback
+  - service: http_status:404
