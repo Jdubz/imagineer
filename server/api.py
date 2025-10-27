@@ -55,12 +55,17 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # Configure CORS with environment-based origins
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "").split(",")
 if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == [""]:
-    ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ]
+    # Only allow localhost in development mode
+    if os.environ.get("FLASK_ENV") == "development":
+        ALLOWED_ORIGINS = [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+        ]
+    else:
+        # Production: require explicit CORS configuration
+        ALLOWED_ORIGINS = []
 
 CORS(
     app,
@@ -1948,14 +1953,16 @@ def get_admin_albums():
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_RUN_PORT", 10050))
 
-    print("=" * 50)
-    print("Imagineer API Server")
-    print("=" * 50)
-    print(f"Config: {CONFIG_PATH}")
-    print(f"Output: {load_config()['output']['directory']}")
-    print("")
-    print(f"Starting server on http://0.0.0.0:{port}")
-    print("Access from any device on your network!")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("Imagineer API Server")
+    logger.info("=" * 50)
+    logger.info(f"Config: {CONFIG_PATH}")
+    logger.info(f"Output: {load_config()['output']['directory']}")
+    logger.info("")
+    logger.info(f"Starting server on http://0.0.0.0:{port}")
+    logger.info("Access from any device on your network!")
+    logger.info("=" * 50)
 
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # Only enable debug mode in development
+    debug_mode = os.environ.get("FLASK_ENV") == "development"
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)

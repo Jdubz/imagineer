@@ -4,6 +4,7 @@ Handles Google OAuth and role-based access control
 """
 
 import json
+import logging
 import os
 from functools import wraps
 from pathlib import Path
@@ -14,6 +15,7 @@ from flask_login import LoginManager, UserMixin, current_user
 
 # Configuration
 USERS_FILE = Path(__file__).parent / "users.json"
+logger = logging.getLogger(__name__)
 
 # User roles - simplified to public + admin only
 ROLE_ADMIN = "admin"
@@ -42,7 +44,7 @@ def load_users():
         with open(USERS_FILE, "r") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading users: {e}")
+        logger.error(f"Error loading users: {e}")
         return {}
 
 
@@ -52,7 +54,7 @@ def save_users(users):
         with open(USERS_FILE, "w") as f:
             json.dump(users, f, indent=2)
     except Exception as e:
-        print(f"Error saving users: {e}")
+        logger.error(f"Error saving users: {e}")
 
 
 def get_user_role(email):
@@ -78,8 +80,8 @@ def get_secret_key():
         import secrets
 
         secret = secrets.token_hex(32)
-        print(f"WARNING: Generated dev secret key: {secret}")
-        print("Set FLASK_SECRET_KEY environment variable for production!")
+        logger.warning(f"Generated dev secret key: {secret}")
+        logger.warning("Set FLASK_SECRET_KEY environment variable for production!")
 
     return secret
 
