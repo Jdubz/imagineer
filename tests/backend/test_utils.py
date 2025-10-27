@@ -131,12 +131,12 @@ class TestImagePreprocessing:
 
     def test_preprocess_image_resize(self, test_image):
         """Test preprocess_image resizes correctly"""
-        processed = preprocess_image(test_image, target_size=(512, 512))
+        processed = preprocess_image(test_image, size=(512, 512))
         assert processed.size == (512, 512)
 
     def test_preprocess_image_maintains_aspect(self, test_image):
         """Test preprocess_image maintains aspect ratio with center crop"""
-        processed = preprocess_image(test_image, target_size=(512, 512))
+        processed = preprocess_image(test_image, size=(512, 512))
         assert processed.size == (512, 512)
         # Image should be cropped, not distorted
         assert processed.mode == 'RGB'
@@ -144,7 +144,7 @@ class TestImagePreprocessing:
     def test_preprocess_image_already_correct_size(self):
         """Test preprocess_image with already correct size"""
         img = Image.new('RGB', (512, 512), color='green')
-        processed = preprocess_image(img, target_size=(512, 512))
+        processed = preprocess_image(img, size=(512, 512))
         assert processed.size == (512, 512)
 
 
