@@ -3,11 +3,9 @@ Tests for Phase 3: AI Labeling System
 """
 
 import base64
-import json
 from io import BytesIO
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
@@ -273,7 +271,7 @@ class TestBatchLabeling:
         def progress_callback(current, total):
             progress_calls.append((current, total))
 
-        results = batch_label_images(img_paths, progress_callback=progress_callback)
+        batch_label_images(img_paths, progress_callback=progress_callback)
 
         assert len(progress_calls) == 2
         assert progress_calls[0] == (1, 2)
@@ -289,7 +287,7 @@ class TestLabelingAPI:
         assert response.status_code == 401
 
     @patch("server.services.labeling.label_image_with_claude")
-    def test_label_image_endpoint_success(self, mock_label, client):
+    def test_label_image_endpoint_success(self, mock_label, client, mock_admin_auth):
         """Test successful image labeling via API"""
         with client.application.app_context():
             # Create test image
@@ -306,24 +304,21 @@ class TestLabelingAPI:
             "tags": ["test", "beautiful"],
         }
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/image/{image_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
-
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["success"] is True
-            assert data["description"] == "A beautiful test image"
-            assert data["nsfw_rating"] == "SAFE"
-            assert "test" in data["tags"]
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["description"] == "A beautiful test image"
+        assert data["nsfw_rating"] == "SAFE"
+        assert "test" in data["tags"]
 
     @patch("server.services.labeling.label_image_with_claude")
-    def test_label_image_endpoint_error(self, mock_label, client):
+    def test_label_image_endpoint_error(self, mock_label, client, mock_admin_auth):
         """Test image labeling API error handling"""
         with client.application.app_context():
             # Create test image
@@ -335,18 +330,15 @@ class TestLabelingAPI:
         # Mock labeling error
         mock_label.return_value = {"status": "error", "message": "Claude API failed"}
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/image/{image_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
-
-            assert response.status_code == 500
-            data = response.get_json()
-            assert "error" in data
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
 
     def test_label_album_endpoint_unauthorized(self, client):
         """Test album labeling endpoint without admin auth"""
@@ -354,7 +346,7 @@ class TestLabelingAPI:
         assert response.status_code == 401
 
     @patch("server.services.labeling.batch_label_images")
-    def test_label_album_endpoint_success(self, mock_batch, client):
+    def test_label_album_endpoint_success(self, mock_batch, client, mock_admin_auth):
         """Test successful album labeling via API"""
         with client.application.app_context():
             # Create test album and images
@@ -394,23 +386,20 @@ class TestLabelingAPI:
             ],
         }
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/album/{album_id}",
+            json={"prompt_type": "sd_training", "force": False},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/album/{album_id}",
-                json={"prompt_type": "sd_training", "force": False},
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["total"] == 2
+        assert data["success_count"] == 2
+        assert data["failed_count"] == 0
 
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["success"] is True
-            assert data["total"] == 2
-            assert data["success_count"] == 2
-            assert data["failed_count"] == 0
-
-    def test_label_album_empty(self, client):
+    def test_label_album_empty(self, client, mock_admin_auth):
         """Test labeling empty album"""
         with client.application.app_context():
             # Create empty album
@@ -419,25 +408,22 @@ class TestLabelingAPI:
             db.session.commit()
             album_id = album.id
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/album/{album_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/album/{album_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
-
-            assert response.status_code == 400
-            data = response.get_json()
-            assert "empty" in data["error"].lower()
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "empty" in data["error"].lower()
 
 
 class TestNSFWClassification:
     """Test NSFW classification and database updates"""
 
     @patch("server.services.labeling.label_image_with_claude")
-    def test_nsfw_classification_safe(self, mock_label, client):
+    def test_nsfw_classification_safe(self, mock_label, client, mock_admin_auth):
         """Test SAFE classification updates database correctly"""
         with client.application.app_context():
             # Create test image
@@ -454,23 +440,21 @@ class TestNSFWClassification:
             "tags": ["safe", "family-friendly"],
         }
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/image/{image_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
 
-            assert response.status_code == 200
-
-            # Verify database update
+        # Verify database update
+        with client.application.app_context():
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is False
 
     @patch("server.services.labeling.label_image_with_claude")
-    def test_nsfw_classification_explicit(self, mock_label, client):
+    def test_nsfw_classification_explicit(self, mock_label, client, mock_admin_auth):
         """Test EXPLICIT classification updates database correctly"""
         with client.application.app_context():
             # Create test image
@@ -487,23 +471,21 @@ class TestNSFWClassification:
             "tags": ["explicit", "adult"],
         }
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/image/{image_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
 
-            assert response.status_code == 200
-
-            # Verify database update
+        # Verify database update
+        with client.application.app_context():
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is True
 
     @patch("server.services.labeling.label_image_with_claude")
-    def test_label_storage(self, mock_label, client):
+    def test_label_storage(self, mock_label, client, mock_admin_auth):
         """Test that labels are properly stored in database"""
         with client.application.app_context():
             # Create test image
@@ -520,18 +502,16 @@ class TestNSFWClassification:
             "tags": ["landscape", "mountains", "nature", "beautiful"],
         }
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "default"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/labeling/image/{image_id}",
-                json={"prompt_type": "default"},
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
 
-            assert response.status_code == 200
-
-            # Verify labels are stored
+        # Verify labels are stored
+        with client.application.app_context():
             labels = Label.query.filter_by(image_id=image_id).all()
             assert len(labels) == 5  # 1 caption + 4 tags
 
