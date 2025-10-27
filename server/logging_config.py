@@ -5,9 +5,10 @@ Structured logging configuration for Imagineer
 import json
 import logging
 import os
-from logging.handlers import RotatingFileHandler
 from datetime import datetime
-from flask import request, has_request_context
+from logging.handlers import RotatingFileHandler
+
+from flask import has_request_context, request
 
 
 class JSONFormatter(logging.Formatter):
@@ -21,7 +22,7 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
             "module": record.module,
             "function": record.funcName,
-            "line": record.lineno
+            "line": record.lineno,
         }
 
         # Add request context if available
@@ -30,22 +31,22 @@ class JSONFormatter(logging.Formatter):
                 "method": request.method,
                 "path": request.path,
                 "ip": request.remote_addr,
-                "user_agent": request.headers.get('User-Agent', ''),
-                "referer": request.headers.get('Referer', ''),
-                "content_type": request.headers.get('Content-Type', ''),
-                "content_length": request.headers.get('Content-Length', '')
+                "user_agent": request.headers.get("User-Agent", ""),
+                "referer": request.headers.get("Referer", ""),
+                "content_type": request.headers.get("Content-Type", ""),
+                "content_length": request.headers.get("Content-Length", ""),
             }
 
         # Add custom fields from record
-        if hasattr(record, 'user_id'):
+        if hasattr(record, "user_id"):
             log_data["user_id"] = record.user_id
-        if hasattr(record, 'session_id'):
+        if hasattr(record, "session_id"):
             log_data["session_id"] = record.session_id
-        if hasattr(record, 'operation'):
+        if hasattr(record, "operation"):
             log_data["operation"] = record.operation
-        if hasattr(record, 'duration_ms'):
+        if hasattr(record, "duration_ms"):
             log_data["duration_ms"] = record.duration_ms
-        if hasattr(record, 'status_code'):
+        if hasattr(record, "status_code"):
             log_data["status_code"] = record.status_code
 
         # Add exception info if present
@@ -59,7 +60,7 @@ def configure_logging(app):
     """Configure structured logging for the application"""
 
     # Create logs directory
-    os.makedirs('logs', exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
 
     # Root logger
     root_logger = logging.getLogger()
@@ -68,25 +69,19 @@ def configure_logging(app):
     # Console handler - human readable for development
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(console_formatter)
 
     # File handler - JSON for production parsing
     file_handler = RotatingFileHandler(
-        'logs/imagineer.log',
-        maxBytes=10485760,  # 10MB
-        backupCount=10
+        "logs/imagineer.log", maxBytes=10485760, backupCount=10  # 10MB
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(JSONFormatter())
 
     # Security audit log - separate file
     security_handler = RotatingFileHandler(
-        'logs/security_audit.log',
-        maxBytes=10485760,  # 10MB
-        backupCount=10
+        "logs/security_audit.log", maxBytes=10485760, backupCount=10  # 10MB
     )
     security_handler.setLevel(logging.WARNING)
     security_handler.setFormatter(JSONFormatter())
@@ -95,7 +90,7 @@ def configure_logging(app):
     root_logger.addHandler(file_handler)
 
     # Security logger
-    security_logger = logging.getLogger('security')
+    security_logger = logging.getLogger("security")
     security_logger.addHandler(security_handler)
 
     return root_logger
