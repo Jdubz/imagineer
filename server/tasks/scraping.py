@@ -2,25 +2,27 @@
 Web scraping integration tasks
 """
 
-import os
-import subprocess
+import hashlib
 import json
 import logging
-import hashlib
-from pathlib import Path
+import os
+import subprocess
 from datetime import datetime
+from pathlib import Path
+
 from PIL import Image as PILImage
 
 from server.celery_app import celery
-from server.database import db, ScrapeJob, Album, Image, AlbumImage, Label
+from server.database import Album, AlbumImage, Image, Label, ScrapeJob, db
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-TRAINING_DATA_PATH = Path('/home/jdubz/Development/training-data')
-SCRAPED_OUTPUT_PATH = Path('/mnt/speedy/imagineer/outputs/scraped')
+TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
+SCRAPED_OUTPUT_PATH = Path("/mnt/speedy/imagineer/outputs/scraped")
 
-@celery.task(bind=True, name='tasks.scrape_site')
+
+@celery.task(bind=True, name="tasks.scrape_site")
 def scrape_site_task(self, scrape_job_id):
     """
     Execute web scraping job using training-data project.
@@ -36,10 +38,10 @@ def scrape_site_task(self, scrape_job_id):
     with app.app_context():
         job = ScrapeJob.query.get(scrape_job_id)
         if not job:
-            return {'status': 'error', 'message': 'Job not found'}
+            return {"status": "error", "message": "Job not found"}
 
         # Update job status
-        job.status = 'running'
+        job.status = "running"
         job.started_at = datetime.utcnow()
         job.progress = 0
         db.session.commit()
@@ -48,29 +50,36 @@ def scrape_site_task(self, scrape_job_id):
 
         try:
             # Create output directory
-            output_dir = SCRAPED_OUTPUT_PATH / f'job_{scrape_job_id}'
+            output_dir = SCRAPED_OUTPUT_PATH / f"job_{scrape_job_id}"
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Parse scrape config
             config = json.loads(job.scrape_config) if job.scrape_config else {}
-            depth = config.get('depth', 3)
-            max_images = config.get('max_images', 1000)
+            depth = config.get("depth", 3)
+            max_images = config.get("max_images", 1000)
 
             # Run training-data scraper
             cmd = [
-                'python', '-m', 'training_data',
-                '--url', job.source_url,
-                '--output', str(output_dir),
-                '--depth', str(depth),
-                '--max-images', str(max_images),
-                '--config', str(TRAINING_DATA_PATH / 'config/default_config.yaml')
+                "python",
+                "-m",
+                "training_data",
+                "--url",
+                job.source_url,
+                "--output",
+                str(output_dir),
+                "--depth",
+                str(depth),
+                "--max-images",
+                str(max_images),
+                "--config",
+                str(TRAINING_DATA_PATH / "config/default_config.yaml"),
             ]
 
             # Add additional config options if present
-            if config.get('follow_links', True):
-                cmd.append('--follow-links')
-            if config.get('download_images', True):
-                cmd.append('--download-images')
+            if config.get("follow_links", True):
+                cmd.append("--follow-links")
+            if config.get("download_images", True):
+                cmd.append("--download-images")
 
             logger.info(f"Running scraper command: {' '.join(cmd)}")
 
@@ -80,7 +89,7 @@ def scrape_site_task(self, scrape_job_id):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1
+                bufsize=1,
             )
 
             # Stream output and update progress
@@ -93,17 +102,17 @@ def scrape_site_task(self, scrape_job_id):
                     logger.info(f"Scraper: {line}")
 
                     # Parse progress from output
-                    if 'Discovered:' in line:
+                    if "Discovered:" in line:
                         try:
-                            discovered_count = int(line.split('Discovered:')[1].split()[0])
+                            discovered_count = int(line.split("Discovered:")[1].split()[0])
                             job.images_scraped = discovered_count
                         except (ValueError, IndexError):
                             pass
-                    elif 'Downloaded:' in line:
+                    elif "Downloaded:" in line:
                         try:
-                            downloaded_count = int(line.split('Downloaded:')[1].split()[0])
+                            downloaded_count = int(line.split("Downloaded:")[1].split()[0])
                             job.images_scraped = downloaded_count
-                            
+
                             # Update progress percentage
                             if max_images > 0:
                                 progress = min(90, int((downloaded_count / max_images) * 90))
@@ -117,13 +126,13 @@ def scrape_site_task(self, scrape_job_id):
 
                     # Update Celery task progress
                     self.update_state(
-                        state='PROGRESS',
+                        state="PROGRESS",
                         meta={
-                            'discovered': discovered_count,
-                            'downloaded': downloaded_count,
-                            'progress': job.progress,
-                            'message': job.description
-                        }
+                            "discovered": discovered_count,
+                            "downloaded": downloaded_count,
+                            "progress": job.progress,
+                            "message": job.description,
+                        },
                     )
 
             process.wait()
@@ -133,41 +142,42 @@ def scrape_site_task(self, scrape_job_id):
                 logger.info(f"Scraper completed successfully for job {scrape_job_id}")
                 result = import_scraped_images(scrape_job_id, output_dir)
 
-                job.status = 'completed'
+                job.status = "completed"
                 job.completed_at = datetime.utcnow()
                 job.progress = 100
                 job.output_directory = str(output_dir)
                 db.session.commit()
 
                 return {
-                    'status': 'success',
-                    'images_imported': result['imported'],
-                    'album_id': result['album_id'],
-                    'output_directory': str(output_dir)
+                    "status": "success",
+                    "images_imported": result["imported"],
+                    "album_id": result["album_id"],
+                    "output_directory": str(output_dir),
                 }
             else:
-                error_msg = f'Scraper failed with code {process.returncode}'
+                error_msg = f"Scraper failed with code {process.returncode}"
                 logger.error(f"Scraper failed for job {scrape_job_id}: {error_msg}")
-                
-                job.status = 'failed'
+
+                job.status = "failed"
                 job.completed_at = datetime.utcnow()
                 job.error_message = error_msg
                 job.last_error_at = datetime.utcnow()
                 db.session.commit()
 
-                return {'status': 'error', 'message': error_msg}
+                return {"status": "error", "message": error_msg}
 
         except Exception as e:
-            error_msg = f'Scrape job error: {str(e)}'
+            error_msg = f"Scrape job error: {str(e)}"
             logger.error(f"Scrape job {scrape_job_id} error: {e}", exc_info=True)
-            
-            job.status = 'failed'
+
+            job.status = "failed"
             job.completed_at = datetime.utcnow()
             job.error_message = error_msg
             job.last_error_at = datetime.utcnow()
             db.session.commit()
 
-            return {'status': 'error', 'message': error_msg}
+            return {"status": "error", "message": error_msg}
+
 
 def import_scraped_images(scrape_job_id, output_dir):
     """
@@ -182,32 +192,32 @@ def import_scraped_images(scrape_job_id, output_dir):
     """
     job = ScrapeJob.query.get(scrape_job_id)
     if not job:
-        return {'imported': 0, 'album_id': None}
+        return {"imported": 0, "album_id": None}
 
     # Create album
     album = Album(
         name=f"Scraped: {job.name}",
         description=f"Images scraped from {job.source_url}",
         album_type="scraped",
-        is_public=True
+        is_public=True,
     )
     db.session.add(album)
     db.session.flush()
 
     # Find images directory
-    images_dir = output_dir / 'images'
+    images_dir = output_dir / "images"
     if not images_dir.exists():
         # Try alternative structure
         images_dir = output_dir
-        if not any(images_dir.glob('*.jpg')):
+        if not any(images_dir.glob("*.jpg")):
             logger.warning(f"No images found in {output_dir}")
-            return {'imported': 0, 'album_id': album.id}
+            return {"imported": 0, "album_id": album.id}
 
     imported_count = 0
     skipped_count = 0
 
     # Import all images
-    for image_file in images_dir.glob('*.jpg'):
+    for image_file in images_dir.glob("*.jpg"):
         try:
             # Check if image already exists (by filename)
             existing_image = Image.query.filter_by(filename=image_file.name).first()
@@ -217,7 +227,7 @@ def import_scraped_images(scrape_job_id, output_dir):
                 continue
 
             # Read caption if exists
-            caption_file = image_file.with_suffix('.txt')
+            caption_file = image_file.with_suffix(".txt")
             caption = None
             if caption_file.exists():
                 caption = caption_file.read_text().strip()
@@ -230,8 +240,8 @@ def import_scraped_images(scrape_job_id, output_dir):
 
             # Calculate checksum
             sha256 = hashlib.sha256()
-            with open(image_file, 'rb') as f:
-                for chunk in iter(lambda: f.read(8192), b''):
+            with open(image_file, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
                     sha256.update(chunk)
             checksum = sha256.hexdigest()
 
@@ -242,7 +252,7 @@ def import_scraped_images(scrape_job_id, output_dir):
                 width=width,
                 height=height,
                 is_public=True,
-                is_nsfw=False  # Will be updated by AI labeling if needed
+                is_nsfw=False,  # Will be updated by AI labeling if needed
             )
             db.session.add(image)
             db.session.flush()
@@ -252,17 +262,13 @@ def import_scraped_images(scrape_job_id, output_dir):
                 label = Label(
                     image_id=image.id,
                     label_text=caption,
-                    label_type='caption',
-                    source_model='scraper'
+                    label_type="caption",
+                    source_model="scraper",
                 )
                 db.session.add(label)
 
             # Add to album
-            assoc = AlbumImage(
-                album_id=album.id,
-                image_id=image.id,
-                sort_order=imported_count
-            )
+            assoc = AlbumImage(album_id=album.id, image_id=image.id, sort_order=imported_count)
             db.session.add(assoc)
 
             imported_count += 1
@@ -278,15 +284,15 @@ def import_scraped_images(scrape_job_id, output_dir):
 
     db.session.commit()
 
-    logger.info(f"Imported {imported_count} images from scrape job {scrape_job_id} (skipped {skipped_count})")
+    logger.info(
+        f"Imported {imported_count} images from scrape job {scrape_job_id} "
+        f"(skipped {skipped_count})"
+    )
 
-    return {
-        'imported': imported_count,
-        'skipped': skipped_count,
-        'album_id': album.id
-    }
+    return {"imported": imported_count, "skipped": skipped_count, "album_id": album.id}
 
-@celery.task(name='tasks.cleanup_scrape_job')
+
+@celery.task(name="tasks.cleanup_scrape_job")
 def cleanup_scrape_job(scrape_job_id):
     """
     Clean up old scrape job data and files.
@@ -299,7 +305,7 @@ def cleanup_scrape_job(scrape_job_id):
     with app.app_context():
         job = ScrapeJob.query.get(scrape_job_id)
         if not job:
-            return {'status': 'error', 'message': 'Job not found'}
+            return {"status": "error", "message": "Job not found"}
 
         try:
             # Clean up output directory if it exists
@@ -307,15 +313,16 @@ def cleanup_scrape_job(scrape_job_id):
                 output_path = Path(job.output_directory)
                 if output_path.exists():
                     import shutil
+
                     shutil.rmtree(output_path)
                     logger.info(f"Cleaned up output directory for job {scrape_job_id}")
 
             # Mark job as cleaned up
-            job.status = 'cleaned_up'
+            job.status = "cleaned_up"
             db.session.commit()
 
-            return {'status': 'success', 'message': 'Job cleaned up successfully'}
+            return {"status": "success", "message": "Job cleaned up successfully"}
 
         except Exception as e:
             logger.error(f"Error cleaning up job {scrape_job_id}: {e}")
-            return {'status': 'error', 'message': str(e)}
+            return {"status": "error", "message": str(e)}

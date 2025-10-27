@@ -104,10 +104,12 @@ init_database(app)
 
 # Initialize Celery
 from server.celery_app import make_celery
+
 celery = make_celery(app)
 
 # Register blueprints
 from server.routes.scraping import scraping_bp
+
 app.register_blueprint(scraping_bp)
 
 
@@ -1763,18 +1765,21 @@ def create_album():
         data = request.json
 
         album = Album(
-            name=data['name'],
-            description=data.get('description', ''),
-            album_type=data.get('album_type', 'manual'),
-            is_public=data.get('is_public', True),
-            generation_prompt=data.get('generation_prompt'),
-            generation_config=data.get('generation_config')
+            name=data["name"],
+            description=data.get("description", ""),
+            album_type=data.get("album_type", "manual"),
+            is_public=data.get("is_public", True),
+            generation_prompt=data.get("generation_prompt"),
+            generation_config=data.get("generation_config"),
         )
 
         db.session.add(album)
         db.session.commit()
 
-        logger.info(f"Created album: {album.name}", extra={"operation": "create_album", "album_id": album.id})
+        logger.info(
+            f"Created album: {album.name}",
+            extra={"operation": "create_album", "album_id": album.id},
+        )
         return jsonify(album.to_dict()), 201
     except Exception as e:
         logger.error(f"Error creating album: {e}", exc_info=True)
@@ -1789,22 +1794,25 @@ def update_album(album_id):
         album = Album.query.get_or_404(album_id)
         data = request.json
 
-        if 'name' in data:
-            album.name = data['name']
-        if 'description' in data:
-            album.description = data['description']
-        if 'album_type' in data:
-            album.album_type = data['album_type']
-        if 'is_public' in data:
-            album.is_public = data['is_public']
-        if 'generation_prompt' in data:
-            album.generation_prompt = data['generation_prompt']
-        if 'generation_config' in data:
-            album.generation_config = data['generation_config']
+        if "name" in data:
+            album.name = data["name"]
+        if "description" in data:
+            album.description = data["description"]
+        if "album_type" in data:
+            album.album_type = data["album_type"]
+        if "is_public" in data:
+            album.is_public = data["is_public"]
+        if "generation_prompt" in data:
+            album.generation_prompt = data["generation_prompt"]
+        if "generation_config" in data:
+            album.generation_config = data["generation_config"]
 
         db.session.commit()
 
-        logger.info(f"Updated album: {album.name}", extra={"operation": "update_album", "album_id": album.id})
+        logger.info(
+            f"Updated album: {album.name}",
+            extra={"operation": "update_album", "album_id": album.id},
+        )
         return jsonify(album.to_dict())
     except Exception as e:
         logger.error(f"Error updating album {album_id}: {e}", exc_info=True)
@@ -1821,8 +1829,11 @@ def delete_album(album_id):
         db.session.delete(album)
         db.session.commit()
 
-        logger.info(f"Deleted album: {album.name}", extra={"operation": "delete_album", "album_id": album_id})
-        return jsonify({'success': True})
+        logger.info(
+            f"Deleted album: {album.name}",
+            extra={"operation": "delete_album", "album_id": album_id},
+        )
+        return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error deleting album {album_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to delete album"}), 500
@@ -1836,28 +1847,29 @@ def add_images_to_album(album_id):
         album = Album.query.get_or_404(album_id)
         data = request.json
 
-        image_ids = data.get('image_ids', [])
+        image_ids = data.get("image_ids", [])
 
         for image_id in image_ids:
             # Check if already in album
-            existing = AlbumImage.query.filter_by(
-                album_id=album_id,
-                image_id=image_id
-            ).first()
+            existing = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first()
 
             if not existing:
                 assoc = AlbumImage(
-                    album_id=album_id,
-                    image_id=image_id,
-                    sort_order=len(album.album_images) + 1
+                    album_id=album_id, image_id=image_id, sort_order=len(album.album_images) + 1
                 )
                 db.session.add(assoc)
 
         db.session.commit()
 
-        logger.info(f"Added {len(image_ids)} images to album {album.name}", 
-                   extra={"operation": "add_images_to_album", "album_id": album_id, "image_count": len(image_ids)})
-        return jsonify({'success': True, 'added': len(image_ids)})
+        logger.info(
+            f"Added {len(image_ids)} images to album {album.name}",
+            extra={
+                "operation": "add_images_to_album",
+                "album_id": album_id,
+                "image_count": len(image_ids),
+            },
+        )
+        return jsonify({"success": True, "added": len(image_ids)})
     except Exception as e:
         logger.error(f"Error adding images to album {album_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to add images to album"}), 500
@@ -1868,17 +1880,20 @@ def add_images_to_album(album_id):
 def remove_image_from_album(album_id, image_id):
     """Remove image from album (admin only)"""
     try:
-        assoc = AlbumImage.query.filter_by(
-            album_id=album_id,
-            image_id=image_id
-        ).first_or_404()
+        assoc = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first_or_404()
 
         db.session.delete(assoc)
         db.session.commit()
 
-        logger.info(f"Removed image {image_id} from album {album_id}", 
-                   extra={"operation": "remove_image_from_album", "album_id": album_id, "image_id": image_id})
-        return jsonify({'success': True})
+        logger.info(
+            f"Removed image {image_id} from album {album_id}",
+            extra={
+                "operation": "remove_image_from_album",
+                "album_id": album_id,
+                "image_id": image_id,
+            },
+        )
+        return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error removing image {image_id} from album {album_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to remove image from album"}), 500
@@ -1951,39 +1966,42 @@ def get_image(image_id):
 def upload_images():
     """Upload images (admin only)"""
     try:
-        if 'files' not in request.files:
-            return jsonify({'error': 'No files provided'}), 400
+        if "files" not in request.files:
+            return jsonify({"error": "No files provided"}), 400
 
-        files = request.files.getlist('files')
-        album_id = request.form.get('album_id', type=int)
+        files = request.files.getlist("files")
+        album_id = request.form.get("album_id", type=int)
 
         # Create upload directory
-        upload_id = datetime.now().strftime('%Y%m%d_%H%M%S')
-        upload_dir = Path(f'/mnt/speedy/imagineer/outputs/uploads/{upload_id}')
+        upload_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        upload_dir = Path(f"/mnt/speedy/imagineer/outputs/uploads/{upload_id}")
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         uploaded_images = []
 
         for file in files:
-            if file.filename == '':
+            if file.filename == "":
                 continue
 
             # Save file
             from werkzeug.utils import secure_filename
+
             filename = secure_filename(file.filename)
             filepath = upload_dir / filename
             file.save(filepath)
 
             # Get image dimensions
             from PIL import Image as PILImage
+
             with PILImage.open(filepath) as img:
                 width, height = img.size
 
             # Calculate checksum
             import hashlib
+
             sha256 = hashlib.sha256()
-            with open(filepath, 'rb') as f:
-                for chunk in iter(lambda: f.read(8192), b''):
+            with open(filepath, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
                     sha256.update(chunk)
             checksum = sha256.hexdigest()
 
@@ -1993,7 +2011,7 @@ def upload_images():
                 file_path=str(filepath),
                 width=width,
                 height=height,
-                is_public=True  # Default to public for uploads
+                is_public=True,  # Default to public for uploads
             )
 
             db.session.add(image)
@@ -2004,7 +2022,7 @@ def upload_images():
                 assoc = AlbumImage(
                     album_id=album_id,
                     image_id=image.id,
-                    sort_order=len(Album.query.get(album_id).album_images) + 1
+                    sort_order=len(Album.query.get(album_id).album_images) + 1,
                 )
                 db.session.add(assoc)
 
@@ -2012,13 +2030,18 @@ def upload_images():
 
         db.session.commit()
 
-        logger.info(f"Uploaded {len(uploaded_images)} images", 
-                   extra={"operation": "upload_images", "image_count": len(uploaded_images), "album_id": album_id})
-        return jsonify({
-            'success': True,
-            'uploaded': len(uploaded_images),
-            'images': uploaded_images
-        }), 201
+        logger.info(
+            f"Uploaded {len(uploaded_images)} images",
+            extra={
+                "operation": "upload_images",
+                "image_count": len(uploaded_images),
+                "album_id": album_id,
+            },
+        )
+        return (
+            jsonify({"success": True, "uploaded": len(uploaded_images), "images": uploaded_images}),
+            201,
+        )
     except Exception as e:
         logger.error(f"Error uploading images: {e}", exc_info=True)
         return jsonify({"error": "Failed to upload images"}), 500
@@ -2040,8 +2063,10 @@ def delete_image(image_id):
         db.session.delete(image)
         db.session.commit()
 
-        logger.info(f"Deleted image {image_id}", extra={"operation": "delete_image", "image_id": image_id})
-        return jsonify({'success': True})
+        logger.info(
+            f"Deleted image {image_id}", extra={"operation": "delete_image", "image_id": image_id}
+        )
+        return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error deleting image {image_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to delete image"}), 500
@@ -2056,19 +2081,21 @@ def get_thumbnail(image_id):
             return jsonify({"error": "Image not found"}), 404
 
         # Check for cached thumbnail
-        thumbnail_dir = Path('/mnt/speedy/imagineer/outputs/thumbnails')
+        thumbnail_dir = Path("/mnt/speedy/imagineer/outputs/thumbnails")
         thumbnail_dir.mkdir(exist_ok=True)
         thumbnail_path = thumbnail_dir / f"{image_id}.webp"
 
         if not thumbnail_path.exists():
             # Generate thumbnail
             from PIL import Image as PILImage
+
             with PILImage.open(image.file_path) as img:
                 img.thumbnail((300, 300))
-                img.save(thumbnail_path, 'WEBP', quality=85)
+                img.save(thumbnail_path, "WEBP", quality=85)
 
         from flask import send_file
-        return send_file(thumbnail_path, mimetype='image/webp')
+
+        return send_file(thumbnail_path, mimetype="image/webp")
     except Exception as e:
         logger.error(f"Error generating thumbnail for image {image_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to generate thumbnail"}), 500
@@ -2081,55 +2108,63 @@ def label_image(image_id):
     """Trigger AI labeling for single image (admin only)"""
     try:
         data = request.json or {}
-        prompt_type = data.get('prompt_type', 'default')
-        
+        prompt_type = data.get("prompt_type", "default")
+
         image = Image.query.get_or_404(image_id)
-        
+
         # Import labeling service
         from server.services.labeling import label_image_with_claude
-        
+
         # Label the image
         result = label_image_with_claude(image.file_path, prompt_type)
-        
-        if result['status'] == 'success':
+
+        if result["status"] == "success":
             # Update image NSFW flag
-            image.is_nsfw = result['nsfw_rating'] in ['ADULT', 'EXPLICIT']
-            
+            image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
+
             # Create caption label
-            if result['description']:
+            if result["description"]:
                 caption_label = Label(
                     image_id=image.id,
-                    label_text=result['description'],
-                    label_type='caption',
-                    source_model='claude-3-5-sonnet'
+                    label_text=result["description"],
+                    label_type="caption",
+                    source_model="claude-3-5-sonnet",
                 )
                 db.session.add(caption_label)
-            
+
             # Create tag labels
-            for tag in result['tags']:
+            for tag in result["tags"]:
                 tag_label = Label(
                     image_id=image.id,
                     label_text=tag,
-                    label_type='tag',
-                    source_model='claude-3-5-sonnet'
+                    label_type="tag",
+                    source_model="claude-3-5-sonnet",
                 )
                 db.session.add(tag_label)
-            
+
             db.session.commit()
-            
-            logger.info(f"Successfully labeled image {image_id}", 
-                       extra={"operation": "label_image", "image_id": image_id, "prompt_type": prompt_type})
-            
-            return jsonify({
-                'success': True,
-                'description': result['description'],
-                'nsfw_rating': result['nsfw_rating'],
-                'tags': result['tags']
-            })
+
+            logger.info(
+                f"Successfully labeled image {image_id}",
+                extra={
+                    "operation": "label_image",
+                    "image_id": image_id,
+                    "prompt_type": prompt_type,
+                },
+            )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "description": result["description"],
+                    "nsfw_rating": result["nsfw_rating"],
+                    "tags": result["tags"],
+                }
+            )
         else:
             logger.error(f"Failed to label image {image_id}: {result['message']}")
-            return jsonify({'error': result['message']}), 500
-            
+            return jsonify({"error": result["message"]}), 500
+
     except Exception as e:
         logger.error(f"Error labeling image {image_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to label image"}), 500
@@ -2141,72 +2176,82 @@ def label_album(album_id):
     """Trigger AI labeling for entire album (admin only)"""
     try:
         data = request.json or {}
-        prompt_type = data.get('prompt_type', 'sd_training')
-        force = data.get('force', False)
-        
+        prompt_type = data.get("prompt_type", "sd_training")
+        force = data.get("force", False)
+
         album = Album.query.get_or_404(album_id)
-        
+
         # Get all images in album
         album_images = AlbumImage.query.filter_by(album_id=album_id).all()
         images = [assoc.image for assoc in album_images]
-        
+
         if not images:
-            return jsonify({'error': 'Album is empty'}), 400
-        
+            return jsonify({"error": "Album is empty"}), 400
+
         # Filter out already labeled images unless force=True
         if not force:
             images = [img for img in images if not img.labels]
-        
+
         if not images:
-            return jsonify({'error': 'All images already labeled'}), 400
-        
+            return jsonify({"error": "All images already labeled"}), 400
+
         # Import labeling service
         from server.services.labeling import batch_label_images
-        
+
         # Label images
         image_paths = [img.file_path for img in images]
         results = batch_label_images(image_paths, prompt_type)
-        
+
         # Process results and update database
-        for i, result in enumerate(results['results']):
-            if result['status'] == 'success':
+        for i, result in enumerate(results["results"]):
+            if result["status"] == "success":
                 image = images[i]
-                
+
                 # Update image NSFW flag
-                image.is_nsfw = result['nsfw_rating'] in ['ADULT', 'EXPLICIT']
-                
+                image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
+
                 # Create caption label
-                if result['description']:
+                if result["description"]:
                     caption_label = Label(
                         image_id=image.id,
-                        label_text=result['description'],
-                        label_type='caption',
-                        source_model='claude-3-5-sonnet'
+                        label_text=result["description"],
+                        label_type="caption",
+                        source_model="claude-3-5-sonnet",
                     )
                     db.session.add(caption_label)
-                
+
                 # Create tag labels
-                for tag in result['tags']:
+                for tag in result["tags"]:
                     tag_label = Label(
                         image_id=image.id,
                         label_text=tag,
-                        label_type='tag',
-                        source_model='claude-3-5-sonnet'
+                        label_type="tag",
+                        source_model="claude-3-5-sonnet",
                     )
                     db.session.add(tag_label)
-        
+
         db.session.commit()
-        
-        logger.info(f"Batch labeled album {album_id}: {results['success']} success, {results['failed']} failed",
-                   extra={"operation": "label_album", "album_id": album_id, "success": results['success'], "failed": results['failed']})
-        
-        return jsonify({
-            'success': True,
-            'total': results['total'],
-            'success_count': results['success'],
-            'failed_count': results['failed']
-        })
-        
+
+        logger.info(
+            f"Batch labeled album {album_id}: {results['success']} success, "
+            f"{results['failed']} failed",
+            extra={
+                "operation": "label_album",
+                "album_id": album_id,
+                "success": results["success"],
+                "failed": results["failed"],
+            },
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "total": results["total"],
+                "success_count": results["success"],
+                "failed_count": results["failed"],
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error batch labeling album {album_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to label album"}), 500
@@ -2335,7 +2380,8 @@ def update_image_visibility(image_id):
         return jsonify(
             {
                 "success": True,
-                "message": f"Updated image visibility to {'public' if image.is_public else 'private'}",
+                "message": f"Updated image visibility to "
+                f"{'public' if image.is_public else 'private'}",
             }
         )
     except Exception as e:
