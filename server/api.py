@@ -2066,6 +2066,144 @@ def get_thumbnail(image_id):
         return jsonify({"error": "Failed to generate thumbnail"}), 500
 
 
+# AI Labeling endpoints
+@app.route("/api/labeling/image/<int:image_id>", methods=["POST"])
+@require_admin
+def label_image(image_id):
+    """Trigger AI labeling for single image (admin only)"""
+    try:
+        data = request.json or {}
+        prompt_type = data.get('prompt_type', 'default')
+        
+        image = Image.query.get_or_404(image_id)
+        
+        # Import labeling service
+        from server.services.labeling import label_image_with_claude
+        
+        # Label the image
+        result = label_image_with_claude(image.file_path, prompt_type)
+        
+        if result['status'] == 'success':
+            # Update image NSFW flag
+            image.is_nsfw = result['nsfw_rating'] in ['ADULT', 'EXPLICIT']
+            
+            # Create caption label
+            if result['description']:
+                caption_label = Label(
+                    image_id=image.id,
+                    label_text=result['description'],
+                    label_type='caption',
+                    source_model='claude-3-5-sonnet'
+                )
+                db.session.add(caption_label)
+            
+            # Create tag labels
+            for tag in result['tags']:
+                tag_label = Label(
+                    image_id=image.id,
+                    label_text=tag,
+                    label_type='tag',
+                    source_model='claude-3-5-sonnet'
+                )
+                db.session.add(tag_label)
+            
+            db.session.commit()
+            
+            logger.info(f"Successfully labeled image {image_id}", 
+                       extra={"operation": "label_image", "image_id": image_id, "prompt_type": prompt_type})
+            
+            return jsonify({
+                'success': True,
+                'description': result['description'],
+                'nsfw_rating': result['nsfw_rating'],
+                'tags': result['tags']
+            })
+        else:
+            logger.error(f"Failed to label image {image_id}: {result['message']}")
+            return jsonify({'error': result['message']}), 500
+            
+    except Exception as e:
+        logger.error(f"Error labeling image {image_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to label image"}), 500
+
+
+@app.route("/api/labeling/album/<int:album_id>", methods=["POST"])
+@require_admin
+def label_album(album_id):
+    """Trigger AI labeling for entire album (admin only)"""
+    try:
+        data = request.json or {}
+        prompt_type = data.get('prompt_type', 'sd_training')
+        force = data.get('force', False)
+        
+        album = Album.query.get_or_404(album_id)
+        
+        # Get all images in album
+        album_images = AlbumImage.query.filter_by(album_id=album_id).all()
+        images = [assoc.image for assoc in album_images]
+        
+        if not images:
+            return jsonify({'error': 'Album is empty'}), 400
+        
+        # Filter out already labeled images unless force=True
+        if not force:
+            images = [img for img in images if not img.labels]
+        
+        if not images:
+            return jsonify({'error': 'All images already labeled'}), 400
+        
+        # Import labeling service
+        from server.services.labeling import batch_label_images
+        
+        # Label images
+        image_paths = [img.file_path for img in images]
+        results = batch_label_images(image_paths, prompt_type)
+        
+        # Process results and update database
+        for i, result in enumerate(results['results']):
+            if result['status'] == 'success':
+                image = images[i]
+                
+                # Update image NSFW flag
+                image.is_nsfw = result['nsfw_rating'] in ['ADULT', 'EXPLICIT']
+                
+                # Create caption label
+                if result['description']:
+                    caption_label = Label(
+                        image_id=image.id,
+                        label_text=result['description'],
+                        label_type='caption',
+                        source_model='claude-3-5-sonnet'
+                    )
+                    db.session.add(caption_label)
+                
+                # Create tag labels
+                for tag in result['tags']:
+                    tag_label = Label(
+                        image_id=image.id,
+                        label_text=tag,
+                        label_type='tag',
+                        source_model='claude-3-5-sonnet'
+                    )
+                    db.session.add(tag_label)
+        
+        db.session.commit()
+        
+        logger.info(f"Batch labeled album {album_id}: {results['success']} success, {results['failed']} failed",
+                   extra={"operation": "label_album", "album_id": album_id, "success": results['success'], "failed": results['failed']})
+        
+        return jsonify({
+            'success': True,
+            'total': results['total'],
+            'success_count': results['success'],
+            'failed_count': results['failed']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error batch labeling album {album_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to label album"}), 500
+
+
 @app.route("/api/database/stats", methods=["GET"])
 def get_database_stats():
     """Get database statistics (public endpoint)"""
