@@ -1,15 +1,22 @@
 """
 Integration tests for Phase 5: Training Pipeline
+
+These tests are marked as ci_skip because they require external infrastructure
+(Redis/Celery) and are complex integration tests that are flaky in CI.
 """
 
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from server.database import Album, AlbumImage, Image, Label, TrainingRun, db
 from server.tasks.training import prepare_training_data, train_lora_task
 
 
+@pytest.mark.ci_skip
+@pytest.mark.external
 class TestTrainingWorkflowIntegration:
     """Test complete training workflow integration"""
 

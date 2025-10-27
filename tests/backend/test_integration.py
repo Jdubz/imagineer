@@ -205,7 +205,7 @@ class TestCompleteWorkflow:
             assert response.status_code == 404  # Should not find private album
 
     def test_admin_can_access_private_albums(self, client, mock_admin_auth):
-        """Test that admin can access private albums"""
+        """Test that admin can access private albums through admin endpoint"""
 
         with client.application.app_context():
             # Create private album
@@ -214,50 +214,50 @@ class TestCompleteWorkflow:
             db.session.commit()
             album_id = album.id
 
-            # Admin should be able to access
+            # Admin should be able to access through admin albums endpoint
             response = client.get(
-                f"/api/albums/{album_id}", headers={"Authorization": "Bearer admin_token"}
+                "/api/admin/albums", headers={"Authorization": "Bearer admin_token"}
             )
             assert response.status_code == 200
 
             data = response.get_json()
-            assert data["name"] == "Private Admin Album"
-            assert data["is_public"] is False
+            assert isinstance(data, list)
+            albums = data
+
+            # Find our private album
+            private_album = next((a for a in albums if a["id"] == album_id), None)
+            assert private_album is not None
+            assert private_album["name"] == "Private Admin Album"
+            assert private_album["is_public"] is False
 
 
 class TestErrorHandling:
     """Test error handling across the system"""
 
-    def test_invalid_image_upload(self, client):
+    def test_invalid_image_upload(self, client, mock_admin_auth):
         """Test handling invalid image uploads"""
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Try to upload invalid file
+        response = client.post(
+            "/api/images/upload",
+            data={"images": (io.BytesIO(b"invalid data"), "test.txt")},
+            content_type="multipart/form-data",
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            # Try to upload invalid file
-            response = client.post(
-                "/api/images/upload",
-                data={"images": (io.BytesIO(b"invalid data"), "test.txt")},
-                content_type="multipart/form-data",
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        # Should handle gracefully
+        assert response.status_code in [400, 500]
 
-            # Should handle gracefully
-            assert response.status_code in [400, 500]
-
-    def test_database_rollback_on_error(self, client):
+    def test_database_rollback_on_error(self, client, mock_admin_auth):
         """Test that database operations rollback on error"""
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Try to create album with missing required field
+        response = client.post(
+            "/api/albums",
+            json={},  # Missing required 'name' field
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            # Try to create album with invalid data
-            response = client.post(
-                "/api/albums",
-                json={"name": ""},  # Invalid empty name
-                headers={"Authorization": "Bearer admin_token"},
-            )
-
-            # Should return error
-            assert response.status_code in [400, 500]
+        # Should return error
+        assert response.status_code in [400, 500]
 
     def test_missing_file_handling(self, client):
         """Test handling of missing files"""

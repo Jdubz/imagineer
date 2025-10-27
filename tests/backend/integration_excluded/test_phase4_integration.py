@@ -1,12 +1,14 @@
 """
 Integration tests for Phase 4: Web Scraping Integration
+
+These tests are marked as ci_skip because they require external infrastructure
+(Redis/Celery) and are complex integration tests that are flaky in CI.
 """
 
-import io
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image as PILImage
@@ -14,6 +16,8 @@ from PIL import Image as PILImage
 from server.database import Album, AlbumImage, Image, Label, ScrapeJob, db
 
 
+@pytest.mark.ci_skip
+@pytest.mark.external
 class TestScrapingWorkflowIntegration:
     """Test complete scraping workflow integration"""
 
