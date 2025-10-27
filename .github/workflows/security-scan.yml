@@ -1,0 +1,133 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    - cron: '0 2 * * 1'  # Run every Monday at 2 AM
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bandit safety pip-audit
+
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Run Python security scan (Bandit)
+        run: |
+          echo "Running Bandit security scan..."
+          bandit -r server/ src/ examples/ -f json -o bandit-report.json || true
+          bandit -r server/ src/ examples/ -f txt || true
+
+      - name: Run Python dependency security scan (Safety)
+        run: |
+          echo "Running Safety dependency scan..."
+          safety check --json --output safety-report.json || true
+          safety check || true
+
+      - name: Run Python dependency audit (pip-audit)
+        run: |
+          echo "Running pip-audit..."
+          pip-audit --format=json --output=pip-audit-report.json || true
+          pip-audit || true
+
+      - name: Run Node.js security audit
+        working-directory: ./web
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate --json > ../npm-audit-report.json || true
+          npm audit --audit-level=moderate || true
+
+      - name: Run Node.js dependency check
+        working-directory: ./web
+        run: |
+          echo "Running npm outdated check..."
+          npm outdated || true
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "Checking for known vulnerabilities..."
+          
+          # Check if any critical vulnerabilities were found
+          if [ -f "bandit-report.json" ]; then
+            HIGH_ISSUES=$(jq '.results | map(select(.issue_severity == "HIGH")) | length' bandit-report.json)
+            MEDIUM_ISSUES=$(jq '.results | map(select(.issue_severity == "MEDIUM")) | length' bandit-report.json)
+            echo "Bandit found $HIGH_ISSUES high and $MEDIUM_ISSUES medium severity issues"
+          fi
+          
+          if [ -f "safety-report.json" ]; then
+            VULNERABILITIES=$(jq '.vulnerabilities | length' safety-report.json)
+            echo "Safety found $VULNERABILITIES vulnerabilities"
+          fi
+          
+          if [ -f "npm-audit-report.json" ]; then
+            HIGH_VULNS=$(jq '.vulnerabilities | to_entries | map(select(.value.severity == "high")) | length' npm-audit-report.json)
+            MODERATE_VULNS=$(jq '.vulnerabilities | to_entries | map(select(.value.severity == "moderate")) | length' npm-audit-report.json)
+            echo "npm audit found $HIGH_VULNS high and $MODERATE_VULNS moderate severity vulnerabilities"
+          fi
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            pip-audit-report.json
+            npm-audit-report.json
+
+      - name: Security scan summary
+        run: |
+          echo "## Security Scan ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Security (Bandit):** Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Dependencies (Safety):** Checked" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Dependencies (pip-audit):** Audited" >> $GITHUB_STEP_SUMMARY
+          echo "**Node.js Dependencies (npm audit):** Audited" >> $GITHUB_STEP_SUMMARY
+          echo "**Outdated Dependencies:** Checked" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Security Reports" >> $GITHUB_STEP_SUMMARY
+          echo "Security reports have been uploaded as artifacts for review." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review security reports in the artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "2. Address any high-severity vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "3. Update dependencies with known vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "4. Consider enabling Dependabot for automated updates" >> $GITHUB_STEP_SUMMARY

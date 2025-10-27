@@ -50,7 +50,7 @@ if [ -d "public" ] && [ -f "public/index.html" ]; then
     print_status "Public directory exists with index.html"
     
     # Check for versioned assets
-    ASSET_COUNT=$(find public/assets -name "*.js" -o -name "*.css" 2>/dev/null | wc -l)
+    ASSET_COUNT=$(find public/assets \( -name "*.js" -o -name "*.css" \) 2>/dev/null | wc -l)
     if [ $ASSET_COUNT -gt 0 ]; then
         print_status "Found $ASSET_COUNT versioned assets"
         

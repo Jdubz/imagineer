@@ -72,6 +72,7 @@ def update_package_json(version):
 
     with open(package_json, "w") as f:
         json.dump(data, f, indent=2)
+        f.write("\n")
 
     print(f"✅ Updated web/package.json to version {version}")
 
@@ -119,7 +120,11 @@ def get_build_info():
     """Get build information for deployment"""
     version = get_current_version()
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    git_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+    try:
+        git_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"❌ Failed to get git hash: {e}")
+        git_hash = "unknown"
 
     return {
         "version": version,
