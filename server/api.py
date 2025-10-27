@@ -109,8 +109,10 @@ celery = make_celery(app)
 
 # Register blueprints
 from server.routes.scraping import scraping_bp
+from server.routes.training import training_bp
 
 app.register_blueprint(scraping_bp)
+app.register_blueprint(training_bp)
 
 
 # Add request timing and performance logging
