@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @celery.task(bind=True, name="tasks.train_lora")
-def train_lora_task(self, training_run_id):
+def train_lora_task(self, training_run_id):  # noqa: C901
     """
     Execute LoRA training from albums.
 
@@ -42,7 +42,11 @@ def train_lora_task(self, training_run_id):
             training_dir = prepare_training_data(run)
 
             # Build training command
-            output_dir = Path(f"/mnt/speedy/imagineer/models/lora/trained_{training_run_id}")
+            from server.api import load_config
+
+            app_config = load_config()
+
+            output_dir = Path(f"{app_config['model']['cache_dir']}/lora/trained_{training_run_id}")
             output_dir.mkdir(parents=True, exist_ok=True)
 
             config = json.loads(run.training_config) if run.training_config else {}

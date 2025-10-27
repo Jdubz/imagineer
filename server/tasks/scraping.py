@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
-SCRAPED_OUTPUT_PATH = Path("/mnt/speedy/imagineer/outputs/scraped")
+# Will be set from config in the task
+SCRAPED_OUTPUT_PATH = None
 
 
 @celery.task(bind=True, name="tasks.scrape_site")
-def scrape_site_task(self, scrape_job_id):
+def scrape_site_task(self, scrape_job_id):  # noqa: C901
     """
     Execute web scraping job using training-data project.
 
@@ -178,7 +179,7 @@ def scrape_site_task(self, scrape_job_id):
             return {"status": "error", "message": error_msg}
 
 
-def import_scraped_images(scrape_job_id, output_dir):
+def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     """
     Import scraped images into database and create album.
 
