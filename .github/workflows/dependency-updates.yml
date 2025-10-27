@@ -1,0 +1,157 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Run every Monday at 2 AM
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  check-updates:
+    name: Check for Dependency Updates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-review
+
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Check Python dependency updates
+        run: |
+          echo "Checking Python dependency updates..."
+          
+          # Check for outdated packages
+          pip list --outdated --format=json > python-outdated.json
+          
+          # Check for available updates
+          pip-review --local --auto || true
+          
+          # Count outdated packages
+          OUTDATED_COUNT=$(jq 'length' python-outdated.json)
+          echo "Found $OUTDATED_COUNT outdated Python packages"
+
+      - name: Check Node.js dependency updates
+        working-directory: ./web
+        run: |
+          echo "Checking Node.js dependency updates..."
+          
+          # Check for outdated packages
+          npm outdated --json > ../node-outdated.json || true
+          
+          # Count outdated packages
+          OUTDATED_COUNT=$(jq 'length' ../node-outdated.json)
+          echo "Found $OUTDATED_COUNT outdated Node.js packages"
+
+      - name: Check for security vulnerabilities
+        run: |
+          echo "Checking for security vulnerabilities..."
+          
+          # Python security check
+          pip install safety
+          safety check --json --output python-security.json || true
+          
+          # Node.js security check
+          cd web
+          npm audit --json > ../node-security.json || true
+          cd ..
+
+      - name: Generate dependency report
+        run: |
+          echo "Generating dependency update report..."
+          
+          # Create a comprehensive report
+          cat > dependency-report.md << EOF
+          # Dependency Update Report
+          
+          Generated on: $(date)
+          
+          ## Python Dependencies
+          
+          EOF
+          
+          if [ -f "python-outdated.json" ]; then
+            echo "### Outdated Packages" >> dependency-report.md
+            jq -r '.[] | "- \(.name): \(.version) -> \(.latest_version)"' python-outdated.json >> dependency-report.md
+            echo "" >> dependency-report.md
+          fi
+          
+          if [ -f "python-security.json" ]; then
+            echo "### Security Vulnerabilities" >> dependency-report.md
+            jq -r '.vulnerabilities[]? | "- \(.package_name): \(.vulnerability_id)"' python-security.json >> dependency-report.md
+            echo "" >> dependency-report.md
+          fi
+          
+          echo "## Node.js Dependencies" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          if [ -f "node-outdated.json" ]; then
+            echo "### Outdated Packages" >> dependency-report.md
+            jq -r 'to_entries[] | "- \(.key): \(.value.current) -> \(.value.latest)"' node-outdated.json >> dependency-report.md
+            echo "" >> dependency-report.md
+          fi
+          
+          if [ -f "node-security.json" ]; then
+            echo "### Security Vulnerabilities" >> dependency-report.md
+            jq -r '.vulnerabilities | to_entries[]? | "- \(.key): \(.value.severity)"' node-security.json >> dependency-report.md
+            echo "" >> dependency-report.md
+          fi
+          
+          echo "## Recommendations" >> dependency-report.md
+          echo "" >> dependency-report.md
+          echo "1. Review outdated packages and update as needed" >> dependency-report.md
+          echo "2. Address security vulnerabilities immediately" >> dependency-report.md
+          echo "3. Test thoroughly after updates" >> dependency-report.md
+          echo "4. Consider using Dependabot for automated updates" >> dependency-report.md
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            dependency-report.md
+            python-outdated.json
+            node-outdated.json
+            python-security.json
+            node-security.json
+
+      - name: Dependency update summary
+        run: |
+          echo "## Dependency Updates Check ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Dependencies:** Checked" >> $GITHUB_STEP_SUMMARY
+          echo "**Node.js Dependencies:** Checked" >> $GITHUB_STEP_SUMMARY
+          echo "**Security Vulnerabilities:** Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Update Report" >> $GITHUB_STEP_SUMMARY
+          echo "Detailed dependency update report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the dependency report in the artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "2. Update outdated packages as needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Address any security vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "4. Test thoroughly after updates" >> $GITHUB_STEP_SUMMARY

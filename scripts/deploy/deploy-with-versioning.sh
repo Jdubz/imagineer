@@ -49,7 +49,7 @@ print_info "Current version: $CURRENT_VERSION"
 # Bump version if requested
 if [ "$VERSION_BUMP" != "none" ]; then
     print_info "Bumping version ($VERSION_BUMP)..."
-    NEW_VERSION=$(python scripts/version.py bump --part $VERSION_BUMP)
+    NEW_VERSION=$(python scripts/version.py bump --part "$VERSION_BUMP")
     print_status "Version bumped to: $NEW_VERSION"
 else
     NEW_VERSION=$CURRENT_VERSION
@@ -114,7 +114,7 @@ if [ ! -f "../public/index.html" ]; then
 fi
 
 # Check for versioned assets
-ASSET_COUNT=$(find ../public/assets -name "*.js" -o -name "*.css" | wc -l)
+ASSET_COUNT=$(find ../public/assets \( -name "*.js" -o -name "*.css" \) | wc -l)
 print_status "Generated $ASSET_COUNT versioned assets"
 
 # Show build info

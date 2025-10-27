@@ -1,4 +1,4 @@
-name: Backend Tests (Legacy)
+name: Python Version Matrix Tests
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'requirements.txt'
-      - '.github/workflows/test-backend.yml'
+      - '.github/workflows/test-python-matrix.yml'
   pull_request:
     paths:
       - 'server/**'
@@ -21,16 +21,21 @@ on:
 
 jobs:
   test:
+    name: Python ${{ matrix.python-version }} Tests
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install dependencies
@@ -49,11 +54,20 @@ jobs:
         run: flake8 server/ src/ examples/ --max-line-length=100 --extend-ignore=E203,W503,C901,E501
 
       - name: Run tests
-        run: pytest tests/ -v --cov=server --cov=src || true  # Continue on failure for now
+        run: pytest tests/backend/ -v --cov=server --cov=src --cov-report=xml --cov-report=html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: python-${{ matrix.python-version }}
+          name: python-${{ matrix.python-version }}-coverage
 
       - name: Test summary
         run: |
-          echo "## Backend Tests Complete! ✅" >> $GITHUB_STEP_SUMMARY
+          echo "## Python ${{ matrix.python-version }} Tests ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Version:** ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Linting:** Passed" >> $GITHUB_STEP_SUMMARY
           echo "**Formatting:** Passed" >> $GITHUB_STEP_SUMMARY
+          echo "**Tests:** Passed" >> $GITHUB_STEP_SUMMARY
