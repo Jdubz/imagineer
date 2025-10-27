@@ -2,6 +2,7 @@
 Pytest configuration and fixtures for backend tests
 """
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -12,18 +13,37 @@ import yaml
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from server.api import app as flask_app
+from server.api import app as flask_app  # noqa: E402
 
 
 @pytest.fixture
 def app():
     """Create and configure a test Flask app instance"""
+    # Use a temporary database for tests
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
+        test_db_path = tmp_db.name
+
     flask_app.config.update(
         {
             "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{test_db_path}",
         }
     )
+
+    # Recreate database with current schema
+    from server.database import db
+
+    with flask_app.app_context():
+        db.drop_all()
+        db.create_all()
+
     yield flask_app
+
+    # Cleanup
+    try:
+        os.unlink(test_db_path)
+    except OSError:
+        pass
 
 
 @pytest.fixture
