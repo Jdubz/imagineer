@@ -4,36 +4,32 @@ Handles Google OAuth and role-based access control
 """
 
 import json
+import logging
 import os
 from functools import wraps
 from pathlib import Path
 
 from authlib.integrations.flask_client import OAuth
-from flask import redirect, session, url_for, jsonify
-from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user
+from flask import jsonify, session
+from flask_login import LoginManager, UserMixin, current_user
 
 # Configuration
 USERS_FILE = Path(__file__).parent / "users.json"
+logger = logging.getLogger(__name__)
 
-# User roles
-ROLE_VIEWER = "viewer"
-ROLE_EDITOR = "editor"
+# User roles - simplified to public + admin only
 ROLE_ADMIN = "admin"
 
 
 class User(UserMixin):
-    """Simple user model for Flask-Login"""
+    """Simple user model for Flask-Login - simplified to public + admin only"""
 
-    def __init__(self, email, name, picture, role=ROLE_VIEWER):
+    def __init__(self, email, name, picture, role=None):
         self.id = email
         self.email = email
         self.name = name
         self.picture = picture
-        self.role = role
-
-    def is_editor(self):
-        """Check if user has editor or admin role"""
-        return self.role in [ROLE_EDITOR, ROLE_ADMIN]
+        self.role = role  # None = public user, ROLE_ADMIN = admin
 
     def is_admin(self):
         """Check if user has admin role"""
@@ -48,7 +44,7 @@ def load_users():
         with open(USERS_FILE, "r") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading users: {e}")
+        logger.error(f"Error loading users: {e}")
         return {}
 
 
@@ -58,22 +54,42 @@ def save_users(users):
         with open(USERS_FILE, "w") as f:
             json.dump(users, f, indent=2)
     except Exception as e:
-        print(f"Error saving users: {e}")
+        logger.error(f"Error saving users: {e}")
 
 
 def get_user_role(email):
-    """Get user role from users.json, default to viewer"""
+    """Get user role from users.json, default to None (public user)"""
     users = load_users()
     user_data = users.get(email, {})
-    return user_data.get("role", ROLE_VIEWER)
+    role = user_data.get("role")
+    # Only return admin role if explicitly set, otherwise None (public)
+    return role if role == ROLE_ADMIN else None
+
+
+def get_secret_key():
+    """Get Flask secret key - MUST be set in production"""
+    secret = os.environ.get("FLASK_SECRET_KEY")
+
+    if not secret:
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                "FLASK_SECRET_KEY must be set in production. Generate with:\n"
+                "  python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+        # Development only - generate and warn
+        import secrets
+
+        secret = secrets.token_hex(32)
+        logger.warning(f"Generated dev secret key: {secret}")
+        logger.warning("Set FLASK_SECRET_KEY environment variable for production!")
+
+    return secret
 
 
 def init_auth(app):
     """Initialize authentication for Flask app"""
     # Configure session
-    app.config["SECRET_KEY"] = os.environ.get(
-        "FLASK_SECRET_KEY", "dev-secret-key-change-in-production"
-    )
+    app.config["SECRET_KEY"] = get_secret_key()
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24 hours
@@ -93,7 +109,7 @@ def init_auth(app):
             email=user_data["email"],
             name=user_data["name"],
             picture=user_data.get("picture", ""),
-            role=user_data.get("role", ROLE_VIEWER),
+            role=user_data.get("role"),  # None for public users
         )
 
     # Initialize OAuth
@@ -109,35 +125,17 @@ def init_auth(app):
     return oauth, google
 
 
-def require_auth(f):
-    """Decorator to require authentication"""
+def require_admin(f):
+    """Decorator to require admin authentication"""
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return jsonify({"error": "Authentication required"}), 401
+
+        if not current_user.is_admin():
+            return jsonify({"error": "Admin role required"}), 403
+
         return f(*args, **kwargs)
 
     return decorated_function
-
-
-def require_role(role):
-    """Decorator to require specific role"""
-
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not current_user.is_authenticated:
-                return jsonify({"error": "Authentication required"}), 401
-
-            if role == ROLE_EDITOR and not current_user.is_editor():
-                return jsonify({"error": "Editor role required"}), 403
-
-            if role == ROLE_ADMIN and not current_user.is_admin():
-                return jsonify({"error": "Admin role required"}), 403
-
-            return f(*args, **kwargs)
-
-        return decorated_function
-
-    return decorator

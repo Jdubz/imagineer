@@ -1,0 +1,288 @@
+"""
+Database models for Imagineer
+SQLAlchemy models for image management, albums, and training data
+"""
+
+import logging
+from datetime import datetime
+
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+logger = logging.getLogger(__name__)
+
+
+class Image(db.Model):
+    """Generated images with metadata"""
+
+    __tablename__ = "images"
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False, unique=True)
+    file_path = db.Column(db.String(500), nullable=False)
+    thumbnail_path = db.Column(db.String(500))
+
+    # Generation metadata
+    prompt = db.Column(db.Text)
+    negative_prompt = db.Column(db.Text)
+    seed = db.Column(db.Integer)
+    steps = db.Column(db.Integer)
+    guidance_scale = db.Column(db.Float)
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+
+    # LoRA information (JSON string)
+    lora_config = db.Column(db.Text)  # JSON: [{"path": "...", "weight": 0.6}]
+
+    # Content metadata
+    is_nsfw = db.Column(db.Boolean, default=False)
+    is_public = db.Column(db.Boolean, default=True)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    labels = db.relationship("Label", backref="image", lazy=True, cascade="all, delete-orphan")
+    album_images = db.relationship(
+        "AlbumImage", backref="image", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        """Convert to dictionary for API serialization"""
+        return {
+            "id": self.id,
+            "filename": self.filename,
+            "file_path": self.file_path,
+            "thumbnail_path": self.thumbnail_path,
+            "prompt": self.prompt,
+            "negative_prompt": self.negative_prompt,
+            "seed": self.seed,
+            "steps": self.steps,
+            "guidance_scale": self.guidance_scale,
+            "width": self.width,
+            "height": self.height,
+            "lora_config": self.lora_config,
+            "is_nsfw": self.is_nsfw,
+            "is_public": self.is_public,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Label(db.Model):
+    """AI-generated labels for images"""
+
+    __tablename__ = "labels"
+
+    id = db.Column(db.Integer, primary_key=True)
+    image_id = db.Column(db.Integer, db.ForeignKey("images.id"), nullable=False)
+
+    # Label content
+    label_text = db.Column(db.Text, nullable=False)
+    confidence = db.Column(db.Float)  # 0.0 to 1.0
+    label_type = db.Column(db.String(50), default="ai_generated")  # ai_generated, manual, user
+
+    # Source information
+    source_model = db.Column(db.String(100))  # e.g., "claude-3-sonnet"
+    source_prompt = db.Column(db.Text)  # The prompt used to generate the label
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "image_id": self.image_id,
+            "label_text": self.label_text,
+            "confidence": self.confidence,
+            "label_type": self.label_type,
+            "source_model": self.source_model,
+            "source_prompt": self.source_prompt,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Album(db.Model):
+    """Collections of images (batches, sets, etc.)"""
+
+    __tablename__ = "albums"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+
+    # Album metadata
+    album_type = db.Column(db.String(50), default="batch")  # batch, set, collection, manual
+    is_public = db.Column(db.Boolean, default=True)
+    is_training_source = db.Column(db.Boolean, default=False)  # Can be used for training
+
+    # Generation context (for batch albums)
+    generation_prompt = db.Column(db.Text)
+    generation_config = db.Column(db.Text)  # JSON: generation settings
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    album_images = db.relationship(
+        "AlbumImage", backref="album", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "album_type": self.album_type,
+            "is_public": self.is_public,
+            "is_training_source": self.is_training_source,
+            "generation_prompt": self.generation_prompt,
+            "generation_config": self.generation_config,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "image_count": len(self.album_images) if self.album_images else 0,
+        }
+
+
+class AlbumImage(db.Model):
+    """Many-to-many relationship between albums and images"""
+
+    __tablename__ = "album_images"
+
+    id = db.Column(db.Integer, primary_key=True)
+    album_id = db.Column(db.Integer, db.ForeignKey("albums.id"), nullable=False)
+    image_id = db.Column(db.Integer, db.ForeignKey("images.id"), nullable=False)
+
+    # Ordering within album
+    sort_order = db.Column(db.Integer, default=0)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Unique constraint
+    __table_args__ = (db.UniqueConstraint("album_id", "image_id", name="unique_album_image"),)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "album_id": self.album_id,
+            "image_id": self.image_id,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ScrapeJob(db.Model):
+    """Web scraping jobs for training data collection"""
+
+    __tablename__ = "scrape_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+
+    # Scraping configuration
+    source_url = db.Column(db.String(500))
+    scrape_config = db.Column(db.Text)  # JSON: scraping parameters
+
+    # Job status
+    status = db.Column(db.String(50), default="pending")  # pending, running, completed, failed
+    progress = db.Column(db.Integer, default=0)  # 0-100
+
+    # Results
+    images_scraped = db.Column(db.Integer, default=0)
+    output_directory = db.Column(db.String(500))
+
+    # Error handling
+    error_message = db.Column(db.Text)
+    last_error_at = db.Column(db.DateTime)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "source_url": self.source_url,
+            "scrape_config": self.scrape_config,
+            "status": self.status,
+            "progress": self.progress,
+            "images_scraped": self.images_scraped,
+            "output_directory": self.output_directory,
+            "error_message": self.error_message,
+            "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+class TrainingRun(db.Model):
+    """LoRA training runs"""
+
+    __tablename__ = "training_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+
+    # Training configuration
+    dataset_path = db.Column(db.String(500), nullable=False)
+    output_path = db.Column(db.String(500), nullable=False)
+    training_config = db.Column(db.Text)  # JSON: training parameters
+
+    # Training status
+    status = db.Column(db.String(50), default="pending")  # pending, running, completed, failed
+    progress = db.Column(db.Integer, default=0)  # 0-100
+
+    # Results
+    final_checkpoint = db.Column(db.String(500))
+    training_loss = db.Column(db.Float)
+    validation_loss = db.Column(db.Float)
+
+    # Error handling
+    error_message = db.Column(db.Text)
+    last_error_at = db.Column(db.DateTime)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "dataset_path": self.dataset_path,
+            "output_path": self.output_path,
+            "training_config": self.training_config,
+            "status": self.status,
+            "progress": self.progress,
+            "final_checkpoint": self.final_checkpoint,
+            "training_loss": self.training_loss,
+            "validation_loss": self.validation_loss,
+            "error_message": self.error_message,
+            "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+def init_database(app):
+    """Initialize database with Flask app"""
+    db.init_app(app)
+
+    with app.app_context():
+        # Create all tables
+        db.create_all()
+        logger.info("Database tables created successfully")
+
+    return db

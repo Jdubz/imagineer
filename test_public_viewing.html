@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imagineer Public Gallery Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .album { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
+        .album h3 { margin-top: 0; color: #333; }
+        .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+        .image-item { border: 1px solid #eee; padding: 10px; text-align: center; }
+        .image-item img { max-width: 100%; height: auto; }
+        .stats { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .loading { color: #666; font-style: italic; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🎨 Imagineer Public Gallery Test</h1>
+    
+    <div class="stats" id="stats">
+        <div class="loading">Loading database statistics...</div>
+    </div>
+    
+    <div id="albums">
+        <div class="loading">Loading albums...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:10050/api';
+        
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/database/stats`);
+                const stats = await response.json();
+                
+                document.getElementById('stats').innerHTML = `
+                    <h3>📊 Database Statistics</h3>
+                    <p><strong>Albums:</strong> ${stats.albums}</p>
+                    <p><strong>Images:</strong> ${stats.images} (${stats.public_images} public)</p>
+                    <p><strong>Labels:</strong> ${stats.labels}</p>
+                    <p><strong>Scrape Jobs:</strong> ${stats.scrape_jobs}</p>
+                    <p><strong>Training Runs:</strong> ${stats.training_runs}</p>
+                `;
+            } catch (error) {
+                document.getElementById('stats').innerHTML = `<div class="error">Error loading stats: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadAlbums() {
+            try {
+                const response = await fetch(`${API_BASE}/albums`);
+                const albums = await response.json();
+                
+                let html = '<h2>📁 Albums</h2>';
+                
+                for (const album of albums.slice(0, 3)) { // Show first 3 albums
+                    html += `
+                        <div class="album">
+                            <h3>${album.name}</h3>
+                            <p><strong>Type:</strong> ${album.album_type}</p>
+                            <p><strong>Images:</strong> ${album.image_count}</p>
+                            <p><strong>Created:</strong> ${new Date(album.created_at).toLocaleDateString()}</p>
+                            <p><strong>Description:</strong> ${album.description || 'No description'}</p>
+                        </div>
+                    `;
+                }
+                
+                if (albums.length > 3) {
+                    html += `<p><em>... and ${albums.length - 3} more albums</em></p>`;
+                }
+                
+                document.getElementById('albums').innerHTML = html;
+            } catch (error) {
+                document.getElementById('albums').innerHTML = `<div class="error">Error loading albums: ${error.message}</div>`;
+            }
+        }
+        
+        // Load data when page loads
+        loadStats();
+        loadAlbums();
+    </script>
+</body>
+</html>
