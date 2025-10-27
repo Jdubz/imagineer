@@ -6,31 +6,36 @@ Reads organized LoRAs from index.json and generates preview images.
 Can run locally (synchronous) or queue jobs via API server (async).
 """
 
-import sys
-import json
-import yaml
 import argparse
-from pathlib import Path
+import json
+import sys
 from datetime import datetime
+from pathlib import Path
+
+import yaml
 
 # Import from organize_loras
 sys.path.insert(0, str(Path(__file__).parent))
 from organize_loras import (
+    BLUE,
+    GREEN,
+    RED,
+    RESET,
+    YELLOW,
+    extract_trigger_words,
+    generate_preview,
     load_config,
     queue_preview_job,
-    generate_preview,
     save_preview_config,
-    extract_trigger_words,
-    GREEN, RED, YELLOW, BLUE, RESET
 )
 
 PROJECT_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate preview images for organized LoRAs',
+        description="Generate preview images for organized LoRAs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -45,43 +50,37 @@ Examples:
 
   # Generate for specific LoRA
   python scripts/generate_previews.py --lora t4r0th
-        """
+        """,
     )
 
     parser.add_argument(
-        '--lora-dir',
-        default='/mnt/speedy/imagineer/models/lora',
-        help='Base LoRA directory (default: /mnt/speedy/imagineer/models/lora)'
+        "--lora-dir",
+        default="/mnt/speedy/imagineer/models/lora",
+        help="Base LoRA directory (default: /mnt/speedy/imagineer/models/lora)",
     )
 
     parser.add_argument(
-        '--queue',
-        action='store_true',
-        help='Queue jobs via API server (requires server running)'
+        "--queue", action="store_true", help="Queue jobs via API server (requires server running)"
     )
 
     parser.add_argument(
-        '--missing-only',
-        action='store_true',
-        help='Only generate previews for LoRAs without preview.png'
+        "--missing-only",
+        action="store_true",
+        help="Only generate previews for LoRAs without preview.png",
     )
 
-    parser.add_argument(
-        '--lora',
-        type=str,
-        help='Generate preview for specific LoRA folder name'
-    )
+    parser.add_argument("--lora", type=str, help="Generate preview for specific LoRA folder name")
 
     parser.add_argument(
-        '--api-url',
-        default='http://localhost:10050',
-        help='API server URL (default: http://localhost:10050)'
+        "--api-url",
+        default="http://localhost:10050",
+        help="API server URL (default: http://localhost:10050)",
     )
 
     args = parser.parse_args()
 
     lora_base_dir = Path(args.lora_dir)
-    index_path = lora_base_dir / 'index.json'
+    index_path = lora_base_dir / "index.json"
 
     if not lora_base_dir.exists():
         print(f"{RED}Error: LoRA directory not found: {lora_base_dir}{RESET}")
@@ -92,7 +91,7 @@ Examples:
         return 1
 
     # Load index
-    with open(index_path, 'r') as f:
+    with open(index_path, "r") as f:
         index = json.load(f)
 
     # Load main config
@@ -101,7 +100,7 @@ Examples:
         print(f"{YELLOW}Warning: Could not load config.yaml, using defaults{RESET}")
         negative_prompt = None
     else:
-        negative_prompt = config_dict.get('generation', {}).get('negative_prompt')
+        negative_prompt = config_dict.get("generation", {}).get("negative_prompt")
 
     # Filter LoRAs to process
     loras_to_process = []
@@ -116,7 +115,7 @@ Examples:
         # All LoRAs
         for folder_name, entry in index.items():
             lora_folder = lora_base_dir / folder_name
-            preview_path = lora_folder / 'preview.png'
+            preview_path = lora_folder / "preview.png"
 
             # Skip if missing-only and preview exists
             if args.missing_only and preview_path.exists():
@@ -139,8 +138,8 @@ Examples:
 
     for folder_name, entry in loras_to_process:
         lora_folder = lora_base_dir / folder_name
-        lora_file = lora_folder / entry['filename']
-        preview_path = lora_folder / 'preview.png'
+        lora_file = lora_folder / entry["filename"]
+        preview_path = lora_folder / "preview.png"
 
         if not lora_file.exists():
             print(f"{RED}✗ {folder_name}: LoRA file not found{RESET}")
@@ -151,7 +150,7 @@ Examples:
         print(f"  File: {entry['filename']}")
 
         # Auto-detect trigger words from filename
-        trigger_words = extract_trigger_words(entry['filename'])
+        trigger_words = extract_trigger_words(entry["filename"])
         print(f"  Trigger words: {YELLOW}{trigger_words}{RESET}")
 
         if args.queue:
@@ -164,7 +163,7 @@ Examples:
                 guidance_scale=8.0,
                 weight=1.0,
                 negative_prompt=negative_prompt,
-                api_url=args.api_url
+                api_url=args.api_url,
             )
         else:
             # Generate locally
@@ -175,7 +174,7 @@ Examples:
                 steps=30,
                 guidance_scale=8.0,
                 weight=1.0,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
             )
 
         if success:
@@ -209,5 +208,5 @@ Examples:
     return 0 if failed_count == 0 else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
