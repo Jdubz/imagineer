@@ -27,6 +27,8 @@ def run_tests():
         "tests/backend/test_phase3_labeling.py",
         "tests/backend/test_phase4_scraping.py",
         "tests/backend/test_phase4_integration.py",
+        "tests/backend/test_phase5_training.py",
+        "tests/backend/test_phase5_integration.py",
         "tests/backend/test_integration.py",
     ]
 

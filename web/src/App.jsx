@@ -7,6 +7,7 @@ import GenerateTab from './components/GenerateTab'
 import GalleryTab from './components/GalleryTab'
 import AlbumsTab from './components/AlbumsTab'
 import ScrapingTab from './components/ScrapingTab'
+import TrainingTab from './components/TrainingTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
 
@@ -26,6 +27,7 @@ function App() {
     { id: 'gallery', label: 'Gallery', icon: '🖼️' },
     { id: 'albums', label: 'Albums', icon: '📁' },
     { id: 'scraping', label: 'Scraping', icon: '🕷️' },
+    { id: 'training', label: 'Training', icon: '🚀' },
     { id: 'queue', label: 'Queue', icon: '📋' },
     { id: 'loras', label: 'LoRAs', icon: '🎨' }
   ]
@@ -228,6 +230,10 @@ function App() {
 
             {activeTab === 'scraping' && (
               <ScrapingTab isAdmin={user?.role === 'admin'} />
+            )}
+
+            {activeTab === 'training' && (
+              <TrainingTab isAdmin={user?.role === 'admin'} />
             )}
 
             {activeTab === 'queue' && <QueueTab />}
