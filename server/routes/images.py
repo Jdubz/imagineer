@@ -66,7 +66,12 @@ def upload_images():
     from datetime import datetime
 
     upload_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    upload_dir = Path(f"/mnt/speedy/imagineer/outputs/uploads/{upload_id}")
+    from server.api import load_config
+
+    config = load_config()
+
+    outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+    upload_dir = outputs_dir / "uploads" / upload_id
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     uploaded_images = []
@@ -187,8 +192,13 @@ def get_thumbnail(image_id):
     image = Image.query.get_or_404(image_id)
 
     # Check for cached thumbnail
-    thumbnail_dir = Path("/mnt/speedy/imagineer/outputs/thumbnails")
-    thumbnail_dir.mkdir(exist_ok=True)
+    from server.api import load_config
+
+    config = load_config()
+
+    outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+    thumbnail_dir = outputs_dir / "thumbnails"
+    thumbnail_dir.mkdir(parents=True, exist_ok=True)
     thumbnail_path = thumbnail_dir / f"{image_id}.webp"
 
     if not thumbnail_path.exists():

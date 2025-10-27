@@ -1985,9 +1985,13 @@ def upload_images():
         files = request.files.getlist("files")
         album_id = request.form.get("album_id", type=int)
 
+        # Load config
+        config = load_config()
+
         # Create upload directory
         upload_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        upload_dir = Path(f"/mnt/speedy/imagineer/outputs/uploads/{upload_id}")
+        outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+        upload_dir = outputs_dir / "uploads" / upload_id
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         uploaded_images = []
@@ -2091,9 +2095,13 @@ def get_thumbnail(image_id):
         if not image.is_public:
             return jsonify({"error": "Image not found"}), 404
 
+        # Load config
+        config = load_config()
+
         # Check for cached thumbnail
-        thumbnail_dir = Path("/mnt/speedy/imagineer/outputs/thumbnails")
-        thumbnail_dir.mkdir(exist_ok=True)
+        outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+        thumbnail_dir = outputs_dir / "thumbnails"
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
         thumbnail_path = thumbnail_dir / f"{image_id}.webp"
 
         if not thumbnail_path.exists():

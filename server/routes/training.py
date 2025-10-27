@@ -74,12 +74,19 @@ def create_training_run():
     if len(albums) != len(album_ids):
         return jsonify({"error": "One or more albums not found"}), 400
 
+    # Load config
+    from server.api import load_config
+
+    config = load_config()
+
     # Create training run
     run = TrainingRun(
         name=data["name"],
         description=data.get("description", ""),
         dataset_path="",  # Will be set by prepare_training_data
-        output_path=f"/mnt/speedy/imagineer/models/lora/trained_{len(TrainingRun.query.all()) + 1}",
+        output_path=(
+            f"{config['model']['cache_dir']}/lora/trained_{len(TrainingRun.query.all()) + 1}"
+        ),
         training_config=json.dumps(data.get("config", {})),
         status="pending",
         progress=0,
@@ -254,8 +261,13 @@ def integrate_trained_lora(run_id):
         if not checkpoint_path.exists():
             return jsonify({"error": "Checkpoint file not found"}), 404
 
+        # Load config
+        from server.api import load_config
+
+        config = load_config()
+
         # Create destination path in the main LoRA directory
-        lora_base_dir = Path("/mnt/speedy/imagineer/models/lora")
+        lora_base_dir = Path(config["model"]["cache_dir"]) / "lora"
         lora_base_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate a safe filename
