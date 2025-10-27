@@ -3,8 +3,6 @@ Tests for utility functions in src/imagineer/utils.py
 """
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 import torch

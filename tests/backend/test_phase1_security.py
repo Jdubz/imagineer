@@ -4,11 +4,7 @@ Tests for Phase 1: Security & Logging features
 
 import json
 import os
-import tempfile
-from pathlib import Path
 from unittest.mock import mock_open, patch
-
-import pytest
 
 from server.auth import get_secret_key, get_user_role, load_users, save_users
 from server.logging_config import configure_logging
