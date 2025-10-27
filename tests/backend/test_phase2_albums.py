@@ -2,15 +2,16 @@
 Tests for Phase 2: Album System & Image Management
 """
 
-import pytest
+import io
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, mock_open, MagicMock
-from PIL import Image as PILImage
-import io
+from unittest.mock import MagicMock, mock_open, patch
 
-from server.database import db, Album, Image, AlbumImage, Label
+import pytest
+from PIL import Image as PILImage
+
+from server.database import Album, AlbumImage, Image, Label, db
 
 
 class TestAlbumAPI:
@@ -18,13 +19,13 @@ class TestAlbumAPI:
 
     def test_get_albums_public(self, client):
         """Test getting albums as public user"""
-        response = client.get('/api/albums')
+        response = client.get("/api/albums")
         assert response.status_code == 200
         data = response.get_json()
-        assert 'albums' in data
-        assert 'total' in data
-        assert 'page' in data
-        assert 'per_page' in data
+        assert "albums" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
 
     def test_get_album_public(self, client):
         """Test getting single album as public user"""
@@ -35,46 +36,43 @@ class TestAlbumAPI:
             db.session.commit()
             album_id = album.id
 
-        response = client.get(f'/api/albums/{album_id}')
+        response = client.get(f"/api/albums/{album_id}")
         assert response.status_code == 200
         data = response.get_json()
-        assert data['name'] == "Test Album"
-        assert data['description'] == "Test Description"
+        assert data["name"] == "Test Album"
+        assert data["description"] == "Test Description"
 
     def test_get_album_not_found(self, client):
         """Test getting non-existent album"""
-        response = client.get('/api/albums/99999')
+        response = client.get("/api/albums/99999")
         assert response.status_code == 404
 
     def test_create_album_admin(self, client):
         """Test creating album as admin"""
         # Mock admin authentication
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
             album_data = {
-                'name': 'New Album',
-                'description': 'Album Description',
-                'is_public': True
+                "name": "New Album",
+                "description": "Album Description",
+                "is_public": True,
             }
-            
-            response = client.post('/api/albums', 
-                                 json=album_data,
-                                 headers={'Authorization': 'Bearer admin_token'})
-            
+
+            response = client.post(
+                "/api/albums", json=album_data, headers={"Authorization": "Bearer admin_token"}
+            )
+
             assert response.status_code == 201
             data = response.get_json()
-            assert data['name'] == 'New Album'
-            assert data['description'] == 'Album Description'
+            assert data["name"] == "New Album"
+            assert data["description"] == "Album Description"
 
     def test_create_album_unauthorized(self, client):
         """Test creating album without admin auth"""
-        album_data = {
-            'name': 'New Album',
-            'description': 'Album Description'
-        }
-        
-        response = client.post('/api/albums', json=album_data)
+        album_data = {"name": "New Album", "description": "Album Description"}
+
+        response = client.post("/api/albums", json=album_data)
         assert response.status_code == 401
 
     def test_update_album_admin(self, client):
@@ -86,22 +84,21 @@ class TestAlbumAPI:
             db.session.commit()
             album_id = album.id
 
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
-            update_data = {
-                'name': 'Updated Name',
-                'description': 'Updated Description'
-            }
-            
-            response = client.put(f'/api/albums/{album_id}',
-                                json=update_data,
-                                headers={'Authorization': 'Bearer admin_token'})
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
+            update_data = {"name": "Updated Name", "description": "Updated Description"}
+
+            response = client.put(
+                f"/api/albums/{album_id}",
+                json=update_data,
+                headers={"Authorization": "Bearer admin_token"},
+            )
+
             assert response.status_code == 200
             data = response.get_json()
-            assert data['name'] == 'Updated Name'
-            assert data['description'] == 'Updated Description'
+            assert data["name"] == "Updated Name"
+            assert data["description"] == "Updated Description"
 
     def test_delete_album_admin(self, client):
         """Test deleting album as admin"""
@@ -112,14 +109,15 @@ class TestAlbumAPI:
             db.session.commit()
             album_id = album.id
 
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
-            response = client.delete(f'/api/albums/{album_id}',
-                                   headers={'Authorization': 'Bearer admin_token'})
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
+            response = client.delete(
+                f"/api/albums/{album_id}", headers={"Authorization": "Bearer admin_token"}
+            )
+
             assert response.status_code == 200
-            
+
             # Verify album is deleted
             deleted_album = Album.query.get(album_id)
             assert deleted_album is None
@@ -130,25 +128,27 @@ class TestAlbumAPI:
             # Create test album and images
             album = Album(name="Test Album")
             db.session.add(album)
-            
+
             image1 = Image(filename="test1.jpg", file_path="/tmp/test1.jpg", is_public=True)
             image2 = Image(filename="test2.jpg", file_path="/tmp/test2.jpg", is_public=True)
             db.session.add_all([image1, image2])
             db.session.commit()
-            
+
             album_id = album.id
             image_ids = [image1.id, image2.id]
 
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
-            response = client.post(f'/api/albums/{album_id}/images',
-                                 json={'image_ids': image_ids},
-                                 headers={'Authorization': 'Bearer admin_token'})
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
+            response = client.post(
+                f"/api/albums/{album_id}/images",
+                json={"image_ids": image_ids},
+                headers={"Authorization": "Bearer admin_token"},
+            )
+
             assert response.status_code == 200
             data = response.get_json()
-            assert data['added_count'] == 2
+            assert data["added_count"] == 2
 
     def test_remove_image_from_album_admin(self, client):
         """Test removing image from album as admin"""
@@ -158,27 +158,27 @@ class TestAlbumAPI:
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
             db.session.add_all([album, image])
             db.session.commit()
-            
+
             # Add image to album
             album_image = AlbumImage(album_id=album.id, image_id=image.id)
             db.session.add(album_image)
             db.session.commit()
-            
+
             album_id = album.id
             image_id = image.id
 
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
-            response = client.delete(f'/api/albums/{album_id}/images/{image_id}',
-                                   headers={'Authorization': 'Bearer admin_token'})
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
+            response = client.delete(
+                f"/api/albums/{album_id}/images/{image_id}",
+                headers={"Authorization": "Bearer admin_token"},
+            )
+
             assert response.status_code == 200
-            
+
             # Verify association is removed
-            association = AlbumImage.query.filter_by(
-                album_id=album_id, image_id=image_id
-            ).first()
+            association = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first()
             assert association is None
 
 
@@ -187,28 +187,30 @@ class TestImageAPI:
 
     def test_upload_images_admin(self, client):
         """Test uploading images as admin"""
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
             # Create test image data
             img_data = io.BytesIO()
-            test_img = PILImage.new('RGB', (100, 100), color='red')
-            test_img.save(img_data, format='JPEG')
+            test_img = PILImage.new("RGB", (100, 100), color="red")
+            test_img.save(img_data, format="JPEG")
             img_data.seek(0)
-            
-            response = client.post('/api/images/upload',
-                                 data={'images': (img_data, 'test.jpg')},
-                                 content_type='multipart/form-data',
-                                 headers={'Authorization': 'Bearer admin_token'})
-            
+
+            response = client.post(
+                "/api/images/upload",
+                data={"images": (img_data, "test.jpg")},
+                content_type="multipart/form-data",
+                headers={"Authorization": "Bearer admin_token"},
+            )
+
             assert response.status_code == 201
             data = response.get_json()
-            assert 'uploaded_count' in data
-            assert data['uploaded_count'] == 1
+            assert "uploaded_count" in data
+            assert data["uploaded_count"] == 1
 
     def test_upload_images_unauthorized(self, client):
         """Test uploading images without admin auth"""
-        response = client.post('/api/images/upload')
+        response = client.post("/api/images/upload")
         assert response.status_code == 401
 
     def test_delete_image_admin(self, client):
@@ -220,16 +222,17 @@ class TestImageAPI:
             db.session.commit()
             image_id = image.id
 
-        with patch('server.auth.check_auth') as mock_auth:
-            mock_auth.return_value = {'username': 'admin', 'role': 'admin'}
-            
+        with patch("server.auth.check_auth") as mock_auth:
+            mock_auth.return_value = {"username": "admin", "role": "admin"}
+
             # Mock file deletion
-            with patch('pathlib.Path.unlink'):
-                response = client.delete(f'/api/images/{image_id}',
-                                       headers={'Authorization': 'Bearer admin_token'})
-                
+            with patch("pathlib.Path.unlink"):
+                response = client.delete(
+                    f"/api/images/{image_id}", headers={"Authorization": "Bearer admin_token"}
+                )
+
                 assert response.status_code == 200
-                
+
                 # Verify image is deleted from database
                 deleted_image = Image.query.get(image_id)
                 assert deleted_image is None
@@ -244,11 +247,11 @@ class TestImageAPI:
             image_id = image.id
 
         # Mock thumbnail generation
-        with patch('pathlib.Path.exists', return_value=True):
-            with patch('flask.send_file') as mock_send:
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("flask.send_file") as mock_send:
                 mock_send.return_value = "thumbnail_data"
-                
-                response = client.get(f'/api/images/{image_id}/thumbnail')
+
+                response = client.get(f"/api/images/{image_id}/thumbnail")
                 assert response.status_code == 200
 
     def test_get_thumbnail_private_image(self, client):
@@ -260,7 +263,7 @@ class TestImageAPI:
             db.session.commit()
             image_id = image.id
 
-        response = client.get(f'/api/images/{image_id}/thumbnail')
+        response = client.get(f"/api/images/{image_id}/thumbnail")
         assert response.status_code == 404
 
 
@@ -271,28 +274,22 @@ class TestNSFWFiltering:
         """Test creating NSFW image"""
         with client.application.app_context():
             image = Image(
-                filename="nsfw.jpg", 
-                file_path="/tmp/nsfw.jpg", 
-                is_public=True,
-                is_nsfw=True
+                filename="nsfw.jpg", file_path="/tmp/nsfw.jpg", is_public=True, is_nsfw=True
             )
             db.session.add(image)
             db.session.commit()
-            
+
             assert image.is_nsfw is True
 
     def test_safe_image_creation(self, client):
         """Test creating safe image"""
         with client.application.app_context():
             image = Image(
-                filename="safe.jpg", 
-                file_path="/tmp/safe.jpg", 
-                is_public=True,
-                is_nsfw=False
+                filename="safe.jpg", file_path="/tmp/safe.jpg", is_public=True, is_nsfw=False
             )
             db.session.add(image)
             db.session.commit()
-            
+
             assert image.is_nsfw is False
 
     def test_nsfw_filtering_in_album(self, client):
@@ -300,29 +297,31 @@ class TestNSFWFiltering:
         with client.application.app_context():
             # Create album with mixed content
             album = Album(name="Mixed Album", is_public=True)
-            safe_image = Image(filename="safe.jpg", file_path="/tmp/safe.jpg", 
-                             is_public=True, is_nsfw=False)
-            nsfw_image = Image(filename="nsfw.jpg", file_path="/tmp/nsfw.jpg", 
-                             is_public=True, is_nsfw=True)
-            
+            safe_image = Image(
+                filename="safe.jpg", file_path="/tmp/safe.jpg", is_public=True, is_nsfw=False
+            )
+            nsfw_image = Image(
+                filename="nsfw.jpg", file_path="/tmp/nsfw.jpg", is_public=True, is_nsfw=True
+            )
+
             db.session.add_all([album, safe_image, nsfw_image])
             db.session.commit()
-            
+
             # Add images to album
             safe_assoc = AlbumImage(album_id=album.id, image_id=safe_image.id)
             nsfw_assoc = AlbumImage(album_id=album.id, image_id=nsfw_image.id)
             db.session.add_all([safe_assoc, nsfw_assoc])
             db.session.commit()
-            
+
             album_id = album.id
 
-        response = client.get(f'/api/albums/{album_id}')
+        response = client.get(f"/api/albums/{album_id}")
         assert response.status_code == 200
         data = response.get_json()
-        
+
         # Should include both images with NSFW flag
-        assert len(data['images']) == 2
-        nsfw_flags = [img['is_nsfw'] for img in data['images']]
+        assert len(data["images"]) == 2
+        nsfw_flags = [img["is_nsfw"] for img in data["images"]]
         assert True in nsfw_flags  # At least one NSFW image
         assert False in nsfw_flags  # At least one safe image
 
@@ -333,14 +332,10 @@ class TestDatabaseModels:
     def test_album_creation(self, client):
         """Test album model creation"""
         with client.application.app_context():
-            album = Album(
-                name="Test Album",
-                description="Test Description",
-                is_public=True
-            )
+            album = Album(name="Test Album", description="Test Description", is_public=True)
             db.session.add(album)
             db.session.commit()
-            
+
             assert album.id is not None
             assert album.name == "Test Album"
             assert album.description == "Test Description"
@@ -350,14 +345,11 @@ class TestDatabaseModels:
         """Test image model creation"""
         with client.application.app_context():
             image = Image(
-                filename="test.jpg",
-                file_path="/tmp/test.jpg",
-                is_public=True,
-                is_nsfw=False
+                filename="test.jpg", file_path="/tmp/test.jpg", is_public=True, is_nsfw=False
             )
             db.session.add(image)
             db.session.commit()
-            
+
             assert image.id is not None
             assert image.filename == "test.jpg"
             assert image.file_path == "/tmp/test.jpg"
@@ -372,12 +364,12 @@ class TestDatabaseModels:
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
             db.session.add_all([album, image])
             db.session.commit()
-            
+
             # Create association
             association = AlbumImage(album_id=album.id, image_id=image.id)
             db.session.add(association)
             db.session.commit()
-            
+
             # Test relationships
             assert len(album.images) == 1
             assert album.images[0].id == image.id
@@ -391,24 +383,24 @@ class TestDatabaseModels:
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
             db.session.add(image)
             db.session.commit()
-            
+
             # Create labels
             caption_label = Label(
                 image_id=image.id,
                 label_text="A beautiful landscape",
                 label_type="caption",
-                source_model="claude-3-5-sonnet"
+                source_model="claude-3-5-sonnet",
             )
             tag_label = Label(
                 image_id=image.id,
                 label_text="landscape",
                 label_type="tag",
-                source_model="claude-3-5-sonnet"
+                source_model="claude-3-5-sonnet",
             )
-            
+
             db.session.add_all([caption_label, tag_label])
             db.session.commit()
-            
+
             # Test relationships
             assert len(image.labels) == 2
             label_types = [label.label_type for label in image.labels]
