@@ -149,23 +149,16 @@ def after_request(response):
     return response
 
 
-# Add centralized error handling
-@app.errorhandler(Exception)
-def handle_exception(e):
-    """Global exception handler"""
+# Add specific error handlers
+@app.errorhandler(500)
+def handle_500(e):
+    """Handle 500 errors"""
     logger.error(
-        f"Unhandled exception: {e}",
+        f"Internal server error: {e}",
         exc_info=True,
-        extra={"operation": "exception_handled", "exception_type": type(e).__name__},
+        extra={"operation": "error_500"},
     )
-
-    if app.debug:
-        return (
-            jsonify({"error": "Internal server error", "detail": str(e), "type": type(e).__name__}),
-            500,
-        )
-    else:
-        return jsonify({"error": "Internal server error"}), 500
+    return jsonify({"error": "Internal server error"}), 500
 
 
 # ============================================================================

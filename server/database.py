@@ -115,6 +115,7 @@ class Album(db.Model):
     # Album metadata
     album_type = db.Column(db.String(50), default="batch")  # batch, set, collection, manual
     is_public = db.Column(db.Boolean, default=True)
+    is_training_source = db.Column(db.Boolean, default=False)  # Can be used for training
 
     # Generation context (for batch albums)
     generation_prompt = db.Column(db.Text)
@@ -136,6 +137,7 @@ class Album(db.Model):
             "description": self.description,
             "album_type": self.album_type,
             "is_public": self.is_public,
+            "is_training_source": self.is_training_source,
             "generation_prompt": self.generation_prompt,
             "generation_config": self.generation_config,
             "created_at": self.created_at.isoformat() if self.created_at else None,
