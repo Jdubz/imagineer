@@ -25,7 +25,9 @@ class TestAuthentication:
             "admin": {"password_hash": "hashed_password", "role": "admin"},
             "user": {"password_hash": "another_hash", "role": "user"},
         }
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        with patch("server.auth.USERS_FILE.exists", return_value=True), patch(
+            "builtins.open", mock_open(read_data=json.dumps(users_data))
+        ):
             users = load_users()
             assert users == users_data
 
@@ -63,7 +65,9 @@ class TestAuthentication:
     def test_get_user_role_admin(self):
         """Test getting admin user role"""
         users_data = {"admin@example.com": {"role": "admin"}}
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        with patch("server.auth.USERS_FILE.exists", return_value=True), patch(
+            "builtins.open", mock_open(read_data=json.dumps(users_data))
+        ):
             role = get_user_role("admin@example.com")
             assert role == "admin"
 

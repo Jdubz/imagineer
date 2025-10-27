@@ -166,7 +166,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             db.session.commit()
 
             logger.error(f"Training error: {run.name} - {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+            return {"status": "failed", "message": str(e)}
 
 
 def prepare_training_data(training_run):
