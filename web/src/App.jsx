@@ -5,6 +5,7 @@ import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
 import GenerateTab from './components/GenerateTab'
 import GalleryTab from './components/GalleryTab'
+import AlbumsTab from './components/AlbumsTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
 
@@ -16,11 +17,13 @@ function App() {
   const [queuePosition, setQueuePosition] = useState(null)
   const [batches, setBatches] = useState([])
   const [activeTab, setActiveTab] = useState('generate')
+  const [user, setUser] = useState(null)
 
   // Tab configuration
   const tabs = [
     { id: 'generate', label: 'Generate', icon: '✨' },
     { id: 'gallery', label: 'Gallery', icon: '🖼️' },
+    { id: 'albums', label: 'Albums', icon: '📁' },
     { id: 'queue', label: 'Queue', icon: '📋' },
     { id: 'loras', label: 'LoRAs', icon: '🎨' }
   ]
@@ -30,7 +33,26 @@ function App() {
     fetchConfig()
     fetchImages()
     fetchBatches()
+    checkAuth()
   }, [])
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/auth/me', {
+        credentials: 'include'
+      })
+      const data = await response.json()
+
+      if (data.authenticated) {
+        setUser(data)
+      } else {
+        setUser(null)
+      }
+    } catch (error) {
+      console.error('Failed to check auth:', error)
+      setUser(null)
+    }
+  }
 
   const fetchConfig = async () => {
     try {
@@ -196,6 +218,10 @@ function App() {
                 onRefreshImages={fetchImages}
                 onRefreshBatches={fetchBatches}
               />
+            )}
+
+            {activeTab === 'albums' && (
+              <AlbumsTab isAdmin={user?.role === 'admin'} />
             )}
 
             {activeTab === 'queue' && <QueueTab />}
