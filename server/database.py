@@ -86,7 +86,7 @@ class Label(db.Model):
     # Source information
     source_model = db.Column(db.String(100))  # e.g., "claude-3-sonnet"
     source_prompt = db.Column(db.Text)  # The prompt used to generate the label
-    created_by = db.Column(db.String(255))  # User who created the label
+    created_by = db.Column(db.String(255), nullable=True)  # User who created the label
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -118,7 +118,7 @@ class Album(db.Model):
     album_type = db.Column(db.String(50), default="batch")  # batch, set, collection, manual
     is_public = db.Column(db.Boolean, default=True)
     is_training_source = db.Column(db.Boolean, default=False)  # Can be used for training
-    created_by = db.Column(db.String(255))  # User who created the album
+    created_by = db.Column(db.String(255), nullable=True)  # User who created the album
 
     # Generation context (for batch albums)
     generation_prompt = db.Column(db.Text)
@@ -166,7 +166,7 @@ class AlbumImage(db.Model):
 
     # Ordering within album
     sort_order = db.Column(db.Integer, default=0)
-    added_by = db.Column(db.String(255))  # User who added the image to the album
+    added_by = db.Column(db.String(255), nullable=True)  # User who added the image to the album
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
