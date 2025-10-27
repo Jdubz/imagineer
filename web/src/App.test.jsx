@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import axios from 'axios'
 import App from './App'
 
-// Mock axios
-vi.mock('axios')
+// Mock fetch globally
+globalThis.fetch = vi.fn()
+
+// Mock PasswordGate component to bypass authentication in tests
+vi.mock('./components/PasswordGate', () => ({
+  default: ({ children }) => children
+}))
 
 describe('App', () => {
   const mockConfig = {
@@ -30,7 +34,12 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    axios.get.mockResolvedValue({ data: mockConfig })
+    // Reset fetch mock
+    globalThis.fetch = vi.fn()
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockConfig)
+    })
   })
 
   it('renders the app title', () => {
@@ -39,22 +48,32 @@ describe('App', () => {
   })
 
   it('loads configuration on mount', async () => {
-    axios.get.mockResolvedValueOnce({ data: mockConfig })
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockConfig)
+    })
     render(<App />)
 
     await waitFor(() => {
-      expect(axios.get).toHaveBeenCalledWith('/api/config')
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/config')
     })
   })
 
   it('loads images on mount', async () => {
-    axios.get.mockResolvedValueOnce({ data: mockConfig })
-    axios.get.mockResolvedValueOnce({ data: { images: mockImages } })
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ images: mockImages })
+      })
 
     render(<App />)
 
     await waitFor(() => {
-      expect(axios.get).toHaveBeenCalledWith('/api/outputs')
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/outputs')
     })
   })
 
@@ -65,8 +84,19 @@ describe('App', () => {
       job: { id: 1, status: 'queued', prompt: 'test prompt' }
     }
 
-    axios.get.mockResolvedValue({ data: mockConfig })
-    axios.post.mockResolvedValueOnce({ data: mockResponse })
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ images: [] })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse)
+      })
 
     render(<App />)
 
@@ -78,13 +108,17 @@ describe('App', () => {
     // Fill in prompt and submit
     const input = screen.getByPlaceholderText(/describe the image/i)
     await user.type(input, 'test prompt')
-    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     await waitFor(() => {
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         '/api/generate',
         expect.objectContaining({
-          prompt: 'test prompt'
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json'
+          }),
+          body: expect.stringContaining('test prompt')
         })
       )
     })
@@ -94,8 +128,16 @@ describe('App', () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    axios.get.mockResolvedValue({ data: mockConfig })
-    axios.post.mockRejectedValueOnce(new Error('Generation failed'))
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ images: [] })
+      })
+      .mockRejectedValueOnce(new Error('Generation failed'))
 
     render(<App />)
 
@@ -105,7 +147,7 @@ describe('App', () => {
 
     const input = screen.getByPlaceholderText(/describe the image/i)
     await user.type(input, 'test prompt')
-    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalled()
@@ -121,9 +163,23 @@ describe('App', () => {
       job: { id: 1, status: 'queued', prompt: 'test' }
     }
 
-    axios.get.mockResolvedValue({ data: mockConfig })
-    axios.post.mockResolvedValueOnce({ data: mockJob })
-    axios.get.mockResolvedValue({ data: { images: [] } })
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ images: [] })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockJob)
+      })
+      .mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ images: [] })
+      })
 
     render(<App />)
 
@@ -133,19 +189,27 @@ describe('App', () => {
 
     const input = screen.getByPlaceholderText(/describe the image/i)
     await user.type(input, 'test')
-    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     // Should reload images after job is created
     await waitFor(() => {
-      expect(axios.get).toHaveBeenCalledWith('/api/outputs')
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/outputs')
     }, { timeout: 10000 })
   })
 
   it('displays loading state during generation', async () => {
     const user = userEvent.setup()
 
-    axios.get.mockResolvedValue({ data: mockConfig })
-    axios.post.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)))
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ images: [] })
+      })
+      .mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)))
 
     render(<App />)
 
@@ -155,16 +219,16 @@ describe('App', () => {
 
     const input = screen.getByPlaceholderText(/describe the image/i)
     await user.type(input, 'test')
-    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     // Should show generating state
-    expect(screen.getByRole('button', { name: /generating/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generating.../i })).toBeDisabled()
   })
 
   it('handles config loading error', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    axios.get.mockRejectedValueOnce(new Error('Config failed'))
+    globalThis.fetch.mockRejectedValueOnce(new Error('Config failed'))
 
     render(<App />)
 
@@ -178,8 +242,12 @@ describe('App', () => {
   it('handles images loading error', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    axios.get.mockResolvedValueOnce({ data: mockConfig })
-    axios.get.mockRejectedValueOnce(new Error('Images failed'))
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockConfig)
+      })
+      .mockRejectedValueOnce(new Error('Images failed'))
 
     render(<App />)
 
