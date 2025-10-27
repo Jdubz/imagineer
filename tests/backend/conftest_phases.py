@@ -2,7 +2,6 @@
 Additional pytest configuration for phase tests
 """
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -90,7 +89,10 @@ def mock_claude_response():
         "description": "A beautiful test image with vibrant colors",
         "nsfw_rating": "SAFE",
         "tags": ["beautiful", "vibrant", "colors", "test", "image"],
-        "raw_response": "DESCRIPTION: A beautiful test image with vibrant colors\nNSFW: SAFE\nTAGS: beautiful, vibrant, colors, test, image",
+        "raw_response": (
+            "DESCRIPTION: A beautiful test image with vibrant colors\\n"
+            "NSFW: SAFE\\nTAGS: beautiful, vibrant, colors, test, image"
+        ),
     }
 
 
@@ -109,17 +111,33 @@ def admin_headers():
 @pytest.fixture
 def mock_admin_auth():
     """Mock admin authentication"""
-    with patch("server.auth.check_auth") as mock_auth:
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
-        yield mock_auth
+    from unittest.mock import MagicMock
+
+    from server.auth import User
+
+    # Create a mock admin user
+    admin_user = User(email="admin@test.com", name="Admin User", picture="", role="admin")
+    admin_user.is_authenticated = True
+    admin_user.is_admin = MagicMock(return_value=True)
+
+    with patch("server.auth.current_user", admin_user):
+        yield admin_user
 
 
 @pytest.fixture
 def mock_public_auth():
     """Mock public user authentication"""
-    with patch("server.auth.check_auth") as mock_auth:
-        mock_auth.return_value = None  # No authentication
-        yield mock_auth
+    from unittest.mock import MagicMock
+
+    from server.auth import User
+
+    # Create a mock public user
+    public_user = User(email="public@test.com", name="Public User", picture="", role=None)
+    public_user.is_authenticated = True
+    public_user.is_admin = MagicMock(return_value=False)
+
+    with patch("server.auth.current_user", public_user):
+        yield public_user
 
 
 @pytest.fixture

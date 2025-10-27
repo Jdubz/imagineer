@@ -113,7 +113,9 @@ def list_scrape_jobs():
 def get_scrape_job(job_id):
     """Get scrape job status (public)"""
     try:
-        job = ScrapeJob.query.get_or_404(job_id)
+        job = ScrapeJob.query.get(job_id)
+        if not job:
+            return jsonify({"error": "Scrape job not found"}), 404
         return jsonify(job.to_dict())
 
     except Exception as e:

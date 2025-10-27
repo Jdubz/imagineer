@@ -4,6 +4,8 @@ model:
   - stabilityai/stable-diffusion-2-1
   - stabilityai/stable-diffusion-xl-base-1.0
   cache_dir: /mnt/speedy/imagineer/models
+outputs:
+  base_dir: /mnt/speedy/imagineer/outputs
 generation:
   width: 512
   height: 512

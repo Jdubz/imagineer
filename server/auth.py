@@ -125,6 +125,14 @@ def init_auth(app):
     return oauth, google
 
 
+def check_auth():
+    """Check authentication and return user info for testing/API compatibility"""
+    if not current_user.is_authenticated:
+        return None
+
+    return {"username": current_user.email, "role": current_user.role or "public"}
+
+
 def require_admin(f):
     """Decorator to require admin authentication"""
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 
 function BatchGallery({ batchId, onBack }) {
   const [batch, setBatch] = useState(null)
@@ -7,9 +7,9 @@ function BatchGallery({ batchId, onBack }) {
 
   useEffect(() => {
     fetchBatch()
-  }, [batchId])
+  }, [batchId, fetchBatch])
 
-  const fetchBatch = async () => {
+  const fetchBatch = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch(`/api/batches/${batchId}`)
@@ -20,7 +20,7 @@ function BatchGallery({ batchId, onBack }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [batchId])
 
   const openModal = (image) => {
     setSelectedImage(image)

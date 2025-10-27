@@ -2,18 +2,17 @@
 Tests for Phase 5: Training Pipeline
 """
 
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from server.database import Album, AlbumImage, Image, Label, TrainingRun, db
 from server.tasks.training import (
-    train_lora_task,
-    prepare_training_data,
     cleanup_training_data,
+    prepare_training_data,
+    train_lora_task,
 )
 
 
@@ -43,6 +42,7 @@ def clean_database(app):
 def mock_admin_user():
     """Mock admin user for authentication"""
     from unittest.mock import MagicMock
+
     mock_user = MagicMock()
     mock_user.is_authenticated = True
     mock_user.is_admin.return_value = True
@@ -152,8 +152,18 @@ class TestTrainingTasks:
 
     @patch("server.tasks.training.subprocess.Popen")
     @patch("server.tasks.training.prepare_training_data")
-    def test_train_lora_task_failure(self, mock_prepare, mock_popen, app):
+    @patch("pathlib.Path.mkdir")
+    @patch("server.api.load_config")
+    def test_train_lora_task_failure(
+        self, mock_load_config, mock_mkdir, mock_prepare, mock_popen, app
+    ):
         """Test failed LoRA training task"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "model": {"cache_dir": "/tmp/imagineer/models"},
+            "training": {"checkpoint_dir": "/tmp/imagineer/checkpoints"},
+        }
+
         with app.app_context():
             # Create training run
             run = TrainingRun(
@@ -206,6 +216,7 @@ class TestTrainingTasks:
             # Create test images
             images = []
             import time
+
             timestamp = int(time.time() * 1000)  # Use timestamp for uniqueness
             for i in range(3):
                 image = Image(
@@ -307,7 +318,7 @@ class TestTrainingTasks:
                 name="Test Training",
                 dataset_path="/tmp/test_data",
                 output_path="/tmp/test_output",
-                training_config='{}',
+                training_config="{}",
                 status="completed",
             )
             db.session.add(run)
@@ -409,7 +420,9 @@ class TestTrainingAPI:
             db.session.add(run)
             db.session.commit()
 
-            with patch("server.tasks.training.train_lora_task.delay") as mock_task, patch("server.auth.current_user", mock_admin_user):
+            with patch("server.tasks.training.train_lora_task.delay") as mock_task, patch(
+                "server.auth.current_user", mock_admin_user
+            ):
                 mock_task.return_value = MagicMock(id="task-123")
 
                 response = client.post(f"/api/training/{run.id}/start")
@@ -497,9 +510,9 @@ class TestTrainingAPI:
             db.session.add(run)
             db.session.commit()
 
-            with patch("pathlib.Path.exists", return_value=True), patch(
-                "shutil.copy2"
-            ) as mock_copy, patch("pathlib.Path.mkdir"), patch("server.auth.current_user", mock_admin_user):
+            with patch("pathlib.Path.exists", return_value=True), patch("shutil.copy2"), patch(
+                "pathlib.Path.mkdir"
+            ), patch("server.auth.current_user", mock_admin_user):
                 response = client.post(f"/api/training/loras/{run.id}/integrate")
                 assert response.status_code == 200
 
@@ -512,9 +525,13 @@ class TestTrainingAPI:
         with app.app_context():
             # Create various training runs
             runs = [
-                TrainingRun(name="Run 1", dataset_path="/tmp", output_path="/tmp", status="completed"),
+                TrainingRun(
+                    name="Run 1", dataset_path="/tmp", output_path="/tmp", status="completed"
+                ),
                 TrainingRun(name="Run 2", dataset_path="/tmp", output_path="/tmp", status="failed"),
-                TrainingRun(name="Run 3", dataset_path="/tmp", output_path="/tmp", status="running"),
+                TrainingRun(
+                    name="Run 3", dataset_path="/tmp", output_path="/tmp", status="running"
+                ),
             ]
             for run in runs:
                 db.session.add(run)

@@ -3,12 +3,8 @@ Tests for Phase 2: Album System & Image Management
 """
 
 import io
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
@@ -47,26 +43,22 @@ class TestAlbumAPI:
         response = client.get("/api/albums/99999")
         assert response.status_code == 404
 
-    def test_create_album_admin(self, client):
+    def test_create_album_admin(self, client, mock_admin_auth):
         """Test creating album as admin"""
-        # Mock admin authentication
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        album_data = {
+            "name": "New Album",
+            "description": "Album Description",
+            "is_public": True,
+        }
 
-            album_data = {
-                "name": "New Album",
-                "description": "Album Description",
-                "is_public": True,
-            }
+        response = client.post(
+            "/api/albums", json=album_data, headers={"Authorization": "Bearer admin_token"}
+        )
 
-            response = client.post(
-                "/api/albums", json=album_data, headers={"Authorization": "Bearer admin_token"}
-            )
-
-            assert response.status_code == 201
-            data = response.get_json()
-            assert data["name"] == "New Album"
-            assert data["description"] == "Album Description"
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["name"] == "New Album"
+        assert data["description"] == "Album Description"
 
     def test_create_album_unauthorized(self, client):
         """Test creating album without admin auth"""
@@ -75,7 +67,7 @@ class TestAlbumAPI:
         response = client.post("/api/albums", json=album_data)
         assert response.status_code == 401
 
-    def test_update_album_admin(self, client):
+    def test_update_album_admin(self, client, mock_admin_auth):
         """Test updating album as admin"""
         with client.application.app_context():
             # Create test album
@@ -84,23 +76,20 @@ class TestAlbumAPI:
             db.session.commit()
             album_id = album.id
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        update_data = {"name": "Updated Name", "description": "Updated Description"}
 
-            update_data = {"name": "Updated Name", "description": "Updated Description"}
+        response = client.put(
+            f"/api/albums/{album_id}",
+            json=update_data,
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.put(
-                f"/api/albums/{album_id}",
-                json=update_data,
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["name"] == "Updated Name"
+        assert data["description"] == "Updated Description"
 
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["name"] == "Updated Name"
-            assert data["description"] == "Updated Description"
-
-    def test_delete_album_admin(self, client):
+    def test_delete_album_admin(self, client, mock_admin_auth):
         """Test deleting album as admin"""
         with client.application.app_context():
             # Create test album
@@ -109,20 +98,18 @@ class TestAlbumAPI:
             db.session.commit()
             album_id = album.id
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.delete(
+            f"/api/albums/{album_id}", headers={"Authorization": "Bearer admin_token"}
+        )
 
-            response = client.delete(
-                f"/api/albums/{album_id}", headers={"Authorization": "Bearer admin_token"}
-            )
+        assert response.status_code == 200
 
-            assert response.status_code == 200
-
-            # Verify album is deleted
+        # Verify album is deleted
+        with client.application.app_context():
             deleted_album = Album.query.get(album_id)
             assert deleted_album is None
 
-    def test_add_images_to_album_admin(self, client):
+    def test_add_images_to_album_admin(self, client, mock_admin_auth):
         """Test adding images to album as admin"""
         with client.application.app_context():
             # Create test album and images
@@ -137,20 +124,17 @@ class TestAlbumAPI:
             album_id = album.id
             image_ids = [image1.id, image2.id]
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.post(
+            f"/api/albums/{album_id}/images",
+            json={"image_ids": image_ids},
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.post(
-                f"/api/albums/{album_id}/images",
-                json={"image_ids": image_ids},
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["added_count"] == 2
 
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["added_count"] == 2
-
-    def test_remove_image_from_album_admin(self, client):
+    def test_remove_image_from_album_admin(self, client, mock_admin_auth):
         """Test removing image from album as admin"""
         with client.application.app_context():
             # Create test album and image
@@ -167,17 +151,15 @@ class TestAlbumAPI:
             album_id = album.id
             image_id = image.id
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        response = client.delete(
+            f"/api/albums/{album_id}/images/{image_id}",
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            response = client.delete(
-                f"/api/albums/{album_id}/images/{image_id}",
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        assert response.status_code == 200
 
-            assert response.status_code == 200
-
-            # Verify association is removed
+        # Verify association is removed
+        with client.application.app_context():
             association = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first()
             assert association is None
 
@@ -185,35 +167,48 @@ class TestAlbumAPI:
 class TestImageAPI:
     """Test image API endpoints"""
 
-    def test_upload_images_admin(self, client):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("server.api.load_config")
+    @patch("builtins.open", create=True)
+    def test_upload_images_admin(
+        self, mock_open, mock_load_config, mock_exists, mock_mkdir, client, mock_admin_auth
+    ):
         """Test uploading images as admin"""
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
 
-            # Create test image data
-            img_data = io.BytesIO()
-            test_img = PILImage.new("RGB", (100, 100), color="red")
-            test_img.save(img_data, format="JPEG")
-            img_data.seek(0)
+        # Mock file operations
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
 
-            response = client.post(
-                "/api/images/upload",
-                data={"images": (img_data, "test.jpg")},
-                content_type="multipart/form-data",
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        # Create test image data
+        img_data = io.BytesIO()
+        test_img = PILImage.new("RGB", (100, 100), color="red")
+        test_img.save(img_data, format="JPEG")
+        img_data.seek(0)
 
-            assert response.status_code == 201
-            data = response.get_json()
-            assert "uploaded_count" in data
-            assert data["uploaded_count"] == 1
+        response = client.post(
+            "/api/images/upload",
+            data={"files": (img_data, "test.jpg")},
+            content_type="multipart/form-data",
+            headers={"Authorization": "Bearer admin_token"},
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert "uploaded" in data
+        assert data["uploaded"] == 1
 
     def test_upload_images_unauthorized(self, client):
         """Test uploading images without admin auth"""
         response = client.post("/api/images/upload")
         assert response.status_code == 401
 
-    def test_delete_image_admin(self, client):
+    def test_delete_image_admin(self, client, mock_admin_auth):
         """Test deleting image as admin"""
         with client.application.app_context():
             # Create test image
@@ -222,23 +217,33 @@ class TestImageAPI:
             db.session.commit()
             image_id = image.id
 
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Mock file deletion
+        with patch("pathlib.Path.unlink"):
+            response = client.delete(
+                f"/api/images/{image_id}", headers={"Authorization": "Bearer admin_token"}
+            )
 
-            # Mock file deletion
-            with patch("pathlib.Path.unlink"):
-                response = client.delete(
-                    f"/api/images/{image_id}", headers={"Authorization": "Bearer admin_token"}
-                )
+            assert response.status_code == 200
 
-                assert response.status_code == 200
-
-                # Verify image is deleted from database
+            # Verify image is deleted from database
+            with client.application.app_context():
                 deleted_image = Image.query.get(image_id)
                 assert deleted_image is None
 
-    def test_get_thumbnail_public(self, client):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("PIL.Image.open")
+    @patch("server.api.load_config")
+    def test_get_thumbnail_public(
+        self, mock_load_config, mock_pil_open, mock_exists, mock_mkdir, client
+    ):
         """Test getting image thumbnail as public user"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
         with client.application.app_context():
             # Create test image
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
@@ -246,13 +251,17 @@ class TestImageAPI:
             db.session.commit()
             image_id = image.id
 
-        # Mock thumbnail generation
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("flask.send_file") as mock_send:
-                mock_send.return_value = "thumbnail_data"
+        # Mock PIL Image operations
+        mock_img = MagicMock()
+        mock_img.thumbnail.return_value = None
+        mock_pil_open.return_value.__enter__.return_value = mock_img
 
-                response = client.get(f"/api/images/{image_id}/thumbnail")
-                assert response.status_code == 200
+        # Mock thumbnail generation
+        with patch("flask.send_file") as mock_send:
+            mock_send.return_value = "thumbnail_data"
+
+            response = client.get(f"/api/images/{image_id}/thumbnail")
+            assert response.status_code == 200
 
     def test_get_thumbnail_private_image(self, client):
         """Test getting thumbnail of private image"""
