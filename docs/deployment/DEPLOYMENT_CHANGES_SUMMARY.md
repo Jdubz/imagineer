@@ -124,7 +124,7 @@ These secrets need to be added to GitHub Actions:
 | `SSH_PRIVATE_KEY` | SSH private key | Deploy via SSH |
 | `SSH_HOST` | Server IP/hostname | Server address |
 | `SSH_USER` | `jdubz` | SSH username |
-| `VITE_APP_PASSWORD` | `carnuvian` | App password |
+| `VITE_APP_PASSWORD` | `[REDACTED]` | App password |
 
 ## OAuth Configuration Update
 

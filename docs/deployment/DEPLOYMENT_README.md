@@ -174,13 +174,13 @@ Edit with your Firebase project ID
 FLASK_ENV=production
 FLASK_RUN_PORT=10050
 ALLOWED_ORIGINS=https://your-app.web.app
-VITE_APP_PASSWORD=carnuvian
+VITE_APP_PASSWORD=[REDACTED]
 ```
 
 **Frontend (web/.env.production):**
 ```bash
 VITE_API_BASE_URL=https://api.your-domain.com/api
-VITE_APP_PASSWORD=carnuvian
+VITE_APP_PASSWORD=[REDACTED]
 ```
 
 ### 4. GitHub Secrets

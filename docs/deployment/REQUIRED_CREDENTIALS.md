@@ -121,9 +121,9 @@ firebase target:apply hosting imagineer imagineer-generator
    - Where to add: GitHub Settings → Secrets → Actions → New secret
 
 2. **`VITE_APP_PASSWORD`**
-   - App password: `carnuvian`
+   - App password: `[REDACTED]`
    - Where to add: GitHub Settings → Secrets → Actions → New secret
-   - Value: `carnuvian`
+   - Value: `[REDACTED]`
 
 3. **`CLOUDFLARE_API_TOKEN`**
    - Same token from step 1
@@ -449,7 +449,7 @@ Webhook Secret:
   Used in: .env.production, GitHub webhook
 
 App Password:
-  Value: carnuvian
+  Value: [REDACTED]
   Used in: web/.env.production, GitHub secret VITE_APP_PASSWORD
 
 Firebase Project:
@@ -461,7 +461,7 @@ GitHub Repository:
   URL: https://github.com/yourusername/imagineer
   Secrets:
     - FIREBASE_SERVICE_ACCOUNT: [JSON key]
-    - VITE_APP_PASSWORD: carnuvian
+    - VITE_APP_PASSWORD: [REDACTED]
     - CLOUDFLARE_API_TOKEN: [token]
     - CLOUDFLARE_TUNNEL_ID: [tunnel id]
 ```

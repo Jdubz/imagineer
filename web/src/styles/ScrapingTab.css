@@ -5,6 +5,24 @@
   margin: 0 auto;
 }
 
+.scraping-access-message {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.scraping-access-message h2 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.scraping-access-message p {
+  color: #7f8c8d;
+  font-size: 1.1rem;
+}
+
 .scraping-header {
   display: flex;
   justify-content: space-between;

@@ -284,7 +284,7 @@ LOG_LEVEL=INFO
 ### Frontend (web/.env.production)
 ```bash
 VITE_API_BASE_URL=https://api.your-domain.com/api
-VITE_APP_PASSWORD=carnuvian
+VITE_APP_PASSWORD=[REDACTED]
 ```
 
 ### Terraform (terraform/terraform.tfvars)

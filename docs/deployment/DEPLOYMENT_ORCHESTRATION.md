@@ -537,7 +537,7 @@ curl -I https://imagineer-generator.web.app
 
 # 5. Test end-to-end
 # Visit https://imagineer-generator.web.app in browser
-# Enter password: carnuvian
+# Enter password: [REDACTED]
 # Try generating an image
 ```
 

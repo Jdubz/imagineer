@@ -143,7 +143,7 @@ FIREBASE_PROJECT_ID = static-sites-257923
 **Frontend configuration secrets:**
 
 ```
-VITE_APP_PASSWORD = carnuvian
+VITE_APP_PASSWORD = [REDACTED]
 VITE_API_BASE_URL_DEV = http://localhost:10050/api
 VITE_API_BASE_URL_PROD = https://api.your-domain.com/api
 ```

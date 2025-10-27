@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import '../styles/AuthButton.css'
 
-function AuthButton() {
+function AuthButton({ onAuthChange }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     checkAuth()
   }, [])
+
+  useEffect(() => {
+    if (!loading && typeof onAuthChange === 'function') {
+      onAuthChange(user)
+    }
+  }, [user, loading, onAuthChange])
 
   const checkAuth = async () => {
     try {
@@ -16,11 +22,7 @@ function AuthButton() {
       })
       const data = await response.json()
 
-      if (data.authenticated) {
-        setUser(data)
-      } else {
-        setUser(null)
-      }
+      setUser(data.authenticated ? data : null)
     } catch (error) {
       console.error('Failed to check auth:', error)
       setUser(null)

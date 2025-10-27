@@ -125,7 +125,7 @@ SESSION_DURATION = timedelta(hours=24)
 # In production, move to database or environment variables
 USERS = {
     "admin": {
-        "password_hash": bcrypt.hashpw(b"carnuvian", bcrypt.gensalt()),
+        "password_hash": bcrypt.hashpw(b"[REDACTED]", bcrypt.gensalt()),
         "role": "admin"
     }
 }

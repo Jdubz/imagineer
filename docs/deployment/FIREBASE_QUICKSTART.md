@@ -71,7 +71,7 @@ Name: FIREBASE_SERVICE_ACCOUNT
 Value: (paste the token from step 1)
 
 Name: VITE_APP_PASSWORD
-Value: carnuvian
+Value: [REDACTED]
 
 Name: VITE_API_BASE_URL_PROD
 Value: https://api.your-domain.com/api

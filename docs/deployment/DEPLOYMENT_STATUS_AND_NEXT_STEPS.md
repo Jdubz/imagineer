@@ -129,7 +129,7 @@ VITE_API_URL=https://imagineer.joshwentworth.com/api
 VITE_GOOGLE_CLIENT_ID=<from Google Cloud Console>
 
 # Remove this - will be deleted in security updates
-VITE_APP_PASSWORD=carnuvian
+VITE_APP_PASSWORD=[REDACTED]
 ```
 
 **Step 1.3: Terraform Configuration** (if using Terraform)
