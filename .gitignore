@@ -13,13 +13,16 @@ __pycache__/
 .env.production
 *.local
 
+# User data
+server/users.json
+
 # Frontend environment files (secrets)
 web/.env.development
 web/.env.production
 web/.env.local
 # Keep web/.env.example in repo (it's a template)
 
-# Firebase
+# Firebase (for Firebase Hosting only, not auth)
 .firebase/
 .firebaserc
 firebase-debug.log
@@ -37,6 +40,10 @@ terraform/*.auto.tfvars
 terraform/cloudflare-tunnel.yml
 .cloudflared/*.json
 !.cloudflared/cert.pem
+
+# SSH keys (deployment)
+.ssh/imagineer_deploy
+.ssh/imagineer_deploy.pub
 
 # Docker
 logs/

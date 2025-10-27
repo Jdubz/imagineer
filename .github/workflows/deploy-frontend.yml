@@ -1,4 +1,4 @@
-name: Deploy Frontend to Firebase
+name: Deploy Frontend to Production
 
 on:
   push:
@@ -8,16 +8,6 @@ on:
       - 'web/**'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
 
 jobs:
   build-and-deploy:
@@ -46,59 +36,82 @@ jobs:
         working-directory: ./web
         run: npm test -- --run || true  # Continue on test failure for now
 
-      - name: Determine environment
-        id: environment
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "env=prod" >> $GITHUB_OUTPUT
-          else
-            echo "env=dev" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set API URL
-        id: api_url
-        run: |
-          case "${{ steps.environment.outputs.env }}" in
-            prod)
-              echo "url=${{ secrets.VITE_API_BASE_URL_PROD }}" >> $GITHUB_OUTPUT
-              echo "target=prod" >> $GITHUB_OUTPUT
-              ;;
-            staging)
-              echo "url=${{ secrets.VITE_API_BASE_URL_STAGING }}" >> $GITHUB_OUTPUT
-              echo "target=staging" >> $GITHUB_OUTPUT
-              ;;
-            dev)
-              echo "url=${{ secrets.VITE_API_BASE_URL_DEV }}" >> $GITHUB_OUTPUT
-              echo "target=dev" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
       - name: Build frontend
         working-directory: ./web
         env:
-          VITE_API_BASE_URL: ${{ steps.api_url.outputs.url }}
-          VITE_APP_PASSWORD: ${{ secrets.VITE_APP_PASSWORD }}
+          VITE_API_BASE_URL: /api
         run: npm run build
 
-      - name: Deploy to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          projectId: 'static-sites-257923'
-          channelId: live
-          target: imagineer
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: /home/jdubz/Development/imagineer/public
+        run: |
+          # Create temporary directory on server
+          ssh $SSH_USER@$SSH_HOST "mkdir -p /tmp/imagineer-deploy-${{ github.sha }}"
+
+          # Copy built files to server
+          rsync -avz --delete \
+            ./web/dist/ \
+            $SSH_USER@$SSH_HOST:/tmp/imagineer-deploy-${{ github.sha }}/
+
+          # Atomic replacement: backup old, move new, cleanup
+          ssh $SSH_USER@$SSH_HOST << 'EOF'
+            set -e
+            DEPLOY_TMP="/tmp/imagineer-deploy-${{ github.sha }}"
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+            BACKUP_PATH="/tmp/imagineer-backup-${{ github.sha }}"
+
+            # Backup existing public directory
+            if [ -d "$DEPLOY_PATH" ]; then
+              mv "$DEPLOY_PATH" "$BACKUP_PATH"
+            fi
+
+            # Move new files into place
+            mv "$DEPLOY_TMP" "$DEPLOY_PATH"
+
+            # Remove backup
+            rm -rf "$BACKUP_PATH"
+
+            echo "✅ Deployment complete!"
+          EOF
+
+      - name: Verify deployment
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh $SSH_USER@$SSH_HOST << 'EOF'
+            # Check that index.html exists
+            if [ -f "/home/jdubz/Development/imagineer/public/index.html" ]; then
+              echo "✅ index.html found"
+            else
+              echo "❌ index.html not found!"
+              exit 1
+            fi
+
+            # List deployed files
+            echo "📁 Deployed files:"
+            ls -lh /home/jdubz/Development/imagineer/public/
+          EOF
 
       - name: Deployment summary
         run: |
           echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ steps.environment.outputs.env }}" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL:** ${{ steps.api_url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed to:** ${{ secrets.SSH_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Path:** /home/jdubz/Development/imagineer/public" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Test the deployment at your Firebase URL" >> $GITHUB_STEP_SUMMARY
-          echo "2. Verify API connectivity" >> $GITHUB_STEP_SUMMARY
-          echo "3. Check application logs" >> $GITHUB_STEP_SUMMARY
+          echo "1. Test the deployment at https://imagineer.joshwentworth.com" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify API connectivity at https://imagineer.joshwentworth.com/api/health" >> $GITHUB_STEP_SUMMARY
+          echo "3. Check nginx logs if needed: \`sudo journalctl -u nginx -f\`" >> $GITHUB_STEP_SUMMARY
