@@ -604,7 +604,7 @@ def generate_random_theme():
     return ", ".join(components)
 
 
-def process_jobs():
+def process_jobs():  # noqa: C901
     """Background worker to process generation jobs"""
     global current_job
 
@@ -761,7 +761,7 @@ def update_generation_config():
 
 
 @app.route("/api/generate", methods=["POST"])
-def generate():
+def generate():  # noqa: C901
     """Submit a new image generation job"""
     try:
         data = request.json
@@ -975,7 +975,7 @@ def get_random_theme():
 
 
 @app.route("/api/generate/batch", methods=["POST"])
-def generate_batch():
+def generate_batch():  # noqa: C901
     """Submit batch generation from CSV set
 
     Creates multiple jobs by combining user theme with set configuration.
@@ -1605,7 +1605,7 @@ def get_set_loras(set_name):
 
 
 @app.route("/api/sets/<set_name>/loras", methods=["PUT"])
-def update_set_loras(set_name):
+def update_set_loras(set_name):  # noqa: C901
     """Update LoRA configuration for a specific set
 
     Expected JSON body:
@@ -1704,18 +1704,33 @@ def update_set_loras(set_name):
 
 @app.route("/api/albums", methods=["GET"])
 def get_albums():
-    """Get all albums (public endpoint)"""
+    """Get all albums (public endpoint with pagination)"""
     try:
         logger.info("Fetching public albums", extra={"operation": "get_albums"})
-        albums = Album.query.filter_by(is_public=True).order_by(Album.created_at.desc()).all()
 
-        album_count = len(albums)
+        # Get pagination parameters
+        page = request.args.get("page", 1, type=int)
+        per_page = min(request.args.get("per_page", 50, type=int), 100)
+
+        # Query public albums with pagination
+        query = Album.query.filter_by(is_public=True).order_by(Album.created_at.desc())
+        pagination = query.paginate(page=page, per_page=per_page)
+
+        album_count = pagination.total
         logger.info(
             f"Retrieved {album_count} public albums",
             extra={"operation": "get_albums", "album_count": album_count},
         )
 
-        return jsonify([album.to_dict() for album in albums])
+        return jsonify(
+            {
+                "albums": [album.to_dict() for album in pagination.items],
+                "total": pagination.total,
+                "page": page,
+                "per_page": per_page,
+                "pages": pagination.pages,
+            }
+        )
     except Exception as e:
         logger.error(
             f"Error getting albums: {e}",
@@ -1729,7 +1744,9 @@ def get_albums():
 def get_album(album_id):
     """Get specific album with images (public endpoint)"""
     try:
-        album = Album.query.get_or_404(album_id)
+        album = Album.query.get(album_id)
+        if not album:
+            return jsonify({"error": "Album not found"}), 404
         if not album.is_public:
             return jsonify({"error": "Album not found"}), 404
 
@@ -1864,7 +1881,7 @@ def add_images_to_album(album_id):
                 "image_count": len(image_ids),
             },
         )
-        return jsonify({"success": True, "added": len(image_ids)})
+        return jsonify({"success": True, "added_count": len(image_ids)})
     except Exception as e:
         logger.error(f"Error adding images to album {album_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to add images to album"}), 500

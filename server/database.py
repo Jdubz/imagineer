@@ -48,6 +48,11 @@ class Image(db.Model):
         "AlbumImage", backref="image", lazy=True, cascade="all, delete-orphan"
     )
 
+    @property
+    def albums(self):
+        """Get albums containing this image"""
+        return [ai.album for ai in self.album_images if ai.album]
+
     def to_dict(self):
         """Convert to dictionary for API serialization"""
         return {
