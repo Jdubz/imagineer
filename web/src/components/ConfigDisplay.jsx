@@ -20,11 +20,11 @@ function ConfigDisplay({ config }) {
             <h3>Model</h3>
             <div className="config-item">
               <span className="config-key">Model:</span>
-              <span className="config-value">{config.model.default}</span>
+              <span className="config-value">{config.model?.default || 'N/A'}</span>
             </div>
             <div className="config-item">
               <span className="config-key">Cache:</span>
-              <span className="config-value">{config.model.cache_dir}</span>
+              <span className="config-value">{config.model?.cache_dir || 'N/A'}</span>
             </div>
           </div>
 
@@ -33,21 +33,21 @@ function ConfigDisplay({ config }) {
             <div className="config-item">
               <span className="config-key">Size:</span>
               <span className="config-value">
-                {config.generation.width}x{config.generation.height}
+                {config.generation?.width || 'N/A'}x{config.generation?.height || 'N/A'}
               </span>
             </div>
             <div className="config-item">
               <span className="config-key">Steps:</span>
-              <span className="config-value">{config.generation.steps}</span>
+              <span className="config-value">{config.generation?.steps || 'N/A'}</span>
             </div>
             <div className="config-item">
               <span className="config-key">Guidance Scale:</span>
-              <span className="config-value">{config.generation.guidance_scale}</span>
+              <span className="config-value">{config.generation?.guidance_scale || 'N/A'}</span>
             </div>
             <div className="config-item">
               <span className="config-key">Negative Prompt:</span>
               <span className="config-value negative-prompt">
-                {config.generation.negative_prompt}
+                {config.generation?.negative_prompt || 'N/A'}
               </span>
             </div>
           </div>
@@ -56,11 +56,11 @@ function ConfigDisplay({ config }) {
             <h3>Output</h3>
             <div className="config-item">
               <span className="config-key">Directory:</span>
-              <span className="config-value">{config.output.directory}</span>
+              <span className="config-value">{config.output?.directory || 'N/A'}</span>
             </div>
             <div className="config-item">
               <span className="config-key">Format:</span>
-              <span className="config-value">{config.output.format}</span>
+              <span className="config-value">{config.output?.format || 'N/A'}</span>
             </div>
           </div>
         </div>
