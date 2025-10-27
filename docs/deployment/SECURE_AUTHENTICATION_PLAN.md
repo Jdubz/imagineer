@@ -1,25 +1,27 @@
 # Secure Authentication Plan
 
 **Status:** Planning Phase
-**Last Updated:** 2025-10-14
-**Current Implementation:** Simple password gate (v1.0)
+**Last Updated:** 2025-10-27
+**Current Implementation:** Google OAuth session (legacy password gate removed)
 
-## Current Implementation (v1.0)
+> **Note:** The legacy password gate described below has been removed in favor of Google OAuth-based login as of October 27, 2025. The previous approach is retained here for historical context.
 
-### Overview
+## Legacy Implementation (v1.0)
+
+### Overview (legacy)
 A simple password gate protects the frontend application:
 - **Password:** Stored as environment variable (`VITE_APP_PASSWORD`)
 - **Session:** 24-hour localStorage token
 - **Validation:** Client-side password comparison
 - **Logout:** Manual session clearing
 
-### Files
-- `web/src/components/PasswordGate.jsx` - Password gate component
-- `web/src/styles/PasswordGate.css` - Styling
-- `web/.env.development` - Development config
-- `web/.env.production` - Production config (injected by CI/CD)
+### Files (legacy - removed October 27, 2025)
+- `web/src/components/PasswordGate.jsx` - Legacy password gate component
+- `web/src/styles/PasswordGate.css` - Legacy styling
+- `web/.env.development` - Legacy development config key (`VITE_APP_PASSWORD`)
+- `web/.env.production` - Legacy production config key (`VITE_APP_PASSWORD`)
 
-### Security Limitations
+### Security Limitations (legacy)
 - ⚠️ **Client-side only** - Password visible in compiled JavaScript
 - ⚠️ **No rate limiting** - Brute force attacks possible
 - ⚠️ **Shared password** - Single credential for all users
@@ -27,7 +29,7 @@ A simple password gate protects the frontend application:
 - ⚠️ **localStorage vulnerable** - Can be accessed by XSS attacks
 - ⚠️ **No session revocation** - Cannot invalidate sessions remotely
 
-### When Current Implementation is Acceptable
+### When Legacy Implementation Was Acceptable
 ✅ **Personal projects** on trusted networks
 ✅ **Development/staging environments**
 ✅ **Behind VPN** or firewall
