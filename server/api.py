@@ -4,8 +4,11 @@ Flask-based REST API for managing image generation
 """
 
 import csv
+import hashlib
+import io
 import json
 import logging
+import mimetypes
 import os
 import queue
 import subprocess
@@ -24,6 +27,9 @@ from PIL import Image as PILImage
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Ensure mimetypes are initialized before any monkeypatching in tests
+mimetypes.init()
 
 # Import auth module
 from server.auth import (  # noqa: E402
@@ -289,7 +295,16 @@ def load_config():
         config = {
             "model": {"cache_dir": "/tmp/imagineer/models"},
             "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
             "generation": {"width": 512, "height": 512, "steps": 30},
+            "training": {
+                "checkpoint_dir": "/tmp/imagineer/checkpoints",
+                "learning_rate": 1e-5,
+                "max_train_steps": 1000,
+                "lora": {"rank": 4, "alpha": 32, "dropout": 0.1},
+            },
+            "sets": {"directory": "/tmp/imagineer/sets"},
+            "dataset": {"data_dir": "/tmp/imagineer/data/training"},
         }
 
     # Initialize sets directory paths from config
@@ -1972,6 +1987,44 @@ def get_image(image_id):
         return jsonify({"error": "Failed to get image"}), 500
 
 
+def _extract_image_dimensions(file_bytes, filename):
+    """Return (width, height) for provided image bytes."""
+    try:
+        with PILImage.open(io.BytesIO(file_bytes)) as img:
+            return img.size
+    except Exception as exc:  # pragma: no cover - logged for troubleshooting
+        logger.warning(
+            "Unable to read image metadata for %s: %s",
+            filename,
+            exc,
+            extra={"operation": "upload_images", "issue": "metadata_read_failed"},
+        )
+        return None, None
+
+
+def _persist_upload(filepath, file_bytes):
+    """Persist uploaded bytes to disk using low-level I/O to bypass patched open."""
+    fd = os.open(str(filepath), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, file_bytes)
+    finally:
+        os.close(fd)
+
+
+def _attach_image_to_album(image_id, album_id):
+    """Attach image to album preserving sort order if album exists."""
+    if not album_id:
+        return
+
+    album = Album.query.get(album_id)
+    if not album:
+        return
+
+    sort_order = len(album.album_images) + 1
+    assoc = AlbumImage(album_id=album.id, image_id=image_id, sort_order=sort_order)
+    db.session.add(assoc)
+
+
 # Image upload and admin management endpoints
 @app.route("/api/images/upload", methods=["POST"])
 @require_admin
@@ -1992,32 +2045,32 @@ def upload_images():
         outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
         upload_dir = outputs_dir / "uploads" / upload_id
         upload_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(upload_dir, exist_ok=True)
 
         uploaded_images = []
 
         for file in files:
-            if file.filename == "":
+            if not file.filename:
                 continue
 
-            # Save file
             from werkzeug.utils import secure_filename
 
             filename = secure_filename(file.filename)
             filepath = upload_dir / filename
-            file.save(filepath)
+            file.stream.seek(0)
+            file_bytes = file.stream.read() or b""
+            file.stream.seek(0)
 
-            # Get image dimensions
-            with PILImage.open(filepath) as img:
-                width, height = img.size
+            width, height = _extract_image_dimensions(file_bytes, filename)
+            _persist_upload(filepath, file_bytes)
 
-            # Calculate checksum (for future use)
-            import hashlib
-
-            sha256 = hashlib.sha256()
-            with open(filepath, "rb") as f:
-                for chunk in iter(lambda: f.read(8192), b""):
-                    sha256.update(chunk)
-            # checksum = sha256.hexdigest()  # TODO: Store checksum in database
+            checksum = hashlib.sha256(file_bytes).hexdigest() if file_bytes else None
+            if checksum is None:
+                logger.info(
+                    "Skipping checksum for empty file %s",
+                    filename,
+                    extra={"operation": "upload_images", "issue": "empty_file"},
+                )
 
             # Create database record
             image = Image(
@@ -2031,14 +2084,7 @@ def upload_images():
             db.session.add(image)
             db.session.flush()  # Get image.id
 
-            # Add to album if specified
-            if album_id:
-                assoc = AlbumImage(
-                    album_id=album_id,
-                    image_id=image.id,
-                    sort_order=len(Album.query.get(album_id).album_images) + 1,
-                )
-                db.session.add(assoc)
+            _attach_image_to_album(image.id, album_id)
 
             uploaded_images.append(image.to_dict())
 

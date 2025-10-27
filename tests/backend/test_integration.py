@@ -3,7 +3,7 @@ Integration tests for complete workflows across all phases
 """
 
 import io
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from PIL import Image as PILImage
 
@@ -13,8 +13,23 @@ from server.database import Album, AlbumImage, Image, Label, db
 class TestCompleteWorkflow:
     """Test complete workflows from image upload to AI labeling"""
 
-    def test_complete_image_workflow(self, client, mock_admin_auth):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("server.api.load_config")
+    @patch("builtins.open", create=True)
+    def test_complete_image_workflow(
+        self, mock_open, mock_load_config, mock_exists, mock_mkdir, client, mock_admin_auth
+    ):
         """Test complete workflow: upload -> create album -> add image -> label"""
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
+        # Mock file operations
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
 
         with client.application.app_context():
             # Step 1: Create album

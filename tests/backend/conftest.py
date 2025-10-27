@@ -2,6 +2,7 @@
 Pytest configuration and fixtures for backend tests
 """
 
+import gc
 import os
 import sys
 import tempfile
@@ -14,6 +15,113 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from server.api import app as flask_app  # noqa: E402
+
+
+def _current_memory_mb() -> float:
+    """Best-effort current RSS in MB."""
+    try:
+        with open("/proc/self/statm", "r", encoding="utf-8") as statm:
+            rss_pages = int(statm.readline().split()[1])
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        return rss_pages * page_size / (1024 * 1024)
+    except Exception:
+        import resource
+
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform == "darwin":
+            return usage / (1024 * 1024)
+        return usage / 1024
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--max-mem",
+        action="store",
+        default=None,
+        help=(
+            "Maximum resident memory in MB allowed for the pytest process. "
+            "Can also be set via PYTEST_MAX_MEMORY_MB. Set to 0 to disable the guard."
+        ),
+    )
+
+
+def pytest_configure(config):
+    disable_guard = os.environ.get("PYTEST_DISABLE_MEMORY_GUARD", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    threshold_opt = config.getoption("--max-mem") or os.environ.get("PYTEST_MAX_MEMORY_MB")
+    try:
+        threshold_val = float(threshold_opt) if threshold_opt is not None else 8192.0
+    except ValueError:
+        threshold_val = 8192.0
+
+    if threshold_val <= 0:
+        disable_guard = True
+
+    config._memory_guard_enabled = not disable_guard
+    config._memory_guard_threshold = threshold_val
+    config._memory_guard_records = []
+    config._memory_guard_baseline = _current_memory_mb()
+
+    reporter = config.pluginmanager.get_plugin("terminalreporter")
+    if reporter and config._memory_guard_enabled:
+        reporter.write_line(
+            f"[memory-guard] Baseline RSS: {config._memory_guard_baseline:.1f} MB | "
+            f"Threshold: {config._memory_guard_threshold:.1f} MB"
+        )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    config = item.config
+    if not getattr(config, "_memory_guard_enabled", False):
+        yield
+        return
+
+    start = _current_memory_mb()
+    yield
+    gc.collect()
+    end = _current_memory_mb()
+
+    records = getattr(config, "_memory_guard_records", None)
+    if records is not None:
+        records.append((end, end - start, item.nodeid))
+
+    threshold = getattr(config, "_memory_guard_threshold", float("inf"))
+    if end > threshold:
+        pytest.fail(
+            (
+                f"Memory budget exceeded after {item.nodeid}: "
+                f"{end:.1f} MB RSS (limit {threshold:.1f} MB). "
+                "Set PYTEST_MAX_MEMORY_MB/--max-mem to adjust or "
+                "PYTEST_DISABLE_MEMORY_GUARD=1 to disable."
+            ),
+            pytrace=False,
+        )
+
+
+def pytest_sessionfinish(session, exitstatus):
+    config = session.config
+    if not getattr(config, "_memory_guard_enabled", False):
+        return
+
+    reporter = config.pluginmanager.get_plugin("terminalreporter")
+    if not reporter:
+        return
+
+    records = getattr(config, "_memory_guard_records", [])
+    if not records:
+        return
+
+    peak_record = max(records, key=lambda entry: entry[0])
+    reporter.write_line(f"[memory-guard] Peak RSS: {peak_record[0]:.1f} MB during {peak_record[2]}")
+    reporter.write_line("[memory-guard] Top 5 tests by RSS delta:")
+    for idx, (rss, delta, nodeid) in enumerate(
+        sorted(records, key=lambda entry: entry[1], reverse=True)[:5], start=1
+    ):
+        reporter.write_line(f"  {idx}. {nodeid} | Δ {delta:+.2f} MB | RSS {rss:.1f} MB")
 
 
 @pytest.fixture
@@ -37,13 +145,18 @@ def app():
         db.drop_all()
         db.create_all()
 
-    yield flask_app
-
-    # Cleanup
     try:
-        os.unlink(test_db_path)
-    except OSError:
-        pass
+        yield flask_app
+    finally:
+        from server.database import db as _db_cleanup
+
+        with flask_app.app_context():
+            _db_cleanup.session.remove()
+        try:
+            os.unlink(test_db_path)
+        except OSError:
+            pass
+        gc.collect()
 
 
 @pytest.fixture
@@ -62,7 +175,12 @@ def runner(app):
 def temp_config():
     """Create a temporary config file for testing"""
     config_data = {
-        "model": {"default": "runwayml/stable-diffusion-v1-5", "cache_dir": "models/"},
+        "model": {
+            "default": "runwayml/stable-diffusion-v1-5",
+            "cache_dir": "/tmp/imagineer/models",
+        },
+        "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+        "output": {"directory": "/tmp/imagineer/outputs", "format": "png", "save_metadata": True},
         "generation": {
             "width": 512,
             "height": 512,
@@ -72,15 +190,15 @@ def temp_config():
             "batch_size": 1,
             "num_images": 1,
         },
-        "output": {"directory": "outputs/", "format": "png", "save_metadata": True},
         "training": {
             "learning_rate": 0.0001,
-            "lora_rank": 4,
-            "lora_alpha": 4,
-            "lora_dropout": 0.1,
+            "checkpoint_dir": "/tmp/imagineer/checkpoints",
+            "lora": {"rank": 4, "alpha": 4, "dropout": 0.1},
             "batch_size": 1,
             "gradient_accumulation_steps": 4,
         },
+        "sets": {"directory": "/tmp/imagineer/sets"},
+        "dataset": {"data_dir": "/tmp/imagineer/data/training"},
     }
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -148,3 +266,35 @@ def mock_public_auth():
 
     with patch("server.auth.current_user", public_user):
         yield public_user
+
+
+@pytest.fixture(autouse=True)
+def setup_test_directories():
+    """Ensure test directories exist and are writable"""
+    import os
+    from pathlib import Path
+
+    # Create test directories
+    test_dirs = [
+        "/tmp/imagineer/outputs/uploads",
+        "/tmp/imagineer/outputs/thumbnails",
+        "/tmp/imagineer/models/lora",
+        "/tmp/imagineer/checkpoints",
+        "/tmp/imagineer/sets",
+        "/tmp/imagineer/data/training",
+    ]
+
+    for dir_path in test_dirs:
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
+        # Ensure directory is writable
+        os.chmod(dir_path, 0o755)
+
+    yield
+
+    # Cleanup after tests
+    import shutil
+
+    try:
+        shutil.rmtree("/tmp/imagineer", ignore_errors=True)
+    except Exception:
+        pass
