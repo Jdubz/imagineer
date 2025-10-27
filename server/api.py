@@ -102,6 +102,14 @@ logger = configure_logging(app)
 # Initialize database
 init_database(app)
 
+# Initialize Celery
+from server.celery_app import make_celery
+celery = make_celery(app)
+
+# Register blueprints
+from server.routes.scraping import scraping_bp
+app.register_blueprint(scraping_bp)
+
 
 # Add request timing and performance logging
 @app.before_request
