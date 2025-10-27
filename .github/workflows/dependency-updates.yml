@@ -129,7 +129,7 @@ jobs:
           echo "4. Consider using Dependabot for automated updates" >> dependency-report.md
 
       - name: Upload dependency reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dependency-reports
           path: |
