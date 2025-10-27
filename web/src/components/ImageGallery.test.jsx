@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ImageGallery from './ImageGallery'
@@ -60,8 +60,15 @@ describe('ImageGallery', () => {
 
     // Modal should be open with metadata
     await waitFor(() => {
-      expect(screen.getByText(/seed.*42/i)).toBeInTheDocument()
-      expect(screen.getByText(/steps.*25/i)).toBeInTheDocument()
+      const seedElements = screen.getAllByText((content, element) => {
+        return element?.textContent?.includes('Seed:') && element?.textContent?.includes('42')
+      })
+      expect(seedElements.length).toBeGreaterThan(0)
+      
+      const stepsElements = screen.getAllByText((content, element) => {
+        return element?.textContent?.includes('Steps:') && element?.textContent?.includes('25')
+      })
+      expect(stepsElements.length).toBeGreaterThan(0)
     })
   })
 
@@ -79,7 +86,7 @@ describe('ImageGallery', () => {
 
     // Metadata should no longer be visible
     await waitFor(() => {
-      expect(screen.queryByText(/seed.*42/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Seed: 42/i)).not.toBeInTheDocument()
     })
   })
 
@@ -92,12 +99,12 @@ describe('ImageGallery', () => {
     await user.click(firstImage)
 
     // Click modal backdrop
-    const modal = screen.getByRole('dialog', { hidden: true }) || screen.getByTestId('modal-backdrop')
+    const modal = screen.getByRole('dialog') || screen.getByTestId('modal-backdrop')
     if (modal) {
       await user.click(modal)
 
       await waitFor(() => {
-        expect(screen.queryByText(/seed.*42/i)).not.toBeInTheDocument()
+        expect(screen.queryByText(/Seed: 42/i)).not.toBeInTheDocument()
       })
     }
   })

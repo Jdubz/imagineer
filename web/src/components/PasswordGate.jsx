@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import '../styles/PasswordGate.css'
 
 const AUTH_TOKEN_KEY = 'imagineer_auth_token'
@@ -11,12 +11,7 @@ function PasswordGate({ children }) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    // Check if user has a valid session
-    checkExistingSession()
-  }, [])
-
-  const checkExistingSession = () => {
+  const checkExistingSession = useCallback(() => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY)
     const expiry = localStorage.getItem(SESSION_EXPIRY_KEY)
 
@@ -34,7 +29,12 @@ function PasswordGate({ children }) {
     }
 
     setIsLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    // Check if user has a valid session
+    checkExistingSession()
+  }, [checkExistingSession])
 
   const clearSession = () => {
     localStorage.removeItem(AUTH_TOKEN_KEY)

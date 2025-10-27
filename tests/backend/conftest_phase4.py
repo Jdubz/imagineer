@@ -3,7 +3,6 @@ Additional pytest configuration for Phase 4 scraping tests
 """
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

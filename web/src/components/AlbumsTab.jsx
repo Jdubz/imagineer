@@ -5,7 +5,6 @@ function AlbumsTab({ isAdmin }) {
   const [albums, setAlbums] = useState([])
   const [selectedAlbum, setSelectedAlbum] = useState(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     fetchAlbums()
@@ -63,7 +62,7 @@ function AlbumsTab({ isAdmin }) {
   const deleteAlbum = async (albumId) => {
     if (!isAdmin) return
 
-    if (!confirm('Are you sure you want to delete this album?')) return
+    if (!window.confirm('Are you sure you want to delete this album?')) return
 
     try {
       const response = await fetch(`/api/albums/${albumId}`, {
@@ -170,7 +169,7 @@ function AlbumsTab({ isAdmin }) {
   )
 }
 
-function AlbumDetailView({ album, onBack, isAdmin, onDelete }) {
+function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
   const [images, setImages] = useState(album.images || [])
   const [selectedImages, setSelectedImages] = useState([])
   const [nsfwSetting, setNsfwSetting] = useState('blur') // 'hide', 'blur', 'show'

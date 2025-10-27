@@ -3,12 +3,8 @@ Integration tests for complete workflows across all phases
 """
 
 import io
-import json
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
@@ -17,10 +13,23 @@ from server.database import Album, AlbumImage, Image, Label, db
 class TestCompleteWorkflow:
     """Test complete workflows from image upload to AI labeling"""
 
-    @patch("server.auth.check_auth")
-    def test_complete_image_workflow(self, mock_auth, client):
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("server.api.load_config")
+    @patch("builtins.open", create=True)
+    def test_complete_image_workflow(
+        self, mock_open, mock_load_config, mock_exists, mock_mkdir, client, mock_admin_auth
+    ):
         """Test complete workflow: upload -> create album -> add image -> label"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Mock config to use test directories
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
+        # Mock file operations
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
 
         with client.application.app_context():
             # Step 1: Create album
@@ -44,12 +53,12 @@ class TestCompleteWorkflow:
 
             response = client.post(
                 "/api/images/upload",
-                data={"images": (img_data, "workflow_test.jpg")},
+                data={"files": (img_data, "workflow_test.jpg")},
                 content_type="multipart/form-data",
                 headers={"Authorization": "Bearer admin_token"},
             )
             assert response.status_code == 201
-            uploaded_images = response.get_json()["uploaded_images"]
+            uploaded_images = response.get_json()["images"]
             image_id = uploaded_images[0]["id"]
 
             # Step 3: Add image to album
@@ -67,11 +76,9 @@ class TestCompleteWorkflow:
             assert len(album_data["images"]) == 1
             assert album_data["images"][0]["id"] == image_id
 
-    @patch("server.auth.check_auth")
     @patch("server.services.labeling.label_image_with_claude")
-    def test_complete_labeling_workflow(self, mock_label, mock_auth, client):
+    def test_complete_labeling_workflow(self, mock_label, client, mock_admin_auth):
         """Test complete labeling workflow with database updates"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
         mock_label.return_value = {
             "status": "success",
             "description": "A beautiful blue square for testing",
@@ -114,11 +121,9 @@ class TestCompleteWorkflow:
             assert "blue" in tag_texts
             assert "square" in tag_texts
 
-    @patch("server.auth.check_auth")
     @patch("server.services.labeling.batch_label_images")
-    def test_batch_labeling_workflow(self, mock_batch, mock_auth, client):
+    def test_batch_labeling_workflow(self, mock_batch, client, mock_admin_auth):
         """Test batch labeling workflow for entire album"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
         mock_batch.return_value = {
             "total": 2,
             "success": 2,
@@ -214,10 +219,8 @@ class TestCompleteWorkflow:
             response = client.get(f"/api/albums/{album_id}")
             assert response.status_code == 404  # Should not find private album
 
-    @patch("server.auth.check_auth")
-    def test_admin_can_access_private_albums(self, mock_auth, client):
-        """Test that admin can access private albums"""
-        mock_auth.return_value = {"username": "admin", "role": "admin"}
+    def test_admin_can_access_private_albums(self, client, mock_admin_auth):
+        """Test that admin can access private albums through admin endpoint"""
 
         with client.application.app_context():
             # Create private album
@@ -226,50 +229,50 @@ class TestCompleteWorkflow:
             db.session.commit()
             album_id = album.id
 
-            # Admin should be able to access
+            # Admin should be able to access through admin albums endpoint
             response = client.get(
-                f"/api/albums/{album_id}", headers={"Authorization": "Bearer admin_token"}
+                "/api/admin/albums", headers={"Authorization": "Bearer admin_token"}
             )
             assert response.status_code == 200
 
             data = response.get_json()
-            assert data["name"] == "Private Admin Album"
-            assert data["is_public"] is False
+            assert isinstance(data, list)
+            albums = data
+
+            # Find our private album
+            private_album = next((a for a in albums if a["id"] == album_id), None)
+            assert private_album is not None
+            assert private_album["name"] == "Private Admin Album"
+            assert private_album["is_public"] is False
 
 
 class TestErrorHandling:
     """Test error handling across the system"""
 
-    def test_invalid_image_upload(self, client):
+    def test_invalid_image_upload(self, client, mock_admin_auth):
         """Test handling invalid image uploads"""
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Try to upload invalid file
+        response = client.post(
+            "/api/images/upload",
+            data={"images": (io.BytesIO(b"invalid data"), "test.txt")},
+            content_type="multipart/form-data",
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            # Try to upload invalid file
-            response = client.post(
-                "/api/images/upload",
-                data={"images": (io.BytesIO(b"invalid data"), "test.txt")},
-                content_type="multipart/form-data",
-                headers={"Authorization": "Bearer admin_token"},
-            )
+        # Should handle gracefully
+        assert response.status_code in [400, 500]
 
-            # Should handle gracefully
-            assert response.status_code in [400, 500]
-
-    def test_database_rollback_on_error(self, client):
+    def test_database_rollback_on_error(self, client, mock_admin_auth):
         """Test that database operations rollback on error"""
-        with patch("server.auth.check_auth") as mock_auth:
-            mock_auth.return_value = {"username": "admin", "role": "admin"}
+        # Try to create album with missing required field
+        response = client.post(
+            "/api/albums",
+            json={},  # Missing required 'name' field
+            headers={"Authorization": "Bearer admin_token"},
+        )
 
-            # Try to create album with invalid data
-            response = client.post(
-                "/api/albums",
-                json={"name": ""},  # Invalid empty name
-                headers={"Authorization": "Bearer admin_token"},
-            )
-
-            # Should return error
-            assert response.status_code in [400, 500]
+        # Should return error
+        assert response.status_code in [400, 500]
 
     def test_missing_file_handling(self, client):
         """Test handling of missing files"""

@@ -10,22 +10,26 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from server.database import db, init_database
-from flask import Flask
+from flask import Flask  # noqa: E402
+
+from server.database import db, init_database  # noqa: E402
+
 
 def migrate_add_training_source():
     """Add is_training_source column to albums table"""
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///imagineer.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///imagineer.db"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
     init_database(app)
-    
+
     with app.app_context():
         try:
             # Add the column using raw SQL
             with db.engine.connect() as conn:
-                conn.execute(db.text("ALTER TABLE albums ADD COLUMN is_training_source BOOLEAN DEFAULT 0"))
+                conn.execute(
+                    db.text("ALTER TABLE albums ADD COLUMN is_training_source BOOLEAN DEFAULT 0")
+                )
                 conn.commit()
             print("✅ Successfully added is_training_source column to albums table")
         except Exception as e:
@@ -34,8 +38,9 @@ def migrate_add_training_source():
             else:
                 print(f"❌ Error adding column: {e}")
                 return False
-    
+
     return True
+
 
 if __name__ == "__main__":
     success = migrate_add_training_source()

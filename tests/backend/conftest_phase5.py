@@ -167,11 +167,11 @@ def mock_training_subprocess_failure():
 @pytest.fixture
 def mock_file_operations():
     """Mock file operations for training tests"""
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "shutil.copy2"
-    ) as mock_copy, patch("shutil.rmtree") as mock_rmtree, patch(
-        "pathlib.Path.write_text"
-    ) as mock_write, patch("pathlib.Path.mkdir") as mock_mkdir:
+    with patch("pathlib.Path.exists", return_value=True), patch("shutil.copy2") as mock_copy, patch(
+        "shutil.rmtree"
+    ) as mock_rmtree, patch("pathlib.Path.write_text") as mock_write, patch(
+        "pathlib.Path.mkdir"
+    ) as mock_mkdir:
         yield {
             "copy": mock_copy,
             "rmtree": mock_rmtree,
@@ -215,7 +215,7 @@ def sample_training_runs(app):
     with app.app_context():
         runs = []
         statuses = ["pending", "running", "completed", "failed", "cancelled"]
-        
+
         for i, status in enumerate(statuses):
             run = TrainingRun(
                 name=f"Training Run {i}",
@@ -226,16 +226,16 @@ def sample_training_runs(app):
                 status=status,
                 progress=20 * i if status != "pending" else 0,
             )
-            
+
             if status == "completed":
                 run.final_checkpoint = f"/tmp/checkpoint_{i}.safetensors"
                 run.training_loss = 0.1 + (i * 0.01)
             elif status == "failed":
                 run.error_message = f"Error in run {i}"
-            
+
             db.session.add(run)
             runs.append(run)
-        
+
         db.session.commit()
         yield runs
 

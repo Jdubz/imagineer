@@ -4,11 +4,7 @@ Tests for Phase 1: Security & Logging features
 
 import json
 import os
-import tempfile
-from pathlib import Path
-from unittest.mock import mock_open, patch
-
-import pytest
+from unittest.mock import MagicMock, mock_open, patch
 
 from server.auth import get_secret_key, get_user_role, load_users, save_users
 from server.logging_config import configure_logging
@@ -29,7 +25,11 @@ class TestAuthentication:
             "admin": {"password_hash": "hashed_password", "role": "admin"},
             "user": {"password_hash": "another_hash", "role": "user"},
         }
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        with patch("server.auth.USERS_FILE", mock_path), patch(
+            "builtins.open", mock_open(read_data=json.dumps(users_data))
+        ):
             users = load_users()
             assert users == users_data
 
@@ -67,7 +67,11 @@ class TestAuthentication:
     def test_get_user_role_admin(self):
         """Test getting admin user role"""
         users_data = {"admin@example.com": {"role": "admin"}}
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        with patch("server.auth.USERS_FILE", mock_path), patch(
+            "builtins.open", mock_open(read_data=json.dumps(users_data))
+        ):
             role = get_user_role("admin@example.com")
             assert role == "admin"
 

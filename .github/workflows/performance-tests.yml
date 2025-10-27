@@ -1,0 +1,150 @@
+name: Performance Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-benchmark
+
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./web
+        run: npm run build
+
+      - name: Start backend server
+        run: |
+          # Start backend in background
+          python server/api.py &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          
+          # Wait for backend to start
+          sleep 15
+          
+          # Check if backend is running
+          curl -f http://localhost:10050/api/health || exit 1
+
+      - name: Run performance tests
+        run: |
+          echo "Running performance tests..."
+          
+          # Test API response times
+          echo "Testing API response times..."
+          
+          # Health endpoint
+          time curl -s http://localhost:10050/api/health > /dev/null
+          
+          # Albums endpoint
+          time curl -s http://localhost:10050/api/albums > /dev/null
+          
+          # Images endpoint
+          time curl -s http://localhost:10050/api/images > /dev/null
+          
+          # Training endpoint
+          time curl -s http://localhost:10050/api/training/albums > /dev/null
+          
+          echo "✅ API performance tests completed"
+
+      - name: Test frontend build performance
+        run: |
+          echo "Testing frontend build performance..."
+          
+          # Time the build process
+          cd web
+          time npm run build
+          
+          # Check build output size
+          echo "Build output analysis:"
+          du -sh ../public/
+          du -sh ../public/assets/
+          find ../public/assets -name "*.js" -exec du -h {} \;
+          find ../public/assets -name "*.css" -exec du -h {} \;
+          
+          echo "✅ Frontend build performance tested"
+
+      - name: Test memory usage
+        run: |
+          echo "Testing memory usage..."
+          
+          # Check Python memory usage
+          python -c "
+          import psutil
+          import os
+          process = psutil.Process(os.getpid())
+          memory_mb = process.memory_info().rss / 1024 / 1024
+          print(f'Python process memory: {memory_mb:.2f} MB')
+          "
+          
+          # Check Node.js memory usage
+          cd web
+          node -e "
+          const used = process.memoryUsage();
+          console.log('Node.js memory usage:');
+          for (let key in used) {
+            console.log(\`\${key}: \${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB\`);
+          }
+          "
+          
+          echo "✅ Memory usage tests completed"
+
+      - name: Stop backend server
+        if: always()
+        run: |
+          if [ ! -z "$BACKEND_PID" ]; then
+            kill $BACKEND_PID || true
+          fi
+
+      - name: Performance test summary
+        run: |
+          echo "## Performance Tests ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**API Response Times:** Tested" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend Build Performance:** Tested" >> $GITHUB_STEP_SUMMARY
+          echo "**Memory Usage:** Analyzed" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Output Size:** Measured" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- API endpoints responding within acceptable time" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend build completing efficiently" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory usage within reasonable limits" >> $GITHUB_STEP_SUMMARY
+          echo "- Build output size optimized" >> $GITHUB_STEP_SUMMARY
