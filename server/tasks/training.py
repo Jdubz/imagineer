@@ -204,10 +204,7 @@ def prepare_training_data(training_run):
 
         # Get all images in album
         album_images = (
-            db.session.query(Image)
-            .join(AlbumImage)
-            .filter(AlbumImage.album_id == album_id)
-            .all()
+            db.session.query(Image).join(AlbumImage).filter(AlbumImage.album_id == album_id).all()
         )
 
         for image in album_images:
@@ -231,11 +228,7 @@ def prepare_training_data(training_run):
                 caption_path = captions_dir / caption_filename
 
                 # Get caption from labels
-                caption_labels = [
-                    label
-                    for label in image.labels
-                    if label.label_type == "caption"
-                ]
+                caption_labels = [label for label in image.labels if label.label_type == "caption"]
 
                 if caption_labels:
                     caption_text = caption_labels[0].label_text

@@ -8,9 +8,9 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from server.auth import require_admin, current_user
-from server.database import TrainingRun, Album, db
-from server.tasks.training import train_lora_task, cleanup_training_data
+from server.auth import current_user, require_admin
+from server.database import Album, TrainingRun, db
+from server.tasks.training import cleanup_training_data, train_lora_task
 
 logger = logging.getLogger(__name__)
 
@@ -204,32 +204,35 @@ def list_trained_loras():
     """List trained LoRAs (public)"""
     import os
     from pathlib import Path
-    
+
     try:
         # Get all completed training runs
         completed_runs = TrainingRun.query.filter(
-            TrainingRun.status == "completed",
-            TrainingRun.final_checkpoint.isnot(None)
+            TrainingRun.status == "completed", TrainingRun.final_checkpoint.isnot(None)
         ).all()
-        
+
         trained_loras = []
         for run in completed_runs:
             checkpoint_path = Path(run.final_checkpoint)
             if checkpoint_path.exists():
-                trained_loras.append({
-                    "id": run.id,
-                    "name": run.name,
-                    "description": run.description,
-                    "checkpoint_path": str(checkpoint_path),
-                    "filename": checkpoint_path.name,
-                    "training_loss": run.training_loss,
-                    "created_at": run.created_at.isoformat() if run.created_at else None,
-                    "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-                    "file_size": checkpoint_path.stat().st_size if checkpoint_path.exists() else 0
-                })
-        
+                trained_loras.append(
+                    {
+                        "id": run.id,
+                        "name": run.name,
+                        "description": run.description,
+                        "checkpoint_path": str(checkpoint_path),
+                        "filename": checkpoint_path.name,
+                        "training_loss": run.training_loss,
+                        "created_at": run.created_at.isoformat() if run.created_at else None,
+                        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                        "file_size": (
+                            checkpoint_path.stat().st_size if checkpoint_path.exists() else 0
+                        ),
+                    }
+                )
+
         return jsonify({"trained_loras": trained_loras})
-        
+
     except Exception as e:
         logger.error(f"Error listing trained LoRAs: {e}")
         return jsonify({"error": str(e)}), 500
@@ -241,42 +244,44 @@ def integrate_trained_lora(run_id):
     """Integrate a trained LoRA into the system (admin only)"""
     import shutil
     from pathlib import Path
-    
+
     try:
         run = TrainingRun.query.get_or_404(run_id)
-        
+
         if run.status != "completed" or not run.final_checkpoint:
             return jsonify({"error": "Training run not completed or no checkpoint available"}), 400
-        
+
         checkpoint_path = Path(run.final_checkpoint)
         if not checkpoint_path.exists():
             return jsonify({"error": "Checkpoint file not found"}), 404
-        
+
         # Create destination path in the main LoRA directory
         lora_base_dir = Path("/mnt/speedy/imagineer/models/lora")
         lora_base_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate a safe filename
-        safe_name = "".join(c for c in run.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_name = safe_name.replace(' ', '_').lower()
+        safe_name = "".join(c for c in run.name if c.isalnum() or c in (" ", "-", "_")).rstrip()
+        safe_name = safe_name.replace(" ", "_").lower()
         dest_filename = f"{safe_name}_{run.id}.safetensors"
         dest_path = lora_base_dir / dest_filename
-        
+
         # Copy the checkpoint to the main LoRA directory
         shutil.copy2(checkpoint_path, dest_path)
-        
+
         # Update the training run with the integrated path
         run.final_checkpoint = str(dest_path)
         db.session.commit()
-        
+
         logger.info(f"Integrated trained LoRA {run.name} to {dest_path}")
-        
-        return jsonify({
-            "message": "LoRA integrated successfully",
-            "lora_path": str(dest_path),
-            "filename": dest_filename
-        })
-        
+
+        return jsonify(
+            {
+                "message": "LoRA integrated successfully",
+                "lora_path": str(dest_path),
+                "filename": dest_filename,
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error integrating LoRA: {e}")
         return jsonify({"error": str(e)}), 500
