@@ -6,7 +6,6 @@ import base64
 import logging
 import os
 from io import BytesIO
-from pathlib import Path
 
 from PIL import Image as PILImage
 

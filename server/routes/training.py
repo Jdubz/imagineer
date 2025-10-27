@@ -8,7 +8,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from server.auth import current_user, require_admin
+from server.auth import require_admin
 from server.database import Album, TrainingRun, db
 from server.tasks.training import cleanup_training_data, train_lora_task
 
@@ -195,14 +195,13 @@ def get_training_stats():
 @training_bp.route("/albums", methods=["GET"])
 def list_available_albums():
     """List albums available for training (public)"""
-    albums = Album.query.filter(Album.is_training_source == True).all()
+    albums = Album.query.filter(Album.is_training_source.is_(True)).all()
     return jsonify({"albums": [album.to_dict() for album in albums]})
 
 
 @training_bp.route("/loras", methods=["GET"])
 def list_trained_loras():
     """List trained LoRAs (public)"""
-    import os
     from pathlib import Path
 
     try:

@@ -2,12 +2,10 @@
 Album management endpoints
 """
 
-from datetime import datetime
-
 from flask import Blueprint, jsonify, request
 
-from server.auth import current_user, is_admin, require_admin
-from server.database import Album, AlbumImage, Image, db
+from server.auth import current_user, require_admin
+from server.database import Album, AlbumImage, db
 
 albums_bp = Blueprint("albums", __name__, url_prefix="/api/albums")
 
@@ -82,7 +80,8 @@ def delete_album(album_id):
 @require_admin
 def add_images_to_album(album_id):
     """Add images to album (admin only)"""
-    album = Album.query.get_or_404(album_id)
+    # Verify album exists
+    Album.query.get_or_404(album_id)
     data = request.json
 
     image_ids = data.get("image_ids", [])

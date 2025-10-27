@@ -3,7 +3,6 @@ Image management endpoints
 """
 
 import hashlib
-import io
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file

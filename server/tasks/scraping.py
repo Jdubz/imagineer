@@ -5,7 +5,6 @@ Web scraping integration tasks
 import hashlib
 import json
 import logging
-import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -236,14 +235,14 @@ def import_scraped_images(scrape_job_id, output_dir):
             with PILImage.open(image_file) as img:
                 width, height = img.size
 
-            file_size = image_file.stat().st_size
+            # file_size = image_file.stat().st_size  # TODO: Store file size in database
 
-            # Calculate checksum
+            # Calculate checksum (for future use)
             sha256 = hashlib.sha256()
             with open(image_file, "rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
                     sha256.update(chunk)
-            checksum = sha256.hexdigest()
+            # checksum = sha256.hexdigest()  # TODO: Store checksum in database
 
             # Create image record
             image = Image(

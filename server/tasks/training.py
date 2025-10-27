@@ -5,14 +5,13 @@ LoRA training task integration
 import hashlib
 import json
 import logging
-import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
 
 from server.celery_app import celery
-from server.database import Album, AlbumImage, Image, Label, TrainingRun, db
+from server.database import Album, AlbumImage, Image, TrainingRun, db
 
 logger = logging.getLogger(__name__)
 

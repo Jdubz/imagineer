@@ -103,13 +103,13 @@ logger = configure_logging(app)
 init_database(app)
 
 # Initialize Celery
-from server.celery_app import make_celery
+from server.celery_app import make_celery  # noqa: E402
 
 celery = make_celery(app)
 
 # Register blueprints
-from server.routes.scraping import scraping_bp
-from server.routes.training import training_bp
+from server.routes.scraping import scraping_bp  # noqa: E402
+from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
@@ -1991,14 +1991,14 @@ def upload_images():
             with PILImage.open(filepath) as img:
                 width, height = img.size
 
-            # Calculate checksum
+            # Calculate checksum (for future use)
             import hashlib
 
             sha256 = hashlib.sha256()
             with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
                     sha256.update(chunk)
-            checksum = sha256.hexdigest()
+            # checksum = sha256.hexdigest()  # TODO: Store checksum in database
 
             # Create database record
             image = Image(
@@ -2174,7 +2174,8 @@ def label_album(album_id):
         prompt_type = data.get("prompt_type", "sd_training")
         force = data.get("force", False)
 
-        album = Album.query.get_or_404(album_id)
+        # Verify album exists
+        Album.query.get_or_404(album_id)
 
         # Get all images in album
         album_images = AlbumImage.query.filter_by(album_id=album_id).all()
