@@ -2,14 +2,12 @@
 Integration tests for Phase 5: Training Pipeline
 """
 
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from server.database import Album, AlbumImage, Image, Label, TrainingRun, db
+from server.tasks.training import prepare_training_data, train_lora_task
 
 
 class TestTrainingWorkflowIntegration:
@@ -141,7 +139,9 @@ class TestTrainingWorkflowIntegration:
                         assert mock_write.called
 
                         # Verify caption files were created
-                        caption_calls = [call for call in mock_write.call_args_list if "caption" in str(call)]
+                        caption_calls = [
+                            call for call in mock_write.call_args_list if "caption" in str(call)
+                        ]
                         assert len(caption_calls) > 0
 
     def test_training_with_multiple_albums(self, client, app):
