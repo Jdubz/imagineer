@@ -66,7 +66,7 @@ Add these:
 - `SSH_PRIVATE_KEY` = Contents of `~/.ssh/imagineer_deploy`
 - `SSH_HOST` = Your server IP/hostname
 - `SSH_USER` = `jdubz`
-- `VITE_APP_PASSWORD` = `carnuvian`
+- `VITE_APP_PASSWORD` = `[REDACTED]`
 
 ### 5. Update Google OAuth (2 minutes)
 

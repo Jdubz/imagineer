@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/TrainingTab.css';
 
-const TrainingTab = () => {
+const TrainingTab = ({ isAdmin = false }) => {
   const [trainingRuns, setTrainingRuns] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   // Form state for creating training runs
   const [formData, setFormData] = useState({
@@ -23,25 +22,21 @@ const TrainingTab = () => {
   });
 
   useEffect(() => {
-    checkAdminStatus();
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
     fetchTrainingRuns();
     fetchAlbums();
-  }, []);
-
-  const checkAdminStatus = async () => {
-    try {
-      const response = await fetch('/api/auth/status');
-      const data = await response.json();
-      setIsAdmin(data.is_admin || false);
-    } catch (err) {
-      console.error('Error checking admin status:', err);
-    }
-  };
+  }, [isAdmin]);
 
   const fetchTrainingRuns = async () => {
+    if (!isAdmin) return;
     try {
       setLoading(true);
-      const response = await fetch('/api/training');
+      const response = await fetch('/api/training', {
+        credentials: 'include',
+      });
       const data = await response.json();
       setTrainingRuns(data.training_runs || []);
     } catch (err) {
@@ -53,8 +48,11 @@ const TrainingTab = () => {
   };
 
   const fetchAlbums = async () => {
+    if (!isAdmin) return;
     try {
-      const response = await fetch('/api/training/albums');
+      const response = await fetch('/api/training/albums', {
+        credentials: 'include',
+      });
       const data = await response.json();
       setAlbums(data.albums || []);
     } catch (err) {
@@ -64,6 +62,7 @@ const TrainingTab = () => {
 
   const handleCreateTraining = async (e) => {
     e.preventDefault();
+    if (!isAdmin) return;
     
     try {
       const response = await fetch('/api/training', {
@@ -71,6 +70,7 @@ const TrainingTab = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -99,9 +99,11 @@ const TrainingTab = () => {
   };
 
   const handleStartTraining = async (runId) => {
+    if (!isAdmin) return;
     try {
       const response = await fetch(`/api/training/${runId}/start`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -117,9 +119,11 @@ const TrainingTab = () => {
   };
 
   const handleCancelTraining = async (runId) => {
+    if (!isAdmin) return;
     try {
       const response = await fetch(`/api/training/${runId}/cancel`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -135,9 +139,11 @@ const TrainingTab = () => {
   };
 
   const handleCleanupTraining = async (runId) => {
+    if (!isAdmin) return;
     try {
       const response = await fetch(`/api/training/${runId}/cleanup`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -168,6 +174,17 @@ const TrainingTab = () => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="training-tab">
+        <div className="training-access-message">
+          <h2>LoRA Training</h2>
+          <p>Sign in with an admin account to manage training runs.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

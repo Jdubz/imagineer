@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
-import PasswordGate from './components/PasswordGate'
 import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
 import GenerateTab from './components/GenerateTab'
@@ -188,61 +187,59 @@ function App() {
   }
 
   return (
-    <PasswordGate>
-      <div className="App">
-        <header className="header">
-          <div className="header-content">
-            <div className="header-title">
-              <h1>✨ Imagineer</h1>
-              <p>AI Image Generation Toolkit</p>
-            </div>
-            <AuthButton />
+    <div className="App">
+      <header className="header">
+        <div className="header-content">
+          <div className="header-title">
+            <h1>✨ Imagineer</h1>
+            <p>AI Image Generation Toolkit</p>
           </div>
-        </header>
+          <AuthButton onAuthChange={setUser} />
+        </div>
+      </header>
 
-        <div className="container">
-          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="container">
+        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-          <div className="main-content">
-            {activeTab === 'generate' && (
-              <GenerateTab
-                config={config}
-                loading={loading}
-                queuePosition={queuePosition}
-                currentJob={currentJob}
-                onGenerate={handleGenerate}
-                onGenerateBatch={handleGenerateBatch}
-              />
-            )}
+        <div className="main-content">
+          {activeTab === 'generate' && (
+            <GenerateTab
+              config={config}
+              loading={loading}
+              queuePosition={queuePosition}
+              currentJob={currentJob}
+              onGenerate={handleGenerate}
+              onGenerateBatch={handleGenerateBatch}
+            />
+          )}
 
-            {activeTab === 'gallery' && (
-              <GalleryTab
-                batches={batches}
-                images={images}
-                onRefreshImages={fetchImages}
-                onRefreshBatches={fetchBatches}
-              />
-            )}
+          {activeTab === 'gallery' && (
+            <GalleryTab
+              batches={batches}
+              images={images}
+              onRefreshImages={fetchImages}
+              onRefreshBatches={fetchBatches}
+            />
+          )}
 
-            {activeTab === 'albums' && (
-              <AlbumsTab isAdmin={user?.role === 'admin'} />
-            )}
+          {activeTab === 'albums' && (
+            <AlbumsTab isAdmin={user?.role === 'admin'} />
+          )}
 
-            {activeTab === 'scraping' && (
-              <ScrapingTab isAdmin={user?.role === 'admin'} />
-            )}
+          {activeTab === 'scraping' && (
+            <ScrapingTab isAdmin={user?.role === 'admin'} />
+          )}
 
-            {activeTab === 'training' && (
-              <TrainingTab isAdmin={user?.role === 'admin'} />
-            )}
+          {activeTab === 'training' && (
+            <TrainingTab isAdmin={user?.role === 'admin'} />
+          )}
 
-            {activeTab === 'queue' && <QueueTab />}
+          {activeTab === 'queue' && <QueueTab />}
 
-            {activeTab === 'loras' && <LorasTab />}
-          </div>
+          {activeTab === 'loras' && <LorasTab />}
         </div>
       </div>
-    </PasswordGate>
+    </div>
   )
 }
 

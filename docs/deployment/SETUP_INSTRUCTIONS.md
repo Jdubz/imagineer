@@ -34,13 +34,8 @@ Click **"New repository secret"** and add each of these:
 
 #### SSH_PRIVATE_KEY
 ```
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACBObht0051z9bWcZ22kqjr/GlLMeDNfAzVQooHP2GJjiwAAAJgf7e4NH+3u
-DQAAAAtzc2gtZWQyNTUxOQAAACBObht0051z9bWcZ22kqjr/GlLMeDNfAzVQooHP2GJjiw
-AAAEBONc+F/Hf/C3d6EVt/TJP/A6bR1xQ5Olj8WYzANr4tCU5uG3TTnXP1tZxnbaSqOv8a
-Usx4M18DNVCigc/YYmOLAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
------END OPENSSH PRIVATE KEY-----
+# Generate a new deploy key and paste the private key here.
+# Never store the actual private key in Git. Add it only as a secret.
 ```
 
 #### SSH_HOST
@@ -55,7 +50,7 @@ jdubz
 
 #### VITE_APP_PASSWORD
 ```
-carnuvian
+# Deprecated. No longer required now that the password gate has been removed.
 ```
 
 ### Step 3: Test the Deployment (2 min)

@@ -185,8 +185,10 @@ check_configuration() {
             print_warning "  VITE_API_BASE_URL may need updating"
         fi
 
-        if grep -q "VITE_APP_PASSWORD=" "$WEB_DIR/.env.production" && ! grep -q "VITE_APP_PASSWORD=carnuvian" "$WEB_DIR/.env.production"; then
-            print_warning "  VITE_APP_PASSWORD is exposed in file (should use GitHub Secrets)"
+        if grep -q "VITE_APP_PASSWORD=" "$WEB_DIR/.env.production"; then
+            print_warning "  VITE_APP_PASSWORD is deprecated—remove it from web/.env.production"
+        else
+            print_success "  Deprecated VITE_APP_PASSWORD not present"
         fi
     else
         print_warning "web/.env.production not found"

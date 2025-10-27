@@ -48,7 +48,7 @@ DEPLOY_BRANCH=main
 ### `web/.env.production` (Frontend)
 ```bash
 VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api
-VITE_APP_PASSWORD=carnuvian
+VITE_APP_PASSWORD=[REDACTED]
 ```
 
 ### `terraform/terraform.tfvars` (Infrastructure)
@@ -132,7 +132,7 @@ Add these at: https://github.com/yourusername/imagineer/settings/secrets/actions
 | Secret Name | Value | Get From |
 |-------------|-------|----------|
 | `FIREBASE_SERVICE_ACCOUNT` | JSON key | Firebase Console → Settings → Service Accounts |
-| `VITE_APP_PASSWORD` | `carnuvian` | (hardcoded value) |
+| `VITE_APP_PASSWORD` | `[REDACTED]` | (hardcoded value) |
 | `CLOUDFLARE_API_TOKEN` | Your token | Same as terraform.tfvars |
 | `CLOUDFLARE_TUNNEL_ID` | Tunnel ID | `cloudflared tunnel list` |
 

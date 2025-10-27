@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/ScrapingTab.css';
 
-function ScrapingTab({ isAdmin }) {
+function ScrapingTab({ isAdmin = false }) {
   const [scrapeJobs, setScrapeJobs] = useState([]);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -9,6 +9,10 @@ function ScrapingTab({ isAdmin }) {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
     fetchJobs();
     fetchStats();
 
@@ -19,15 +23,21 @@ function ScrapingTab({ isAdmin }) {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isAdmin]);
 
   const fetchJobs = async () => {
+    if (!isAdmin) return;
     try {
-      const response = await fetch('/api/scraping/jobs');
+      const response = await fetch('/api/scraping/jobs', {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         setScrapeJobs(data.jobs || []);
         setError(null);
+      } else if (response.status === 401 || response.status === 403) {
+        setScrapeJobs([]);
+        setError('You need admin access to view scrape jobs.');
       } else {
         setError('Failed to fetch scrape jobs');
       }
@@ -38,8 +48,11 @@ function ScrapingTab({ isAdmin }) {
   };
 
   const fetchStats = async () => {
+    if (!isAdmin) return;
     try {
-      const response = await fetch('/api/scraping/stats');
+      const response = await fetch('/api/scraping/stats', {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -50,6 +63,7 @@ function ScrapingTab({ isAdmin }) {
   };
 
   const startScrape = async (url, name, description, depth, maxImages) => {
+    if (!isAdmin) return;
     setLoading(true);
     setError(null);
 
@@ -58,7 +72,6 @@ function ScrapingTab({ isAdmin }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin_token' // This would be handled by auth system
         },
         credentials: 'include',
         body: JSON.stringify({ 
@@ -88,12 +101,10 @@ function ScrapingTab({ isAdmin }) {
   };
 
   const cancelJob = async (jobId) => {
+    if (!isAdmin) return;
     try {
       const response = await fetch(`/api/scraping/jobs/${jobId}/cancel`, {
         method: 'POST',
-        headers: { 
-          'Authorization': 'Bearer admin_token' // This would be handled by auth system
-        },
         credentials: 'include'
       });
 
@@ -109,12 +120,10 @@ function ScrapingTab({ isAdmin }) {
   };
 
   const cleanupJob = async (jobId) => {
+    if (!isAdmin) return;
     try {
       const response = await fetch(`/api/scraping/jobs/${jobId}/cleanup`, {
         method: 'POST',
-        headers: { 
-          'Authorization': 'Bearer admin_token' // This would be handled by auth system
-        },
         credentials: 'include'
       });
 
@@ -145,6 +154,17 @@ function ScrapingTab({ isAdmin }) {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="scraping-tab">
+        <div className="scraping-access-message">
+          <h2>Web Scraping</h2>
+          <p>Admin access required to manage scraping jobs.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="scraping-tab">

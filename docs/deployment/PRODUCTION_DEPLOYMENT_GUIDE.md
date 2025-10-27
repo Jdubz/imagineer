@@ -121,7 +121,7 @@ Add these secrets:
 | `SSH_PRIVATE_KEY` | Contents of `~/.ssh/imagineer_deploy` | Private SSH key for deployment |
 | `SSH_HOST` | Your server IP or hostname | Server address |
 | `SSH_USER` | `jdubz` | SSH username |
-| `VITE_APP_PASSWORD` | `carnuvian` | App password (deprecated, but still used) |
+| `VITE_APP_PASSWORD` | `[REDACTED]` | App password (deprecated, but still used) |
 
 ### Step 3: Test Auto-Deployment
 

@@ -163,7 +163,7 @@ make deploy-infra
 
 **GitHub Secrets to Configure:**
 - `FIREBASE_SERVICE_ACCOUNT` - For CI/CD
-- `VITE_APP_PASSWORD` - App password (carnuvian)
+- `VITE_APP_PASSWORD` - App password ([REDACTED])
 - `CLOUDFLARE_API_TOKEN` - For Terraform
 - `CLOUDFLARE_TUNNEL_ID` - From tunnel setup
 

@@ -5,6 +5,24 @@
   margin: 0 auto;
 }
 
+.training-access-message {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.training-access-message h2 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.training-access-message p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
 .training-header {
   display: flex;
   justify-content: space-between;
