@@ -280,8 +280,16 @@ def load_config():
     """Load config.yaml and initialize sets paths"""
     global SETS_DIR, SETS_CONFIG_PATH
 
-    with open(CONFIG_PATH, "r") as f:
-        config = yaml.safe_load(f)
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        # Fallback config for CI environments
+        config = {
+            "model": {"cache_dir": "/tmp/imagineer/models"},
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "generation": {"width": 512, "height": 512, "steps": 30},
+        }
 
     # Initialize sets directory paths from config
     if "sets" in config and "directory" in config["sets"]:
