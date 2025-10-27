@@ -3,11 +3,13 @@ Database models for Imagineer
 SQLAlchemy models for image management, albums, and training data
 """
 
+import logging
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
+logger = logging.getLogger(__name__)
 
 
 class Image(db.Model):
@@ -279,6 +281,6 @@ def init_database(app):
     with app.app_context():
         # Create all tables
         db.create_all()
-        print("Database tables created successfully")
+        logger.info("Database tables created successfully")
 
     return db
