@@ -259,7 +259,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
 
                 {job.status === 'running' && (
                   <div className="progress-section">
-                    {job.images_scraped !== undefined && job.images_scraped > 0 && (
+                    {job.images_scraped > 0 && (
                       <div className="stats">
                         <span>Images scraped: {job.images_scraped}</span>
                       </div>
@@ -267,7 +267,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
                   </div>
                 )}
 
-                {job.status === 'completed' && job.images_scraped !== undefined && (
+                {job.status === 'completed' && job.images_scraped != null && (
                   <div className="completion-stats">
                     <div className="success-message">
                       ✓ Successfully scraped {job.images_scraped} images

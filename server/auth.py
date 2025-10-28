@@ -109,8 +109,11 @@ def init_auth(app):
         email = user_data.get("email")
         name = user_data.get("name", "")
 
-        if not email:
-            logger.warning("Session missing email for user_id=%s; clearing stale session", user_id)
+        if not email or not isinstance(email, str):
+            logger.warning(
+                "Session missing or invalid email for user_id=%s; clearing stale session",
+                user_id,
+            )
             session.pop("user", None)
             return None
 
