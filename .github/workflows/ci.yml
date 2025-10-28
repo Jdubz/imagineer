@@ -2,10 +2,14 @@ name: PR Checks
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,4 +56,46 @@ jobs:
         run: flake8 server src examples tests
 
       - name: Run backend unit tests
+        run: pytest -v
+
+  deploy-tooling:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: web
+        run: npm run deploy:build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black flake8
+
+      - name: Backend style checks
+        run: |
+          black --check server src examples tests
+          flake8 server src examples tests
+
+      - name: Backend regression suite
         run: pytest -v
