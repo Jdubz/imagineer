@@ -1,91 +1,63 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState } from 'react'
+import type { GeneratedImage } from '../types/models'
 
-function BatchGallery({ batchId, onBack }) {
-  const [batch, setBatch] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedImage, setSelectedImage] = useState(null)
+interface ImageGridProps {
+  images: GeneratedImage[]
+  onRefresh: () => Promise<void>
+}
 
-  useEffect(() => {
-    fetchBatch()
-  }, [batchId, fetchBatch])
+const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
 
-  const fetchBatch = useCallback(async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/batches/${batchId}`)
-      const data = await response.json()
-      setBatch(data)
-    } catch (error) {
-      console.error('Failed to fetch batch:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [batchId])
-
-  const openModal = (image) => {
+  const openModal = (image: GeneratedImage): void => {
     setSelectedImage(image)
   }
 
-  const closeModal = () => {
+  const closeModal = (): void => {
     setSelectedImage(null)
   }
 
-  if (loading) {
-    return (
-      <div className="batch-gallery">
-        <div className="loading-indicator">
-          <div className="spinner"></div>
-          <p>Loading batch...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!batch) {
-    return (
-      <div className="batch-gallery">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
-        <p>Batch not found</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="batch-gallery">
-      <div className="batch-header">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
-        <h2>{batch.batch_id}</h2>
-        <p className="batch-info">{batch.image_count} images</p>
+    <div className="image-grid-container">
+      <div className="grid-header">
+        <h2>Generated Images ({images.length})</h2>
+        <button onClick={onRefresh} className="refresh-btn">
+          Refresh
+        </button>
       </div>
 
-      <div className="image-grid">
-        {batch.images && batch.images.length > 0 ? (
-          batch.images.map((image, index) => (
+      {images.length === 0 ? (
+        <div className="no-images">
+          <p>No images generated yet.</p>
+          <p>Use the form above to create your first image!</p>
+        </div>
+      ) : (
+        <div className="image-grid">
+          {images.map((image) => (
             <div
-              key={index}
+              key={image.filename}
               className="image-card"
               onClick={() => openModal(image)}
             >
               <img
-                src={`/api/outputs/${image.relative_path}`}
+                src={`/api/outputs/${image.filename}`}
                 alt={image.metadata?.prompt || 'Generated image'}
-                loading="lazy"
               />
-              <div className="image-info">
-                <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
-                {image.metadata && (
-                  <div className="image-metadata">
-                    <span>Steps: {image.metadata.steps}</span>
-                    {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
-                  </div>
+              <div className="image-overlay">
+                <p className="image-prompt">
+                  {image.metadata?.prompt?.substring(0, 60)}
+                  {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
+                </p>
+                {image.created && (
+                  <p className="image-date">
+                    {new Date(image.created).toLocaleDateString()}
+                  </p>
                 )}
               </div>
             </div>
-          ))
-        ) : (
-          <p>No images in this batch yet</p>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
@@ -93,7 +65,7 @@ function BatchGallery({ batchId, onBack }) {
             <button className="modal-close" onClick={closeModal}>×</button>
 
             <img
-              src={`/api/outputs/${selectedImage.relative_path}`}
+              src={`/api/outputs/${selectedImage.filename}`}
               alt={selectedImage.metadata?.prompt || 'Generated image'}
             />
 
@@ -144,9 +116,11 @@ function BatchGallery({ batchId, onBack }) {
                 <strong>Filename:</strong> {selectedImage.filename}
               </div>
 
-              <div className="detail-item">
-                <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
-              </div>
+              {selectedImage.created && (
+                <div className="detail-item">
+                  <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -155,4 +129,4 @@ function BatchGallery({ batchId, onBack }) {
   )
 }
 
-export default BatchGallery
+export default ImageGrid

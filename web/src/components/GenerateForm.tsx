@@ -1,22 +1,52 @@
 import React, { useState, useEffect } from 'react'
+import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
 
-function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
-  const [prompt, setPrompt] = useState('')
-  const [steps, setSteps] = useState(config?.generation?.steps || 30)
-  const [guidanceScale, setGuidanceScale] = useState(config?.generation?.guidance_scale || 7.5)
-  const [seed, setSeed] = useState('')
-  const [useRandomSeed, setUseRandomSeed] = useState(true)
+interface SetLoraConfig {
+  folder: string
+  weight: number
+}
+
+interface SetInfo {
+  name: string
+  description: string
+  item_count: number
+  example_theme?: string
+}
+
+interface AvailableSet {
+  id: string
+  name: string
+}
+
+interface LoraModel {
+  folder: string
+  filename: string
+}
+
+interface GenerateFormProps {
+  onGenerate: (params: GenerateParams) => void
+  onGenerateBatch: (params: BatchGenerateParams) => void
+  loading: boolean
+  config: Config | null
+}
+
+const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config }) => {
+  const [prompt, setPrompt] = useState<string>('')
+  const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
+  const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
+  const [seed, setSeed] = useState<string>('')
+  const [useRandomSeed, setUseRandomSeed] = useState<boolean>(true)
 
   // Batch generation state
-  const [availableSets, setAvailableSets] = useState([])
-  const [selectedSet, setSelectedSet] = useState('')
-  const [userTheme, setUserTheme] = useState('')
-  const [selectedSetInfo, setSelectedSetInfo] = useState(null)
+  const [availableSets, setAvailableSets] = useState<AvailableSet[]>([])
+  const [selectedSet, setSelectedSet] = useState<string>('')
+  const [userTheme, setUserTheme] = useState<string>('')
+  const [selectedSetInfo, setSelectedSetInfo] = useState<SetInfo | null>(null)
 
   // LoRA configuration state
-  const [setLoras, setSetLoras] = useState([])
-  const [availableLoras, setAvailableLoras] = useState([])
-  const [showLoraConfig, setShowLoraConfig] = useState(false)
+  const [setLoras, setSetLoras] = useState<SetLoraConfig[]>([])
+  const [availableLoras, setAvailableLoras] = useState<LoraModel[]>([])
+  const [showLoraConfig, setShowLoraConfig] = useState<boolean>(false)
 
   // Load available sets and LoRAs on mount
   useEffect(() => {
@@ -24,7 +54,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     fetchAvailableLoras()
   }, [])
 
-  const fetchAvailableSets = async () => {
+  const fetchAvailableSets = async (): Promise<void> => {
     try {
       const response = await fetch('/api/sets')
       const data = await response.json()
@@ -34,7 +64,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const fetchAvailableLoras = async () => {
+  const fetchAvailableLoras = async (): Promise<void> => {
     try {
       const response = await fetch('/api/loras')
       const data = await response.json()
@@ -44,7 +74,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const fetchRandomTheme = async () => {
+  const fetchRandomTheme = async (): Promise<void> => {
     try {
       const response = await fetch('/api/themes/random')
       const data = await response.json()
@@ -65,7 +95,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }, [selectedSet])
 
-  const fetchSetInfo = async (setName) => {
+  const fetchSetInfo = async (setName: string): Promise<void> => {
     try {
       const response = await fetch(`/api/sets/${setName}/info`)
       const data = await response.json()
@@ -75,7 +105,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const fetchSetLoras = async (setName) => {
+  const fetchSetLoras = async (setName: string): Promise<void> => {
     try {
       const response = await fetch(`/api/sets/${setName}/loras`)
       const data = await response.json()
@@ -85,7 +115,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const updateSetLoras = async (setName, loras) => {
+  const updateSetLoras = async (setName: string, loras: SetLoraConfig[]): Promise<void> => {
     try {
       const response = await fetch(`/api/sets/${setName}/loras`, {
         method: 'PUT',
@@ -107,7 +137,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const addLoraToSet = (loraFolder) => {
+  const addLoraToSet = (loraFolder: string): void => {
     if (!selectedSet || !loraFolder) return
 
     // Check if already in set
@@ -124,14 +154,14 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     updateSetLoras(selectedSet, updatedLoras)
   }
 
-  const removeLoraFromSet = (loraFolder) => {
+  const removeLoraFromSet = (loraFolder: string): void => {
     if (!selectedSet) return
 
     const updatedLoras = setLoras.filter(l => l.folder !== loraFolder)
     updateSetLoras(selectedSet, updatedLoras)
   }
 
-  const updateLoraWeight = (loraFolder, newWeight) => {
+  const updateLoraWeight = (loraFolder: string, newWeight: string): void => {
     if (!selectedSet) return
 
     const updatedLoras = setLoras.map(l =>
@@ -141,15 +171,15 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     setSetLoras(updatedLoras)  // Update UI immediately
   }
 
-  const saveLoraWeights = () => {
+  const saveLoraWeights = (): void => {
     if (!selectedSet) return
     updateSetLoras(selectedSet, setLoras)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (prompt.trim()) {
-      const params = {
+      const params: GenerateParams = {
         prompt: prompt.trim(),
         steps,
         guidance_scale: guidanceScale
@@ -165,25 +195,20 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
     }
   }
 
-  const generateRandomSeed = () => {
+  const generateRandomSeed = (): void => {
     const randomSeed = Math.floor(Math.random() * 2147483647)
     setSeed(randomSeed.toString())
     setUseRandomSeed(false)
   }
 
-  const handleBatchSubmit = (e) => {
+  const handleBatchSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (selectedSet && userTheme.trim()) {
-      const params = {
+      const params: BatchGenerateParams = {
         set_name: selectedSet,
         user_theme: userTheme.trim(),
         steps,
         guidance_scale: guidanceScale
-      }
-
-      // Only include seed if user provided one
-      if (!useRandomSeed && seed) {
-        params.seed = parseInt(seed)
       }
 
       onGenerateBatch(params)
@@ -200,9 +225,9 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
           <textarea
             id="prompt"
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPrompt(e.target.value)}
             placeholder="Describe the image you want to generate..."
-            rows="4"
+            rows={4}
             disabled={loading}
             required
           />
@@ -228,7 +253,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
               max="75"
               step="5"
               value={steps}
-              onChange={(e) => setSteps(parseInt(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSteps(parseInt(e.target.value))}
               disabled={loading}
             />
             <div className="range-labels">
@@ -259,7 +284,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
               max="20"
               step="0.5"
               value={guidanceScale}
-              onChange={(e) => setGuidanceScale(parseFloat(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGuidanceScale(parseFloat(e.target.value))}
               disabled={loading}
             />
             <div className="range-labels">
@@ -313,7 +338,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
               type="number"
               id="seed"
               value={seed}
-              onChange={(e) => setSeed(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSeed(e.target.value)}
               placeholder="Enter seed or generate random"
               min="0"
               max="2147483647"
@@ -361,7 +386,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
           <select
             id="set-select"
             value={selectedSet}
-            onChange={(e) => setSelectedSet(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSet(e.target.value)}
             disabled={loading}
             required
           >
@@ -427,7 +452,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
                               max="2"
                               step="0.05"
                               value={lora.weight}
-                              onChange={(e) => updateLoraWeight(lora.folder, e.target.value)}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLoraWeight(lora.folder, e.target.value)}
                               onMouseUp={saveLoraWeights}
                               onTouchEnd={saveLoraWeights}
                               className="weight-slider"
@@ -453,7 +478,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
                   <label htmlFor="add-lora-select">Add LoRA:</label>
                   <select
                     id="add-lora-select"
-                    onChange={(e) => {
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                       if (e.target.value) {
                         addLoraToSet(e.target.value)
                         e.target.value = ''  // Reset selection
@@ -487,7 +512,7 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
                 <br/>• "watercolor pastels with soft dreamy lighting"
                 <br/>• "cyberpunk neon with dark urban background"
                 <br/>• "vintage botanical illustrations"
-                {selectedSetInfo && selectedSetInfo.example_theme && (
+                {selectedSetInfo?.example_theme && (
                   <>
                     <br/><br/>Suggestion for {selectedSetInfo.name}:
                     <br/>"{selectedSetInfo.example_theme}"
@@ -500,9 +525,9 @@ function GenerateForm({ onGenerate, onGenerateBatch, loading, config }) {
             <textarea
               id="user-theme"
               value={userTheme}
-              onChange={(e) => setUserTheme(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserTheme(e.target.value)}
               placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
-              rows="3"
+              rows={3}
               disabled={loading}
               required
             />

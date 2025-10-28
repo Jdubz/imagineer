@@ -1,159 +1,174 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import '../styles/ScrapingTab.css';
+import React, { useState, useEffect, useCallback } from 'react'
+import '../styles/ScrapingTab.css'
+import type { ScrapingJob } from '../types/models'
 
-function ScrapingTab({ isAdmin = false }) {
-  const [scrapeJobs, setScrapeJobs] = useState([]);
-  const [showStartDialog, setShowStartDialog] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
+interface ScrapingStats {
+  total_jobs: number
+  total_images_scraped: number
+  recent_jobs: number
+}
 
-  const fetchJobs = useCallback(async () => {
-    if (!isAdmin) return;
+interface ScrapingJobsResponse {
+  jobs: ScrapingJob[]
+}
+
+interface ScrapingTabProps {
+  isAdmin?: boolean
+}
+
+const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
+  const [scrapeJobs, setScrapeJobs] = useState<ScrapingJob[]>([])
+  const [showStartDialog, setShowStartDialog] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<ScrapingStats | null>(null)
+
+  const fetchJobs = useCallback(async (): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch('/api/scraping/jobs', {
         credentials: 'include',
-      });
+      })
       if (response.ok) {
-        const data = await response.json();
-        setScrapeJobs(data.jobs || []);
-        setError(null);
+        const data: ScrapingJobsResponse = await response.json()
+        setScrapeJobs(data.jobs || [])
+        setError(null)
       } else if (response.status === 401 || response.status === 403) {
-        setScrapeJobs([]);
-        setError('You need admin access to view scrape jobs.');
+        setScrapeJobs([])
+        setError('You need admin access to view scrape jobs.')
       } else {
-        setError('Failed to fetch scrape jobs');
+        setError('Failed to fetch scrape jobs')
       }
     } catch (err) {
-      setError('Error fetching scrape jobs');
-      console.error('Error fetching jobs:', err);
+      setError('Error fetching scrape jobs')
+      console.error('Error fetching jobs:', err)
     }
-  }, [isAdmin]);
+  }, [isAdmin])
 
-  const fetchStats = useCallback(async () => {
-    if (!isAdmin) return;
+  const fetchStats = useCallback(async (): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch('/api/scraping/stats', {
         credentials: 'include',
-      });
+      })
       if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+        const data: ScrapingStats = await response.json()
+        setStats(data)
       }
     } catch (err) {
-      console.error('Error fetching stats:', err);
+      console.error('Error fetching stats:', err)
     }
-  }, [isAdmin]);
+  }, [isAdmin])
 
   useEffect(() => {
     if (!isAdmin) {
-      return;
+      return
     }
 
-    fetchJobs().catch((err) => console.error('Error refreshing jobs:', err));
-    fetchStats().catch((err) => console.error('Error refreshing stats:', err));
+    fetchJobs().catch((err) => console.error('Error refreshing jobs:', err))
+    fetchStats().catch((err) => console.error('Error refreshing stats:', err))
 
     // Auto-refresh every 5 seconds
     const interval = setInterval(() => {
-      fetchJobs().catch((err) => console.error('Error refreshing jobs:', err));
-      fetchStats().catch((err) => console.error('Error refreshing stats:', err));
-    }, 5000);
+      fetchJobs().catch((err) => console.error('Error refreshing jobs:', err))
+      fetchStats().catch((err) => console.error('Error refreshing stats:', err))
+    }, 5000)
 
-    return () => clearInterval(interval);
-  }, [fetchJobs, fetchStats, isAdmin]);
+    return () => clearInterval(interval)
+  }, [fetchJobs, fetchStats, isAdmin])
 
-  const startScrape = async (url, name, description, depth, maxImages) => {
-    if (!isAdmin) return;
-    setLoading(true);
-    setError(null);
+  const startScrape = async (url: string, name: string, description: string, depth: number, maxImages: number): Promise<void> => {
+    if (!isAdmin) return
+    setLoading(true)
+    setError(null)
 
     try {
       const response = await fetch('/api/scraping/start', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ 
-          url, 
-          name, 
-          description, 
-          depth, 
-          max_images: maxImages 
+        body: JSON.stringify({
+          url,
+          name,
+          description,
+          depth,
+          max_images: maxImages
         })
-      });
+      })
 
       if (response.ok) {
-        await response.json(); // Consume response
+        await response.json() // Consume response
         // Job started successfully
-        fetchJobs();
-        setShowStartDialog(false);
+        fetchJobs()
+        setShowStartDialog(false)
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to start scrape job');
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to start scrape job')
       }
     } catch (err) {
-      setError('Error starting scrape job');
-      console.error('Error starting scrape:', err);
+      setError('Error starting scrape job')
+      console.error('Error starting scrape:', err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const cancelJob = async (jobId) => {
-    if (!isAdmin) return;
+  const cancelJob = async (jobId: string): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch(`/api/scraping/jobs/${jobId}/cancel`, {
         method: 'POST',
         credentials: 'include'
-      });
+      })
 
       if (response.ok) {
-        fetchJobs();
+        fetchJobs()
       } else {
-        setError('Failed to cancel job');
+        setError('Failed to cancel job')
       }
     } catch (err) {
-      setError('Error cancelling job');
-      console.error('Error cancelling job:', err);
+      setError('Error cancelling job')
+      console.error('Error cancelling job:', err)
     }
-  };
+  }
 
-  const cleanupJob = async (jobId) => {
-    if (!isAdmin) return;
+  const cleanupJob = async (jobId: string): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch(`/api/scraping/jobs/${jobId}/cleanup`, {
         method: 'POST',
         credentials: 'include'
-      });
+      })
 
       if (response.ok) {
-        fetchJobs();
+        fetchJobs()
       } else {
-        setError('Failed to cleanup job');
+        setError('Failed to cleanup job')
       }
     } catch (err) {
-      setError('Error cleaning up job');
-      console.error('Error cleaning up job:', err);
+      setError('Error cleaning up job')
+      console.error('Error cleaning up job:', err)
     }
-  };
+  }
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
-      case 'pending': return '#f39c12';
-      case 'running': return '#3498db';
-      case 'completed': return '#27ae60';
-      case 'failed': return '#e74c3c';
-      case 'cancelled': return '#95a5a6';
-      case 'cleaned_up': return '#7f8c8d';
-      default: return '#95a5a6';
+      case 'pending': return '#f39c12'
+      case 'running': return '#3498db'
+      case 'completed': return '#27ae60'
+      case 'failed': return '#e74c3c'
+      case 'cancelled': return '#95a5a6'
+      case 'cleaned_up': return '#7f8c8d'
+      default: return '#95a5a6'
     }
-  };
+  }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
-  };
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleString()
+  }
 
   if (!isAdmin) {
     return (
@@ -163,7 +178,7 @@ function ScrapingTab({ isAdmin = false }) {
           <p>Admin access required to manage scraping jobs.</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -171,7 +186,7 @@ function ScrapingTab({ isAdmin = false }) {
       <div className="scraping-header">
         <h2>Web Scraping</h2>
         {isAdmin && (
-          <button 
+          <button
             className="start-scrape-btn"
             onClick={() => setShowStartDialog(true)}
             disabled={loading}
@@ -213,9 +228,9 @@ function ScrapingTab({ isAdmin = false }) {
           scrapeJobs.map(job => (
             <div key={job.id} className={`scrape-job-card status-${job.status}`}>
               <div className="job-header">
-                <h3>{job.name}</h3>
-                <span 
-                  className="status-badge" 
+                <h3>{job.url}</h3>
+                <span
+                  className="status-badge"
                   style={{ backgroundColor: getStatusColor(job.status) }}
                 >
                   {job.status}
@@ -225,35 +240,26 @@ function ScrapingTab({ isAdmin = false }) {
               <div className="job-details">
                 <div className="detail">
                   <strong>URL:</strong>
-                  <a 
-                    href={job.source_url} 
-                    target="_blank" 
+                  <a
+                    href={job.url}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="job-url"
                   >
-                    {job.source_url}
+                    {job.url}
                   </a>
                 </div>
 
-                {job.description && (
+                {job.output_dir && (
                   <div className="detail">
-                    <strong>Description:</strong>
-                    <span>{job.description}</span>
+                    <strong>Output Directory:</strong>
+                    <span>{job.output_dir}</span>
                   </div>
                 )}
 
                 {job.status === 'running' && (
                   <div className="progress-section">
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${job.progress || 0}%` }}
-                      ></div>
-                    </div>
-                    <div className="progress-text">
-                      {job.progress || 0}% complete
-                    </div>
-                    {job.images_scraped > 0 && (
+                    {job.images_scraped !== undefined && job.images_scraped > 0 && (
                       <div className="stats">
                         <span>Images scraped: {job.images_scraped}</span>
                       </div>
@@ -261,23 +267,23 @@ function ScrapingTab({ isAdmin = false }) {
                   </div>
                 )}
 
-                {job.status === 'completed' && (
+                {job.status === 'completed' && job.images_scraped !== undefined && (
                   <div className="completion-stats">
                     <div className="success-message">
                       ✓ Successfully scraped {job.images_scraped} images
                     </div>
-                    {job.output_directory && (
+                    {job.output_dir && (
                       <div className="output-info">
-                        Output: {job.output_directory}
+                        Output: {job.output_dir}
                       </div>
                     )}
                   </div>
                 )}
 
-                {job.status === 'failed' && job.error_message && (
+                {job.status === 'failed' && job.error && (
                   <div className="error-details">
                     <strong>Error:</strong>
-                    <span className="error-text">{job.error_message}</span>
+                    <span className="error-text">{job.error}</span>
                   </div>
                 )}
 
@@ -285,11 +291,6 @@ function ScrapingTab({ isAdmin = false }) {
                   <div className="meta-item">
                     <strong>Created:</strong> {formatDate(job.created_at)}
                   </div>
-                  {job.started_at && (
-                    <div className="meta-item">
-                      <strong>Started:</strong> {formatDate(job.started_at)}
-                    </div>
-                  )}
                   {job.completed_at && (
                     <div className="meta-item">
                       <strong>Completed:</strong> {formatDate(job.completed_at)}
@@ -301,7 +302,7 @@ function ScrapingTab({ isAdmin = false }) {
               {isAdmin && (
                 <div className="job-actions">
                   {job.status === 'running' && (
-                    <button 
+                    <button
                       className="cancel-btn"
                       onClick={() => cancelJob(job.id)}
                     >
@@ -309,7 +310,7 @@ function ScrapingTab({ isAdmin = false }) {
                     </button>
                   )}
                   {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
-                    <button 
+                    <button
                       className="cleanup-btn"
                       onClick={() => cleanupJob(job.id)}
                     >
@@ -331,29 +332,35 @@ function ScrapingTab({ isAdmin = false }) {
         />
       )}
     </div>
-  );
+  )
 }
 
-function StartScrapeDialog({ onClose, onSubmit, loading }) {
-  const [url, setUrl] = useState('');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [depth, setDepth] = useState(3);
-  const [maxImages, setMaxImages] = useState(1000);
+interface StartScrapeDialogProps {
+  onClose: () => void
+  onSubmit: (url: string, name: string, description: string, depth: number, maxImages: number) => void
+  loading: boolean
+}
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!url) return;
-    
-    const jobName = name || `Scrape ${url}`;
-    const jobDescription = description || `Web scraping job for ${url}`;
-    
-    onSubmit(url, jobName, jobDescription, depth, maxImages);
-  };
+const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit, loading }) => {
+  const [url, setUrl] = useState<string>('')
+  const [name, setName] = useState<string>('')
+  const [description, setDescription] = useState<string>('')
+  const [depth, setDepth] = useState<number>(3)
+  const [maxImages, setMaxImages] = useState<number>(1000)
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+    e.preventDefault()
+    if (!url) return
+
+    const jobName = name || `Scrape ${url}`
+    const jobDescription = description || `Web scraping job for ${url}`
+
+    onSubmit(url, jobName, jobDescription, depth, maxImages)
+  }
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog" onClick={e => e.stopPropagation()}>
+      <div className="dialog" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
         <h2>Start Web Scrape</h2>
 
         <form onSubmit={handleSubmit}>
@@ -363,7 +370,7 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
               id="url"
               type="url"
               value={url}
-              onChange={e => setUrl(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
               placeholder="https://example.com/gallery"
               required
               disabled={loading}
@@ -376,7 +383,7 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
               id="name"
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Auto-generated from URL"
               disabled={loading}
             />
@@ -387,9 +394,9 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
             <textarea
               id="description"
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
               placeholder="Optional description for this scraping job"
-              rows="3"
+              rows={3}
               disabled={loading}
             />
           </div>
@@ -401,7 +408,7 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
                 id="depth"
                 type="number"
                 value={depth}
-                onChange={e => setDepth(parseInt(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDepth(parseInt(e.target.value))}
                 min="1"
                 max="10"
                 disabled={loading}
@@ -415,7 +422,7 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
                 id="maxImages"
                 type="number"
                 value={maxImages}
-                onChange={e => setMaxImages(parseInt(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxImages(parseInt(e.target.value))}
                 min="1"
                 max="10000"
                 disabled={loading}
@@ -425,15 +432,15 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
           </div>
 
           <div className="dialog-actions">
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="submit-btn"
               disabled={loading || !url}
             >
               {loading ? 'Starting...' : 'Start Scrape'}
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={onClose}
               disabled={loading}
             >
@@ -443,7 +450,7 @@ function StartScrapeDialog({ onClose, onSubmit, loading }) {
         </form>
       </div>
     </div>
-  );
+  )
 }
 
-export default ScrapingTab;
+export default ScrapingTab

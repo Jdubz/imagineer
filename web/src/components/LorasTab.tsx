@@ -1,17 +1,30 @@
 import React, { useState, useEffect } from 'react'
 import '../styles/LorasTab.css'
 
-function LorasTab() {
-  const [loras, setLoras] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [selectedLora, setSelectedLora] = useState(null)
+interface LoraModel {
+  folder: string
+  filename: string
+  format?: string
+  default_weight?: number
+  has_preview: boolean
+  organized_at?: string
+}
+
+interface LorasResponse {
+  loras: LoraModel[]
+}
+
+const LorasTab: React.FC = () => {
+  const [loras, setLoras] = useState<LoraModel[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedLora, setSelectedLora] = useState<LoraModel | null>(null)
 
   useEffect(() => {
     fetchLoras()
   }, [])
 
-  const fetchLoras = async () => {
+  const fetchLoras = async (): Promise<void> => {
     setLoading(true)
     setError(null)
     try {
@@ -19,17 +32,17 @@ function LorasTab() {
       if (!response.ok) {
         throw new Error('Failed to fetch LoRAs')
       }
-      const data = await response.json()
+      const data: LorasResponse = await response.json()
       setLoras(data.loras || [])
     } catch (err) {
       console.error('Failed to fetch LoRAs:', err)
-      setError(err.message)
+      setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleLoraClick = (lora) => {
+  const handleLoraClick = (lora: LoraModel): void => {
     setSelectedLora(selectedLora?.folder === lora.folder ? null : lora)
   }
 

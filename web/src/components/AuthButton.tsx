@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react'
+import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
 
-function AuthButton({ onAuthChange }) {
-  const [user, setUser] = useState(null)
+interface AuthButtonProps {
+  onAuthChange?: (user: AuthStatus | null) => void
+}
+
+const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
+  const [user, setUser] = useState<AuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     void checkAuth()
@@ -16,7 +21,7 @@ function AuthButton({ onAuthChange }) {
     }
   }, [user, loading, onAuthChange])
 
-  const checkAuth = async () => {
+  const checkAuth = async (): Promise<void> => {
     try {
       const response = await fetch('/api/auth/me', {
         credentials: 'include'
@@ -46,7 +51,7 @@ function AuthButton({ onAuthChange }) {
         throw new Error(`Unexpected auth response format (${response.status})`)
       }
 
-      const data = await response.json()
+      const data: AuthStatus = await response.json()
 
       if (response.ok && data?.authenticated) {
         setUser(data)
@@ -64,13 +69,26 @@ function AuthButton({ onAuthChange }) {
     }
   }
 
-  const handleLogin = () => {
+  const handleLogin = (): void => {
     const currentLocation = window.location.pathname + window.location.search + window.location.hash
     const nextParam = encodeURIComponent(currentLocation || '/')
-    window.location.href = `/api/auth/login?state=${nextParam}`
+    const loginUrl = `/api/auth/login?state=${nextParam}`
+
+    const popup = window.open(loginUrl, 'oauth', 'width=500,height=700')
+
+    if (popup) {
+      const timer = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(timer)
+          void checkAuth()
+        }
+      }, 500)
+    } else {
+      window.location.href = loginUrl
+    }
   }
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       const response = await fetch('/api/auth/logout', {
         credentials: 'include'
@@ -98,11 +116,15 @@ function AuthButton({ onAuthChange }) {
   return (
     <div className="auth-button-container">
       <div className="auth-actions">
-        <button onClick={handleLogin} className="auth-button auth-button--primary">
+        <button type="button" onClick={handleLogin} className="auth-button auth-button--primary">
           {primaryLabel}
         </button>
         {user && (
-          <button onClick={handleLogout} className="auth-button auth-button--secondary">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="auth-button auth-button--secondary"
+          >
             Log Out
           </button>
         )}
@@ -113,3 +135,4 @@ function AuthButton({ onAuthChange }) {
 }
 
 export default AuthButton
+

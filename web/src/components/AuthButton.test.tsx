@@ -3,23 +3,39 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AuthButton from './AuthButton'
 
-const createResponse = (data = {}, init = {}) => {
-  const headersInit = init.headers || { 'content-type': 'application/json' }
+interface MockResponseInit {
+  ok?: boolean
+  status?: number
+  headers?: Record<string, string>
+  text?: string
+}
+
+interface MockResponse {
+  ok: boolean
+  status: number
+  headers: { get: (name: string) => string | null }
+  json: () => Promise<Record<string, unknown>>
+  text: () => Promise<string>
+}
+
+const createResponse = (
+  data: Record<string, unknown> = {},
+  init: MockResponseInit = {},
+): Promise<MockResponse> => {
+  const headersInit = init.headers ?? { 'content-type': 'application/json' }
   const headerStore = new Map(
-    Object.entries(headersInit).map(([key, value]) => [key.toLowerCase(), value])
+    Object.entries(headersInit).map(([key, value]) => [key.toLowerCase(), value]),
   )
 
   return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
     headers: {
-      get: (name) => headerStore.get(name.toLowerCase()) ?? null
+      get: (name: string) => headerStore.get(name.toLowerCase()) ?? null,
     },
     json: () => Promise.resolve(data),
     text: () =>
-      Promise.resolve(
-        typeof init.text === 'string' ? init.text : JSON.stringify(data)
-      )
+      Promise.resolve(typeof init.text === 'string' ? init.text : JSON.stringify(data)),
   })
 }
 
@@ -38,8 +54,8 @@ describe('AuthButton', () => {
   it('renders viewer button for unauthenticated users', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() =>
       createResponse({
-        authenticated: false
-      })
+        authenticated: false,
+      }),
     )
 
     render(<AuthButton />)
@@ -50,7 +66,7 @@ describe('AuthButton', () => {
     expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/auth/me',
-      expect.objectContaining({ credentials: 'include' })
+      expect.objectContaining({ credentials: 'include' }),
     )
   })
 
@@ -61,12 +77,10 @@ describe('AuthButton', () => {
       .mockImplementationOnce(() =>
         createResponse({
           authenticated: true,
-          role: 'admin'
-        })
+          role: 'admin',
+        }),
       )
-      .mockImplementationOnce(() =>
-        createResponse({}, { status: 200 })
-      )
+      .mockImplementationOnce(() => createResponse({}, { status: 200 }))
 
     globalThis.fetch = fetchMock
 
@@ -82,26 +96,25 @@ describe('AuthButton', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       '/api/auth/me',
-      expect.objectContaining({ credentials: 'include' })
+      expect.objectContaining({ credentials: 'include' }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/auth/logout',
-      expect.objectContaining({ credentials: 'include' })
+      expect.objectContaining({ credentials: 'include' }),
     )
   })
 
-  it('surface errors when auth check fails', async () => {
+  it('surfaces errors when auth check fails', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'))
 
     render(<AuthButton />)
 
     await waitFor(() => {
       expect(
-        screen.getByText(/unable to verify authentication status/i)
+        screen.getByText(/unable to verify authentication status/i),
       ).toBeInTheDocument()
     })
-    // Button should still default to viewer state
     expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
   })
 
@@ -113,9 +126,9 @@ describe('AuthButton', () => {
           ok: false,
           status: 401,
           headers: { 'content-type': 'text/html' },
-          text: '<!DOCTYPE html><html></html>'
-        }
-      )
+          text: '<!DOCTYPE html><html></html>',
+        },
+      ),
     )
 
     render(<AuthButton />)
@@ -126,3 +139,4 @@ describe('AuthButton', () => {
     expect(screen.queryByText(/unable to verify/i)).not.toBeInTheDocument()
   })
 })
+
