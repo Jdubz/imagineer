@@ -18,7 +18,7 @@ def load_config(config_path="config.yaml"):
         return yaml.safe_load(f)
 
 
-def main():
+def main():  # noqa: C901
     parser = argparse.ArgumentParser(description="Generate images with settings from config.yaml")
     parser.add_argument(
         "--prompt", type=str, required=True, help="Text prompt for image generation"
@@ -139,7 +139,10 @@ def main():
                 lora_weights = lora_weights * len(lora_paths)
             else:
                 raise ValueError(
-                    f"Number of LoRA weights ({len(lora_weights)}) must match number of LoRA paths ({len(lora_paths)})"
+                    (
+                        "Number of LoRA weights ({weights}) must match number of LoRA paths "
+                        "({paths})"
+                    ).format(weights=len(lora_weights), paths=len(lora_paths))
                 )
 
         print(f"\nLoading {len(lora_paths)} LoRA(s):")
@@ -187,9 +190,9 @@ def main():
     print(f"  Guidance Scale: {guidance_scale}")
     if loaded_loras:
         if len(loaded_loras) == 1:
-            print(
-                f"  LoRA: {Path(loaded_loras[0]['path']).name} (weight: {loaded_loras[0]['weight']})"
-            )
+            single_lora = loaded_loras[0]
+            lora_name = Path(single_lora["path"]).name
+            print(f"  LoRA: {lora_name} (weight: {single_lora['weight']})")
         else:
             print(f"  LoRAs ({len(loaded_loras)}):")
             for lora in loaded_loras:

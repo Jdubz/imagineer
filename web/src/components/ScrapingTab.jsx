@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/ScrapingTab.css';
 
 function ScrapingTab({ isAdmin = false }) {
@@ -8,24 +8,7 @@ function ScrapingTab({ isAdmin = false }) {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
 
-  useEffect(() => {
-    if (!isAdmin) {
-      return;
-    }
-
-    fetchJobs();
-    fetchStats();
-
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(() => {
-      fetchJobs();
-      fetchStats();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isAdmin]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!isAdmin) return;
     try {
       const response = await fetch('/api/scraping/jobs', {
@@ -45,9 +28,9 @@ function ScrapingTab({ isAdmin = false }) {
       setError('Error fetching scrape jobs');
       console.error('Error fetching jobs:', err);
     }
-  };
+  }, [isAdmin]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     if (!isAdmin) return;
     try {
       const response = await fetch('/api/scraping/stats', {
@@ -60,7 +43,24 @@ function ScrapingTab({ isAdmin = false }) {
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    fetchJobs().catch((err) => console.error('Error refreshing jobs:', err));
+    fetchStats().catch((err) => console.error('Error refreshing stats:', err));
+
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      fetchJobs().catch((err) => console.error('Error refreshing jobs:', err));
+      fetchStats().catch((err) => console.error('Error refreshing stats:', err));
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchJobs, fetchStats, isAdmin]);
 
   const startScrape = async (url, name, description, depth, maxImages) => {
     if (!isAdmin) return;
