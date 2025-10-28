@@ -5,12 +5,13 @@ Training pipeline API endpoints
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 from server.auth import require_admin
 from server.database import Album, TrainingRun, db
-from server.tasks.training import cleanup_training_data, train_lora_task
+from server.tasks.training import cleanup_training_data, train_lora_task, training_log_path
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,11 @@ def create_training_run():
         return jsonify({"error": "At least one album must be specified"}), 400
 
     # Validate albums exist
-    album_ids = data["album_ids"]
+    try:
+        album_ids = [int(album_id) for album_id in data["album_ids"]]
+    except (TypeError, ValueError):
+        return jsonify({"error": "album_ids must be a list of integers"}), 400
+
     albums = Album.query.filter(Album.id.in_(album_ids)).all()
     if len(albums) != len(album_ids):
         return jsonify({"error": "One or more albums not found"}), 400
@@ -79,20 +84,59 @@ def create_training_run():
 
     config = load_config()
 
+    # Merge config overrides and persist album selections
+    config_overrides = data.get("config", {}) or {}
+    training_config = {**config_overrides, "album_ids": album_ids}
+
     # Create training run
     run = TrainingRun(
         name=data["name"],
         description=data.get("description", ""),
-        dataset_path="",  # Will be set by prepare_training_data
-        output_path=(
-            f"{config['model']['cache_dir']}/lora/trained_{len(TrainingRun.query.all()) + 1}"
-        ),
-        training_config=json.dumps(data.get("config", {})),
+        dataset_path="",
+        output_path="",
+        training_config=json.dumps(training_config),
         status="pending",
         progress=0,
     )
 
     db.session.add(run)
+    db.session.commit()
+
+    # Derive dataset/output locations now that the run has an ID
+    dataset_root = Path(config.get("dataset", {}).get("data_dir", "/tmp/imagineer/data/training"))
+    output_root = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
+
+    dataset_path = dataset_root / f"training_run_{run.id}"
+    fallback_dataset = Path(f"/tmp/imagineer/training/run_{run.id}")
+    output_path = output_root / f"trained_{run.id}"
+    fallback_output = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
+
+    try:
+        dataset_path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:  # pragma: no cover - depends on host FS
+        logger.warning(
+            "Unable to create dataset directory %s (%s); falling back to %s",
+            dataset_path,
+            exc,
+            fallback_dataset,
+        )
+        dataset_path = fallback_dataset
+        dataset_path.mkdir(parents=True, exist_ok=True)
+
+    try:
+        output_path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:  # pragma: no cover - depends on host FS
+        logger.warning(
+            "Unable to create output directory %s (%s); falling back to %s",
+            output_path,
+            exc,
+            fallback_output,
+        )
+        output_path = fallback_output
+        output_path.mkdir(parents=True, exist_ok=True)
+
+    run.dataset_path = str(dataset_path)
+    run.output_path = str(output_path)
     db.session.commit()
 
     logger.info(f"Created training run {run.id}: {run.name}")
@@ -167,15 +211,31 @@ def get_training_logs(run_id):
     """Get training logs (public)"""
     run = TrainingRun.query.get_or_404(run_id)
 
-    # For now, return basic info
-    # In a full implementation, you'd store logs in the database
+    log_path = training_log_path(run)
+
+    tail_lines = request.args.get("tail", 200, type=int)
+    tail_lines = max(tail_lines or 0, 0)
+
+    log_exists = log_path.exists()
+
+    if log_exists:
+        with log_path.open("r", encoding="utf-8") as log_file:
+            lines = log_file.readlines()
+        if tail_lines:
+            lines = lines[-tail_lines:]
+        log_body = "".join(lines)
+    else:
+        log_body = ""
+
     return jsonify(
         {
             "training_run_id": run_id,
             "status": run.status,
             "progress": run.progress,
             "error_message": run.error_message,
-            "logs": "Logs not yet implemented",  # TODO: Implement log storage
+            "log_path": str(log_path),
+            "log_available": log_exists,
+            "logs": log_body,
         }
     )
 

@@ -192,7 +192,10 @@ def main() -> None:
     imports = {"TypedDict", "NotRequired", "Required"}
     if "Literal[" in typeddict_body:
         imports.add("Literal")
-    if "Any" in typeddict_body:
+    # Use word boundary check to match 'Any' as a complete type annotation
+    import re
+
+    if re.search(r"\bAny\b", typeddict_body):
         imports.add("Any")
 
     import_items = ", ".join(sorted(imports))

@@ -17,6 +17,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import yaml
 from flask import Flask, jsonify, redirect, request, send_from_directory, session, url_for
@@ -72,8 +73,6 @@ if os.environ.get("FLASK_ENV") == "production":
 
 # Configure database
 # Use absolute path to ensure consistency
-import os.path  # noqa: E402
-
 db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "instance", "imagineer.db"))
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -197,11 +196,14 @@ def handle_500(e):
 def auth_login():
     """Initiate Google OAuth flow"""
     # Ensure redirect URI uses /api/ prefix for consistency
-    # url_for can be ambiguous with multiple routes, so construct explicitly
     redirect_uri = url_for("auth_callback", _external=True)
-    # Force /api/ prefix if it's missing
-    if "/api/auth/google/callback" not in redirect_uri:
-        redirect_uri = redirect_uri.replace("/auth/google/callback", "/api/auth/google/callback")
+
+    # Force /api/ prefix if it's missing (use urlparse for safe path manipulation)
+    parsed = urlparse(redirect_uri)
+    if parsed.path == "/auth/google/callback":
+        # Replace path with /api/ prefix
+        parsed = parsed._replace(path="/api/auth/google/callback")
+        redirect_uri = urlunparse(parsed)
 
     target = request.args.get("state") or request.args.get("next") or "/"
     session["login_redirect"] = target

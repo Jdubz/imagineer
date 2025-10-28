@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from server.celery_app import celery
+from server.constants import NSFW_BLUR_RATINGS
 from server.database import Album, AlbumImage, Image, Label, db
 
 logger = logging.getLogger(__name__)
@@ -21,8 +22,8 @@ def _apply_label_results(image: Image, result: Dict[str, Any]) -> None:
         result: Result dictionary from the labeling service.
     """
 
-    # Update NSFW flag based on rating
-    image.is_nsfw = result.get("nsfw_rating") in {"ADULT", "EXPLICIT"}
+    # Update NSFW flag based on rating (boolean: blur or not)
+    image.is_nsfw = result.get("nsfw_rating") in NSFW_BLUR_RATINGS
 
     # Persist caption if provided
     description = result.get("description")
