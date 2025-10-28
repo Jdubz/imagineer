@@ -5,6 +5,7 @@ SQLAlchemy models for image management, albums, and training data
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -302,6 +303,14 @@ def init_database(app):
     db.init_app(app)
 
     with app.app_context():
+        # Ensure instance directory exists for SQLite databases
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if db_uri.startswith("sqlite:///"):
+            db_path = db_uri.replace("sqlite:///", "")
+            db_file = Path(db_path)
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Ensured database directory exists: {db_file.parent}")
+
         # Create all tables
         db.create_all()
         logger.info("Database tables created successfully")
