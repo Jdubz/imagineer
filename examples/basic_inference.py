@@ -52,7 +52,10 @@ def main():
 
     if device == "cpu":
         print(
-            "WARNING: Running on CPU. This will be very slow. Install CUDA-enabled PyTorch for GPU acceleration."
+            (
+                "WARNING: Running on CPU. This will be very slow. "
+                "Install CUDA-enabled PyTorch for GPU acceleration."
+            )
         )
 
     # Load the model

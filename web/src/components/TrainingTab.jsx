@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/TrainingTab.css';
 
 const TrainingTab = ({ isAdmin = false }) => {
@@ -21,16 +21,7 @@ const TrainingTab = ({ isAdmin = false }) => {
     }
   });
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setLoading(false);
-      return;
-    }
-    fetchTrainingRuns();
-    fetchAlbums();
-  }, [isAdmin]);
-
-  const fetchTrainingRuns = async () => {
+  const fetchTrainingRuns = useCallback(async () => {
     if (!isAdmin) return;
     try {
       setLoading(true);
@@ -45,9 +36,9 @@ const TrainingTab = ({ isAdmin = false }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
 
-  const fetchAlbums = async () => {
+  const fetchAlbums = useCallback(async () => {
     if (!isAdmin) return;
     try {
       const response = await fetch('/api/training/albums', {
@@ -58,7 +49,16 @@ const TrainingTab = ({ isAdmin = false }) => {
     } catch (err) {
       console.error('Error fetching albums:', err);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+    fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err));
+    fetchAlbums().catch((err) => console.error('Error refreshing albums:', err));
+  }, [fetchAlbums, fetchTrainingRuns, isAdmin]);
 
   const handleCreateTraining = async (e) => {
     e.preventDefault();

@@ -54,7 +54,7 @@ def run_tests():
 
     try:
         # Run tests
-        result = subprocess.run(pytest_args, cwd=project_root, check=True)
+        subprocess.run(pytest_args, cwd=project_root, check=True)
         print("\n" + "=" * 50)
         print("✅ All tests passed!")
         return True
@@ -91,7 +91,7 @@ def run_specific_phase(phase):
     print("=" * 50)
 
     try:
-        result = subprocess.run(pytest_args, cwd=project_root, check=True)
+        subprocess.run(pytest_args, cwd=project_root, check=True)
         print(f"\n✅ Phase {phase} tests passed!")
         return True
     except subprocess.CalledProcessError as e:
