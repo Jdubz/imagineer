@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import yaml
-from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
@@ -280,9 +280,25 @@ def auth_callback():
             extra={"event": "authentication_success", "user_email": user.email, "role": user.role},
         )
 
-        # Redirect to frontend (assuming it's on same domain or configured origin)
-        frontend_url = session.pop("login_redirect", "/")
-        return redirect(frontend_url)
+        # Close the OAuth popup window (frontend will detect and refresh)
+        # The frontend polls for window.closed and then calls checkAuth()
+        return """
+        <html>
+            <head><title>Login Successful</title></head>
+            <body>
+                <script>
+                    // Close the popup window
+                    window.close();
+                    // Fallback if window.close() is blocked
+                    setTimeout(function() {
+                        var msg = '<h2>Login successful! You can close this window.</h2>';
+                        document.body.innerHTML = msg;
+                    }, 100);
+                </script>
+                <p>Login successful! Closing window...</p>
+            </body>
+        </html>
+        """
 
     except Exception as e:
         logger.error(f"OAuth callback error: {e}", exc_info=True)
