@@ -9,13 +9,13 @@
 
 The Imagineer project has made **substantial progress** on the core vision of a multi-user AI image generation and training platform. The majority of backend infrastructure and frontend UI components are in place. Outstanding work is primarily **bug fixes, integration gaps, and polish** rather than major new features.
 
-### Overall Progress: ~85% Complete
+### Overall Progress: ~92% Complete
 
 - ✅ **Phase 1 (Foundation & Security):** 95% complete
-- ✅ **Phase 2 (Album System):** 90% complete
-- ⚠️ **Phase 3 (AI Labeling):** 70% complete (backend done, frontend UI gaps)
-- ⚠️ **Phase 4 (Web Scraping):** 80% complete (configuration issue)
-- ⚠️ **Phase 5 (Training Pipeline):** 75% complete (state persistence issues)
+- ✅ **Phase 2 (Album System):** 95% complete
+- ✅ **Phase 3 (AI Labeling):** 90% complete (endpoints, UI, and async tests shipped)
+- ⚠️ **Phase 4 (Web Scraping):** 85% complete (progress telemetry polish pending)
+- ⚠️ **Phase 5 (Training Pipeline):** 85% complete (auto-registration shipped; needs usability polish)
 
 ---
 
@@ -45,18 +45,13 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - Shared type definitions (shared/schema/, server/shared_types.py)
    - Contract tests for backend/frontend alignment
 
+5. **Migration History Tracking**
+   - New `MigrationHistory` table records when maintenance scripts run
+   - `scripts/migrate_to_database.py` and `scripts/index_images.py` persist run summaries
+
 ### ⚠️ Outstanding Issues
 
-1. **Endpoint Duplication (HIGH PRIORITY)**
-   - Both `server/api.py` and `server/routes/images.py` expose image/thumbnail logic
-   - The blueprint version (routes/images.py) has the latest safety checks
-   - **Action:** Consolidate to use blueprints exclusively, remove duplicates from api.py
-
-2. **Migration History Tracking (MEDIUM)**
-   - Migration scripts exist but no marker to confirm execution in each environment
-   - **Action:** Add Alembic or simple migration flag/table
-
-3. **Secret Management**
+1. **Secret Management**
    - Environment variables properly enforced
    - ✅ No hardcoded secrets remain
    - ✅ FLASK_SECRET_KEY validation in production
@@ -120,23 +115,11 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### ⚠️ Outstanding Issues
 
-1. **Async Task Naming Mismatch (HIGH PRIORITY)**
-   - API returns 202 + task_id for async labeling
-   - Tests (tests/backend/test_phase3_labeling.py) assume synchronous execution
-   - Celery routing expects `server.tasks.labeling.*` but tasks registered as `tasks.*`
-   - **Action:** Align task names/routes, update tests to handle async flow
-
-2. **Frontend Labeling UI Missing (HIGH PRIORITY)**
-   - No LabelingPanel or batch labeling dialogs in React
-   - No `/api/labeling` API calls in frontend code
-   - Users cannot trigger labeling from UI
-   - **Action:** Add labeling UI to AlbumsTab or create dedicated LabelingTab
-
-3. **Label Analytics Missing (MEDIUM)**
+1. **Label Analytics (MEDIUM)**
    - No endpoints for label statistics, tag clouds, etc.
    - **Action:** Add if valuable for training workflows
 
-4. **Manual Tag Editing (LOW)**
+2. **Manual Tag Editing (LOW)**
    - Plan mentioned manual tag UI
    - **Action:** Future enhancement
 
@@ -164,12 +147,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### ⚠️ Outstanding Issues
 
-1. **SCRAPED_OUTPUT_PATH Not Initialized (CRITICAL)**
-   - `server/tasks/scraping.py:22` shows `SCRAPED_OUTPUT_PATH = None` at runtime
-   - Scraper will fail when invoked
-   - **Action:** Initialize from config.yaml or environment variable before launching scraper
-
-2. **Progress Reporting Minimal (LOW)**
+1. **Progress Reporting Minimal (LOW)**
    - Plan mentioned detailed scrape progress exposed to UI
    - Current implementation is basic
    - **Action:** Enhance if needed based on usage
@@ -198,44 +176,27 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### ⚠️ Outstanding Issues
 
-1. **Training Album Selection Not Persisting (CRITICAL)**
-   - Frontend sends album_ids in training config
-   - `train_lora_task` expects them but they're not persisted correctly
-   - Task fails with "No albums specified"
-   - **Action:** Fix TrainingRun.album_ids persistence in creation endpoint
+1. **Training UX Enhancements (MEDIUM)**
+   - Logs and dataset exports are available but lack documentation in the UI
+   - **Action:** Surface links/tooltips so admins know where to download assets
 
-2. **Training Logs Placeholder (HIGH)**
-   - Logs endpoint returns placeholder text
-   - Planned log storage/streaming not implemented
-   - **Action:** Capture subprocess output to file, serve via /api/training/runs/<id>/logs
-
-3. **LoRA Registration Missing (MEDIUM)**
-   - Trained LoRAs not automatically added to /api/loras list
-   - Manual registration required
-   - **Action:** Add post-training hook to index new LoRA files
-
-4. **Cleanup of Training Directories (LOW)**
-   - /tmp/training_* directories not cleaned up after completion
-   - **Action:** Add cleanup in task finally block
+2. **Training Directory Housekeeping (LOW)**
+   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention policy is TBD
+   - **Action:** Document retention expectations or add configurable policy if needed
 
 ---
 
 ## Cross-Cutting Issues
 
-### 1. Celery Task Routing (MEDIUM PRIORITY)
+### 1. Celery Task Routing
 
-**Problem:** Task naming inconsistency between registration and routing config
-
-- Celery routing expects `server.tasks.labeling.*`
-- Tasks registered as `tasks.*` (simplified names)
-
-**Action:** Standardize task naming, update celery_app.py routing
+✅ Resolved — tasks now register under the `server.tasks.*` namespace and routing aligns with configuration.
 
 ### 2. Test Coverage Gaps (MEDIUM PRIORITY)
 
 **Coverage Status:**
 - Backend: ~70% coverage (good)
-- Frontend: Vitest tests exist but admin UIs (Labeling, Scraping, Training) lack coverage
+- Frontend: Vitest tests now cover the labeling flow; ScrapingTab and TrainingTab admin dashboards still lack coverage
 
 **Action:** Add integration tests for admin workflows
 
@@ -274,63 +235,38 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🔴 Critical (Blocking Core Functionality)
 
-1. **Fix Training Album Persistence**
-   - File: server/routes/training.py or server/api.py (training creation endpoint)
-   - Issue: album_ids not saved to TrainingRun.album_ids
-   - Impact: Training jobs fail immediately
+- None. Previously blocking issues (training album persistence, SCRAPED_OUTPUT_PATH initialization, duplicate endpoint removal) are confirmed resolved as of 2025-10-28.
 
-2. **Initialize SCRAPED_OUTPUT_PATH**
-   - File: server/tasks/scraping.py:22
-   - Issue: Variable is None at runtime
-   - Impact: Scraping jobs fail when invoked
+### 🟡 High (Stabilization & Reliability)
 
-3. **Consolidate Duplicate Endpoints**
-   - Files: server/api.py vs server/routes/images.py
-   - Issue: Image/thumbnail logic duplicated
-   - Impact: Drift between implementations, maintenance burden
+1. **Add Admin UI Vitest Coverage**
+   - Files: `web/src/components/ScrapingTab.tsx`, `web/src/components/TrainingTab.tsx`, supporting hooks.
+   - Impact: Prevents regressions in scraping/training dashboards that currently lack automated coverage.
 
-### 🟡 High (Major Gaps)
+2. **Enrich Scraping Progress Telemetry**
+   - Files: `server/tasks/scraping.py`, `web/src/components/ScrapingTab.tsx`.
+   - Impact: Provide granular progress (per-stage metrics, error surfacing) to match roadmap expectations.
 
-4. **Implement Frontend Labeling UI**
-   - File: Create web/src/components/LabelingPanel.tsx or add to AlbumsTab
-   - Issue: No way to trigger labeling from UI
-   - Impact: Users can't label images without API calls
+### 🟢 Medium (Polish & UX)
 
-5. **Fix Celery Task Naming**
-   - Files: server/celery_app.py, server/tasks/*.py
-   - Issue: Routing expects `server.tasks.*` but tasks use `tasks.*`
-   - Impact: Tasks may not route to correct queues
+1. **Add Label Analytics & Manual Tag Editing**
+   - Files: extend labeling endpoints in `server/api.py` (or new blueprint) plus matching frontend surfaces.
+   - Impact: Enables dataset curation and manual corrections promised in earlier plans.
 
-6. **Implement Training Logs Streaming**
-   - File: server/routes/training.py, server/tasks/training.py
-   - Issue: Logs endpoint returns placeholder
-   - Impact: Users can't debug training failures
+2. **Surface Training Assets & Documentation in UI**
+   - Files: `web/src/components/TrainingTab.tsx`, admin docs.
+   - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
 
-### 🟢 Medium (Polish & Enhancement)
-
-7. **Add Async Test Coverage**
-   - File: tests/backend/test_phase3_labeling.py
-   - Issue: Tests assume sync, API is async
-   - Impact: Tests don't validate actual behavior
-
-8. **Auto-Register Trained LoRAs**
-   - File: server/tasks/training.py (post-training hook)
-   - Issue: Manual registration needed
-   - Impact: UX friction
-
-9. **Add Migration History Tracking**
-   - Create: Alembic migrations or simple flag table
-   - Issue: No way to verify migrations ran
-   - Impact: Deployment uncertainty
+3. **Formalize Training Data Retention Policy**
+   - Files: `server/tasks/training.py`, operations docs.
+   - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
 
 ### 🔵 Low (Future Enhancements)
 
-10. **Add Album Analytics**
-11. **Add Image Search**
-12. **Add Label Statistics**
-13. **Add Training Directory Cleanup**
-14. **Add OpenAPI Documentation**
-15. **Add Monitoring Integration**
+1. **Add Album Analytics**
+2. **Add Image Search**
+3. **Publish API/OpenAPI Documentation**
+4. **Integrate Monitoring/Alerting (e.g., Sentry)**
 
 ---
 
@@ -339,18 +275,17 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 ### Backend Testing
 - ✅ Unit tests for models, services
 - ✅ Route tests for most endpoints
-- ⚠️ Async task tests need update
-- ⚠️ End-to-end workflow tests missing
+- ⚠️ End-to-end workflow tests still minimal
 
 ### Frontend Testing
 - ✅ Component tests for Generate/Gallery
-- ❌ Admin UI tests missing (Albums, Scraping, Training)
+- ⚠️ Admin UI tests exist for labeling but are still missing for scraping/training
 - ❌ Integration tests with backend missing
 
 ### Recommended Additions
 1. E2E tests for full training workflow (album → label → train → use LoRA)
 2. E2E tests for scraping workflow (scrape → label → organize)
-3. Admin UI component tests (Vitest)
+3. Extend Vitest coverage to ScrapingTab/TrainingTab admin flows
 
 ---
 
@@ -375,23 +310,16 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ## Conclusion
 
-The Imagineer platform is **nearly feature-complete** according to the REVISED_IMPROVEMENT_PLAN. The remaining work is primarily:
+The Imagineer platform now delivers the MVP workflows end-to-end. Focus shifts from unblockers to polish:
 
-1. **Bug fixes** (album persistence, output paths)
-2. **Integration gaps** (frontend labeling UI, async test updates)
-3. **Polish** (logs streaming, auto-registration, cleanup)
+1. Usability/documentation for admins (training & scraping telemetry)
+2. Additional analytics/search features as future enhancements
+3. Broader automated test coverage and operational tooling (migrations, monitoring)
 
-With **2-3 days of focused work**, the platform can reach a fully functional state where all planned workflows (generation, albums, labeling, scraping, training) work end-to-end.
-
-**Recommended Focus:**
-1. Day 1: Fix critical blockers (#1, #2, #3)
-2. Day 2: Add frontend labeling UI (#4), fix async issues (#5)
-3. Day 3: Implement logs streaming (#6), add LoRA registration (#8)
-
-This will result in a **production-ready MVP** with all core features operational.
+No blocking defects remain; future work can be prioritized based on product goals rather than remediation.
 
 ---
 
-**Document Version:** 1.0
-**Author:** Claude Code (Sonnet 4.5)
-**Next Review:** After completing critical fixes (items #1-#3)
+**Document Version:** 1.1
+**Author:** Imagineer Team
+**Next Review:** After implementing the high-priority polish items above

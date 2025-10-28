@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import yaml
-from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
@@ -110,9 +110,10 @@ if os.environ.get("FLASK_ENV") == "production":
             "style-src": ["'self'", "'unsafe-inline'"],
             "img-src": ["'self'", "data:", "*.googleusercontent.com"],
             "connect-src": ["'self'"],
-            "frame-src": ["'none'"],
+            "frame-src": ["accounts.google.com"],  # Allow Google OAuth iframe
         },
-        frame_options="DENY",
+        frame_options="SAMEORIGIN",  # Allow same-origin frames for OAuth
+        content_security_policy_nonce_in=["script-src"],
     )
 
 # Initialize authentication
@@ -171,10 +172,29 @@ def after_request(response):
         },
     )
 
+    # Add COOP header for OAuth popup support (same-origin allows popup communication)
+    if request.path.startswith("/api/auth") or request.path.startswith("/auth"):
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+
     return response
 
 
 # Add specific error handlers
+@app.errorhandler(404)
+def handle_404(e):
+    """Handle 404 errors"""
+    logger.warning(
+        f"404 Not Found: {request.method} {request.url}",
+        extra={
+            "operation": "error_404",
+            "path": request.path,
+            "url": request.url,
+            "referrer": request.referrer,
+        },
+    )
+    return jsonify({"error": "Not found", "path": request.path}), 404
+
+
 @app.errorhandler(500)
 def handle_500(e):
     """Handle 500 errors"""
@@ -195,19 +215,25 @@ def handle_500(e):
 @app.route("/auth/login")
 def auth_login():
     """Initiate Google OAuth flow"""
-    # Ensure redirect URI uses /api/ prefix for consistency
-    redirect_uri = url_for("auth_callback", _external=True)
+    try:
+        # Ensure redirect URI uses /api/ prefix for consistency
+        redirect_uri = url_for("auth_callback", _external=True)
 
-    # Force /api/ prefix if it's missing (use urlparse for safe path manipulation)
-    parsed = urlparse(redirect_uri)
-    if parsed.path == "/auth/google/callback":
-        # Replace path with /api/ prefix
-        parsed = parsed._replace(path="/api/auth/google/callback")
-        redirect_uri = urlunparse(parsed)
+        # Force /api/ prefix if it's missing (use urlparse for safe path manipulation)
+        parsed = urlparse(redirect_uri)
+        if parsed.path == "/auth/google/callback":
+            # Replace path with /api/ prefix
+            parsed = parsed._replace(path="/api/auth/google/callback")
+            redirect_uri = urlunparse(parsed)
 
-    target = request.args.get("state") or request.args.get("next") or "/"
-    session["login_redirect"] = target
-    return google.authorize_redirect(redirect_uri)
+        logger.info(f"OAuth login initiated. Redirect URI: {redirect_uri}")
+
+        target = request.args.get("state") or request.args.get("next") or "/"
+        session["login_redirect"] = target
+        return google.authorize_redirect(redirect_uri)
+    except Exception as e:
+        logger.error(f"OAuth login error: {e}", exc_info=True)
+        return jsonify({"error": "Failed to initiate OAuth login", "details": str(e)}), 500
 
 
 @app.route("/api/auth/google/callback")
@@ -254,9 +280,25 @@ def auth_callback():
             extra={"event": "authentication_success", "user_email": user.email, "role": user.role},
         )
 
-        # Redirect to frontend (assuming it's on same domain or configured origin)
-        frontend_url = session.pop("login_redirect", "/")
-        return redirect(frontend_url)
+        # Close the OAuth popup window (frontend will detect and refresh)
+        # The frontend polls for window.closed and then calls checkAuth()
+        return """
+        <html>
+            <head><title>Login Successful</title></head>
+            <body>
+                <script>
+                    // Close the popup window
+                    window.close();
+                    // Fallback if window.close() is blocked
+                    setTimeout(function() {
+                        var msg = '<h2>Login successful! You can close this window.</h2>';
+                        document.body.innerHTML = msg;
+                    }, 100);
+                </script>
+                <p>Login successful! Closing window...</p>
+            </body>
+        </html>
+        """
 
     except Exception as e:
         logger.error(f"OAuth callback error: {e}", exc_info=True)

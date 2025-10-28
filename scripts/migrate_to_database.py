@@ -4,7 +4,6 @@ Migration script to import existing images from /mnt/speedy/imagineer/outputs to
 """
 
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -12,9 +11,11 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flask import Flask
+from flask import Flask  # noqa: E402
 
-from server.database import Album, AlbumImage, Image, db
+from server.database import Album, AlbumImage, Image, MigrationHistory, db  # noqa: E402
+
+MIGRATION_MARKER_NAME = "filesystem_outputs_import_v1"
 
 
 def create_app():
@@ -57,6 +58,17 @@ def migrate_images():
     with app.app_context():
         # Create tables if they don't exist
         db.create_all()
+
+        existing_marker = MigrationHistory.query.filter_by(name=MIGRATION_MARKER_NAME).first()
+        if existing_marker:
+            applied = (
+                existing_marker.applied_at.isoformat() if existing_marker.applied_at else "unknown"
+            )
+            print(
+                f"Migration '{MIGRATION_MARKER_NAME}' has already been recorded "
+                f"(first applied at {applied}). Skipping import."
+            )
+            return
 
         # Base paths
         outputs_dir = Path("/mnt/speedy/imagineer/outputs")
@@ -139,14 +151,24 @@ def migrate_images():
             total_albums += 1
 
         # Commit all changes
+        migration_summary = json.dumps(
+            {
+                "total_albums": total_albums,
+                "total_images": total_images,
+                "script": "scripts/migrate_to_database.py",
+                "recorded_at": datetime.utcnow().isoformat() + "Z",
+            }
+        )
+        MigrationHistory.ensure_record(MIGRATION_MARKER_NAME, details=migration_summary)
         db.session.commit()
 
-        print(f"\nMigration completed!")
+        print("\nMigration completed!")
         print(f"  Albums created: {total_albums}")
         print(f"  Images imported: {total_images}")
+        print(f"  Recorded migration marker: {MIGRATION_MARKER_NAME}")
 
         # Show summary
-        print(f"\nDatabase summary:")
+        print("\nDatabase summary:")
         print(f"  Total albums: {Album.query.count()}")
         print(f"  Total images: {Image.query.count()}")
         print(f"  Total album-image relationships: {AlbumImage.query.count()}")
