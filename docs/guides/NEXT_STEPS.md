@@ -558,7 +558,7 @@ See also:
 ## Notes
 
 - **Dependencies:** Keep dependencies updated monthly
-- **Security:** Review security advisories via Dependabot
+- **Security:** Review security advisories manually during scheduled dependency audits
 - **Backups:** Regular backups of `/mnt/speedy/imagineer/`
 - **Community:** Respond to issues within 48 hours
 

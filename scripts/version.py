@@ -99,21 +99,43 @@ def update_pyproject_toml(version):
     print(f"✅ Updated pyproject.toml to version {version}")
 
 
+def _existing_version_files():
+    """Return list of version-managed files that currently exist."""
+    candidates = [Path("VERSION"), Path("web/package.json"), Path("pyproject.toml")]
+    return [str(path) for path in candidates if path.exists()]
+
+
+def commit_version_change(version, message=None):
+    """Commit updated version files to git."""
+    commit_message = message or f"chore: bump version to {version}"
+    files_to_stage = _existing_version_files()
+
+    if not files_to_stage:
+        print("⚠️  No version-controlled files detected to commit.")
+        return False
+
+    try:
+        subprocess.run(["git", "add", *files_to_stage], check=True)
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        print(f"✅ Created commit '{commit_message}'")
+        return True
+    except subprocess.CalledProcessError as error:
+        print(f"❌ Git commit failed: {error}")
+        return False
+
+
 def create_git_tag(version, message=None):
-    """Create git tag for version"""
+    """Create annotated git tag for version."""
     if message is None:
         message = f"Release version {version}"
 
     try:
-        subprocess.run(["git", "add", "VERSION", "web/package.json", "pyproject.toml"], check=True)
-        subprocess.run(["git", "commit", "-m", f"Bump version to {version}"], check=True)
         subprocess.run(["git", "tag", "-a", f"v{version}", "-m", message], check=True)
         print(f"✅ Created git tag v{version}")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git operation failed: {e}")
+        return True
+    except subprocess.CalledProcessError as error:
+        print(f"❌ Git tag failed: {error}")
         return False
-
-    return True
 
 
 def get_build_info():
@@ -132,6 +154,52 @@ def get_build_info():
         "git_hash": git_hash,
         "build_id": f"{version}-{timestamp}-{git_hash}",
     }
+
+
+def command_current(_):
+    print(get_current_version())
+
+
+def command_bump(args):
+    new_version = bump_version(args.part)
+    update_package_json(new_version)
+    update_pyproject_toml(new_version)
+    if args.no_git or commit_version_change(new_version):
+        print(f"🎉 Version bumped to {new_version}")
+    else:
+        sys.exit(1)
+
+
+def command_set(args):
+    if not args.version:
+        print("❌ --version required for set command")
+        sys.exit(1)
+    set_version(args.version)
+    update_package_json(args.version)
+    update_pyproject_toml(args.version)
+    if args.no_git or commit_version_change(args.version):
+        print(f"🎉 Version set to {args.version}")
+    else:
+        sys.exit(1)
+
+
+def command_tag(args):
+    version = get_current_version()
+    if args.no_git:
+        print(f"ℹ️  Would tag version {version} (--no-git specified)")
+        return
+    if create_git_tag(version, args.message):
+        print(f"🎉 Tagged version {version}")
+    else:
+        sys.exit(1)
+
+
+def command_build_info(_):
+    info = get_build_info()
+    print(f"Version: {info['version']}")
+    print(f"Timestamp: {info['timestamp']}")
+    print(f"Git Hash: {info['git_hash']}")
+    print(f"Build ID: {info['build_id']}")
 
 
 def main():
@@ -153,40 +221,15 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "current":
-        print(get_current_version())
+    handlers = {
+        "current": command_current,
+        "bump": command_bump,
+        "set": command_set,
+        "tag": command_tag,
+        "build-info": command_build_info,
+    }
 
-    elif args.command == "bump":
-        new_version = bump_version(args.part)
-        update_package_json(new_version)
-        update_pyproject_toml(new_version)
-        print(f"🎉 Version bumped to {new_version}")
-
-    elif args.command == "set":
-        if not args.version:
-            print("❌ --version required for set command")
-            sys.exit(1)
-        set_version(args.version)
-        update_package_json(args.version)
-        update_pyproject_toml(args.version)
-        print(f"🎉 Version set to {args.version}")
-
-    elif args.command == "tag":
-        version = get_current_version()
-        if not args.no_git:
-            if create_git_tag(version, args.message):
-                print(f"🎉 Tagged version {version}")
-            else:
-                sys.exit(1)
-        else:
-            print(f"ℹ️  Would tag version {version} (--no-git specified)")
-
-    elif args.command == "build-info":
-        info = get_build_info()
-        print(f"Version: {info['version']}")
-        print(f"Timestamp: {info['timestamp']}")
-        print(f"Git Hash: {info['git_hash']}")
-        print(f"Build ID: {info['build_id']}")
+    handlers[args.command](args)
 
 
 if __name__ == "__main__":

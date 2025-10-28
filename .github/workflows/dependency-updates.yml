@@ -126,7 +126,7 @@ jobs:
           echo "1. Review outdated packages and update as needed" >> dependency-report.md
           echo "2. Address security vulnerabilities immediately" >> dependency-report.md
           echo "3. Test thoroughly after updates" >> dependency-report.md
-          echo "4. Consider using Dependabot for automated updates" >> dependency-report.md
+          echo "4. Schedule manual reviews before pulling in major updates" >> dependency-report.md
 
       - name: Upload dependency reports
         uses: actions/upload-artifact@v4
