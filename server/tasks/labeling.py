@@ -62,7 +62,7 @@ def label_image_task(self, image_id: int, prompt_type: str = "default") -> Dict[
     from server.services.labeling_cli import label_image_with_claude
 
     with app.app_context():
-        image = Image.query.get(image_id)
+        image = db.session.get(Image, image_id)
         if not image:
             logger.error("Image %s not found for labeling task", image_id)
             return {"status": "error", "message": "Image not found"}
@@ -108,7 +108,7 @@ def label_album_task(
     from server.services.labeling_cli import label_image_with_claude
 
     with app.app_context():
-        album = Album.query.get(album_id)
+        album = db.session.get(Album, album_id)
         if not album:
             logger.error("Album %s not found for labeling task", album_id)
             return {"status": "error", "message": "Album not found"}
