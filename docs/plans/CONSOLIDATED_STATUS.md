@@ -238,13 +238,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟡 High (Stabilization & Reliability)
 
-1. **Surface Training Assets & Documentation in UI**
-   - Files: `web/src/components/TrainingTab.tsx`, admin docs.
-   - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
-
-2. **Formalize Training Data Retention Policy**
-   - Files: `server/tasks/training.py`, operations docs.
-   - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
+1. **Automate Training Data Retention**
+   - Files: `server/tasks/training.py`, scheduler tooling, infra docs.
+   - Impact: Manual workflow documented in `docs/guides/TRAINING_OPERATIONS.md`; consider cron/automation to prune old checkpoints.
 
 ### 🟢 Medium (Polish & UX)
 
@@ -291,6 +287,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 - ARCHITECTURE.md - System overview, recently updated
 - API.md - API endpoint reference
 - CLAUDE.md - Claude Code instructions
+- guides/TRAINING_OPERATIONS.md - Day-to-day training management (assets, logs, retention)
 
 ### ⚠️ Needs Update
 - NEXT_STEPS.md - Some sections complete (OAuth), others still relevant

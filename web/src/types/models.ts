@@ -142,18 +142,23 @@ export interface TrainingDataset {
 }
 
 export interface TrainingJob {
-  id: string
+  id: number
+  name: string
+  description?: string | null
   status: JobStatus
-  dataset: string
-  output_name: string
-  steps: number
-  rank: number
-  learning_rate: number
+  dataset_path?: string | null
+  output_path?: string | null
+  training_config?: string | Record<string, unknown> | null
   created_at: string
-  started_at?: string
-  completed_at?: string
-  error?: string
-  progress?: number
+  started_at?: string | null
+  completed_at?: string | null
+  error_message?: string | null
+  error?: string | null
+  progress?: number | null
+  final_checkpoint?: string | null
+  training_loss?: number | null
+  validation_loss?: number | null
+  last_error_at?: string | null
 }
 
 export interface ScrapingJobRuntime {

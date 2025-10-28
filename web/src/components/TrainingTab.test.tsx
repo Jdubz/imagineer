@@ -31,16 +31,24 @@ describe('TrainingTab', () => {
 
   it('loads training runs and albums for admins', async () => {
     const trainingRun = {
-      id: 'run-1',
+      id: 1,
+      name: 'deck-model',
+      description: 'Test deck training',
       status: 'running',
-      output_name: 'deck-model',
-      dataset: 'training_run_1',
-      steps: 1000,
-      rank: 4,
-      learning_rate: 0.0001,
+      dataset_path: '/tmp/imagineer/data/training/training_run_1',
+      output_path: '/tmp/imagineer/models/lora/trained_1',
+      final_checkpoint: '/tmp/imagineer/models/lora/trained_1/model.safetensors',
+      training_config: JSON.stringify({
+        steps: 1000,
+        rank: 4,
+        learning_rate: 0.0001,
+        batch_size: 1,
+        album_ids: [123, 456],
+      }),
       created_at: new Date('2025-10-20T12:00:00Z').toISOString(),
       started_at: new Date('2025-10-20T12:05:00Z').toISOString(),
       progress: 25,
+      error_message: null,
     }
 
     const albumsResponse = {
@@ -74,21 +82,34 @@ describe('TrainingTab', () => {
     })
 
     expect(await screen.findByText(/deck-model/i)).toBeInTheDocument()
+    expect(screen.getByText(/dataset directory/i)).toBeInTheDocument()
+    expect(screen.getByText(/\/tmp\/imagineer\/data\/training\/training_run_1/i)).toBeInTheDocument()
+    expect(screen.getByText(/output directory/i)).toBeInTheDocument()
+    expect(screen.getByText(/final checkpoint/i)).toBeInTheDocument()
+    expect(screen.getByText(/albums: 123, 456/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /view logs/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /create training run/i })).toBeInTheDocument()
   })
 
   it('opens the log viewer and displays streamed logs', async () => {
     const trainingRun = {
-      id: 'run-logs',
+      id: 2,
+      name: 'log-model',
+      description: '',
       status: 'running',
-      output_name: 'log-model',
-      dataset: 'training_run_logs',
-      steps: 1000,
-      rank: 4,
-      learning_rate: 0.0001,
+      dataset_path: '/tmp/imagineer/data/training/run_logs',
+      output_path: '/tmp/imagineer/models/lora/run_logs',
+      final_checkpoint: null,
+      training_config: {
+        steps: 750,
+        rank: 8,
+        learning_rate: 0.00005,
+        batch_size: 2,
+        album_ids: ['album-1'],
+      },
       created_at: new Date().toISOString(),
       progress: 10,
+      error_message: null,
     }
 
     mockFetch
@@ -134,7 +155,7 @@ describe('TrainingTab', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/training/run-logs/logs?tail=500',
+        '/api/training/2/logs?tail=500',
         expect.objectContaining({
           credentials: 'include',
         }),
@@ -142,5 +163,6 @@ describe('TrainingTab', () => {
     })
 
     expect(await screen.findByText(/epoch 1 - loss: 0\.123/i)).toBeInTheDocument()
+    expect(screen.getByText(/\/tmp\/imagineer\/data\/training\/run_logs/i)).toBeInTheDocument()
   })
 })
