@@ -274,13 +274,13 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### Frontend Testing
 - ✅ Component tests for Generate/Gallery
-- ⚠️ Admin UI tests exist for labeling but are still missing for scraping/training
+- ✅ Admin UI tests exercise labeling, scraping, and training dashboards
 - ❌ Integration tests with backend missing
 
 ### Recommended Additions
 1. E2E tests for full training workflow (album → label → train → use LoRA)
 2. E2E tests for scraping workflow (scrape → label → organize)
-3. Extend Vitest coverage to ScrapingTab/TrainingTab admin flows
+3. Extend Vitest coverage to ScrapingTab/TrainingTab admin flows  _(✅ completed 2025-10-28; keep E2E focus next)_
 
 ---
 
