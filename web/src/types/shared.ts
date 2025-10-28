@@ -10,4 +10,6 @@ export interface AuthStatus {
   picture?: string | null;
   role?: string | null;
   is_admin?: boolean | null;
+  error?: string | null;
+  message?: string | null;
 }

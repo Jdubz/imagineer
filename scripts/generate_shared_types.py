@@ -192,7 +192,7 @@ def main() -> None:
     imports = {"TypedDict", "NotRequired", "Required"}
     if "Literal[" in typeddict_body:
         imports.add("Literal")
-    if " Any" in typeddict_body or "Any[" in typeddict_body:
+    if "Any" in typeddict_body:
         imports.add("Any")
 
     import_items = ", ".join(sorted(imports))

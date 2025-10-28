@@ -22,7 +22,7 @@ TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
 SCRAPED_OUTPUT_PATH = None
 
 
-@celery.task(bind=True, name="tasks.scrape_site")
+@celery.task(bind=True, name="server.tasks.scraping.scrape_site")
 def scrape_site_task(self, scrape_job_id):  # noqa: C901
     """
     Execute web scraping job using training-data project.
@@ -292,7 +292,7 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     return {"imported": imported_count, "skipped": skipped_count, "album_id": album.id}
 
 
-@celery.task(name="tasks.cleanup_scrape_job")
+@celery.task(name="server.tasks.scraping.cleanup_scrape_job")
 def cleanup_scrape_job(scrape_job_id):
     """
     Clean up old scrape job data and files.

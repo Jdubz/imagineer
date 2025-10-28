@@ -66,7 +66,10 @@ describe('AuthButton', () => {
     expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/auth/me',
-      expect.objectContaining({ credentials: 'include' }),
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      }),
     )
   })
 
@@ -96,12 +99,18 @@ describe('AuthButton', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       '/api/auth/me',
-      expect.objectContaining({ credentials: 'include' }),
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/auth/logout',
-      expect.objectContaining({ credentials: 'include' }),
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      }),
     )
   })
 
@@ -138,5 +147,26 @@ describe('AuthButton', () => {
     })
     expect(screen.queryByText(/unable to verify/i)).not.toBeInTheDocument()
   })
-})
 
+  it('shows backend-provided error message when auth check fails server-side', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      createResponse(
+        {
+          authenticated: false,
+          error: 'AUTH_STATUS_ERROR',
+          message: 'Failed to determine authentication status.'
+        },
+        {
+          ok: false,
+          status: 500
+        }
+      )
+    )
+
+    render(<AuthButton />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to determine authentication status/i)).toBeInTheDocument()
+    })
+  })
+})

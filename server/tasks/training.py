@@ -16,7 +16,7 @@ from server.database import Album, AlbumImage, Image, TrainingRun, db
 logger = logging.getLogger(__name__)
 
 
-@celery.task(bind=True, name="tasks.train_lora")
+@celery.task(bind=True, name="server.tasks.training.train_lora")
 def train_lora_task(self, training_run_id):  # noqa: C901
     """
     Execute LoRA training from albums.
@@ -252,7 +252,7 @@ def prepare_training_data(training_run):
     return training_dir
 
 
-@celery.task(name="tasks.cleanup_training_data")
+@celery.task(name="server.tasks.training.cleanup_training_data")
 def cleanup_training_data(training_run_id):
     """
     Clean up temporary training data.
