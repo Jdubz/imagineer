@@ -211,38 +211,17 @@ def label_image_with_claude(image_path: str, prompt_type: str = "default") -> Di
 
 
 def batch_label_images(image_paths, prompt_type="default", progress_callback=None):
-    """
-    Label multiple images in batch using Docker containers
-
-    Args:
-        image_paths: List of image file paths
-        prompt_type: Type of prompt to use
-        progress_callback: Optional callback for progress updates
-
-    Returns:
-        Dict with batch results
-    """
-    try:
-        labeler = ClaudeCliLabeler()
-    except Exception as e:
-        logger.error(f"Failed to initialize labeler: {e}")
-        return {
-            "total": len(image_paths),
-            "success": 0,
-            "failed": len(image_paths),
-            "results": [{"status": "error", "message": str(e)} for _ in image_paths],
-        }
-
+    """Label multiple images in batch using Docker containers."""
     results = {"total": len(image_paths), "success": 0, "failed": 0, "results": []}
 
-    for i, image_path in enumerate(image_paths):
+    for index, image_path in enumerate(image_paths):
         if progress_callback:
-            progress_callback(i + 1, len(image_paths))
+            progress_callback(index + 1, len(image_paths))
 
-        result = labeler.label_image(image_path, prompt_type)
+        result = label_image_with_claude(image_path, prompt_type)
         result["image_path"] = image_path
 
-        if result["status"] == "success":
+        if result.get("status") == "success":
             results["success"] += 1
         else:
             results["failed"] += 1

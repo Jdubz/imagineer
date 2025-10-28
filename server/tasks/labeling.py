@@ -59,7 +59,7 @@ def label_image_task(self, image_id: int, prompt_type: str = "default") -> Dict[
         prompt_type: Prompt template to use.
     """
     from server.api import app
-    from server.services.labeling_cli import label_image_with_claude
+    from server.services.labeling import label_image_with_claude
 
     with app.app_context():
         image = db.session.get(Image, image_id)
@@ -105,7 +105,7 @@ def label_album_task(
         force: If True, relabel images even if labels already exist.
     """
     from server.api import app
-    from server.services.labeling_cli import label_image_with_claude
+    from server.services.labeling import label_image_with_claude
 
     with app.app_context():
         album = db.session.get(Album, album_id)
