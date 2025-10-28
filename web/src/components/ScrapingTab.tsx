@@ -259,7 +259,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
 
                 {job.status === 'running' && (
                   <div className="progress-section">
-                    {job.images_scraped > 0 && (
+                    {job.images_scraped != null && job.images_scraped > 0 && (
                       <div className="stats">
                         <span>Images scraped: {job.images_scraped}</span>
                       </div>
