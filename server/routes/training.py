@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, abort, jsonify, request
 
 from server.auth import require_admin
 from server.database import Album, TrainingRun, db
