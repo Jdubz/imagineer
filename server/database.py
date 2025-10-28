@@ -298,6 +298,61 @@ class TrainingRun(db.Model):
         }
 
 
+class MigrationHistory(db.Model):
+    """Record of one-off migration or import scripts that have been executed."""
+
+    __tablename__ = "migration_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, unique=True)
+    applied_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    last_run_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    details = db.Column(db.Text)
+
+    @classmethod
+    def has_run(cls, name: str) -> bool:
+        """Return True when a migration with the supplied name has been recorded."""
+        return cls.query.filter_by(name=name).first() is not None
+
+    @classmethod
+    def ensure_record(
+        cls,
+        name: str,
+        *,
+        details: str | None = None,
+        refresh_timestamp: bool = False,
+    ) -> "MigrationHistory":
+        """
+        Retrieve or create the execution record for a named migration.
+
+        Args:
+            name: Stable identifier for the migration/import script.
+            details: Optional JSON/text payload describing the run outcome.
+            refresh_timestamp: When True, update ``last_run_at`` to the current time
+                so repeated executions are visible.
+        """
+        entry = cls.query.filter_by(name=name).first()
+        if entry:
+            if refresh_timestamp:
+                entry.last_run_at = utcnow()
+            if details and entry.details != details:
+                entry.details = details
+            return entry
+
+        entry = cls(name=name, details=details)
+        db.session.add(entry)
+        return entry
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "applied_at": self.applied_at.isoformat() if self.applied_at else None,
+            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
+            "details": self.details,
+        }
+
+
 def init_database(app):
     """Initialize database with Flask app"""
     db.init_app(app)

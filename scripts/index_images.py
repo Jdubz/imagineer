@@ -16,7 +16,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from flask import Flask  # noqa: E402
 
-from server.database import Image, db  # noqa: E402
+from server.database import Image, MigrationHistory, db  # noqa: E402
+
+INDEX_MARKER_NAME = "image_indexing_v1"
 
 
 def create_app():
@@ -124,6 +126,20 @@ def index_images(outputs_dir):  # noqa: C901
 
     # Commit all changes
     try:
+        indexing_summary = json.dumps(
+            {
+                "added": added_count,
+                "skipped": skipped_count,
+                "errors": error_count,
+                "script": "scripts/index_images.py",
+                "recorded_at": datetime.utcnow().isoformat() + "Z",
+            }
+        )
+        MigrationHistory.ensure_record(
+            INDEX_MARKER_NAME,
+            details=indexing_summary,
+            refresh_timestamp=True,
+        )
         db.session.commit()
         print()
         print("=" * 70)

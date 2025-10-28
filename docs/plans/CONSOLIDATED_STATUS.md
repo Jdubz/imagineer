@@ -45,13 +45,13 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - Shared type definitions (shared/schema/, server/shared_types.py)
    - Contract tests for backend/frontend alignment
 
+5. **Migration History Tracking**
+   - New `MigrationHistory` table records when maintenance scripts run
+   - `scripts/migrate_to_database.py` and `scripts/index_images.py` persist run summaries
+
 ### ⚠️ Outstanding Issues
 
-1. **Migration History Tracking (MEDIUM)**
-   - Migration scripts exist but no marker to confirm execution in each environment
-   - **Action:** Add Alembic or simple migration flag/table
-
-2. **Secret Management**
+1. **Secret Management**
    - Environment variables properly enforced
    - ✅ No hardcoded secrets remain
    - ✅ FLASK_SECRET_KEY validation in production
@@ -239,38 +239,34 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟡 High (Stabilization & Reliability)
 
-1. **Introduce Migration History Tracking**
-   - Create: Alembic migrations or a migrations_executed table/flag.
-   - Impact: Guarantees environments know which schema revisions have run.
-
-2. **Add Admin UI Vitest Coverage**
+1. **Add Admin UI Vitest Coverage**
    - Files: `web/src/components/ScrapingTab.tsx`, `web/src/components/TrainingTab.tsx`, supporting hooks.
    - Impact: Prevents regressions in scraping/training dashboards that currently lack automated coverage.
 
-3. **Enrich Scraping Progress Telemetry**
+2. **Enrich Scraping Progress Telemetry**
    - Files: `server/tasks/scraping.py`, `web/src/components/ScrapingTab.tsx`.
    - Impact: Provide granular progress (per-stage metrics, error surfacing) to match roadmap expectations.
 
 ### 🟢 Medium (Polish & UX)
 
-4. **Add Label Analytics & Manual Tag Editing**
+1. **Add Label Analytics & Manual Tag Editing**
    - Files: extend labeling endpoints in `server/api.py` (or new blueprint) plus matching frontend surfaces.
    - Impact: Enables dataset curation and manual corrections promised in earlier plans.
 
-5. **Surface Training Assets & Documentation in UI**
+2. **Surface Training Assets & Documentation in UI**
    - Files: `web/src/components/TrainingTab.tsx`, admin docs.
    - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
 
-6. **Formalize Training Data Retention Policy**
+3. **Formalize Training Data Retention Policy**
    - Files: `server/tasks/training.py`, operations docs.
    - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
 
 ### 🔵 Low (Future Enhancements)
 
-7. **Add Album Analytics**
-8. **Add Image Search**
-9. **Publish API/OpenAPI Documentation**
-10. **Integrate Monitoring/Alerting (e.g., Sentry)**
+1. **Add Album Analytics**
+2. **Add Image Search**
+3. **Publish API/OpenAPI Documentation**
+4. **Integrate Monitoring/Alerting (e.g., Sentry)**
 
 ---
 
