@@ -11,9 +11,6 @@ RUN chown node:node /workspace
 # Switch to non-root user
 USER node
 
-# Set API key at runtime via environment variable
-ENV ANTHROPIC_API_KEY=""
-
 # Health check
 HEALTHCHECK CMD claude --version || exit 1
 

@@ -5,7 +5,7 @@ Web scraping API endpoints
 import json
 import logging
 
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, abort, jsonify, request
 
 from server.auth import require_admin
 from server.database import ScrapeJob, db

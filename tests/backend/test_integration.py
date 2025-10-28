@@ -78,7 +78,7 @@ class TestCompleteWorkflow:
             assert album_data["images"][0]["id"] == image_id
 
     @patch("server.api.label_image_task.delay")
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_complete_labeling_workflow(self, mock_label, mock_delay, client, mock_admin_auth):
         """Test complete labeling workflow with database updates"""
         mock_label.return_value = {
@@ -141,7 +141,7 @@ class TestCompleteWorkflow:
             assert "square" in tag_texts
 
     @patch("server.api.label_album_task.delay")
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_batch_labeling_workflow(self, mock_label_image, mock_delay, client, mock_admin_auth):
         """Test batch labeling workflow for entire album"""
         responses = [

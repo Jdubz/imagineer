@@ -1,198 +1,20 @@
 """
-Tests for Phase 3: AI Labeling System
+Tests for Phase 3: AI Labeling System (Docker/CLI Implementation)
 """
 
-import base64
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
-from server.services.labeling import (
-    batch_label_images,
-    encode_image,
-    get_labeling_prompts,
-    label_image_with_claude,
-)
+from server.services.labeling_cli import batch_label_images
 from server.tasks.labeling import label_album_task, label_image_task
-
-
-class TestImageEncoding:
-    """Test image encoding for Claude API"""
-
-    def test_encode_image_small(self, temp_output_dir):
-        """Test encoding small image"""
-        # Create test image
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should be base64 encoded
-        assert isinstance(encoded, str)
-        # Decode and verify it's valid
-        decoded = base64.b64decode(encoded)
-        assert len(decoded) > 0
-
-    def test_encode_image_large(self, temp_output_dir):
-        """Test encoding large image (should be resized)"""
-        # Create large test image
-        test_img = PILImage.new("RGB", (2000, 2000), color="blue")
-        img_path = temp_output_dir / "large.jpg"
-        test_img.save(img_path, "JPEG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should be resized and encoded
-        assert isinstance(encoded, str)
-        decoded = base64.b64decode(encoded)
-
-        # Verify it was resized by checking the decoded image
-        with BytesIO(decoded) as buffer:
-            resized_img = PILImage.open(buffer)
-            assert max(resized_img.size) <= 1568
-
-    def test_encode_image_rgba_conversion(self, temp_output_dir):
-        """Test RGBA to RGB conversion"""
-        # Create RGBA image
-        test_img = PILImage.new("RGBA", (100, 100), color=(255, 0, 0, 128))
-        img_path = temp_output_dir / "rgba.png"
-        test_img.save(img_path, "PNG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should convert to RGB and encode
-        assert isinstance(encoded, str)
-        decoded = base64.b64decode(encoded)
-
-        with BytesIO(decoded) as buffer:
-            converted_img = PILImage.open(buffer)
-            assert converted_img.mode == "RGB"
-
-
-class TestLabelingPrompts:
-    """Test labeling prompt templates"""
-
-    def test_get_labeling_prompts(self):
-        """Test getting labeling prompts"""
-        prompts = get_labeling_prompts()
-
-        assert "default" in prompts
-        assert "sd_training" in prompts
-        assert "detailed" in prompts
-
-        # Check prompt structure
-        for prompt_type, prompt_text in prompts.items():
-            assert isinstance(prompt_text, str)
-            assert len(prompt_text) > 0
-            assert "NSFW" in prompt_text  # All prompts should include NSFW rating
-
-    def test_prompt_types(self):
-        """Test different prompt types have different content"""
-        prompts = get_labeling_prompts()
-
-        # Each prompt should be different
-        assert prompts["default"] != prompts["sd_training"]
-        assert prompts["default"] != prompts["detailed"]
-        assert prompts["sd_training"] != prompts["detailed"]
-
-        # SD training should mention Stable Diffusion
-        assert "Stable Diffusion" in prompts["sd_training"]
-
-        # Detailed should mention comprehensive analysis
-        assert "detailed" in prompts["detailed"].lower()
-
-
-class TestClaudeLabeling:
-    """Test Claude API integration"""
-
-    @patch("server.services.labeling.ANTHROPIC_AVAILABLE", False)
-    def test_label_image_anthropic_unavailable(self, temp_output_dir):
-        """Test labeling when Anthropic library is unavailable"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        result = label_image_with_claude(str(img_path))
-
-        assert result["status"] == "error"
-        assert "not available" in result["message"]
-
-    @patch("server.services.labeling.ANTHROPIC_AVAILABLE", True)
-    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""})
-    def test_label_image_no_api_key(self, temp_output_dir):
-        """Test labeling when API key is not set"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        result = label_image_with_claude(str(img_path))
-
-        assert result["status"] == "error"
-        assert "not set" in result["message"]
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_success(self, temp_output_dir):
-        """Test successful image labeling"""
-        # Create test image
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock Claude response
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = """
-        DESCRIPTION: A beautiful red square image
-        NSFW: SAFE
-        TAGS: red, square, geometric, abstract, colorful
-        """
-
-        # This test is skipped - implementation removed
-        pass
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_api_error(self, temp_output_dir):
-        """Test handling Claude API errors"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock API error
-        # This test is skipped - implementation removed
-        pass
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_different_prompts(self, temp_output_dir):
-        """Test labeling with different prompt types"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock Claude response
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = """
-        CAPTION: A detailed red square for training
-        NSFW: SAFE
-        TAGS: red, square, training, detailed
-        """
-
-        # This test is skipped - implementation removed
-        pass
 
 
 class TestBatchLabeling:
     """Test batch labeling functionality"""
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_batch_label_images_success(self, mock_label, temp_output_dir):
         """Test successful batch labeling"""
         # Create test images
@@ -222,7 +44,7 @@ class TestBatchLabeling:
         assert results["failed"] == 1
         assert len(results["results"]) == 3
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_batch_label_images_with_progress(self, mock_label, temp_output_dir):
         """Test batch labeling with progress callback"""
         # Create test images
@@ -372,7 +194,7 @@ class TestLabelingAPI:
 class TestNSFWClassification:
     """Test NSFW classification and database updates"""
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_nsfw_classification_safe(self, mock_label, client):
         """Task marks SAFE classification correctly"""
         with client.application.app_context():
@@ -396,7 +218,7 @@ class TestNSFWClassification:
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is False
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_nsfw_classification_explicit(self, mock_label, client):
         """Task marks EXPLICIT classification correctly"""
         with client.application.app_context():
@@ -420,7 +242,7 @@ class TestNSFWClassification:
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is True
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_label_storage(self, mock_label, client):
         """Task stores caption and tags"""
         with client.application.app_context():
@@ -463,7 +285,7 @@ class TestNSFWClassification:
 class TestLabelAlbumTask:
     """Test album labeling Celery task"""
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_album_task_labels_unlabeled_images(self, mock_label, client):
         with client.application.app_context():
             album = Album(name="Task Album")

@@ -2,13 +2,12 @@
 Image management endpoints
 """
 
-import hashlib
 import io
 import os
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 
@@ -54,7 +53,9 @@ def _attach_image_to_album(image_id: int, album_id: int | None, added_by: str | 
         return
 
     sort_order = len(album.album_images) + 1
-    assoc = AlbumImage(album_id=album.id, image_id=image_id, sort_order=sort_order, added_by=added_by)
+    assoc = AlbumImage(
+        album_id=album.id, image_id=image_id, sort_order=sort_order, added_by=added_by
+    )
     db.session.add(assoc)
 
 
@@ -74,7 +75,9 @@ def list_images():
     if nsfw_filter == "hide":
         query = query.filter_by(is_nsfw=False)
 
-    pagination = query.order_by(Image.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    pagination = query.order_by(Image.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
 
     return jsonify(
         {
@@ -219,7 +222,9 @@ def get_thumbnail(image_id: int):
     from server.api import load_config  # Local import to avoid circular dependency
 
     config = load_config()
-    outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")).resolve()
+    outputs_dir = Path(
+        config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
+    ).resolve()
     thumbnail_dir = outputs_dir / "thumbnails"
     thumbnail_dir.mkdir(parents=True, exist_ok=True)
     thumbnail_path = thumbnail_dir / f"{image_id}.webp"
@@ -242,5 +247,7 @@ def get_thumbnail(image_id: int):
                 img.save(thumbnail_path, "WEBP", quality=85)
         except FileNotFoundError:
             return jsonify({"error": "Image not found"}), 404
+
+    from flask import send_file
 
     return send_file(thumbnail_path, mimetype="image/webp")
