@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import yaml
-from flask import Flask, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
@@ -1980,7 +1980,9 @@ def label_image(image_id):
     prompt_type = data.get("prompt_type", "default")
 
     # Ensure image exists before queuing task
-    Image.query.get_or_404(image_id)
+    image = db.session.get(Image, image_id)
+    if image is None:
+        abort(404)
 
     task = label_image_task.delay(image_id=image_id, prompt_type=prompt_type)
 
@@ -2007,7 +2009,9 @@ def label_album(album_id):
     force = data.get("force", False)
 
     # Ensure album exists before queuing work
-    Album.query.get_or_404(album_id)
+    album = db.session.get(Album, album_id)
+    if album is None:
+        abort(404)
 
     album_images = AlbumImage.query.filter_by(album_id=album_id).all()
     images = [assoc.image for assoc in album_images if assoc.image]
