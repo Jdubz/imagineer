@@ -172,10 +172,6 @@ def after_request(response):
         },
     )
 
-    # Add COOP header for OAuth popup support (same-origin allows popup communication)
-    if request.path.startswith("/api/auth") or request.path.startswith("/auth"):
-        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
-
     return response
 
 
