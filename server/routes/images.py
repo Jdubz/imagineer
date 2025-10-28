@@ -4,6 +4,7 @@ Image management endpoints
 
 import io
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -276,20 +277,38 @@ def delete_label(image_id: int, label_id: int):
 
 
 @images_bp.route("/<int:image_id>/thumbnail", methods=["GET"])
-def get_thumbnail(image_id: int):
+def get_thumbnail(image_id: int):  # noqa: C901
     """Get image thumbnail (300px, public)."""
     image = Image.query.get_or_404(image_id)
     if not image.is_public:
         return jsonify({"error": "Image not found"}), 404
 
+    import os
+
     from server.api import load_config  # Local import to avoid circular dependency
 
-    config = load_config()
-    outputs_dir = Path(
-        config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
-    ).resolve()
+    # Check for environment variable override (for testing)
+    outputs_base = os.environ.get("IMAGINEER_OUTPUTS_DIR")
+    if not outputs_base:
+        config = load_config()
+        outputs_base = config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
+
+    outputs_dir = Path(outputs_base).resolve()
     thumbnail_dir = outputs_dir / "thumbnails"
-    thumbnail_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure parent directories exist before creating thumbnail directory
+    try:
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
+    except (FileNotFoundError, OSError) as e:
+        # If we can't create the directory (e.g., parent is a non-existent mount point),
+        # fall back to /tmp
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Could not create thumbnail directory {thumbnail_dir}: {e}. Falling back to /tmp"
+        )
+        outputs_dir = Path("/tmp/imagineer/outputs")
+        thumbnail_dir = outputs_dir / "thumbnails"
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
     thumbnail_path = thumbnail_dir / f"{image_id}.webp"
 
     raw_path = image.file_path or getattr(image, "path", None)

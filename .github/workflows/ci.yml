@@ -57,6 +57,8 @@ jobs:
 
       - name: Run backend unit tests
         run: pytest -v
+        env:
+          IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
 
   deploy-tooling:
     runs-on: ubuntu-latest
