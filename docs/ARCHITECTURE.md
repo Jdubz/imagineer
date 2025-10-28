@@ -1,10 +1,10 @@
 # Imagineer Architecture
 
-**Last Updated:** 2025-10-13
+**Last Updated:** 2025-10-27
 
 ## Overview
 
-Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card sets (playing cards, tarot, zodiac). The system supports multi-LoRA loading, set-based batch generation, and provides both REST API and web UI interfaces.
+Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card sets (playing cards, tarot, zodiac). The system supports multi-LoRA loading, set-based batch generation, AI-powered image labeling, and provides both REST API and web UI interfaces.
 
 ## System Architecture
 
@@ -46,6 +46,28 @@ Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a
          │  + LoRA Adapters (PEFT)                         │
          │  DPMSolverMultistepScheduler                    │
          └─────────────────────────────────────────────────┘
+
+         ┌─────────────────────────────────────────────────┐
+         │     AI Labeling System (Celery Tasks)           │
+         │     server/tasks/labeling.py                    │
+         ├─────────────────────────────────────────────────┤
+         │  - Image captioning                             │
+         │  - NSFW classification                          │
+         │  - Tag generation                               │
+         │  - Album batch labeling                         │
+         └─────────────────────┬───────────────────────────┘
+                               │
+                               v
+         ┌─────────────────────────────────────────────────┐
+         │   Claude CLI in Docker (Ephemeral Containers)   │
+         │   server/services/labeling_cli.py               │
+         ├─────────────────────────────────────────────────┤
+         │  docker run --rm imagineer-claude-cli           │
+         │  - Mounts: ~/.claude/.credentials.json          │
+         │  - Mounts: image directory (read-only)          │
+         │  - tmpfs: /home/node/.claude (writable)         │
+         │  - Automatic cleanup after each job             │
+         └─────────────────────────────────────────────────┘
 ```
 
 ## Directory Structure
@@ -53,7 +75,23 @@ Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a
 ```
 imagineer/
 ├── server/
-│   └── api.py                    # Flask REST API server
+│   ├── api.py                    # Flask REST API server
+│   ├── auth.py                   # OAuth authentication
+│   ├── celery_app.py             # Celery task queue
+│   ├── database.py               # SQLAlchemy models
+│   ├── routes/                   # API route blueprints
+│   │   ├── images.py             # Image management endpoints
+│   │   ├── scraping.py           # Web scraping endpoints
+│   │   └── training.py           # LoRA training endpoints
+│   ├── services/
+│   │   └── labeling_cli.py       # Claude CLI Docker wrapper
+│   └── tasks/
+│       ├── labeling.py           # AI labeling Celery tasks
+│       ├── scraping.py           # Web scraping tasks
+│       └── training.py           # LoRA training tasks
+├── docker/
+│   └── claude-cli/
+│       └── Dockerfile            # Claude CLI container image
 ├── examples/
 │   ├── generate.py               # Core generation script (supports multi-LoRA)
 │   ├── basic_inference.py        # Simple inference example
@@ -266,7 +304,129 @@ npm run build  # Outputs to ../public/
 
 **Dev Server:** `npm run dev` (port 3000)
 
-### 6. Configuration (`config.yaml`)
+### 6. AI Labeling System
+
+**Purpose:** Automated image captioning, NSFW classification, and tag generation using Claude vision AI.
+
+**Architecture:** Claude CLI running in ephemeral Docker containers (no direct API integration).
+
+**Key Components:**
+
+#### Docker Container (`docker/claude-cli/Dockerfile`)
+```dockerfile
+FROM node:20-slim
+RUN npm install -g @anthropic-ai/claude-code
+USER node  # Non-root for --dangerously-skip-permissions flag
+HEALTHCHECK CMD claude --version || exit 1
+```
+
+**Build:**
+```bash
+docker build -t imagineer-claude-cli:latest docker/claude-cli/
+```
+
+#### Labeling Service (`server/services/labeling_cli.py`)
+
+**Class:** `ClaudeCliLabeler`
+
+**Key Method:**
+```python
+def label_image(self, image_path: str, prompt_type: str = "default", timeout: int = 120):
+    """Label image using Claude CLI in ephemeral Docker container"""
+    docker_cmd = [
+        "docker", "run", "--rm",  # Ephemeral container
+        "-v", f"{image_path.parent}:/images:ro",  # Mount image dir read-only
+        "--tmpfs", "/home/node/.claude:uid=1000,gid=1000",  # Writable CLI dir
+        "-v", f"{self.credentials_path}:/tmp/host-creds.json:ro",  # Mount credentials
+        self.DOCKER_IMAGE,
+        "sh", "-c",
+        f"cp /tmp/host-creds.json /home/node/.claude/.credentials.json && "
+        f"claude --print --dangerously-skip-permissions --output-format json '{prompt}'"
+    ]
+    result = subprocess.run(docker_cmd, capture_output=True, timeout=timeout)
+    return self._parse_response(result.stdout, result.stderr)
+```
+
+**Credentials:** Mounted from `~/.claude/.credentials.json` (no API keys in environment).
+
+**Prompt Types:**
+- `default` - General description, NSFW rating, 5-10 tags
+- `sd_training` - Detailed caption for Stable Diffusion training
+
+**Output Format:**
+```python
+{
+    "status": "success",
+    "description": "Detailed image caption",
+    "nsfw_rating": "SAFE",  # SAFE, SUGGESTIVE, ADULT, EXPLICIT
+    "tags": ["tag1", "tag2", "tag3"],
+    "raw_response": "..."
+}
+```
+
+#### Celery Tasks (`server/tasks/labeling.py`)
+
+**Task:** `label_image_task(image_id, prompt_type)`
+- Labels single image asynchronously
+- Updates database: `image.is_nsfw`, creates `Label` records
+- Called via API: `POST /api/labeling/image/<id>`
+
+**Task:** `label_album_task(album_id, prompt_type, force)`
+- Labels all images in an album
+- Skips already-labeled images unless `force=True`
+- Progress tracking via Celery state updates
+- Called via API: `POST /api/labeling/album/<id>`
+
+**Label Storage:**
+```python
+# Caption stored as Label with type="caption"
+Label(image_id=image.id, label_text=description, label_type="caption",
+      source_model="claude-3-5-sonnet")
+
+# Tags stored as separate Label records with type="tag"
+for tag in tags:
+    Label(image_id=image.id, label_text=tag, label_type="tag",
+          source_model="claude-3-5-sonnet")
+```
+
+**NSFW Classification:**
+```python
+# Boolean flag: blur or not blur
+image.is_nsfw = nsfw_rating in {"ADULT", "EXPLICIT"}
+```
+
+#### Key Benefits of Docker/CLI Approach
+
+1. **Context Isolation** - Fresh container per labeling job prevents context pollution
+2. **Ephemeral** - `--rm` flag ensures automatic cleanup after each job
+3. **Security** - Credentials mounted read-only, no API keys in environment
+4. **Sandboxing** - Container isolation prevents interference between jobs
+5. **No Rate Limits** - Uses Claude Code account (not API account)
+
+#### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/labeling/image/<id>` | POST | Queue single image labeling task |
+| `/api/labeling/album/<id>` | POST | Queue album batch labeling task |
+
+**Request:**
+```json
+{
+  "prompt_type": "sd_training",  // "default" or "sd_training"
+  "force": false  // For albums: relabel already-labeled images
+}
+```
+
+**Response:**
+```json
+{
+  "status": "queued",
+  "task_id": "celery-task-id"
+}
+```
+
+### 7. Configuration (`config.yaml`)
 
 **Location:** `/home/jdubz/Development/imagineer/config.yaml`
 
@@ -355,6 +515,40 @@ User → API: GET /api/batches/<batch_id>
 Gallery: Display all images in batch
 ```
 
+### Image Labeling (AI-Powered)
+
+```
+User → API: POST /api/labeling/image/<id>
+  {prompt_type: "sd_training"}
+  ↓
+API: Queue Celery task → label_image_task.delay(image_id, prompt_type)
+  ↓
+Celery Worker: Execute label_image_task
+  ↓
+labeling_cli.py: Build Docker command
+  ↓
+Docker: Spawn ephemeral container
+  - Mount ~/.claude/.credentials.json (read-only)
+  - Mount image directory (read-only)
+  - Create tmpfs for CLI working directory
+  ↓
+Container: Copy credentials → Run claude CLI → Parse JSON output
+  ↓
+Container: Exit (automatic cleanup via --rm)
+  ↓
+Celery Task: Parse response
+  - Update image.is_nsfw (boolean)
+  - Create Label records (caption + tags)
+  - Commit to database
+  ↓
+User → API: Poll task status or wait for completion
+  ↓
+User → API: GET /api/images/<id>?include=labels
+```
+
+**Album Batch Labeling:**
+Same flow as single image, but `label_album_task` iterates through all unlabeled images in an album, calling `label_image_with_claude()` for each.
+
 ## Key Technical Details
 
 ### Stable Diffusion Pipeline
@@ -436,6 +630,13 @@ Output = Base + (Adapter1 * weight1) + (Adapter2 * weight2)
 **API:**
 - `flask>=3.0.0` - REST API server
 - `flask-cors>=4.0.0` - CORS support
+- `celery>=5.3.0` - Distributed task queue
+- `redis>=5.0.0` - Celery message broker
+
+**AI Labeling:**
+- **Docker** - Required for Claude CLI containers
+- **Claude CLI** - Installed in Docker image via `npm install -g @anthropic-ai/claude-code`
+- ~~`anthropic>=0.25.0`~~ - Removed in favor of CLI approach
 
 **Utilities:**
 - `Pillow>=10.0.0` - Image processing
@@ -471,6 +672,17 @@ Output = Base + (Adapter1 * weight1) + (Adapter2 * weight2)
 - With LoRA: ~4.5GB
 - With 2 LoRAs: ~5GB
 - Attention slicing reduces by ~1-2GB
+
+**AI Labeling Times:**
+- Single image labeling: ~10-20 seconds (includes Docker startup)
+- Album batch labeling (10 images): ~2-4 minutes
+- Docker container overhead: ~2-3 seconds per image
+- Claude API latency: ~8-15 seconds per image
+
+**Labeling Throughput:**
+- Sequential processing (one at a time)
+- Limited by Anthropic rate limits (not API rate limits)
+- Fresh Docker container per image prevents context pollution
 
 ## Security Considerations
 
@@ -511,6 +723,22 @@ Output = Base + (Adapter1 * weight1) + (Adapter2 * weight2)
 - Cause: Base SD 1.5 doesn't understand card structure
 - Solution: Use LoRAs (Card_Fronts-000008.safetensors recommended)
 
+**6. Claude CLI labeling fails: "credentials not found"**
+- Cause: Missing `~/.claude/.credentials.json` file
+- Solution: Run `claude setup-token` to authenticate
+
+**7. Docker labeling timeout**
+- Cause: Claude API rate limits or slow response
+- Solution: Increase timeout in `labeling_cli.py` (default 120s)
+
+**8. Docker image not found**
+- Cause: Claude CLI Docker image not built
+- Solution: `docker build -t imagineer-claude-cli:latest docker/claude-cli/`
+
+**9. Labeling fails with permission error**
+- Cause: Docker can't read credentials file
+- Solution: Check `~/.claude/.credentials.json` has read permissions
+
 ### Debug Commands
 
 ```bash
@@ -531,6 +759,25 @@ curl http://localhost:10050/api/jobs
 
 # List available LoRAs
 ls -lh /mnt/speedy/imagineer/models/lora/*.safetensors
+
+# Test Claude CLI Docker image
+docker run --rm imagineer-claude-cli:latest claude --version
+
+# Test labeling with real image
+docker run --rm \
+  -v /path/to/image.png:/images/test.png:ro \
+  -v ~/.claude/.credentials.json:/tmp/creds.json:ro \
+  --tmpfs /home/node/.claude:uid=1000,gid=1000 \
+  imagineer-claude-cli:latest \
+  sh -c 'cp /tmp/creds.json /home/node/.claude/.credentials.json && \
+         claude --print --dangerously-skip-permissions --output-format json \
+         "Analyze /images/test.png"'
+
+# Check Celery worker status
+celery -A server.celery_app inspect active
+
+# Check Redis connection
+redis-cli ping
 ```
 
 ## Future Enhancements
@@ -555,10 +802,23 @@ ls -lh /mnt/speedy/imagineer/models/lora/*.safetensors
 
 **Setup:**
 ```bash
+# Python environment
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Frontend
 cd web && npm install
+
+# Claude CLI credentials (for AI labeling)
+claude setup-token  # Follow prompts to authenticate
+
+# Docker image for labeling
+docker build -t imagineer-claude-cli:latest docker/claude-cli/
+
+# Redis (for Celery)
+# Install via package manager or Docker
+redis-server  # Start Redis server
 ```
 
 **Start Development:**
@@ -567,7 +827,11 @@ cd web && npm install
 source venv/bin/activate
 python server/api.py
 
-# Terminal 2: Frontend dev server
+# Terminal 2: Celery worker (for AI labeling tasks)
+source venv/bin/activate
+celery -A server.celery_app worker --loglevel=info
+
+# Terminal 3: Frontend dev server
 cd web
 npm run dev
 ```
@@ -589,6 +853,17 @@ flake8 src/ examples/
 ```
 
 ## Version History
+
+**v1.1.0 (2025-10-27):**
+- ✅ AI-powered image labeling via Claude CLI in Docker
+- ✅ NSFW classification and content filtering
+- ✅ Automated caption generation for training datasets
+- ✅ Album batch labeling with Celery tasks
+- ✅ Context isolation via ephemeral Docker containers
+- ✅ Removed direct Anthropic API dependency
+- ✅ OAuth authentication with Google
+- ✅ Web scraping capabilities
+- ✅ LoRA training workflows
 
 **v1.0.0 (2025-10-13):**
 - ✅ Multi-LoRA support via PEFT
