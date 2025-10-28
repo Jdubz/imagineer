@@ -100,8 +100,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
 
       if (response.ok) {
         await response.json() // Consume response
-        // Job started successfully
-        fetchJobs()
+        await fetchJobs()
         setShowStartDialog(false)
       } else {
         const errorData = await response.json()
@@ -124,7 +123,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       })
 
       if (response.ok) {
-        fetchJobs()
+        await fetchJobs()
       } else {
         setError('Failed to cancel job')
       }
@@ -143,7 +142,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       })
 
       if (response.ok) {
-        fetchJobs()
+        await fetchJobs()
       } else {
         setError('Failed to cleanup job')
       }
@@ -225,102 +224,148 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
             <p>No scrape jobs found. Start a new scrape to begin collecting training data.</p>
           </div>
         ) : (
-          scrapeJobs.map(job => (
-            <div key={job.id} className={`scrape-job-card status-${job.status}`}>
-              <div className="job-header">
-                <h3>{job.url}</h3>
-                <span
-                  className="status-badge"
-                  style={{ backgroundColor: getStatusColor(job.status) }}
-                >
-                  {job.status}
-                </span>
-              </div>
+          scrapeJobs.map(job => {
+            const runtime = job.runtime ?? {}
+            const jobUrl = job.url ?? job.source_url ?? job.name ?? 'Unknown URL'
+            const outputDir = job.output_dir ?? job.output_directory
+            const progressPercent =
+              typeof job.progress === 'number'
+                ? Math.min(100, Math.max(0, job.progress))
+                : typeof runtime.progress === 'number'
+                  ? Math.min(100, Math.max(0, runtime.progress))
+                  : undefined
+            const progressMessage = job.progress_message ?? runtime.last_message ?? ''
 
-              <div className="job-details">
-                <div className="detail">
-                  <strong>URL:</strong>
-                  <a
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="job-url"
+            return (
+              <div key={job.id} className={`scrape-job-card status-${job.status}`}>
+                <div className="job-header">
+                  <h3>{jobUrl}</h3>
+                  <span
+                    className="status-badge"
+                    style={{ backgroundColor: getStatusColor(job.status) }}
                   >
-                    {job.url}
-                  </a>
+                    {job.status}
+                  </span>
                 </div>
 
-                {job.output_dir && (
+                <div className="job-details">
                   <div className="detail">
-                    <strong>Output Directory:</strong>
-                    <span>{job.output_dir}</span>
+                    <strong>URL:</strong>
+                    <a
+                      href={jobUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="job-url"
+                    >
+                      {jobUrl}
+                    </a>
                   </div>
-                )}
 
-                {job.status === 'running' && (
-                  <div className="progress-section">
-                    {job.images_scraped != null && job.images_scraped > 0 && (
-                      <div className="stats">
-                        <span>Images scraped: {job.images_scraped}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {job.status === 'completed' && job.images_scraped != null && (
-                  <div className="completion-stats">
-                    <div className="success-message">
-                      ✓ Successfully scraped {job.images_scraped} images
-                    </div>
-                    {job.output_dir && (
-                      <div className="output-info">
-                        Output: {job.output_dir}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {job.status === 'failed' && job.error && (
-                  <div className="error-details">
-                    <strong>Error:</strong>
-                    <span className="error-text">{job.error}</span>
-                  </div>
-                )}
-
-                <div className="job-meta">
-                  <div className="meta-item">
-                    <strong>Created:</strong> {formatDate(job.created_at)}
-                  </div>
-                  {job.completed_at && (
-                    <div className="meta-item">
-                      <strong>Completed:</strong> {formatDate(job.completed_at)}
+                  {outputDir && (
+                    <div className="detail">
+                      <strong>Output Directory:</strong>
+                      <span>{outputDir}</span>
                     </div>
                   )}
-                </div>
-              </div>
 
-              {isAdmin && (
-                <div className="job-actions">
                   {job.status === 'running' && (
-                    <button
-                      className="cancel-btn"
-                      onClick={() => cancelJob(job.id)}
-                    >
-                      Cancel
-                    </button>
+                    <div className="progress-section">
+                      {progressPercent !== undefined && (
+                        <div className="progress-bar">
+                          <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+                        </div>
+                      )}
+                      {(runtime.stage || progressMessage) && (
+                        <div className="runtime-stage">
+                          {runtime.stage && (
+                            <strong>{runtime.stage.charAt(0).toUpperCase() + runtime.stage.slice(1)}</strong>
+                          )}
+                          {progressMessage && (
+                            <span className="runtime-message">
+                              {runtime.stage ? ' · ' : ''}
+                              {progressMessage}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {(runtime.discovered != null || runtime.downloaded != null) && (
+                        <div className="runtime-metrics">
+                          {runtime.discovered != null && (
+                            <span>Links discovered: {runtime.discovered}</span>
+                          )}
+                          {runtime.downloaded != null && (
+                            <span>Images downloaded: {runtime.downloaded}</span>
+                          )}
+                        </div>
+                      )}
+                      {job.images_scraped != null && job.images_scraped > 0 && (
+                        <div className="stats">
+                          <span>Images scraped: {job.images_scraped}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
-                    <button
-                      className="cleanup-btn"
-                      onClick={() => cleanupJob(job.id)}
-                    >
-                      Cleanup
-                    </button>
+
+                  {job.status === 'completed' && job.images_scraped != null && (
+                    <div className="completion-stats">
+                      <div className="success-message">
+                        ✓ Successfully scraped {job.images_scraped} images
+                      </div>
+                      {outputDir && (
+                        <div className="output-info">
+                          Output: {outputDir}
+                        </div>
+                      )}
+                    </div>
                   )}
+
+                  {job.status === 'failed' && job.error && (
+                    <div className="error-details">
+                      <strong>Error:</strong>
+                      <span className="error-text">{job.error}</span>
+                    </div>
+                  )}
+
+                  <div className="job-meta">
+                    <div className="meta-item">
+                      <strong>Created:</strong> {formatDate(job.created_at)}
+                    </div>
+                    {job.completed_at && (
+                      <div className="meta-item">
+                        <strong>Completed:</strong> {formatDate(job.completed_at)}
+                      </div>
+                    )}
+                    {runtime.updated_at && (
+                      <div className="meta-item">
+                        <strong>Updated:</strong> {formatDate(runtime.updated_at)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))
+
+                {isAdmin && (
+                  <div className="job-actions">
+                    {job.status === 'running' && (
+                      <button
+                        className="cancel-btn"
+                        onClick={() => cancelJob(job.id)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
+                      <button
+                        className="cleanup-btn"
+                        onClick={() => cleanupJob(job.id)}
+                      >
+                        Cleanup
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
 

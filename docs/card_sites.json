@@ -1,0 +1,88 @@
+{
+  "priority_sites": [
+    {
+      "name": "World of Playing Cards",
+      "url": "https://www.wopc.co.uk/",
+      "type": "playing_cards_archive",
+      "status": "high_priority",
+      "notes": "Collaborative archive with 1000+ decks. Categories: Advertising (448), Art (314), Souvenir (255), Political (190), History (170), Tarot (161). Historical decks from 1638 to modern.",
+      "estimated_images": "50000+",
+      "config": "card_config.yaml"
+    },
+    {
+      "name": "Columbia University - Albert Field Collection",
+      "url": "https://dlc.library.columbia.edu/field_playing_cards",
+      "type": "playing_cards_museum",
+      "status": "high_priority",
+      "notes": "6,300+ decks (16th-20th centuries). Digitized, public domain. Pre-1801 cards digitized.",
+      "estimated_images": "327600-491400",
+      "config": "default_config.yaml"
+    },
+    {
+      "name": "Metropolitan Museum of Art",
+      "url": "https://www.metmuseum.org/art/collection/search?q=Playing+card",
+      "type": "playing_cards_museum",
+      "status": "high_priority",
+      "notes": "Open Access policy (free commercial use). Luxury cards from 1430-1540. High-res downloads.",
+      "estimated_images": "500+",
+      "config": "default_config.yaml"
+    },
+    {
+      "name": "Aeclectic Tarot",
+      "url": "https://www.aeclectic.net/tarot/cards/",
+      "type": "tarot_cards_archive",
+      "status": "high_priority",
+      "notes": "2,000+ tarot and oracle decks with reviews, ratings, sample images. Best browsing gallery.",
+      "estimated_images": "156000",
+      "config": "card_config.yaml"
+    },
+    {
+      "name": "CleanArchives Tarot",
+      "url": "https://cleanarchives.com/collections/tarot-card-decks",
+      "type": "tarot_cards",
+      "status": "high_priority",
+      "notes": "Restored high-res public domain tarot images. Commercial use allowed. Bundled downloads.",
+      "estimated_images": "1000+",
+      "config": "card_config.yaml"
+    }
+  ],
+  "card_training_sites": [
+    {
+      "name": "Card Scans (Piwigo Gallery)",
+      "url": "https://cardscans.piwigo.com/",
+      "type": "playing_cards",
+      "status": "tested",
+      "notes": "Large collection (~12K images), use smart_discovery.py",
+      "estimated_images": 12000,
+      "config": "card_config.yaml"
+    },
+    {
+      "name": "Mary T. Cusack Card Collection",
+      "url": "http://www.marytcusack.com/maryc/Cards/index.html",
+      "type": "playing_cards",
+      "status": "completed",
+      "notes": "32 unique cards saved to /mnt/speedy/image packs/marytcusack/",
+      "estimated_images": 329,
+      "config": "card_config.yaml",
+      "output_dir": "/mnt/speedy/image packs/marytcusack"
+    },
+    {
+      "name": "Cathy McClelland Tarot",
+      "url": "https://www.cathymcclelland.com/html/tarot.htm",
+      "type": "tarot_cards",
+      "status": "pending",
+      "notes": "Tarot card artwork collection, site may need smart_discovery",
+      "estimated_images": "unknown",
+      "config": "card_config.yaml"
+    }
+  ],
+  "recommended_workflow": {
+    "step_1": "Use smart_discovery.py to find galleries and images",
+    "step_2": "Use card_config.yaml presets appropriate for tarot vs playing card decks",
+    "step_3": "Review dataset in /mnt/speedy/imagineer/outputs/scraped before importing to albums",
+    "notes": [
+      "Prioritize high_priority sites during telemetry verification",
+      "Track progress metrics (discovered/downloaded) to benchmark new telemetry UI"
+    ]
+  }
+}

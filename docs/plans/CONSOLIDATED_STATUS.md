@@ -147,10 +147,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### ⚠️ Outstanding Issues
 
-1. **Progress Reporting Minimal (LOW)**
-   - Plan mentioned detailed scrape progress exposed to UI
-   - Current implementation is basic
-   - **Action:** Enhance if needed based on usage
+1. **Progress Telemetry Enhancements (LOW)**
+   - Scrape jobs now expose stage, discovered, and downloaded counts in the UI
+   - Consider adding historical stats (average throughput, error buckets) if additional insight is needed
 
 ---
 
@@ -196,7 +195,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 **Coverage Status:**
 - Backend: ~70% coverage (good)
-- Frontend: Vitest tests now cover the labeling flow; ScrapingTab and TrainingTab admin dashboards still lack coverage
+- Frontend: Vitest tests cover labeling, scraping, and training admin flows; end-to-end coverage remains on the roadmap
 
 **Action:** Add integration tests for admin workflows
 
@@ -239,13 +238,13 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟡 High (Stabilization & Reliability)
 
-1. **Add Admin UI Vitest Coverage**
-   - Files: `web/src/components/ScrapingTab.tsx`, `web/src/components/TrainingTab.tsx`, supporting hooks.
-   - Impact: Prevents regressions in scraping/training dashboards that currently lack automated coverage.
+1. **Surface Training Assets & Documentation in UI**
+   - Files: `web/src/components/TrainingTab.tsx`, admin docs.
+   - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
 
-2. **Enrich Scraping Progress Telemetry**
-   - Files: `server/tasks/scraping.py`, `web/src/components/ScrapingTab.tsx`.
-   - Impact: Provide granular progress (per-stage metrics, error surfacing) to match roadmap expectations.
+2. **Formalize Training Data Retention Policy**
+   - Files: `server/tasks/training.py`, operations docs.
+   - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
 
 ### 🟢 Medium (Polish & UX)
 
@@ -253,13 +252,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - Files: extend labeling endpoints in `server/api.py` (or new blueprint) plus matching frontend surfaces.
    - Impact: Enables dataset curation and manual corrections promised in earlier plans.
 
-2. **Surface Training Assets & Documentation in UI**
-   - Files: `web/src/components/TrainingTab.tsx`, admin docs.
-   - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
-
-3. **Formalize Training Data Retention Policy**
-   - Files: `server/tasks/training.py`, operations docs.
-   - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
+2. **Broaden Scrape QA & Import Validation**
+   - Files: `server/tasks/scraping.py`, `server/routes/scraping.py`, dataset QA scripts.
+   - Impact: Leverage new telemetry to flag failed downloads/duplicates before import.
 
 ### 🔵 Low (Future Enhancements)
 

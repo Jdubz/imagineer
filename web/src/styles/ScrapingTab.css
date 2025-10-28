@@ -242,6 +242,33 @@
   color: #7f8c8d;
 }
 
+.runtime-stage {
+  font-size: 0.9rem;
+  color: #2c3e50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.runtime-stage strong {
+  font-weight: 600;
+}
+
+.runtime-message {
+  color: #7f8c8d;
+}
+
+.runtime-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  margin-bottom: 8px;
+}
+
 .completion-stats {
   margin: 16px 0;
   padding: 16px;

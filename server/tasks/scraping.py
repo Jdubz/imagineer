@@ -22,6 +22,49 @@ TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
 SCRAPED_OUTPUT_PATH = None
 
 
+def _load_scrape_config(job: ScrapeJob) -> dict:
+    """Parse scrape configuration JSON safely."""
+    if not job.scrape_config:
+        return {}
+    try:
+        parsed = json.loads(job.scrape_config)
+        return parsed if isinstance(parsed, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _persist_runtime_state(
+    job: ScrapeJob,
+    config: dict,
+    *,
+    stage: str | None = None,
+    discovered: int | None = None,
+    downloaded: int | None = None,
+    message: str | None = None,
+) -> None:
+    """Store real-time telemetry about the scrape job."""
+    runtime = config.get("runtime", {})
+    if not isinstance(runtime, dict):
+        runtime = {}
+
+    if stage:
+        runtime["stage"] = stage
+    if discovered is not None:
+        runtime["discovered"] = discovered
+    if downloaded is not None:
+        runtime["downloaded"] = downloaded
+    if message is not None:
+        runtime["last_message"] = message
+    else:
+        runtime["last_message"] = job.description or ""
+
+    runtime["progress"] = job.progress
+    runtime["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    config["runtime"] = runtime
+    job.scrape_config = json.dumps(config)
+
+
 def get_scraped_output_path() -> Path:
     """Resolve base directory for scraped outputs from configuration."""
     global SCRAPED_OUTPUT_PATH
@@ -60,10 +103,21 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
         if not job:
             return {"status": "error", "message": "Job not found"}
 
+        config = _load_scrape_config(job)
+
         # Update job status
         job.status = "running"
         job.started_at = datetime.now(timezone.utc)
         job.progress = 0
+        job.description = "Initializing scrape job"
+        _persist_runtime_state(
+            job,
+            config,
+            stage="initializing",
+            discovered=0,
+            downloaded=0,
+            message=job.description,
+        )
         db.session.commit()
 
         logger.info(f"Starting scrape job {scrape_job_id}: {job.source_url}")
@@ -77,7 +131,6 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Parse scrape config
-            config = json.loads(job.scrape_config) if job.scrape_config else {}
             depth = config.get("depth", 3)
             max_images = config.get("max_images", 1000)
 
@@ -119,6 +172,9 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             discovered_count = 0
             downloaded_count = 0
 
+            stage = "running"
+            discovered_count = job.images_scraped or 0
+            downloaded_count = job.images_scraped or 0
             for line in process.stdout:
                 line = line.strip()
                 if line:
@@ -129,6 +185,7 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                         try:
                             discovered_count = int(line.split("Discovered:")[1].split()[0])
                             job.images_scraped = discovered_count
+                            stage = "discovering"
                         except (ValueError, IndexError):
                             pass
                     elif "Downloaded:" in line:
@@ -140,11 +197,20 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                             if max_images > 0:
                                 progress = min(90, int((downloaded_count / max_images) * 90))
                                 job.progress = progress
+                            stage = "downloading"
                         except (ValueError, IndexError):
                             pass
 
                     # Update progress message
                     job.description = line[-200:] if len(line) > 200 else line
+                    _persist_runtime_state(
+                        job,
+                        config,
+                        stage=stage,
+                        discovered=discovered_count,
+                        downloaded=downloaded_count,
+                        message=job.description,
+                    )
                     db.session.commit()
 
                     # Update Celery task progress
@@ -169,6 +235,15 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                 job.completed_at = datetime.now(timezone.utc)
                 job.progress = 100
                 job.output_directory = str(output_dir)
+                job.description = "Scrape completed successfully"
+                _persist_runtime_state(
+                    job,
+                    config,
+                    stage="completed",
+                    discovered=discovered_count,
+                    downloaded=downloaded_count,
+                    message=job.description,
+                )
                 db.session.commit()
 
                 return {
@@ -185,6 +260,15 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                 job.completed_at = datetime.now(timezone.utc)
                 job.error_message = error_msg
                 job.last_error_at = datetime.now(timezone.utc)
+                job.description = error_msg
+                _persist_runtime_state(
+                    job,
+                    config,
+                    stage="failed",
+                    discovered=discovered_count,
+                    downloaded=downloaded_count,
+                    message=error_msg,
+                )
                 db.session.commit()
 
                 return {"status": "error", "message": error_msg}
@@ -197,6 +281,15 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             job.completed_at = datetime.now(timezone.utc)
             job.error_message = error_msg
             job.last_error_at = datetime.now(timezone.utc)
+            job.description = error_msg
+            _persist_runtime_state(
+                job,
+                config,
+                stage="failed",
+                discovered=0,
+                downloaded=0,
+                message=error_msg,
+            )
             db.session.commit()
 
             return {"status": "error", "message": error_msg}

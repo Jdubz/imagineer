@@ -156,15 +156,32 @@ export interface TrainingJob {
   progress?: number
 }
 
+export interface ScrapingJobRuntime {
+  stage?: string
+  discovered?: number
+  downloaded?: number
+  progress?: number
+  last_message?: string
+  updated_at?: string
+}
+
 export interface ScrapingJob {
   id: string
   status: JobStatus
-  url: string
-  output_dir: string
+  url?: string
+  name?: string
+  source_url?: string
+  output_dir?: string
+  output_directory?: string
+  progress?: number
+  progress_message?: string
+  description?: string
+  runtime?: ScrapingJobRuntime
   created_at: string
   completed_at?: string
   error?: string
   images_scraped?: number
+  config?: Record<string, unknown>
 }
 
 export type { AuthStatus } from './shared'
