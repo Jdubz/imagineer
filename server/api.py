@@ -24,6 +24,7 @@ from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
 from PIL import Image as PILImage
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -55,6 +56,19 @@ from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
 app = Flask(__name__, static_folder="../public", static_url_path="")
+
+# Configure ProxyFix to trust proxy headers (for HTTPS detection behind reverse proxy)
+# This ensures url_for(_external=True) generates https:// URLs in production
+if os.environ.get("FLASK_ENV") == "production":
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=1,  # Trust X-Forwarded-For
+        x_proto=1,  # Trust X-Forwarded-Proto (http/https)
+        x_host=1,  # Trust X-Forwarded-Host
+        x_prefix=1,  # Trust X-Forwarded-Prefix
+    )
+    # Force HTTPS scheme for URL generation
+    app.config["PREFERRED_URL_SCHEME"] = "https"
 
 # Configure database
 # Use absolute path to ensure consistency
