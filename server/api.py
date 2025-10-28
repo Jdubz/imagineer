@@ -178,6 +178,8 @@ def handle_500(e):
 def auth_login():
     """Initiate Google OAuth flow"""
     redirect_uri = url_for("auth_callback", _external=True)
+    target = request.args.get("state") or request.args.get("next") or "/"
+    session["login_redirect"] = target
     return google.authorize_redirect(redirect_uri)
 
 
@@ -226,7 +228,7 @@ def auth_callback():
         )
 
         # Redirect to frontend (assuming it's on same domain or configured origin)
-        frontend_url = request.args.get("state") or "/"
+        frontend_url = session.pop("login_redirect", "/")
         return redirect(frontend_url)
 
     except Exception as e:
