@@ -2149,15 +2149,29 @@ def get_thumbnail(image_id):
         # Load config
         config = load_config()
 
-        # Check for cached thumbnail
-        outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+        outputs_dir = Path(
+            config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
+        ).resolve()
         thumbnail_dir = outputs_dir / "thumbnails"
         thumbnail_dir.mkdir(parents=True, exist_ok=True)
         thumbnail_path = thumbnail_dir / f"{image_id}.webp"
 
+        # Resolve original image path
+        raw_path = image.file_path or ""
+        image_path = Path(raw_path)
+        if not image_path.is_absolute():
+            image_path = (outputs_dir / raw_path).resolve()
+
+        if not image_path.exists():
+            logger.warning(
+                "Thumbnail requested for missing image file",
+                extra={"image_id": image_id, "file_path": raw_path},
+            )
+            return jsonify({"error": "Image not found"}), 404
+
         if not thumbnail_path.exists():
             # Generate thumbnail
-            with PILImage.open(image.file_path) as img:
+            with PILImage.open(image_path) as img:
                 img.thumbnail((300, 300))
                 img.save(thumbnail_path, "WEBP", quality=85)
 
