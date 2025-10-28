@@ -924,39 +924,39 @@ cd web && npm test -- LabelingPanel.test.tsx
 
 Use this to track your progress:
 
-- [ ] Task 1: Consolidate Duplicate Endpoints (2h) 🔴
-  - [ ] Identify duplicate endpoints in api.py
-  - [ ] Verify blueprint is registered
-  - [ ] Remove duplicates from api.py
-  - [ ] Test all image endpoints work
-  - [ ] Update tests
+- [x] Task 1: Consolidate Duplicate Endpoints (2h) 🔴
+  - [x] Identify duplicate endpoints in api.py
+  - [x] Verify blueprint is registered
+  - [x] Remove duplicates from api.py
+  - [x] Test all image endpoints work
+  - [x] Update tests
 
-- [ ] Task 2: Fix Celery Task Naming (1.5h) 🟡
-  - [ ] Check current task registration
-  - [ ] Standardize task names
-  - [ ] Update routing config
-  - [ ] Verify task discovery
-  - [ ] Test task execution
+- [x] Task 2: Fix Celery Task Naming (1.5h) 🟡
+  - [x] Check current task registration
+  - [x] Standardize task names
+  - [x] Update routing config
+  - [x] Verify task discovery
+  - [x] Test task execution
 
-- [ ] Task 3: Frontend Labeling UI (3h) 🟡
-  - [ ] Create LabelingPanel component
-  - [ ] Add styling
-  - [ ] Integrate into AlbumsTab
-  - [ ] Test single image labeling
-  - [ ] Test album batch labeling
+- [x] Task 3: Frontend Labeling UI (3h) 🟡
+  - [x] Create LabelingPanel component
+  - [x] Add styling
+  - [x] Integrate into AlbumsTab
+  - [x] Test single image labeling
+  - [x] Test album batch labeling
 
-- [ ] Task 4: Update Async Tests (1.5h) 🟢
-  - [ ] Create Celery mocks
-  - [ ] Update API tests
-  - [ ] Add integration tests
-  - [ ] Test error cases
-  - [ ] Verify coverage
+- [x] Task 4: Update Async Tests (1.5h) 🟢
+  - [x] Create Celery mocks
+  - [x] Update API tests
+  - [x] Add integration tests
+  - [x] Test error cases
+  - [x] Verify coverage
 
-- [ ] Task 5: Frontend Tests (1.5h) 🟢
-  - [ ] Write LabelingPanel tests
-  - [ ] Test user interactions
-  - [ ] Test polling logic
-  - [ ] Verify all pass
+- [x] Task 5: Frontend Tests (1.5h) 🟢
+  - [x] Write LabelingPanel tests
+  - [x] Test user interactions
+  - [x] Test polling logic
+  - [x] Verify all pass
 
 **Total Estimated Time:** 9-10 hours
 **Critical Path:** Task 1 should complete first to unblock other work
