@@ -102,12 +102,21 @@ def init_auth(app):
     @login_manager.user_loader
     def load_user(user_id):
         """Load user from session"""
-        if "user" not in session:
+        user_data = session.get("user")
+        if not isinstance(user_data, dict):
             return None
-        user_data = session["user"]
+
+        email = user_data.get("email")
+        name = user_data.get("name", "")
+
+        if not email:
+            logger.warning("Session missing email for user_id=%s; clearing stale session", user_id)
+            session.pop("user", None)
+            return None
+
         return User(
-            email=user_data["email"],
-            name=user_data["name"],
+            email=email,
+            name=name,
             picture=user_data.get("picture", ""),
             role=user_data.get("role"),  # None for public users
         )
