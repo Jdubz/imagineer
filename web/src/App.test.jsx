@@ -49,19 +49,6 @@ const setupFetchMock = (overrides = {}) => {
 }
 
 describe('App', () => {
-  const mockImages = [
-    {
-      filename: 'test1.png',
-      path: '/outputs/test1.png',
-      size: 100000,
-      created: '2024-10-13T10:00:00',
-      metadata: {
-        prompt: 'test prompt',
-        seed: 42
-      }
-    }
-  ]
-
   beforeEach(() => {
     vi.clearAllMocks()
     setupFetchMock()

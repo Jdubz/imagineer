@@ -33,6 +33,42 @@ def _current_memory_mb() -> float:
         return usage / 1024
 
 
+def _apply_process_memory_limit(limit_mb: float) -> bool:
+    """Set an OS memory ceiling for the current process when possible."""
+    try:
+        import resource
+    except ImportError:
+        return False
+
+    limit_bytes = int(limit_mb * 1024 * 1024)
+    if limit_bytes <= 0:
+        return False
+
+    limit_consts = [
+        getattr(resource, name) for name in ("RLIMIT_AS", "RLIMIT_DATA") if hasattr(resource, name)
+    ]
+
+    def enforce(limit_const: int) -> bool:
+        try:
+            soft, hard = resource.getrlimit(limit_const)
+        except (ValueError, OSError):
+            return False
+
+        hard_is_infinite = hard in {0, resource.RLIM_INFINITY}
+        target = min(limit_bytes, hard if not hard_is_infinite else limit_bytes)
+
+        if soft <= target and (not hard_is_infinite and hard <= target):
+            return True  # limit already active
+
+        try:
+            resource.setrlimit(limit_const, (target, target))
+        except (ValueError, OSError):
+            return False
+        return True
+
+    return any(enforce(limit_const) for limit_const in limit_consts)
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--max-mem",
@@ -62,11 +98,22 @@ def pytest_configure(config):
 
     config._memory_guard_enabled = not disable_guard
     config._memory_guard_threshold = threshold_val
+    config._memory_guard_os_limit = False
     config._memory_guard_records = []
     config._memory_guard_baseline = _current_memory_mb()
 
     reporter = config.pluginmanager.get_plugin("terminalreporter")
     if reporter and config._memory_guard_enabled:
+        if _apply_process_memory_limit(threshold_val):
+            config._memory_guard_os_limit = True
+            reporter.write_line(
+                f"[memory-guard] Applied RLIMIT cap at ~{threshold_val:.1f} MB of address space"
+            )
+        else:
+            reporter.write_line(
+                "[memory-guard] OS-level limit unavailable; relying on RSS monitoring only"
+            )
+
         reporter.write_line(
             f"[memory-guard] Baseline RSS: {config._memory_guard_baseline:.1f} MB | "
             f"Threshold: {config._memory_guard_threshold:.1f} MB"
@@ -116,6 +163,8 @@ def pytest_sessionfinish(session, exitstatus):
         return
 
     peak_record = max(records, key=lambda entry: entry[0])
+    if getattr(config, "_memory_guard_os_limit", False) and reporter:
+        reporter.write_line("[memory-guard] OS-level cap was active during this run.")
     reporter.write_line(f"[memory-guard] Peak RSS: {peak_record[0]:.1f} MB during {peak_record[2]}")
     reporter.write_line("[memory-guard] Top 5 tests by RSS delta:")
     for idx, (rss, delta, nodeid) in enumerate(
