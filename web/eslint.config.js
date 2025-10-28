@@ -73,6 +73,7 @@ export default tseslint.config(
       'vitest.config.js',
       '../public/**',
       'src/types/shared.ts',
+      'src/__tests__/sharedContract.test.ts',
     ],
   },
 )

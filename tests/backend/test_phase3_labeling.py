@@ -96,14 +96,14 @@ class TestLabelingAPI:
 
         response = client.post(
             f"/api/labeling/image/{image_id}",
-            json={"prompt_type": "default"},
+            json={"prompt_type": "sd_training"},
             headers={"Authorization": "Bearer admin_token"},
         )
 
         assert response.status_code == 202
         data = response.get_json()
         assert data == {"status": "queued", "task_id": "task-123"}
-        mock_delay.assert_called_once_with(image_id=image_id, prompt_type="default")
+        mock_delay.assert_called_once_with(image_id=image_id, prompt_type="sd_training")
 
     def test_label_image_endpoint_not_found(self, client, mock_admin_auth):
         """Labeling a nonexistent image should return 404"""
@@ -146,6 +146,51 @@ class TestLabelingAPI:
         mock_delay.assert_called_once_with(
             album_id=album.id, prompt_type="sd_training", force=False
         )
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_progress(self, mock_async, client):
+        """Task status endpoint returns progress details."""
+        async_result = MagicMock()
+        async_result.state = "PROGRESS"
+        async_result.info = {"current": 3, "total": 10, "message": "Working"}
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-xyz")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["state"] == "PROGRESS"
+        assert data["progress"] == {"current": 3, "total": 10, "message": "Working"}
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_success(self, mock_async, client):
+        """Task status endpoint surfaces success payload."""
+        async_result = MagicMock()
+        async_result.state = "SUCCESS"
+        async_result.info = {"status": "success", "image_id": 1}
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-success")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["state"] == "SUCCESS"
+        assert data["result"] == {"status": "success", "image_id": 1}
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_failure(self, mock_async, client):
+        """Task status endpoint returns failure info."""
+        async_result = MagicMock()
+        async_result.state = "FAILURE"
+        async_result.info = RuntimeError("boom")
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-failure")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["state"] == "FAILURE"
+        assert "boom" in data["error"]
 
     def test_label_album_empty(self, client, mock_admin_auth):
         """Album with no images should be rejected"""

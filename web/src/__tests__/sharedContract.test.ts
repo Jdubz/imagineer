@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { AuthStatus } from '../types/shared';
 import authStatusSchemaRaw from '../../../shared/schema/auth_status.json';
 
-const authStatusSchema = authStatusSchemaRaw as const;
+const authStatusSchema: JsonSchema = authStatusSchemaRaw as JsonSchema;
 
 type JsonSchema = typeof authStatusSchema;
 

@@ -3,11 +3,12 @@ Image management endpoints
 """
 
 import io
+import json
 import os
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 
@@ -15,6 +16,7 @@ from server.auth import current_user, require_admin
 from server.database import Album, AlbumImage, Image, Label, db
 
 images_bp = Blueprint("images", __name__, url_prefix="/api/images")
+outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/outputs")
 
 
 def _extract_image_dimensions(file_bytes: bytes, filename: str) -> tuple[int | None, int | None]:
@@ -198,6 +200,67 @@ def add_label(image_id: int):
     db.session.commit()
 
     return jsonify(label.to_dict()), 201
+
+
+@outputs_bp.route("", methods=["GET"])
+def list_outputs():
+    """List generated images saved to the outputs directory."""
+    from server.api import load_config  # Local import to avoid circular dependency
+
+    try:
+        config = load_config()
+        output_dir = Path(config["output"]["directory"])
+    except (KeyError, TypeError):
+        output_dir = Path("/tmp/imagineer/outputs")
+
+    images: list[dict] = []
+
+    if output_dir.exists():
+        for img_file in sorted(output_dir.glob("*.png"), key=os.path.getmtime, reverse=True):
+            metadata: dict = {}
+            metadata_file = img_file.with_suffix(".json")
+
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "r", encoding="utf-8") as f:
+                        metadata = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    metadata = {}
+
+            images.append(
+                {
+                    "filename": img_file.name,
+                    "path": str(img_file),
+                    "size": img_file.stat().st_size,
+                    "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
+                    "metadata": metadata,
+                }
+            )
+
+    return jsonify({"images": images[:100]})
+
+
+@outputs_bp.route("/<path:filename>")
+def serve_output(filename: str):
+    """Serve a generated image from the outputs directory."""
+    from server.api import load_config  # Local import to avoid circular dependency
+
+    config = load_config()
+    output_dir = Path(config["output"]["directory"]).resolve()
+
+    # Block traversal attempts
+    if ".." in filename or filename.startswith(("/", "\\")):
+        return jsonify({"error": "Access denied"}), 403
+
+    requested_path = (output_dir / filename).resolve()
+
+    if not str(requested_path).startswith(str(output_dir)):
+        return jsonify({"error": "Access denied"}), 403
+
+    if not requested_path.exists() or not requested_path.is_file():
+        return jsonify({"error": "File not found"}), 404
+
+    return send_from_directory(requested_path.parent, requested_path.name)
 
 
 @images_bp.route("/<int:image_id>/labels/<int:label_id>", methods=["DELETE"])

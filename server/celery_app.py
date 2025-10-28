@@ -28,6 +28,11 @@ def make_celery(app=None):
         worker_prefetch_multiplier=1,
         task_acks_late=True,
         worker_disable_rate_limits=True,
+        imports=(
+            "server.tasks.labeling",
+            "server.tasks.scraping",
+            "server.tasks.training",
+        ),
     )
 
     # Configure task routes

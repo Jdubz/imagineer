@@ -1,9 +1,11 @@
 declare module 'node:fs' {
-  const fs: any
-  export default fs
+  export * from 'fs'
+  import fsDefault from 'fs'
+  export default fsDefault
 }
 
 declare module 'node:path' {
-  const path: any
-  export default path
+  export * from 'path'
+  import pathDefault from 'path'
+  export default pathDefault
 }

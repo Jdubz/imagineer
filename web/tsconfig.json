@@ -23,6 +23,7 @@
     /* Language and Environment */
     "useDefineForClassFields": true,
     "resolveJsonModule": true,
+    "types": ["vitest/globals"],
 
     /* Emit */
     "noEmit": true,
@@ -31,5 +32,5 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*", "vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "build"]
+  "exclude": ["node_modules", "dist", "build", "src/__tests__"]
 }

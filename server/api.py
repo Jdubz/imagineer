@@ -130,11 +130,12 @@ from server.celery_app import make_celery  # noqa: E402
 celery = make_celery(app)
 
 # Register blueprints
-from server.routes.images import images_bp  # noqa: E402
+from server.routes.images import images_bp, outputs_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(images_bp)
+app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 
@@ -1433,70 +1434,6 @@ def get_batch(batch_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/outputs", methods=["GET"])
-def list_outputs():
-    """List generated images (non-batch only)"""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"])
-
-        images = []
-        if output_dir.exists():
-            # Only get PNG files directly in output dir (not in subdirectories)
-            for img_file in sorted(output_dir.glob("*.png"), key=os.path.getmtime, reverse=True):
-                metadata_file = img_file.with_suffix(".json")
-                metadata = {}
-
-                if metadata_file.exists():
-                    with open(metadata_file, "r") as f:
-                        metadata = json.load(f)
-
-                images.append(
-                    {
-                        "filename": img_file.name,
-                        "path": str(img_file),
-                        "size": img_file.stat().st_size,
-                        "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
-                        "metadata": metadata,
-                    }
-                )
-
-        return jsonify({"images": images[:100]})  # Last 100 images
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/outputs/<path:filename>")
-def serve_output(filename):
-    """Serve a generated image"""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"]).resolve()
-
-        # Security: Validate filename to prevent path traversal
-        # Check for path traversal attempts
-        if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
-            return jsonify({"error": "Access denied"}), 403
-
-        # Construct the full path and resolve it
-        requested_path = (output_dir / filename).resolve()
-
-        # Security check: Ensure the resolved path is within output_dir
-        if not str(requested_path).startswith(str(output_dir)):
-            return jsonify({"error": "Access denied"}), 403
-
-        # Check if file exists and is a file (not a directory)
-        if not requested_path.exists() or not requested_path.is_file():
-            return jsonify({"error": "File not found"}), 404
-
-        # Serve the file from its directory
-        return send_from_directory(requested_path.parent, requested_path.name)
-
-    except Exception:
-        return jsonify({"error": "Invalid request"}), 400
 
 
 @app.route("/api/health", methods=["GET"])
