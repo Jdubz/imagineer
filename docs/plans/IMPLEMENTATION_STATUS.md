@@ -1,5 +1,11 @@
 # Implementation Status – 2025-10-28
 
+> **⚠️ SUPERSEDED:** This document has been replaced by **[CONSOLIDATED_STATUS.md](./CONSOLIDATED_STATUS.md)** which provides a complete, up-to-date reconciliation of all planning documents against the current codebase.
+>
+> This file remains for historical reference.
+
+---
+
 This document tracks the remaining gaps between the **Revised Comprehensive Improvement Plan** and the current codebase.
 
 ## Phase 1 – Foundation & Security
