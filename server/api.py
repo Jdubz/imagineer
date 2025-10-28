@@ -52,11 +52,16 @@ from server.database import (  # noqa: E402
     init_database,
 )
 from server.logging_config import configure_logging  # noqa: E402
+from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
 app = Flask(__name__, static_folder="../public", static_url_path="")
 
 # Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///imagineer.db")
+# Use absolute path to ensure consistency
+import os.path  # noqa: E402
+
+db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "instance", "imagineer.db"))
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Configure CORS with environment-based origins
@@ -177,7 +182,13 @@ def handle_500(e):
 @app.route("/auth/login")
 def auth_login():
     """Initiate Google OAuth flow"""
+    # Ensure redirect URI uses /api/ prefix for consistency
+    # url_for can be ambiguous with multiple routes, so construct explicitly
     redirect_uri = url_for("auth_callback", _external=True)
+    # Force /api/ prefix if it's missing
+    if "/api/auth/google/callback" not in redirect_uri:
+        redirect_uri = redirect_uri.replace("/auth/google/callback", "/api/auth/google/callback")
+
     target = request.args.get("state") or request.args.get("next") or "/"
     session["login_redirect"] = target
     return google.authorize_redirect(redirect_uri)
@@ -253,19 +264,33 @@ def auth_logout():
 @app.route("/auth/me")
 def auth_me():
     """Get current user info"""
-    if current_user.is_authenticated:
-        return jsonify(
-            {
-                "authenticated": True,
-                "email": current_user.email,
-                "name": current_user.name,
-                "picture": current_user.picture,
-                "role": current_user.role,
-                "is_admin": current_user.is_admin(),
-            }
-        )
-    else:
+    try:
+        if current_user.is_authenticated:
+            return jsonify(
+                {
+                    "authenticated": True,
+                    "email": current_user.email,
+                    "name": current_user.name,
+                    "picture": current_user.picture,
+                    "role": current_user.role,
+                    "is_admin": current_user.is_admin(),
+                }
+            )
+
         return jsonify({"authenticated": False})
+
+    except Exception as exc:  # pragma: no cover - defensive guardrail
+        logger.error("Auth status check failed: %s", exc, exc_info=True)
+        return (
+            jsonify(
+                {
+                    "authenticated": False,
+                    "error": "AUTH_STATUS_ERROR",
+                    "message": "Failed to determine authentication status.",
+                }
+            ),
+            500,
+        )
 
 
 # ============================================================================
@@ -2188,156 +2213,80 @@ def get_thumbnail(image_id):
 @require_admin
 def label_image(image_id):
     """Trigger AI labeling for single image (admin only)"""
-    try:
-        data = request.json or {}
-        prompt_type = data.get("prompt_type", "default")
+    data = request.get_json(silent=True) or {}
+    prompt_type = data.get("prompt_type", "default")
 
-        image = Image.query.get_or_404(image_id)
+    # Ensure image exists before queuing task
+    Image.query.get_or_404(image_id)
 
-        # Import labeling service
-        from server.services.labeling import label_image_with_claude
+    task = label_image_task.delay(image_id=image_id, prompt_type=prompt_type)
 
-        # Label the image
-        result = label_image_with_claude(image.file_path, prompt_type)
+    logger.info(
+        "Queued labeling task for image %s",
+        image_id,
+        extra={
+            "operation": "label_image",
+            "image_id": image_id,
+            "prompt_type": prompt_type,
+            "task_id": task.id,
+        },
+    )
 
-        if result["status"] == "success":
-            # Update image NSFW flag
-            image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
-
-            # Create caption label
-            if result["description"]:
-                caption_label = Label(
-                    image_id=image.id,
-                    label_text=result["description"],
-                    label_type="caption",
-                    source_model="claude-3-5-sonnet",
-                )
-                db.session.add(caption_label)
-
-            # Create tag labels
-            for tag in result["tags"]:
-                tag_label = Label(
-                    image_id=image.id,
-                    label_text=tag,
-                    label_type="tag",
-                    source_model="claude-3-5-sonnet",
-                )
-                db.session.add(tag_label)
-
-            db.session.commit()
-
-            logger.info(
-                f"Successfully labeled image {image_id}",
-                extra={
-                    "operation": "label_image",
-                    "image_id": image_id,
-                    "prompt_type": prompt_type,
-                },
-            )
-
-            return jsonify(
-                {
-                    "success": True,
-                    "description": result["description"],
-                    "nsfw_rating": result["nsfw_rating"],
-                    "tags": result["tags"],
-                }
-            )
-        else:
-            logger.error(f"Failed to label image {image_id}: {result['message']}")
-            return jsonify({"error": result["message"]}), 500
-
-    except Exception as e:
-        logger.error(f"Error labeling image {image_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to label image"}), 500
+    return jsonify({"status": "queued", "task_id": task.id}), 202
 
 
 @app.route("/api/labeling/album/<int:album_id>", methods=["POST"])
 @require_admin
 def label_album(album_id):
     """Trigger AI labeling for entire album (admin only)"""
-    try:
-        data = request.json or {}
-        prompt_type = data.get("prompt_type", "sd_training")
-        force = data.get("force", False)
+    data = request.get_json(silent=True) or {}
+    prompt_type = data.get("prompt_type", "sd_training")
+    force = data.get("force", False)
 
-        # Verify album exists
-        Album.query.get_or_404(album_id)
+    # Ensure album exists before queuing work
+    Album.query.get_or_404(album_id)
 
-        # Get all images in album
-        album_images = AlbumImage.query.filter_by(album_id=album_id).all()
-        images = [assoc.image for assoc in album_images]
+    album_images = AlbumImage.query.filter_by(album_id=album_id).all()
+    images = [assoc.image for assoc in album_images if assoc.image]
 
-        if not images:
-            return jsonify({"error": "Album is empty"}), 400
+    if not images:
+        return jsonify({"error": "Album is empty"}), 400
 
-        # Filter out already labeled images unless force=True
-        if not force:
-            images = [img for img in images if not img.labels]
+    if not force and all(image.labels for image in images):
+        return jsonify({"error": "All images already labeled"}), 400
 
-        if not images:
-            return jsonify({"error": "All images already labeled"}), 400
+    task = label_album_task.delay(album_id=album_id, prompt_type=prompt_type, force=force)
 
-        # Import labeling service
-        from server.services.labeling import batch_label_images
+    logger.info(
+        "Queued album labeling task %s for album %s",
+        task.id,
+        album_id,
+        extra={
+            "operation": "label_album",
+            "album_id": album_id,
+            "prompt_type": prompt_type,
+            "force": force,
+            "task_id": task.id,
+        },
+    )
 
-        # Label images
-        image_paths = [img.file_path for img in images]
-        results = batch_label_images(image_paths, prompt_type)
+    return jsonify({"status": "queued", "task_id": task.id}), 202
 
-        # Process results and update database
-        for i, result in enumerate(results["results"]):
-            if result["status"] == "success":
-                image = images[i]
 
-                # Update image NSFW flag
-                image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
+@app.route("/api/labeling/tasks/<task_id>", methods=["GET"])
+def get_labeling_task(task_id):
+    """Check the status of a labeling task."""
+    async_result = celery.AsyncResult(task_id)
+    response = {"task_id": task_id, "state": async_result.state}
 
-                # Create caption label
-                if result["description"]:
-                    caption_label = Label(
-                        image_id=image.id,
-                        label_text=result["description"],
-                        label_type="caption",
-                        source_model="claude-3-5-sonnet",
-                    )
-                    db.session.add(caption_label)
+    if async_result.state == "PROGRESS":
+        response["progress"] = async_result.info or {}
+    elif async_result.state == "SUCCESS":
+        response["result"] = async_result.info
+    elif async_result.state in ("FAILURE", "REVOKED"):
+        response["error"] = str(async_result.info)
 
-                # Create tag labels
-                for tag in result["tags"]:
-                    tag_label = Label(
-                        image_id=image.id,
-                        label_text=tag,
-                        label_type="tag",
-                        source_model="claude-3-5-sonnet",
-                    )
-                    db.session.add(tag_label)
-
-        db.session.commit()
-
-        logger.info(
-            f"Batch labeled album {album_id}: {results['success']} success, "
-            f"{results['failed']} failed",
-            extra={
-                "operation": "label_album",
-                "album_id": album_id,
-                "success": results["success"],
-                "failed": results["failed"],
-            },
-        )
-
-        return jsonify(
-            {
-                "success": True,
-                "total": results["total"],
-                "success_count": results["success"],
-                "failed_count": results["failed"],
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Error batch labeling album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to label album"}), 500
+    return jsonify(response)
 
 
 @app.route("/api/database/stats", methods=["GET"])
