@@ -3,12 +3,25 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AuthButton from './AuthButton'
 
-const createResponse = (data = {}, init = {}) =>
-  Promise.resolve({
+const createResponse = (data = {}, init = {}) => {
+  const headersInit = init.headers || { 'content-type': 'application/json' }
+  const headerStore = new Map(
+    Object.entries(headersInit).map(([key, value]) => [key.toLowerCase(), value])
+  )
+
+  return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
-    json: () => Promise.resolve(data)
+    headers: {
+      get: (name) => headerStore.get(name.toLowerCase()) ?? null
+    },
+    json: () => Promise.resolve(data),
+    text: () =>
+      Promise.resolve(
+        typeof init.text === 'string' ? init.text : JSON.stringify(data)
+      )
   })
+}
 
 describe('AuthButton', () => {
   const originalFetch = globalThis.fetch
@@ -77,5 +90,26 @@ describe('AuthButton', () => {
     })
     // Button should still default to viewer state
     expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
+  })
+
+  it('handles non-json unauthorized responses gracefully', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      createResponse(
+        {},
+        {
+          ok: false,
+          status: 401,
+          headers: { 'content-type': 'text/html' },
+          text: '<!DOCTYPE html><html></html>'
+        }
+      )
+    )
+
+    render(<AuthButton />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/unable to verify/i)).not.toBeInTheDocument()
   })
 })
