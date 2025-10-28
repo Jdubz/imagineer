@@ -1,7 +1,12 @@
 import React, { useState } from 'react'
+import type { GeneratedImage } from '../types/models'
 
-function ImageGallery({ images = [] }) {
-  const [selectedImage, setSelectedImage] = useState(null)
+interface ImageGalleryProps {
+  images?: GeneratedImage[]
+}
+
+const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
 
   if (images.length === 0) {
     return (
@@ -11,15 +16,15 @@ function ImageGallery({ images = [] }) {
     )
   }
 
-  const openModal = (image) => {
+  const openModal = (image: GeneratedImage): void => {
     setSelectedImage(image)
   }
 
-  const closeModal = () => {
+  const closeModal = (): void => {
     setSelectedImage(null)
   }
 
-  const handleBackdropClick = (e) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>): void => {
     if (e.target === e.currentTarget) {
       closeModal()
     }
@@ -39,8 +44,8 @@ function ImageGallery({ images = [] }) {
             />
             <div className="image-prompt">
               {image.metadata?.prompt ? (
-                <p>{image.metadata.prompt.length > 50 
-                  ? `${image.metadata.prompt.substring(0, 50)}...` 
+                <p>{image.metadata.prompt.length > 50
+                  ? `${image.metadata.prompt.substring(0, 50)}...`
                   : image.metadata.prompt}</p>
               ) : null}
             </div>
@@ -49,21 +54,21 @@ function ImageGallery({ images = [] }) {
       </div>
 
       {selectedImage && (
-        <div 
-          className="modal-backdrop" 
+        <div
+          className="modal-backdrop"
           data-testid="modal-backdrop"
           onClick={handleBackdropClick}
         >
           <div className="modal-content" role="dialog" aria-modal="true">
-            <button 
-              className="close-button" 
+            <button
+              className="close-button"
               onClick={closeModal}
               aria-label="Close"
             >
               ×
             </button>
-            <img 
-              src={`/api${selectedImage.path}`} 
+            <img
+              src={`/api${selectedImage.path}`}
               alt={selectedImage.metadata?.prompt || selectedImage.filename}
               className="modal-image"
             />

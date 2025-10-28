@@ -1,15 +1,48 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import '../styles/TrainingTab.css';
+import React, { useState, useEffect, useCallback } from 'react'
+import '../styles/TrainingTab.css'
+import type { TrainingJob, JobStatus } from '../types/models'
 
-const TrainingTab = ({ isAdmin = false }) => {
-  const [trainingRuns, setTrainingRuns] = useState([]);
-  const [albums, setAlbums] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+interface TrainingAlbum {
+  id: string
+  name: string
+  image_count: number
+}
+
+interface TrainingConfig {
+  steps: number
+  rank: number
+  learning_rate: number
+  batch_size: number
+}
+
+interface TrainingFormData {
+  name: string
+  description: string
+  album_ids: string[]
+  config: TrainingConfig
+}
+
+interface TrainingRunsResponse {
+  training_runs: TrainingJob[]
+}
+
+interface AlbumsResponse {
+  albums: TrainingAlbum[]
+}
+
+interface TrainingTabProps {
+  isAdmin?: boolean
+}
+
+const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
+  const [trainingRuns, setTrainingRuns] = useState<TrainingJob[]>([])
+  const [albums, setAlbums] = useState<TrainingAlbum[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
 
   // Form state for creating training runs
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TrainingFormData>({
     name: '',
     description: '',
     album_ids: [],
@@ -19,51 +52,51 @@ const TrainingTab = ({ isAdmin = false }) => {
       learning_rate: 0.0001,
       batch_size: 1
     }
-  });
+  })
 
-  const fetchTrainingRuns = useCallback(async () => {
-    if (!isAdmin) return;
+  const fetchTrainingRuns = useCallback(async (): Promise<void> => {
+    if (!isAdmin) return
     try {
-      setLoading(true);
+      setLoading(true)
       const response = await fetch('/api/training', {
         credentials: 'include',
-      });
-      const data = await response.json();
-      setTrainingRuns(data.training_runs || []);
+      })
+      const data: TrainingRunsResponse = await response.json()
+      setTrainingRuns(data.training_runs || [])
     } catch (err) {
-      setError('Failed to fetch training runs');
-      console.error('Error fetching training runs:', err);
+      setError('Failed to fetch training runs')
+      console.error('Error fetching training runs:', err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [isAdmin]);
+  }, [isAdmin])
 
-  const fetchAlbums = useCallback(async () => {
-    if (!isAdmin) return;
+  const fetchAlbums = useCallback(async (): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch('/api/training/albums', {
         credentials: 'include',
-      });
-      const data = await response.json();
-      setAlbums(data.albums || []);
+      })
+      const data: AlbumsResponse = await response.json()
+      setAlbums(data.albums || [])
     } catch (err) {
-      console.error('Error fetching albums:', err);
+      console.error('Error fetching albums:', err)
     }
-  }, [isAdmin]);
+  }, [isAdmin])
 
   useEffect(() => {
     if (!isAdmin) {
-      setLoading(false);
-      return;
+      setLoading(false)
+      return
     }
-    fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err));
-    fetchAlbums().catch((err) => console.error('Error refreshing albums:', err));
-  }, [fetchAlbums, fetchTrainingRuns, isAdmin]);
+    fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err))
+    fetchAlbums().catch((err) => console.error('Error refreshing albums:', err))
+  }, [fetchAlbums, fetchTrainingRuns, isAdmin])
 
-  const handleCreateTraining = async (e) => {
-    e.preventDefault();
-    if (!isAdmin) return;
-    
+  const handleCreateTraining = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    if (!isAdmin) return
+
     try {
       const response = await fetch('/api/training', {
         method: 'POST',
@@ -72,10 +105,10 @@ const TrainingTab = ({ isAdmin = false }) => {
         },
         credentials: 'include',
         body: JSON.stringify(formData),
-      });
+      })
 
       if (response.ok) {
-        setShowCreateDialog(false);
+        setShowCreateDialog(false)
         setFormData({
           name: '',
           description: '',
@@ -86,94 +119,93 @@ const TrainingTab = ({ isAdmin = false }) => {
             learning_rate: 0.0001,
             batch_size: 1
           }
-        });
-        fetchTrainingRuns();
+        })
+        fetchTrainingRuns()
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to create training run');
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to create training run')
       }
     } catch (err) {
-      setError('Failed to create training run');
-      console.error('Error creating training run:', err);
+      setError('Failed to create training run')
+      console.error('Error creating training run:', err)
     }
-  };
+  }
 
-  const handleStartTraining = async (runId) => {
-    if (!isAdmin) return;
+  const handleStartTraining = async (runId: string): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch(`/api/training/${runId}/start`, {
         method: 'POST',
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        fetchTrainingRuns();
+        fetchTrainingRuns()
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to start training');
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to start training')
       }
     } catch (err) {
-      setError('Failed to start training');
-      console.error('Error starting training:', err);
+      setError('Failed to start training')
+      console.error('Error starting training:', err)
     }
-  };
+  }
 
-  const handleCancelTraining = async (runId) => {
-    if (!isAdmin) return;
+  const handleCancelTraining = async (runId: string): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch(`/api/training/${runId}/cancel`, {
         method: 'POST',
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        fetchTrainingRuns();
+        fetchTrainingRuns()
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to cancel training');
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to cancel training')
       }
     } catch (err) {
-      setError('Failed to cancel training');
-      console.error('Error cancelling training:', err);
+      setError('Failed to cancel training')
+      console.error('Error cancelling training:', err)
     }
-  };
+  }
 
-  const handleCleanupTraining = async (runId) => {
-    if (!isAdmin) return;
+  const handleCleanupTraining = async (runId: string): Promise<void> => {
+    if (!isAdmin) return
     try {
       const response = await fetch(`/api/training/${runId}/cleanup`, {
         method: 'POST',
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        fetchTrainingRuns();
+        fetchTrainingRuns()
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to cleanup training');
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to cleanup training')
       }
     } catch (err) {
-      setError('Failed to cleanup training');
-      console.error('Error cleaning up training:', err);
+      setError('Failed to cleanup training')
+      console.error('Error cleaning up training:', err)
     }
-  };
+  }
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: JobStatus): string => {
     switch (status) {
-      case 'completed': return '#4CAF50';
-      case 'running': return '#2196F3';
-      case 'failed': return '#F44336';
-      case 'cancelled': return '#FF9800';
-      case 'pending': return '#9E9E9E';
-      case 'queued': return '#FFC107';
-      default: return '#9E9E9E';
+      case 'completed': return '#4CAF50'
+      case 'running': return '#2196F3'
+      case 'failed': return '#F44336'
+      case 'cancelled': return '#FF9800'
+      case 'queued': return '#FFC107'
+      default: return '#9E9E9E'
     }
-  };
+  }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
-  };
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleString()
+  }
 
   if (!isAdmin) {
     return (
@@ -183,7 +215,7 @@ const TrainingTab = ({ isAdmin = false }) => {
           <p>Sign in with an admin account to manage training runs.</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (loading) {
@@ -191,7 +223,7 @@ const TrainingTab = ({ isAdmin = false }) => {
       <div className="training-tab">
         <div className="loading">Loading training runs...</div>
       </div>
-    );
+    )
   }
 
   return (
@@ -199,7 +231,7 @@ const TrainingTab = ({ isAdmin = false }) => {
       <div className="training-header">
         <h2>LoRA Training Pipeline</h2>
         {isAdmin && (
-          <button 
+          <button
             className="create-button"
             onClick={() => setShowCreateDialog(true)}
           >
@@ -224,22 +256,18 @@ const TrainingTab = ({ isAdmin = false }) => {
           trainingRuns.map((run) => (
             <div key={run.id} className="training-run-card">
               <div className="run-header">
-                <h3>{run.name}</h3>
-                <span 
+                <h3>{run.output_name}</h3>
+                <span
                   className="status-badge"
                   style={{ backgroundColor: getStatusColor(run.status) }}
                 >
                   {run.status.toUpperCase()}
                 </span>
               </div>
-              
-              {run.description && (
-                <p className="run-description">{run.description}</p>
-              )}
 
               <div className="run-details">
                 <div className="detail-item">
-                  <strong>Progress:</strong> {run.progress}%
+                  <strong>Progress:</strong> {run.progress || 0}%
                 </div>
                 <div className="detail-item">
                   <strong>Created:</strong> {formatDate(run.created_at)}
@@ -254,55 +282,45 @@ const TrainingTab = ({ isAdmin = false }) => {
                     <strong>Completed:</strong> {formatDate(run.completed_at)}
                   </div>
                 )}
-                {run.final_checkpoint && (
-                  <div className="detail-item">
-                    <strong>Checkpoint:</strong> {run.final_checkpoint}
-                  </div>
-                )}
-                {run.training_loss && (
-                  <div className="detail-item">
-                    <strong>Final Loss:</strong> {run.training_loss.toFixed(6)}
-                  </div>
-                )}
               </div>
 
-              {run.status === 'running' && (
+              {run.status === 'running' && run.progress !== undefined && (
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-fill"
                     style={{ width: `${run.progress}%` }}
                   ></div>
                 </div>
               )}
 
-              {run.error_message && (
+              {run.error && (
                 <div className="error-details">
-                  <strong>Error:</strong> {run.error_message}
+                  <strong>Error:</strong> {run.error}
                 </div>
               )}
 
               {isAdmin && (
                 <div className="run-actions">
-                  {run.status === 'pending' && (
-                    <button 
+                  {(run.status === 'queued') && (
+                    <button
                       className="action-button start"
                       onClick={() => handleStartTraining(run.id)}
                     >
                       Start Training
                     </button>
                   )}
-                  
-                  {(run.status === 'pending' || run.status === 'queued' || run.status === 'running') && (
-                    <button 
+
+                  {(run.status === 'queued' || run.status === 'running') && (
+                    <button
                       className="action-button cancel"
                       onClick={() => handleCancelTraining(run.id)}
                     >
                       Cancel
                     </button>
                   )}
-                  
+
                   {(run.status === 'completed' || run.status === 'failed') && (
-                    <button 
+                    <button
                       className="action-button cleanup"
                       onClick={() => handleCleanupTraining(run.id)}
                     >
@@ -322,14 +340,14 @@ const TrainingTab = ({ isAdmin = false }) => {
           <div className="dialog">
             <div className="dialog-header">
               <h3>Create Training Run</h3>
-              <button 
+              <button
                 className="close-button"
                 onClick={() => setShowCreateDialog(false)}
               >
                 ×
               </button>
             </div>
-            
+
             <form onSubmit={handleCreateTraining} className="training-form">
               <div className="form-group">
                 <label htmlFor="name">Name *</label>
@@ -337,7 +355,7 @@ const TrainingTab = ({ isAdmin = false }) => {
                   type="text"
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, name: e.target.value})}
                   required
                 />
               </div>
@@ -347,8 +365,8 @@ const TrainingTab = ({ isAdmin = false }) => {
                 <textarea
                   id="description"
                   value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  rows="3"
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({...formData, description: e.target.value})}
+                  rows={3}
                 />
               </div>
 
@@ -360,17 +378,17 @@ const TrainingTab = ({ isAdmin = false }) => {
                       <input
                         type="checkbox"
                         checked={formData.album_ids.includes(album.id)}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           if (e.target.checked) {
                             setFormData({
                               ...formData,
                               album_ids: [...formData.album_ids, album.id]
-                            });
+                            })
                           } else {
                             setFormData({
                               ...formData,
                               album_ids: formData.album_ids.filter(id => id !== album.id)
-                            });
+                            })
                           }
                         }}
                       />
@@ -386,7 +404,7 @@ const TrainingTab = ({ isAdmin = false }) => {
                   type="number"
                   id="steps"
                   value={formData.config.steps}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {...formData.config, steps: parseInt(e.target.value)}
                   })}
@@ -401,7 +419,7 @@ const TrainingTab = ({ isAdmin = false }) => {
                   type="number"
                   id="rank"
                   value={formData.config.rank}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {...formData.config, rank: parseInt(e.target.value)}
                   })}
@@ -416,7 +434,7 @@ const TrainingTab = ({ isAdmin = false }) => {
                   type="number"
                   id="learning_rate"
                   value={formData.config.learning_rate}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {...formData.config, learning_rate: parseFloat(e.target.value)}
                   })}
@@ -432,7 +450,7 @@ const TrainingTab = ({ isAdmin = false }) => {
                   type="number"
                   id="batch_size"
                   value={formData.config.batch_size}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {...formData.config, batch_size: parseInt(e.target.value)}
                   })}
@@ -454,7 +472,7 @@ const TrainingTab = ({ isAdmin = false }) => {
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default TrainingTab;
+export default TrainingTab

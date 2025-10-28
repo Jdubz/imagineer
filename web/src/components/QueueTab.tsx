@@ -1,21 +1,32 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import '../styles/QueueTab.css'
 
-function QueueTab() {
-  const [queueData, setQueueData] = useState(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+interface QueueJob {
+  id: string
+  prompt: string
+  lora_paths?: string[]
+  started_at?: string
+  submitted_at?: string
+  completed_at?: string
+  width?: number
+  height?: number
+  steps?: number
+  status: string
+  output_path?: string
+  error?: string
+}
 
-  useEffect(() => {
-    fetchQueueData()
+interface QueueData {
+  current: QueueJob | null
+  queue: QueueJob[]
+  history: QueueJob[]
+}
 
-    // Auto-refresh every 2 seconds if enabled
-    if (autoRefresh) {
-      const interval = setInterval(fetchQueueData, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [autoRefresh])
+const QueueTab: React.FC = () => {
+  const [queueData, setQueueData] = useState<QueueData | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
 
-  const fetchQueueData = async () => {
+  const fetchQueueData = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch('/api/jobs')
       const data = await response.json()
@@ -23,23 +34,34 @@ function QueueTab() {
     } catch (error) {
       console.error('Failed to fetch queue data:', error)
     }
-  }
+  }, [])
 
-  const formatDate = (dateString) => {
+  useEffect(() => {
+    void fetchQueueData()
+
+    // Auto-refresh every 2 seconds if enabled
+    if (autoRefresh) {
+      const interval = setInterval(() => void fetchQueueData(), 2000)
+      return () => clearInterval(interval)
+    }
+    return undefined
+  }, [autoRefresh, fetchQueueData])
+
+  const formatDate = (dateString?: string): string => {
     if (!dateString) return '-'
     const date = new Date(dateString)
     return date.toLocaleString()
   }
 
-  const formatDuration = (startTime, endTime) => {
+  const formatDuration = (startTime?: string, endTime?: string): string => {
     if (!startTime || !endTime) return '-'
     const start = new Date(startTime)
     const end = new Date(endTime)
-    const seconds = Math.floor((end - start) / 1000)
+    const seconds = Math.floor((end.getTime() - start.getTime()) / 1000)
     return `${seconds}s`
   }
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status: string): JSX.Element => {
     const statusClass = `status-badge status-${status}`
     return <span className={statusClass}>{status}</span>
   }
@@ -57,7 +79,7 @@ function QueueTab() {
             <input
               type="checkbox"
               checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoRefresh(e.target.checked)}
             />
             Auto-refresh
           </label>

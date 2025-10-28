@@ -1,6 +1,12 @@
 import React from 'react'
+import type { BatchSummary } from '../types/models'
 
-function BatchList({ batches, onSelectBatch }) {
+interface BatchListProps {
+  batches: BatchSummary[]
+  onSelectBatch: (batchId: string) => void
+}
+
+const BatchList: React.FC<BatchListProps> = ({ batches, onSelectBatch }) => {
   if (!batches || batches.length === 0) {
     return (
       <div className="batch-list">

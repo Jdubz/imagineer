@@ -1,16 +1,36 @@
 import React, { useState, useEffect } from 'react'
 import '../styles/AlbumsTab.css'
 
-function AlbumsTab({ isAdmin }) {
-  const [albums, setAlbums] = useState([])
-  const [selectedAlbum, setSelectedAlbum] = useState(null)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
+interface AlbumImage {
+  id: string
+  filename: string
+  is_nsfw?: boolean
+  labels?: string[]
+}
+
+interface Album {
+  id: string
+  name: string
+  description?: string
+  image_count: number
+  album_type?: string
+  images?: AlbumImage[]
+}
+
+interface AlbumsTabProps {
+  isAdmin: boolean
+}
+
+const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
+  const [albums, setAlbums] = useState<Album[]>([])
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
+  const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
 
   useEffect(() => {
     fetchAlbums()
   }, [])
 
-  const fetchAlbums = async () => {
+  const fetchAlbums = async (): Promise<void> => {
     try {
       const response = await fetch('/api/albums')
       const data = await response.json()
@@ -20,7 +40,7 @@ function AlbumsTab({ isAdmin }) {
     }
   }
 
-  const selectAlbum = async (albumId) => {
+  const selectAlbum = async (albumId: string): Promise<void> => {
     try {
       const response = await fetch(`/api/albums/${albumId}`)
       const data = await response.json()
@@ -30,7 +50,7 @@ function AlbumsTab({ isAdmin }) {
     }
   }
 
-  const createAlbum = async (name, description, albumType = 'manual') => {
+  const createAlbum = async (name: string, description: string, albumType = 'manual'): Promise<void> => {
     if (!isAdmin) return
 
     try {
@@ -38,11 +58,11 @@ function AlbumsTab({ isAdmin }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ 
-          name, 
-          description, 
+        body: JSON.stringify({
+          name,
+          description,
           album_type: albumType,
-          is_public: true 
+          is_public: true
         })
       })
 
@@ -59,7 +79,7 @@ function AlbumsTab({ isAdmin }) {
     }
   }
 
-  const deleteAlbum = async (albumId) => {
+  const deleteAlbum = async (albumId: string): Promise<void> => {
     if (!isAdmin) return
 
     if (!window.confirm('Are you sure you want to delete this album?')) return
@@ -72,7 +92,7 @@ function AlbumsTab({ isAdmin }) {
 
       if (response.ok) {
         fetchAlbums()
-        if (selectedAlbum && selectedAlbum.id === albumId) {
+        if (selectedAlbum?.id === albumId) {
           setSelectedAlbum(null)
         }
       } else {
@@ -101,7 +121,7 @@ function AlbumsTab({ isAdmin }) {
       <div className="albums-header">
         <h2>Albums</h2>
         {isAdmin && (
-          <button 
+          <button
             className="create-album-btn"
             onClick={() => setShowCreateDialog(true)}
           >
@@ -119,9 +139,9 @@ function AlbumsTab({ isAdmin }) {
           >
             <div className="album-cover">
               {album.images && album.images.length > 0 ? (
-                <img 
-                  src={`/api/images/${album.images[0].id}/thumbnail`} 
-                  alt={album.name} 
+                <img
+                  src={`/api/images/${album.images[0].id}/thumbnail`}
+                  alt={album.name}
                 />
               ) : (
                 <div className="album-placeholder">
@@ -137,9 +157,9 @@ function AlbumsTab({ isAdmin }) {
                 <span>{album.image_count || 0} images</span>
                 <span className="album-type">{album.album_type || 'manual'}</span>
                 {isAdmin && (
-                  <button 
+                  <button
                     className="delete-album-btn"
-                    onClick={(e) => {
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                       e.stopPropagation()
                       deleteAlbum(album.id)
                     }}
@@ -169,12 +189,19 @@ function AlbumsTab({ isAdmin }) {
   )
 }
 
-function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
-  const [images, setImages] = useState(album.images || [])
-  const [selectedImages, setSelectedImages] = useState([])
-  const [nsfwSetting, setNsfwSetting] = useState('blur') // 'hide', 'blur', 'show'
+interface AlbumDetailViewProps {
+  album: Album
+  onBack: () => void
+  isAdmin: boolean
+  onDelete: (albumId: string) => void
+}
 
-  const toggleImageSelection = (imageId) => {
+const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmin }) => {
+  const [images, setImages] = useState<AlbumImage[]>(album.images || [])
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [nsfwSetting, setNsfwSetting] = useState<'hide' | 'blur' | 'show'>('blur')
+
+  const toggleImageSelection = (imageId: string): void => {
     if (!isAdmin) return
 
     if (selectedImages.includes(imageId)) {
@@ -184,7 +211,7 @@ function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
     }
   }
 
-  const removeSelectedImages = async () => {
+  const removeSelectedImages = async (): Promise<void> => {
     if (!isAdmin) return
 
     for (const imageId of selectedImages) {
@@ -210,7 +237,7 @@ function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
 
         <div className="nsfw-filter">
           <label>NSFW:</label>
-          <select value={nsfwSetting} onChange={e => setNsfwSetting(e.target.value)}>
+          <select value={nsfwSetting} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')}>
             <option value="hide">Hide</option>
             <option value="blur">Blur</option>
             <option value="show">Show</option>
@@ -218,7 +245,7 @@ function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
         </div>
 
         {isAdmin && selectedImages.length > 0 && (
-          <button 
+          <button
             className="remove-images-btn"
             onClick={removeSelectedImages}
           >
@@ -273,12 +300,17 @@ function AlbumDetailView({ album, onBack, isAdmin, onDelete: _onDelete }) {
   )
 }
 
-function CreateAlbumDialog({ onClose, onCreate }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [albumType, setAlbumType] = useState('manual')
+interface CreateAlbumDialogProps {
+  onClose: () => void
+  onCreate: (name: string, description: string, albumType: string) => void
+}
 
-  const handleSubmit = (e) => {
+const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate }) => {
+  const [name, setName] = useState<string>('')
+  const [description, setDescription] = useState<string>('')
+  const [albumType, setAlbumType] = useState<string>('manual')
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (!name.trim()) return
 
@@ -287,7 +319,7 @@ function CreateAlbumDialog({ onClose, onCreate }) {
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog" onClick={e => e.stopPropagation()}>
+      <div className="dialog" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
         <h2>Create Album</h2>
 
         <form onSubmit={handleSubmit}>
@@ -296,7 +328,7 @@ function CreateAlbumDialog({ onClose, onCreate }) {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Enter album name"
               required
             />
@@ -306,15 +338,15 @@ function CreateAlbumDialog({ onClose, onCreate }) {
             <label>Description:</label>
             <textarea
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
               placeholder="Enter album description (optional)"
-              rows="3"
+              rows={3}
             />
           </div>
 
           <div className="form-group">
             <label>Album Type:</label>
-            <select value={albumType} onChange={e => setAlbumType(e.target.value)}>
+            <select value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
               <option value="manual">Manual Collection</option>
               <option value="batch">Generated Batch</option>
               <option value="set">CSV Set</option>

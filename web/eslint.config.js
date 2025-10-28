@@ -1,11 +1,13 @@
 import js from '@eslint/js'
 import react from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
+import tseslint from 'typescript-eslint'
 
-export default [
+export default tseslint.config(
   js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{ts,tsx}'],
     plugins: {
       react,
       'react-hooks': reactHooks,
@@ -17,6 +19,8 @@ export default [
         ecmaFeatures: {
           jsx: true,
         },
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         window: 'readonly',
@@ -39,14 +43,25 @@ export default [
       'react/jsx-uses-vars': 'error',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/no-base-to-string': 'off',
+      '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
     },
     settings: {
       react: {
         version: 'detect',
       },
     },
+  },
+  {
+    // Disable type-checking for config files
+    files: ['**/*.config.{js,ts}', 'vite.config.{js,ts}', 'vitest.config.{js,ts}'],
+    extends: [tseslint.configs.disableTypeChecked],
   },
   {
     ignores: [
@@ -56,6 +71,8 @@ export default [
       '*.config.js',
       'vite.config.js',
       'vitest.config.js',
+      '../public/**',
+      'src/types/shared.ts',
     ],
   },
-]
+)

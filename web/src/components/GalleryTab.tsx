@@ -1,19 +1,32 @@
 import React, { useState } from 'react'
 import BatchList from './BatchList'
-import ImageGrid from './ImageGrid'
 import BatchGallery from './BatchGallery'
+import ImageGrid from './ImageGrid'
+import type { BatchSummary, GeneratedImage } from '../types/models'
 import '../styles/GalleryTab.css'
 
-function GalleryTab({ batches, images, onRefreshImages, onRefreshBatches }) {
-  const [selectedBatchId, setSelectedBatchId] = useState(null)
+interface GalleryTabProps {
+  batches: BatchSummary[]
+  images: GeneratedImage[]
+  onRefreshImages: () => Promise<void>
+  onRefreshBatches: () => Promise<void>
+}
 
-  const handleSelectBatch = (batchId) => {
+const GalleryTab: React.FC<GalleryTabProps> = ({
+  batches,
+  images,
+  onRefreshImages,
+  onRefreshBatches,
+}) => {
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
+
+  const handleSelectBatch = (batchId: string): void => {
     setSelectedBatchId(batchId)
   }
 
-  const handleBackToList = () => {
+  const handleBackToList = (): void => {
     setSelectedBatchId(null)
-    onRefreshBatches() // Refresh batches when going back
+    void onRefreshBatches()
   }
 
   return (

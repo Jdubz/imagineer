@@ -1,7 +1,14 @@
 import React from 'react'
+import type { Tab } from '../types/models'
 import '../styles/Tabs.css'
 
-function Tabs({ tabs, activeTab, onTabChange }) {
+interface TabsProps {
+  tabs: Tab[]
+  activeTab: string
+  onTabChange: (tabId: string) => void
+}
+
+const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
   return (
     <div className="tabs">
       {tabs.map((tab) => (

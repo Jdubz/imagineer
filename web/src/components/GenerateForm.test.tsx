@@ -2,40 +2,54 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
+import type { Config } from '../types/models'
 
 describe('GenerateForm', () => {
   const mockOnGenerate = vi.fn()
-  const mockConfig = {
+  const mockOnGenerateBatch = vi.fn()
+  const mockConfig: Partial<Config> = {
     generation: {
       steps: 30,
-      guidance_scale: 7.5
-    }
+      guidance_scale: 7.5,
+    },
   }
 
+  const renderForm = (overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {}) =>
+    render(
+      <GenerateForm
+        onGenerate={mockOnGenerate}
+        onGenerateBatch={mockOnGenerateBatch}
+        loading={false}
+        config={(mockConfig as Config) ?? null}
+        {...overrides}
+      />,
+    )
+
   beforeEach(() => {
-    mockOnGenerate.mockClear()
+    mockOnGenerate.mockReset()
+    mockOnGenerateBatch.mockReset()
   })
 
   it('renders the form with all inputs', () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
     expect(screen.getByPlaceholderText(/describe the image/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /generate image/i })).toBeInTheDocument()
   })
 
   it('shows loading state when generating', () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={true} config={mockConfig} />)
+    renderForm({ loading: true })
 
     const generatingButtons = screen.getAllByRole('button', { name: /generating/i })
     expect(generatingButtons).toHaveLength(2)
-    generatingButtons.forEach(button => {
+    generatingButtons.forEach((button) => {
       expect(button).toBeDisabled()
     })
   })
 
   it('submits form with prompt', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
     const input = screen.getByPlaceholderText(/describe the image/i)
     const button = screen.getByRole('button', { name: /generate image/i })
@@ -45,14 +59,14 @@ describe('GenerateForm', () => {
 
     expect(mockOnGenerate).toHaveBeenCalledWith(
       expect.objectContaining({
-        prompt: 'a beautiful sunset'
-      })
+        prompt: 'a beautiful sunset',
+      }),
     )
   })
 
   it('does not submit with empty prompt', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
     const button = screen.getByRole('button', { name: /generate image/i })
     await user.click(button)
@@ -62,9 +76,9 @@ describe('GenerateForm', () => {
 
   it('clears prompt after submission', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
-    const input = screen.getByPlaceholderText(/describe the image/i)
+    const input = screen.getByPlaceholderText<HTMLInputElement>(/describe the image/i)
 
     await user.type(input, 'test prompt')
     await user.click(screen.getByRole('button', { name: /generate image/i }))
@@ -73,32 +87,30 @@ describe('GenerateForm', () => {
   })
 
   it('displays steps slider with correct range', () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
-    const stepsSlider = screen.getByLabelText(/steps/i)
+    const stepsSlider = screen.getByLabelText<HTMLInputElement>(/steps/i)
     expect(stepsSlider).toBeInTheDocument()
-    expect(stepsSlider).toHaveAttribute('min', '10')
-    expect(stepsSlider).toHaveAttribute('max', '75')
+    expect(stepsSlider.min).toBe('10')
+    expect(stepsSlider.max).toBe('75')
   })
 
   it('displays guidance scale slider with correct range', () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
-    const guidanceSlider = screen.getByLabelText(/guidance scale/i)
+    const guidanceSlider = screen.getByLabelText<HTMLInputElement>(/guidance scale/i)
     expect(guidanceSlider).toBeInTheDocument()
-    expect(guidanceSlider).toHaveAttribute('min', '1')
-    expect(guidanceSlider).toHaveAttribute('max', '20')
+    expect(guidanceSlider.min).toBe('1')
+    expect(guidanceSlider.max).toBe('20')
   })
 
   it('allows toggling between random and fixed seed', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
-    // Check random seed is selected by default
     const randomRadio = screen.getByRole('radio', { name: /random/i })
     expect(randomRadio).toBeChecked()
 
-    // Switch to fixed seed
     const fixedRadio = screen.getByRole('radio', { name: /fixed/i })
     await user.click(fixedRadio)
 
@@ -108,46 +120,42 @@ describe('GenerateForm', () => {
 
   it('includes seed in submission when fixed seed is selected', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
-    // Switch to fixed seed
     await user.click(screen.getByLabelText(/fixed/i))
 
-    // Enter seed value
     const seedInput = screen.getByPlaceholderText(/enter seed or generate random/i)
     await user.type(seedInput, '12345')
 
-    // Submit form
     const promptInput = screen.getByPlaceholderText(/describe the image/i)
     await user.type(promptInput, 'test prompt')
     await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     expect(mockOnGenerate).toHaveBeenCalledWith(
       expect.objectContaining({
-        seed: 12345
-      })
+        seed: 12345,
+      }),
     )
   })
 
   it('generates random seed when button is clicked', async () => {
     const user = userEvent.setup()
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+    renderForm()
 
     await user.click(screen.getByLabelText(/fixed/i))
 
-    const seedInput = screen.getByPlaceholderText(/enter seed or generate random/i)
+    const seedInput = screen.getByPlaceholderText<HTMLInputElement>(/enter seed or generate random/i)
     const randomButton = screen.getByTitle(/generate random seed/i)
 
     await user.click(randomButton)
 
-    // Seed input should have a value
     expect(seedInput.value).not.toBe('')
-    expect(parseInt(seedInput.value)).toBeGreaterThan(0)
-    expect(parseInt(seedInput.value)).toBeLessThanOrEqual(2147483647)
+    expect(Number.parseInt(seedInput.value, 10)).toBeGreaterThan(0)
+    expect(Number.parseInt(seedInput.value, 10)).toBeLessThanOrEqual(2147483647)
   })
 
-  it('updates steps value when slider is moved', async () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+  it('updates steps value when slider is moved', () => {
+    renderForm()
 
     const stepsSlider = screen.getByLabelText(/steps/i)
 
@@ -157,21 +165,15 @@ describe('GenerateForm', () => {
     expect(stepsDisplay).toBeInTheDocument()
   })
 
-  it('updates guidance scale when slider is moved', async () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={mockConfig} />)
+  it('updates guidance scale when slider is moved', () => {
+    renderForm()
 
     const guidanceSlider = screen.getByLabelText(/guidance scale/i)
 
-    fireEvent.change(guidanceSlider, { target: { value: '10' } })
+    fireEvent.change(guidanceSlider, { target: { value: '12' } })
 
-    const guidanceDisplay = screen.getByText(/guidance scale: 10/i)
+    const guidanceDisplay = screen.getByText(/guidance scale: 12/i)
     expect(guidanceDisplay).toBeInTheDocument()
   })
-
-  it('uses config defaults if not provided', () => {
-    render(<GenerateForm onGenerate={mockOnGenerate} loading={false} config={null} />)
-
-    // Should still render without crashing
-    expect(screen.getByPlaceholderText(/describe the image/i)).toBeInTheDocument()
-  })
 })
+

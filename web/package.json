@@ -18,7 +18,8 @@
     "version:major": "cd .. && python scripts/version.py bump --part major",
     "version:current": "cd .. && python scripts/version.py current",
     "deploy:build": "npm run build:prod && cd .. && python scripts/version.py build-info",
-    "tsc": "tsc --noEmit --project ./tsconfig.json"
+    "tsc": "tsc --noEmit --project ./tsconfig.json",
+    "generate:types": "cd .. && python3 scripts/generate_shared_types.py"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -30,6 +31,8 @@
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.5.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^5.1.0",
     "@vitest/coverage-v8": "^1.6.1",
     "@vitest/ui": "^1.6.1",
@@ -39,8 +42,9 @@
     "husky": "^9.1.7",
     "jsdom": "^27.0.1",
     "lint-staged": "^16.2.4",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.46.2",
     "vite": "^6.0.11",
-    "vitest": "^1.6.1",
-    "typescript": "^5.6.3"
+    "vitest": "^1.6.1"
   }
 }

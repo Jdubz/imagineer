@@ -9,19 +9,31 @@ import ScrapingTab from './components/ScrapingTab'
 import TrainingTab from './components/TrainingTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
+import type { AuthStatus } from './types/shared'
+import type {
+  Config,
+  GeneratedImage,
+  BatchSummary,
+  Job,
+  GenerateParams,
+  BatchGenerateParams,
+  Tab,
+} from './types/models'
 
-function App() {
-  const [config, setConfig] = useState(null)
-  const [images, setImages] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [currentJob, setCurrentJob] = useState(null)
-  const [queuePosition, setQueuePosition] = useState(null)
-  const [batches, setBatches] = useState([])
-  const [activeTab, setActiveTab] = useState('generate')
-  const [user, setUser] = useState(null)
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const App: React.FC = () => {
+  const [config, setConfig] = useState<Config | null>(null)
+  const [images, setImages] = useState<GeneratedImage[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [currentJob, setCurrentJob] = useState<Job | null>(null)
+  const [queuePosition, setQueuePosition] = useState<number | null>(null)
+  const [batches, setBatches] = useState<BatchSummary[]>([])
+  const [activeTab, setActiveTab] = useState<string>('generate')
+  const [user, setUser] = useState<AuthStatus | null>(null)
 
   // Tab configuration
-  const tabs = [
+  const tabs: Tab[] = [
     { id: 'generate', label: 'Generate', icon: '✨' },
     { id: 'gallery', label: 'Gallery', icon: '🖼️' },
     { id: 'albums', label: 'Albums', icon: '📁' },
@@ -33,18 +45,18 @@ function App() {
 
   // Load config on mount
   useEffect(() => {
-    fetchConfig()
-    fetchImages()
-    fetchBatches()
-    checkAuth()
+    void fetchConfig()
+    void fetchImages()
+    void fetchBatches()
+    void checkAuth()
   }, [])
 
-  const checkAuth = async () => {
+  const checkAuth = async (): Promise<void> => {
     try {
       const response = await fetch('/api/auth/me', {
         credentials: 'include'
       })
-      const data = await response.json()
+      const data: AuthStatus = await response.json()
 
       if (data.authenticated) {
         setUser(data)
@@ -57,37 +69,51 @@ function App() {
     }
   }
 
-  const fetchConfig = async () => {
+  const fetchConfig = async (): Promise<void> => {
     try {
       const response = await fetch('/api/config')
-      const data = await response.json()
-      setConfig(data)
+      const payload = (await response.json()) as unknown
+      setConfig(isRecord(payload) ? (payload as Config) : null)
     } catch (error) {
       console.error('Failed to fetch config:', error)
     }
   }
 
-  const fetchImages = async () => {
+  const fetchImages = async (): Promise<void> => {
     try {
       const response = await fetch('/api/outputs')
-      const data = await response.json()
-      setImages(data.images || [])
+      const payload = (await response.json()) as unknown
+      let images: GeneratedImage[] = []
+      if (isRecord(payload)) {
+        const maybeImages = (payload as { images?: unknown }).images
+        if (Array.isArray(maybeImages)) {
+          images = maybeImages as GeneratedImage[]
+        }
+      }
+      setImages(images)
     } catch (error) {
       console.error('Failed to fetch images:', error)
     }
   }
 
-  const fetchBatches = async () => {
+  const fetchBatches = async (): Promise<void> => {
     try {
       const response = await fetch('/api/batches')
-      const data = await response.json()
-      setBatches(data.batches || [])
+      const payload = (await response.json()) as unknown
+      let batches: BatchSummary[] = []
+      if (isRecord(payload)) {
+        const maybeBatches = (payload as { batches?: unknown }).batches
+        if (Array.isArray(maybeBatches)) {
+          batches = maybeBatches as BatchSummary[]
+        }
+      }
+      setBatches(batches)
     } catch (error) {
       console.error('Failed to fetch batches:', error)
     }
   }
 
-  const handleGenerate = async (params) => {
+  const handleGenerate = async (params: GenerateParams): Promise<void> => {
     setLoading(true)
     setQueuePosition(null)
     try {
@@ -98,16 +124,22 @@ function App() {
       })
 
       if (response.status === 201) {
-        // Job created successfully
-        const result = await response.json()
+        const payload = await response.json() as unknown
+        if (!isRecord(payload)) {
+          throw new Error('Invalid job response')
+        }
+        const result = payload as unknown as Job
         setCurrentJob(result)
-        setQueuePosition(result.queue_position)
+        setQueuePosition(result.queue_position ?? null)
 
-        // Poll for completion
         pollJobStatus(result.id)
       } else {
-        const error = await response.json()
-        alert('Failed to submit job: ' + error.error)
+        const payload = (await response.json()) as unknown
+        const errorMessage =
+          isRecord(payload) && typeof payload.error === 'string'
+            ? payload.error
+            : 'Unknown error'
+        alert(`Failed to submit job: ${errorMessage}`)
         setLoading(false)
       }
     } catch (error) {
@@ -117,7 +149,7 @@ function App() {
     }
   }
 
-  const handleGenerateBatch = async (params) => {
+  const handleGenerateBatch = async (params: BatchGenerateParams): Promise<void> => {
     setLoading(true)
     try {
       const response = await fetch('/api/generate/batch', {
@@ -127,16 +159,23 @@ function App() {
       })
 
       if (response.status === 201) {
-        const result = await response.json()
-        alert(`Batch generation started!\n${result.total_jobs} jobs queued for ${result.set_name}`)
-        // Refresh batches list and switch to gallery tab
-        fetchBatches()
+        const payload = (await response.json()) as unknown
+        if (isRecord(payload) && typeof payload.total_jobs === 'number') {
+          alert(`Batch generation started!\n${payload.total_jobs} jobs queued for ${String(payload.set_name ?? 'unknown set')}`)
+        } else {
+          alert('Batch generation started!')
+        }
+        fetchBatches().catch((error) => console.error('Failed to refresh batches:', error))
         setActiveTab('gallery')
       } else {
-        const error = await response.json()
-        alert('Failed to submit batch: ' + error.error)
+        const payload = (await response.json()) as unknown
+        const errorMessage =
+          isRecord(payload) && typeof payload.error === 'string'
+            ? payload.error
+            : 'Unknown error'
+        alert(`Failed to submit batch: ${errorMessage}`)
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to generate batch:', error)
       alert('Error submitting batch')
     } finally {
@@ -144,38 +183,36 @@ function App() {
     }
   }
 
-  const pollJobStatus = async (jobId) => {
-    const checkStatus = async () => {
+  const pollJobStatus = (jobId: string): void => {
+    const checkStatus = async (): Promise<void> => {
       try {
         const response = await fetch(`/api/jobs/${jobId}`)
-        const job = await response.json()
+        const job: Job = await response.json()
 
         // Update queue position
-        if (job.queue_position !== undefined) {
-          setQueuePosition(job.queue_position)
-        }
+        const queuePosition = typeof job.queue_position === 'number' ? job.queue_position : null
+        setQueuePosition(queuePosition)
 
         if (job.status === 'completed') {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
-          fetchImages() // Refresh image grid
-          fetchBatches() // Refresh batches too
+          fetchImages().catch((err) => console.error('Failed to refresh images:', err))
+          fetchBatches().catch((err) => console.error('Failed to refresh batches:', err))
         } else if (job.status === 'failed') {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
-          alert('Generation failed: ' + (job.error || 'Unknown error'))
+          alert(`Generation failed: ${job.error ?? 'Unknown error'}`)
         } else if (job.status === 'cancelled') {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
           alert('Job was cancelled')
         } else {
-          // Still running or queued, check again
           setTimeout(checkStatus, 2000)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error checking job status:', error)
         setLoading(false)
         setCurrentJob(null)
@@ -183,7 +220,7 @@ function App() {
       }
     }
 
-    checkStatus()
+    void checkStatus()
   }
 
   return (

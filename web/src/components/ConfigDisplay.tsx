@@ -1,6 +1,26 @@
 import React, { useState } from 'react'
 
-function ConfigDisplay({ config }) {
+interface ConfigDisplayProps {
+  config: {
+    model?: {
+      default?: string
+      cache_dir?: string
+    }
+    generation?: {
+      width?: number
+      height?: number
+      steps?: number
+      guidance_scale?: number
+      negative_prompt?: string
+    }
+    output?: {
+      directory?: string
+      format?: string
+    }
+  } | null
+}
+
+const ConfigDisplay: React.FC<ConfigDisplayProps> = ({ config }) => {
   const [collapsed, setCollapsed] = useState(false)
 
   if (!config) return null

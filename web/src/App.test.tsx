@@ -3,15 +3,31 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
-const createResponse = (data, init = {}) => ({
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+interface ResponseInit {
+  ok?: boolean
+  status?: number
+}
+
+interface MockResponse {
+  ok: boolean
+  status: number
+  json: () => Promise<unknown>
+}
+
+const createResponse = (data: unknown, init: ResponseInit = {}): MockResponse => ({
   ok: init.ok ?? true,
   status: init.status ?? 200,
   json: () => Promise.resolve(data)
 })
 
-let handlers
+type Handler = (options?: RequestInit) => Promise<MockResponse>
+type Handlers = Record<string, Handler>
 
-const defaultHandlers = () => ({
+let handlers: Handlers
+
+const defaultHandlers = (): Handlers => ({
   '/api/config': () => Promise.resolve(createResponse({
     generation: {
       steps: 30,
@@ -26,11 +42,20 @@ const defaultHandlers = () => ({
   '/api/auth/me': () => Promise.resolve(createResponse({ authenticated: false }))
 })
 
-const setupFetchMock = (overrides = {}) => {
-  handlers = { ...defaultHandlers(), ...overrides }
+const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
+  handlers = defaultHandlers()
+  Object.assign(handlers, overrides)
 
-  globalThis.fetch = vi.fn((url, options = {}) => {
-    const requestUrl = typeof url === 'string' ? url : url?.url ?? ''
+  globalThis.fetch = vi.fn(async (url: RequestInfo | URL, options?: RequestInit): Promise<MockResponse> => {
+    let requestUrl = ''
+    if (typeof url === 'string') {
+      requestUrl = url
+    } else if (url instanceof URL) {
+      requestUrl = url.toString()
+    } else if (isRecord(url) && typeof (url as { url?: unknown }).url === 'string') {
+      requestUrl = (url as { url: string }).url
+    }
+
     const handler = handlers[requestUrl]
     if (handler) {
       return handler(options)
@@ -45,7 +70,7 @@ const setupFetchMock = (overrides = {}) => {
     }
 
     return Promise.resolve(createResponse({}))
-  })
+  }) as unknown as typeof fetch
 }
 
 describe('App', () => {
@@ -62,9 +87,12 @@ describe('App', () => {
   it('submits generation request', async () => {
     const user = userEvent.setup()
     const mockJobResponse = {
-      id: 1,
-      status: 'queued',
-      queue_position: 1
+      id: '1',
+      status: 'queued' as const,
+      queue_position: 1,
+      prompt: 'test prompt',
+      params: {},
+      created_at: new Date().toISOString()
     }
 
     handlers['/api/outputs'] = () => Promise.resolve(createResponse({ images: [] }))
@@ -74,8 +102,8 @@ describe('App', () => {
       let completed = false
       return () => {
         const payload = completed
-          ? { status: 'completed', queue_position: 0 }
-          : { status: 'queued', queue_position: 1 }
+          ? { ...mockJobResponse, status: 'completed' as const, queue_position: 0 }
+          : { ...mockJobResponse, status: 'queued' as const, queue_position: 1 }
         completed = true
         return Promise.resolve(createResponse(payload))
       }
@@ -105,7 +133,7 @@ describe('App', () => {
 
   it('handles generation error', async () => {
     const user = userEvent.setup()
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     handlers['/api/outputs'] = () => Promise.resolve(createResponse({ images: [] }))
     handlers['/api/generate'] = () => Promise.reject(new Error('Generation failed'))
@@ -128,7 +156,7 @@ describe('App', () => {
   })
 
   it('handles images loading error', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     handlers['/api/outputs'] = () => Promise.reject(new Error('Images failed'))
 
