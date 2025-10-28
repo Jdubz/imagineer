@@ -4,10 +4,10 @@ Training pipeline API endpoints
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, abort
 
 from server.auth import require_admin
 from server.database import Album, TrainingRun, db
@@ -16,6 +16,13 @@ from server.tasks.training import cleanup_training_data, train_lora_task, traini
 logger = logging.getLogger(__name__)
 
 training_bp = Blueprint("training", __name__, url_prefix="/api/training")
+
+
+def get_training_run_or_404(run_id: int) -> TrainingRun:
+    run = db.session.get(TrainingRun, run_id)
+    if run is None:
+        abort(404)
+    return run
 
 
 @training_bp.route("", methods=["GET"])
@@ -52,7 +59,7 @@ def list_training_runs():
 @training_bp.route("/<int:run_id>", methods=["GET"])
 def get_training_run(run_id):
     """Get training run details (public)"""
-    run = TrainingRun.query.get_or_404(run_id)
+    run = get_training_run_or_404(run_id)
     return jsonify(run.to_dict())
 
 
@@ -147,7 +154,7 @@ def create_training_run():
 @require_admin
 def start_training(run_id):
     """Start training run (admin only)"""
-    run = TrainingRun.query.get_or_404(run_id)
+    run = get_training_run_or_404(run_id)
 
     if run.status not in ["pending", "failed"]:
         return jsonify({"error": "Training run cannot be started"}), 400
@@ -173,7 +180,7 @@ def start_training(run_id):
 @require_admin
 def cancel_training(run_id):
     """Cancel training run (admin only)"""
-    run = TrainingRun.query.get_or_404(run_id)
+    run = get_training_run_or_404(run_id)
 
     if run.status not in ["pending", "queued", "running"]:
         return jsonify({"error": "Training run cannot be cancelled"}), 400
@@ -181,7 +188,7 @@ def cancel_training(run_id):
     # Update status
     run.status = "cancelled"
     run.error_message = "Cancelled by user"
-    run.last_error_at = datetime.utcnow()
+    run.last_error_at = datetime.now(timezone.utc)
     db.session.commit()
 
     logger.info(f"Cancelled training run {run_id}: {run.name}")
@@ -192,7 +199,7 @@ def cancel_training(run_id):
 @require_admin
 def cleanup_training(run_id):
     """Clean up training data (admin only)"""
-    run = TrainingRun.query.get_or_404(run_id)
+    run = get_training_run_or_404(run_id)
 
     # Start cleanup task
     task = cleanup_training_data.delay(run_id)
@@ -209,7 +216,7 @@ def cleanup_training(run_id):
 @training_bp.route("/<int:run_id>/logs", methods=["GET"])
 def get_training_logs(run_id):
     """Get training logs (public)"""
-    run = TrainingRun.query.get_or_404(run_id)
+    run = get_training_run_or_404(run_id)
 
     log_path = training_log_path(run)
 
@@ -312,7 +319,7 @@ def integrate_trained_lora(run_id):
     from pathlib import Path
 
     try:
-        run = TrainingRun.query.get_or_404(run_id)
+        run = get_training_run_or_404(run_id)
 
         if run.status != "completed" or not run.final_checkpoint:
             return jsonify({"error": "Training run not completed or no checkpoint available"}), 400

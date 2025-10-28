@@ -3,7 +3,7 @@ Celery tasks for AI labeling using Claude vision.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from server.celery_app import celery
@@ -59,7 +59,7 @@ def label_image_task(self, image_id: int, prompt_type: str = "default") -> Dict[
         prompt_type: Prompt template to use.
     """
     from server.api import app
-    from server.services.labeling import label_image_with_claude
+    from server.services.labeling_cli import label_image_with_claude
 
     with app.app_context():
         image = Image.query.get(image_id)
@@ -105,7 +105,7 @@ def label_album_task(
         force: If True, relabel images even if labels already exist.
     """
     from server.api import app
-    from server.services.labeling import label_image_with_claude
+    from server.services.labeling_cli import label_image_with_claude
 
     with app.app_context():
         album = Album.query.get(album_id)
@@ -182,5 +182,5 @@ def label_album_task(
             "success": successes,
             "failed": failures,
             "results": results,
-            "completed_at": datetime.utcnow().isoformat() + "Z",
+            "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }

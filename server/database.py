@@ -4,12 +4,17 @@ SQLAlchemy models for image management, albums, and training data
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 logger = logging.getLogger(__name__)
+
+
+def utcnow():
+    """Timezone-aware UTC timestamp helper for SQLAlchemy defaults."""
+    return datetime.now(timezone.utc)
 
 
 class Image(db.Model):
@@ -39,8 +44,8 @@ class Image(db.Model):
     is_public = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     labels = db.relationship("Label", backref="image", lazy=True, cascade="all, delete-orphan")
@@ -94,7 +99,7 @@ class Label(db.Model):
     created_by = db.Column(db.String(255), nullable=True)  # User who created the label
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     def to_dict(self):
         return {
@@ -130,8 +135,8 @@ class Album(db.Model):
     generation_config = db.Column(db.Text)  # JSON: generation settings
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     album_images = db.relationship(
@@ -174,7 +179,7 @@ class AlbumImage(db.Model):
     added_by = db.Column(db.String(255), nullable=True)  # User who added the image to the album
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     # Unique constraint
     __table_args__ = (db.UniqueConstraint("album_id", "image_id", name="unique_album_image"),)
@@ -216,7 +221,7 @@ class ScrapeJob(db.Model):
     last_error_at = db.Column(db.DateTime)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
@@ -267,7 +272,7 @@ class TrainingRun(db.Model):
     last_error_at = db.Column(db.DateTime)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 

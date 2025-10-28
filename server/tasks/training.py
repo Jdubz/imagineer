@@ -7,7 +7,7 @@ import json
 import logging
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from server.celery_app import celery
@@ -60,7 +60,7 @@ def _register_trained_lora(run: TrainingRun, checkpoint_path: Path) -> None:
                 "filename": checkpoint_path.name,
                 "friendly_name": run.name,
                 "training_run_id": run.id,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "source": "training",
                 "default_weight": entry.get("default_weight", 0.6),
             }
@@ -85,12 +85,12 @@ def train_lora_task(self, training_run_id):  # noqa: C901
     from server.api import app
 
     with app.app_context():
-        run = TrainingRun.query.get(training_run_id)
+        run = db.session.get(TrainingRun, training_run_id)
         if not run:
             return {"status": "error", "message": "Training run not found"}
 
         run.status = "running"
-        run.started_at = datetime.utcnow()
+        run.started_at = datetime.now(timezone.utc)
         db.session.commit()
 
         logger.info(f"Starting training run {training_run_id}: {run.name}")
@@ -198,7 +198,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             if return_code == 0:
                 # Training completed successfully
                 run.status = "completed"
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 run.progress = 100
 
                 # Find the final checkpoint
@@ -231,7 +231,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
                 # Training failed
                 run.status = "failed"
                 run.error_message = f"Training process exited with code {return_code}"
-                run.last_error_at = datetime.utcnow()
+                run.last_error_at = datetime.now(timezone.utc)
                 db.session.commit()
 
                 logger.error(f"Training failed: {run.name} - {run.error_message}")
@@ -244,7 +244,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             # Handle unexpected errors
             run.status = "failed"
             run.error_message = str(e)
-            run.last_error_at = datetime.utcnow()
+            run.last_error_at = datetime.now(timezone.utc)
             db.session.commit()
 
             logger.error(f"Training error: {run.name} - {e}", exc_info=True)
@@ -296,7 +296,7 @@ def prepare_training_data(training_run):
 
     # Process each album
     for album_id in album_ids:
-        album = Album.query.get(album_id)
+        album = db.session.get(Album, album_id)
         if not album:
             logger.warning(f"Album {album_id} not found, skipping")
             continue
@@ -359,7 +359,7 @@ def cleanup_training_data(training_run_id):
     from server.api import app
 
     with app.app_context():
-        run = TrainingRun.query.get(training_run_id)
+        run = db.session.get(TrainingRun, training_run_id)
         if not run:
             return {"status": "error", "message": "Training run not found"}
 

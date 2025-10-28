@@ -5,7 +5,7 @@ Web scraping API endpoints
 import json
 import logging
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, abort
 
 from server.auth import require_admin
 from server.database import ScrapeJob, db
@@ -14,6 +14,13 @@ from server.tasks.scraping import cleanup_scrape_job, scrape_site_task
 logger = logging.getLogger(__name__)
 
 scraping_bp = Blueprint("scraping", __name__, url_prefix="/api/scraping")
+
+
+def get_scrape_job_or_404(job_id: int) -> ScrapeJob:
+    job = db.session.get(ScrapeJob, job_id)
+    if job is None:
+        abort(404)
+    return job
 
 
 @scraping_bp.route("/start", methods=["POST"])
@@ -113,7 +120,7 @@ def list_scrape_jobs():
 def get_scrape_job(job_id):
     """Get scrape job status (public)"""
     try:
-        job = ScrapeJob.query.get(job_id)
+        job = db.session.get(ScrapeJob, job_id)
         if not job:
             return jsonify({"error": "Scrape job not found"}), 404
         return jsonify(job.to_dict())
@@ -128,7 +135,7 @@ def get_scrape_job(job_id):
 def cancel_scrape_job(job_id):
     """Cancel running scrape job (admin only)"""
     try:
-        job = ScrapeJob.query.get_or_404(job_id)
+        job = get_scrape_job_or_404(job_id)
 
         if job.status not in ["pending", "running"]:
             return jsonify({"error": "Job cannot be cancelled"}), 400
@@ -157,7 +164,7 @@ def cancel_scrape_job(job_id):
 def cleanup_job(job_id):
     """Clean up completed scrape job (admin only)"""
     try:
-        job = ScrapeJob.query.get_or_404(job_id)
+        job = get_scrape_job_or_404(job_id)
 
         if job.status not in ["completed", "failed", "cancelled"]:
             return (
@@ -194,9 +201,9 @@ def get_scraping_stats():
         total_images = db.session.query(func.sum(ScrapeJob.images_scraped)).scalar() or 0
 
         # Get recent jobs (last 7 days)
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         recent_jobs = ScrapeJob.query.filter(ScrapeJob.created_at >= week_ago).count()
 
         stats = {
