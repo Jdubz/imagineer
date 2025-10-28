@@ -4,9 +4,10 @@ import '../styles/AuthButton.css'
 function AuthButton({ onAuthChange }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    checkAuth()
+    void checkAuth()
   }, [])
 
   useEffect(() => {
@@ -23,16 +24,17 @@ function AuthButton({ onAuthChange }) {
       const data = await response.json()
 
       setUser(data.authenticated ? data : null)
-    } catch (error) {
-      console.error('Failed to check auth:', error)
+      setError(null)
+    } catch (err) {
+      console.error('Failed to check auth:', err)
       setUser(null)
+      setError('Unable to verify authentication status. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   const handleLogin = () => {
-    // Redirect to backend OAuth login
     window.location.href = '/auth/login'
   }
 
@@ -42,8 +44,10 @@ function AuthButton({ onAuthChange }) {
         credentials: 'include'
       })
       setUser(null)
-    } catch (error) {
-      console.error('Failed to logout:', error)
+      setError(null)
+    } catch (err) {
+      console.error('Failed to logout:', err)
+      setError('Failed to log out. Please retry.')
     }
   }
 
@@ -51,20 +55,21 @@ function AuthButton({ onAuthChange }) {
     return null
   }
 
+  const primaryLabel = user?.role === 'admin' ? 'Admin' : 'Viewer'
+
   return (
     <div className="auth-button-container">
-      {user ? (
-        <div className="auth-user-info">
-          <span className="auth-role-badge">{user.role}</span>
-          <button onClick={handleLogout} className="auth-button">
+      <div className="auth-actions">
+        <button onClick={handleLogin} className="auth-button auth-button--primary">
+          {primaryLabel}
+        </button>
+        {user && (
+          <button onClick={handleLogout} className="auth-button auth-button--secondary">
             Log Out
           </button>
-        </div>
-      ) : (
-        <button onClick={handleLogin} className="auth-button">
-          Log In
-        </button>
-      )}
+        )}
+      </div>
+      {error && <div className="auth-error">{error}</div>}
     </div>
   )
 }
