@@ -21,10 +21,40 @@ function AuthButton({ onAuthChange }) {
       const response = await fetch('/auth/me', {
         credentials: 'include'
       })
+      const contentType = response.headers?.get?.('content-type') ?? ''
+
+      if (response.status === 204) {
+        setUser(null)
+        setError(null)
+        return
+      }
+
+      if (!contentType.includes('application/json')) {
+        if (response.status === 401 || response.status === 403) {
+          setUser(null)
+          setError(null)
+          return
+        }
+
+        if (typeof response.text === 'function') {
+          const preview = (await response.text()).slice(0, 120)
+          throw new Error(
+            `Unexpected auth response format (${response.status}): ${preview}`
+          )
+        }
+
+        throw new Error(`Unexpected auth response format (${response.status})`)
+      }
+
       const data = await response.json()
 
-      setUser(data.authenticated ? data : null)
-      setError(null)
+      if (response.ok && data?.authenticated) {
+        setUser(data)
+        setError(null)
+      } else {
+        setUser(null)
+        setError(null)
+      }
     } catch (err) {
       console.error('Failed to check auth:', err)
       setUser(null)
@@ -40,9 +70,15 @@ function AuthButton({ onAuthChange }) {
 
   const handleLogout = async () => {
     try {
-      await fetch('/auth/logout', {
+      const response = await fetch('/auth/logout', {
         credentials: 'include'
       })
+      if (!response.ok) {
+        const message = typeof response.text === 'function'
+          ? await response.text()
+          : 'Unexpected logout response'
+        throw new Error(message)
+      }
       setUser(null)
       setError(null)
     } catch (err) {
