@@ -136,6 +136,10 @@
   flex-wrap: wrap;
 }
 
+.album-actions {
+  margin-bottom: 1rem;
+}
+
 .back-btn {
   background: #6c757d;
   color: white;

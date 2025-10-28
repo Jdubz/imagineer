@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
+from server.tasks.labeling import label_album_task, label_image_task
 
 
 class TestCompleteWorkflow:
@@ -76,8 +77,9 @@ class TestCompleteWorkflow:
             assert len(album_data["images"]) == 1
             assert album_data["images"][0]["id"] == image_id
 
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_complete_labeling_workflow(self, mock_label, client, mock_admin_auth):
+    @patch("server.api.label_image_task.delay")
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_complete_labeling_workflow(self, mock_label, mock_delay, client, mock_admin_auth):
         """Test complete labeling workflow with database updates"""
         mock_label.return_value = {
             "status": "success",
@@ -85,6 +87,18 @@ class TestCompleteWorkflow:
             "nsfw_rating": "SAFE",
             "tags": ["blue", "square", "test", "geometric"],
         }
+
+        task_results: dict[str, dict] = {}
+
+        def sync_delay(*, image_id, prompt_type):
+            result = label_image_task.run(image_id=image_id, prompt_type=prompt_type)
+            task_results["label"] = result
+            task = MagicMock()
+            task.id = f"label-{image_id}"
+            task.get.return_value = result
+            return task
+
+        mock_delay.side_effect = sync_delay
 
         with client.application.app_context():
             # Create image
@@ -101,7 +115,12 @@ class TestCompleteWorkflow:
                 json={"prompt_type": "default"},
                 headers={"Authorization": "Bearer admin_token"},
             )
-            assert response.status_code == 200
+            assert response.status_code == 202
+            data = response.get_json()
+            assert data == {"status": "queued", "task_id": f"label-{image_id}"}
+
+            result = task_results.get("label")
+            assert result and result["status"] == "success"
 
             # Verify database updates
             updated_image = Image.query.get(image_id)
@@ -121,28 +140,41 @@ class TestCompleteWorkflow:
             assert "blue" in tag_texts
             assert "square" in tag_texts
 
-    @patch("server.services.labeling.batch_label_images")
-    def test_batch_labeling_workflow(self, mock_batch, client, mock_admin_auth):
+    @patch("server.api.label_album_task.delay")
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_batch_labeling_workflow(self, mock_label_image, mock_delay, client, mock_admin_auth):
         """Test batch labeling workflow for entire album"""
-        mock_batch.return_value = {
-            "total": 2,
-            "success": 2,
-            "failed": 0,
-            "results": [
-                {
-                    "status": "success",
-                    "description": "First image",
-                    "nsfw_rating": "SAFE",
-                    "tags": ["first"],
-                },
-                {
-                    "status": "success",
-                    "description": "Second image",
-                    "nsfw_rating": "SAFE",
-                    "tags": ["second"],
-                },
-            ],
-        }
+        responses = [
+            {
+                "status": "success",
+                "description": "First image",
+                "nsfw_rating": "SAFE",
+                "tags": ["first"],
+            },
+            {
+                "status": "success",
+                "description": "Second image",
+                "nsfw_rating": "SAFE",
+                "tags": ["second"],
+            },
+        ]
+
+        def fake_label(*_args, **_kwargs):
+            return responses.pop(0)
+
+        mock_label_image.side_effect = fake_label
+
+        job_results: dict[str, dict] = {}
+
+        def sync_album_delay(*, album_id, prompt_type, force):
+            result = label_album_task.run(album_id=album_id, prompt_type=prompt_type, force=force)
+            job_results["album"] = result
+            task = MagicMock()
+            task.id = f"album-{album_id}"
+            task.get.return_value = result
+            return task
+
+        mock_delay.side_effect = sync_album_delay
 
         with client.application.app_context():
             # Create album with images
@@ -165,13 +197,16 @@ class TestCompleteWorkflow:
                 json={"prompt_type": "sd_training", "force": False},
                 headers={"Authorization": "Bearer admin_token"},
             )
-            assert response.status_code == 200
-
+            assert response.status_code == 202
             data = response.get_json()
-            assert data["success"] is True
-            assert data["total"] == 2
-            assert data["success_count"] == 2
-            assert data["failed_count"] == 0
+            assert data == {"status": "queued", "task_id": f"album-{album.id}"}
+
+            result = job_results.get("album")
+            assert result and result["status"] == "success"
+            assert result["total"] == 2
+            assert result["success"] == 2
+            assert result["failed"] == 0
+            assert set(result["results"].keys()) == {image1.id, image2.id}
 
     def test_public_album_view_with_nsfw_filtering(self, client):
         """Test public album view with NSFW filtering"""
@@ -287,7 +322,7 @@ class TestErrorHandling:
 
             # Try to get thumbnail
             response = client.get(f"/api/images/{image_id}/thumbnail")
-            assert response.status_code == 500  # Should handle file not found
+            assert response.status_code == 404  # Should handle file not found gracefully
 
 
 class TestPerformanceAndScalability:

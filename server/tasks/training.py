@@ -7,7 +7,7 @@ import json
 import logging
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from server.celery_app import celery
@@ -16,7 +16,65 @@ from server.database import Album, AlbumImage, Image, TrainingRun, db
 logger = logging.getLogger(__name__)
 
 
-@celery.task(bind=True, name="tasks.train_lora")
+def training_log_path(run: TrainingRun) -> Path:
+    """Derive filesystem path for a run's training log."""
+    if run.output_path:
+        base_dir = Path(run.output_path).parent
+    else:
+        base_dir = Path("/tmp/imagineer/models") / "lora"
+
+    log_dir = base_dir / "logs"
+    return log_dir / f"training_{run.id}.log"
+
+
+def _cleanup_training_directory(run: TrainingRun) -> None:
+    """Remove temporary training data for a run."""
+    training_dir = Path(run.dataset_path) if run.dataset_path else Path(f"/tmp/training_{run.id}")
+    if training_dir.exists():
+        try:
+            shutil.rmtree(training_dir)
+            logger.info(f"Cleaned up training data for run {run.id}")
+        except Exception as exc:  # pragma: no cover - cleanup best effort
+            logger.warning(f"Failed to clean training directory {training_dir}: {exc}")
+
+
+def _register_trained_lora(run: TrainingRun, checkpoint_path: Path) -> None:
+    """Insert training output into the LoRA index for discovery."""
+    if not checkpoint_path or not checkpoint_path.exists():
+        return
+
+    output_dir = Path(run.output_path) if run.output_path else checkpoint_path.parent
+    lora_base = output_dir.parent
+    index_path = lora_base / "index.json"
+
+    try:
+        index = {}
+        if index_path.exists():
+            with index_path.open("r", encoding="utf-8") as handle:
+                index = json.load(handle) or {}
+
+        folder_name = output_dir.name
+        entry = index.get(folder_name, {})
+        entry.update(
+            {
+                "filename": checkpoint_path.name,
+                "friendly_name": run.name,
+                "training_run_id": run.id,
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "source": "training",
+                "default_weight": entry.get("default_weight", 0.6),
+            }
+        )
+        index[folder_name] = entry
+
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        with index_path.open("w", encoding="utf-8") as handle:
+            json.dump(dict(sorted(index.items())), handle, indent=2)
+    except Exception as exc:  # pragma: no cover - index updates shouldn't break training
+        logger.warning(f"Failed to register trained LoRA in index: {exc}", exc_info=True)
+
+
+@celery.task(bind=True, name="server.tasks.training.train_lora")
 def train_lora_task(self, training_run_id):  # noqa: C901
     """
     Execute LoRA training from albums.
@@ -27,26 +85,33 @@ def train_lora_task(self, training_run_id):  # noqa: C901
     from server.api import app
 
     with app.app_context():
-        run = TrainingRun.query.get(training_run_id)
+        run = db.session.get(TrainingRun, training_run_id)
         if not run:
             return {"status": "error", "message": "Training run not found"}
 
         run.status = "running"
-        run.started_at = datetime.utcnow()
+        run.started_at = datetime.now(timezone.utc)
         db.session.commit()
 
         logger.info(f"Starting training run {training_run_id}: {run.name}")
 
+        result = {}
         try:
             # Prepare training data
             training_dir = prepare_training_data(run)
+            run.dataset_path = str(training_dir)
+            db.session.commit()
 
             # Build training command
             from server.api import load_config
 
             app_config = load_config()
 
-            output_dir = Path(f"{app_config['model']['cache_dir']}/lora/trained_{training_run_id}")
+            output_dir = (
+                Path(run.output_path)
+                if run.output_path
+                else Path(f"{app_config['model']['cache_dir']}/lora/trained_{training_run_id}")
+            )
             output_dir.mkdir(parents=True, exist_ok=True)
 
             config = json.loads(run.training_config) if run.training_config else {}
@@ -71,6 +136,17 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             logger.info(f"Training command: {' '.join(cmd)}")
 
             # Execute training
+            log_path = training_log_path(run)
+            log_handle = None
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_handle = log_path.open("w", encoding="utf-8")
+            except OSError as exc:  # pragma: no cover - log dir issues should not abort training
+                logger.warning(
+                    "Unable to open training log at %s: %s", log_path, exc, exc_info=True
+                )
+                log_handle = None
+
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -82,35 +158,39 @@ def train_lora_task(self, training_run_id):  # noqa: C901
 
             # Stream output and update progress
             logs = []
-            for line in process.stdout:
-                logs.append(line)
-                logger.info(f"Training: {line.strip()}")
+            if process.stdout:
+                for line in process.stdout:
+                    logs.append(line)
+                    if log_handle:
+                        log_handle.write(line)
+                        log_handle.flush()
+                    logger.info(f"Training: {line.strip()}")
 
-                # Parse progress
-                if "Step" in line and "/" in line:
-                    try:
-                        # Extract step number (e.g., "Step 100/1000")
-                        parts = line.split("Step")[1].split("/")
-                        current_step = int(parts[0].strip())
-                        total_steps = int(parts[1].split()[0])
+                    # Parse progress
+                    if "Step" in line and "/" in line:
+                        try:
+                            # Extract step number (e.g., "Step 100/1000")
+                            parts = line.split("Step")[1].split("/")
+                            current_step = int(parts[0].strip())
+                            total_steps = int(parts[1].split()[0])
 
-                        run.progress = (current_step / total_steps) * 100
+                            run.progress = (current_step / total_steps) * 100
 
-                        # Update task progress
-                        self.update_state(
-                            state="PROGRESS",
-                            meta={
-                                "current_step": current_step,
-                                "total_steps": total_steps,
-                                "percentage": run.progress,
-                            },
-                        )
+                            # Update task progress
+                            self.update_state(
+                                state="PROGRESS",
+                                meta={
+                                    "current_step": current_step,
+                                    "total_steps": total_steps,
+                                    "percentage": run.progress,
+                                },
+                            )
 
-                        db.session.commit()
+                            db.session.commit()
 
-                    except (ValueError, IndexError):
-                        # Ignore parsing errors
-                        pass
+                        except (ValueError, IndexError):
+                            # Ignore parsing errors
+                            pass
 
             # Wait for completion
             return_code = process.wait()
@@ -118,7 +198,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             if return_code == 0:
                 # Training completed successfully
                 run.status = "completed"
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 run.progress = 100
 
                 # Find the final checkpoint
@@ -139,7 +219,9 @@ def train_lora_task(self, training_run_id):  # noqa: C901
                 db.session.commit()
 
                 logger.info(f"Training completed successfully: {run.name}")
-                return {
+                if checkpoint_files:
+                    _register_trained_lora(run, checkpoint_files[0])
+                result = {
                     "status": "completed",
                     "message": "Training completed successfully",
                     "checkpoint": run.final_checkpoint,
@@ -149,11 +231,11 @@ def train_lora_task(self, training_run_id):  # noqa: C901
                 # Training failed
                 run.status = "failed"
                 run.error_message = f"Training process exited with code {return_code}"
-                run.last_error_at = datetime.utcnow()
+                run.last_error_at = datetime.now(timezone.utc)
                 db.session.commit()
 
                 logger.error(f"Training failed: {run.name} - {run.error_message}")
-                return {
+                result = {
                     "status": "failed",
                     "message": run.error_message,
                 }
@@ -162,11 +244,21 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             # Handle unexpected errors
             run.status = "failed"
             run.error_message = str(e)
-            run.last_error_at = datetime.utcnow()
+            run.last_error_at = datetime.now(timezone.utc)
             db.session.commit()
 
             logger.error(f"Training error: {run.name} - {e}", exc_info=True)
-            return {"status": "failed", "message": str(e)}
+            result = {"status": "failed", "message": str(e)}
+
+        finally:
+            _cleanup_training_directory(run)
+            if log_handle:
+                try:
+                    log_handle.close()
+                except Exception:  # pragma: no cover - best effort close
+                    pass
+
+        return result
 
 
 def prepare_training_data(training_run):
@@ -187,7 +279,11 @@ def prepare_training_data(training_run):
         raise ValueError("No albums specified for training")
 
     # Create training directory
-    training_dir = Path(f"/tmp/training_{training_run.id}")
+    training_dir = (
+        Path(training_run.dataset_path)
+        if training_run.dataset_path
+        else Path(f"/tmp/training_{training_run.id}")
+    )
     training_dir.mkdir(parents=True, exist_ok=True)
 
     # Create subdirectories for images and captions
@@ -200,7 +296,7 @@ def prepare_training_data(training_run):
 
     # Process each album
     for album_id in album_ids:
-        album = Album.query.get(album_id)
+        album = db.session.get(Album, album_id)
         if not album:
             logger.warning(f"Album {album_id} not found, skipping")
             continue
@@ -252,7 +348,7 @@ def prepare_training_data(training_run):
     return training_dir
 
 
-@celery.task(name="tasks.cleanup_training_data")
+@celery.task(name="server.tasks.training.cleanup_training_data")
 def cleanup_training_data(training_run_id):
     """
     Clean up temporary training data.
@@ -263,16 +359,13 @@ def cleanup_training_data(training_run_id):
     from server.api import app
 
     with app.app_context():
-        run = TrainingRun.query.get(training_run_id)
+        run = db.session.get(TrainingRun, training_run_id)
         if not run:
             return {"status": "error", "message": "Training run not found"}
 
         try:
             # Clean up temporary training directory
-            training_dir = Path(f"/tmp/training_{training_run_id}")
-            if training_dir.exists():
-                shutil.rmtree(training_dir)
-                logger.info(f"Cleaned up training data for run {training_run_id}")
+            _cleanup_training_directory(run)
 
             return {"status": "success", "message": "Training data cleaned up"}
 

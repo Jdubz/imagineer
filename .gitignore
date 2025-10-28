@@ -87,6 +87,13 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Database files (SQLite)
+instance/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
 # Large model files
 *.safetensors
 *.ckpt

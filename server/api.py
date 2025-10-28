@@ -4,8 +4,6 @@ Flask-based REST API for managing image generation
 """
 
 import csv
-import hashlib
-import io
 import json
 import logging
 import mimetypes
@@ -17,13 +15,14 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import yaml
-from flask import Flask, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
-from PIL import Image as PILImage
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -52,11 +51,27 @@ from server.database import (  # noqa: E402
     init_database,
 )
 from server.logging_config import configure_logging  # noqa: E402
+from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
 app = Flask(__name__, static_folder="../public", static_url_path="")
 
+# Configure ProxyFix to trust proxy headers (for HTTPS detection behind reverse proxy)
+# This ensures url_for(_external=True) generates https:// URLs in production
+if os.environ.get("FLASK_ENV") == "production":
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=1,  # Trust X-Forwarded-For
+        x_proto=1,  # Trust X-Forwarded-Proto (http/https)
+        x_host=1,  # Trust X-Forwarded-Host
+        x_prefix=1,  # Trust X-Forwarded-Prefix
+    )
+    # Force HTTPS scheme for URL generation
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+
 # Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///imagineer.db")
+# Use absolute path to ensure consistency
+db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "instance", "imagineer.db"))
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Configure CORS with environment-based origins
@@ -115,9 +130,12 @@ from server.celery_app import make_celery  # noqa: E402
 celery = make_celery(app)
 
 # Register blueprints
+from server.routes.images import images_bp, outputs_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
+app.register_blueprint(images_bp)
+app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 
@@ -177,7 +195,16 @@ def handle_500(e):
 @app.route("/auth/login")
 def auth_login():
     """Initiate Google OAuth flow"""
+    # Ensure redirect URI uses /api/ prefix for consistency
     redirect_uri = url_for("auth_callback", _external=True)
+
+    # Force /api/ prefix if it's missing (use urlparse for safe path manipulation)
+    parsed = urlparse(redirect_uri)
+    if parsed.path == "/auth/google/callback":
+        # Replace path with /api/ prefix
+        parsed = parsed._replace(path="/api/auth/google/callback")
+        redirect_uri = urlunparse(parsed)
+
     target = request.args.get("state") or request.args.get("next") or "/"
     session["login_redirect"] = target
     return google.authorize_redirect(redirect_uri)
@@ -253,19 +280,33 @@ def auth_logout():
 @app.route("/auth/me")
 def auth_me():
     """Get current user info"""
-    if current_user.is_authenticated:
-        return jsonify(
-            {
-                "authenticated": True,
-                "email": current_user.email,
-                "name": current_user.name,
-                "picture": current_user.picture,
-                "role": current_user.role,
-                "is_admin": current_user.is_admin(),
-            }
-        )
-    else:
+    try:
+        if current_user.is_authenticated:
+            return jsonify(
+                {
+                    "authenticated": True,
+                    "email": current_user.email,
+                    "name": current_user.name,
+                    "picture": current_user.picture,
+                    "role": current_user.role,
+                    "is_admin": current_user.is_admin(),
+                }
+            )
+
         return jsonify({"authenticated": False})
+
+    except Exception as exc:  # pragma: no cover - defensive guardrail
+        logger.error("Auth status check failed: %s", exc, exc_info=True)
+        return (
+            jsonify(
+                {
+                    "authenticated": False,
+                    "error": "AUTH_STATUS_ERROR",
+                    "message": "Failed to determine authentication status.",
+                }
+            ),
+            500,
+        )
 
 
 # ============================================================================
@@ -1395,70 +1436,6 @@ def get_batch(batch_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/outputs", methods=["GET"])
-def list_outputs():
-    """List generated images (non-batch only)"""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"])
-
-        images = []
-        if output_dir.exists():
-            # Only get PNG files directly in output dir (not in subdirectories)
-            for img_file in sorted(output_dir.glob("*.png"), key=os.path.getmtime, reverse=True):
-                metadata_file = img_file.with_suffix(".json")
-                metadata = {}
-
-                if metadata_file.exists():
-                    with open(metadata_file, "r") as f:
-                        metadata = json.load(f)
-
-                images.append(
-                    {
-                        "filename": img_file.name,
-                        "path": str(img_file),
-                        "size": img_file.stat().st_size,
-                        "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
-                        "metadata": metadata,
-                    }
-                )
-
-        return jsonify({"images": images[:100]})  # Last 100 images
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/outputs/<path:filename>")
-def serve_output(filename):
-    """Serve a generated image"""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"]).resolve()
-
-        # Security: Validate filename to prevent path traversal
-        # Check for path traversal attempts
-        if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
-            return jsonify({"error": "Access denied"}), 403
-
-        # Construct the full path and resolve it
-        requested_path = (output_dir / filename).resolve()
-
-        # Security check: Ensure the resolved path is within output_dir
-        if not str(requested_path).startswith(str(output_dir)):
-            return jsonify({"error": "Access denied"}), 403
-
-        # Check if file exists and is a file (not a directory)
-        if not requested_path.exists() or not requested_path.is_file():
-            return jsonify({"error": "File not found"}), 404
-
-        # Serve the file from its directory
-        return send_from_directory(requested_path.parent, requested_path.name)
-
-    except Exception:
-        return jsonify({"error": "Invalid request"}), 400
-
-
 @app.route("/api/health", methods=["GET"])
 def health():
     """Health check endpoint"""
@@ -1932,412 +1909,88 @@ def remove_image_from_album(album_id, image_id):
         return jsonify({"error": "Failed to remove image from album"}), 500
 
 
-@app.route("/api/images", methods=["GET"])
-def get_images():
-    """Get all public images (public endpoint)"""
-    try:
-        page = request.args.get("page", 1, type=int)
-        per_page = request.args.get("per_page", 20, type=int)
-
-        logger.info(
-            f"Fetching public images - page {page}, per_page {per_page}",
-            extra={"operation": "get_images", "page": page, "per_page": per_page},
-        )
-
-        images = (
-            Image.query.filter_by(is_public=True)
-            .order_by(Image.created_at.desc())
-            .paginate(page=page, per_page=per_page, error_out=False)
-        )
-
-        logger.info(
-            f"Retrieved {len(images.items)} images (page {page}/{images.pages})",
-            extra={
-                "operation": "get_images",
-                "image_count": len(images.items),
-                "total_images": images.total,
-                "current_page": page,
-                "total_pages": images.pages,
-            },
-        )
-
-        return jsonify(
-            {
-                "images": [image.to_dict() for image in images.items],
-                "total": images.total,
-                "pages": images.pages,
-                "current_page": page,
-                "per_page": per_page,
-            }
-        )
-    except Exception as e:
-        logger.error(
-            f"Error getting images: {e}",
-            exc_info=True,
-            extra={"operation": "get_images", "error_type": type(e).__name__},
-        )
-        return jsonify({"error": "Failed to get images"}), 500
-
-
-@app.route("/api/images/<int:image_id>", methods=["GET"])
-def get_image(image_id):
-    """Get specific image (public endpoint)"""
-    try:
-        image = Image.query.get_or_404(image_id)
-        if not image.is_public:
-            return jsonify({"error": "Image not found"}), 404
-
-        return jsonify(image.to_dict())
-    except Exception as e:
-        logger.error(f"Error getting image {image_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get image"}), 500
-
-
-def _extract_image_dimensions(file_bytes, filename):
-    """Return (width, height) for provided image bytes."""
-    try:
-        with PILImage.open(io.BytesIO(file_bytes)) as img:
-            return img.size
-    except Exception as exc:  # pragma: no cover - logged for troubleshooting
-        logger.warning(
-            "Unable to read image metadata for %s: %s",
-            filename,
-            exc,
-            extra={"operation": "upload_images", "issue": "metadata_read_failed"},
-        )
-        return None, None
-
-
-def _persist_upload(filepath, file_bytes):
-    """Persist uploaded bytes to disk using low-level I/O to bypass patched open."""
-    fd = os.open(str(filepath), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-    try:
-        os.write(fd, file_bytes)
-    finally:
-        os.close(fd)
-
-
-def _attach_image_to_album(image_id, album_id):
-    """Attach image to album preserving sort order if album exists."""
-    if not album_id:
-        return
-
-    album = Album.query.get(album_id)
-    if not album:
-        return
-
-    sort_order = len(album.album_images) + 1
-    assoc = AlbumImage(album_id=album.id, image_id=image_id, sort_order=sort_order)
-    db.session.add(assoc)
-
-
-# Image upload and admin management endpoints
-@app.route("/api/images/upload", methods=["POST"])
-@require_admin
-def upload_images():
-    """Upload images (admin only)"""
-    try:
-        if "files" not in request.files:
-            return jsonify({"error": "No files provided"}), 400
-
-        files = request.files.getlist("files")
-        album_id = request.form.get("album_id", type=int)
-
-        # Load config
-        config = load_config()
-
-        # Create upload directory
-        upload_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        outputs_dir = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
-        upload_dir = outputs_dir / "uploads" / upload_id
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        os.makedirs(upload_dir, exist_ok=True)
-
-        uploaded_images = []
-
-        for file in files:
-            if not file.filename:
-                continue
-
-            from werkzeug.utils import secure_filename
-
-            filename = secure_filename(file.filename)
-            filepath = upload_dir / filename
-            file.stream.seek(0)
-            file_bytes = file.stream.read() or b""
-            file.stream.seek(0)
-
-            width, height = _extract_image_dimensions(file_bytes, filename)
-            _persist_upload(filepath, file_bytes)
-
-            checksum = hashlib.sha256(file_bytes).hexdigest() if file_bytes else None
-            if checksum is None:
-                logger.info(
-                    "Skipping checksum for empty file %s",
-                    filename,
-                    extra={"operation": "upload_images", "issue": "empty_file"},
-                )
-
-            # Create database record
-            image = Image(
-                filename=filename,
-                file_path=str(filepath),
-                width=width,
-                height=height,
-                is_public=True,  # Default to public for uploads
-            )
-
-            db.session.add(image)
-            db.session.flush()  # Get image.id
-
-            _attach_image_to_album(image.id, album_id)
-
-            uploaded_images.append(image.to_dict())
-
-        db.session.commit()
-
-        logger.info(
-            f"Uploaded {len(uploaded_images)} images",
-            extra={
-                "operation": "upload_images",
-                "image_count": len(uploaded_images),
-                "album_id": album_id,
-            },
-        )
-        return (
-            jsonify({"success": True, "uploaded": len(uploaded_images), "images": uploaded_images}),
-            201,
-        )
-    except Exception as e:
-        logger.error(f"Error uploading images: {e}", exc_info=True)
-        return jsonify({"error": "Failed to upload images"}), 500
-
-
-@app.route("/api/images/<int:image_id>", methods=["DELETE"])
-@require_admin
-def delete_image(image_id):
-    """Delete image (admin only)"""
-    try:
-        image = Image.query.get_or_404(image_id)
-
-        # Delete file from filesystem
-        filepath = Path(image.file_path)
-        if filepath.exists():
-            filepath.unlink()
-
-        # Delete from database (cascade deletes labels and album associations)
-        db.session.delete(image)
-        db.session.commit()
-
-        logger.info(
-            f"Deleted image {image_id}", extra={"operation": "delete_image", "image_id": image_id}
-        )
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error deleting image {image_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to delete image"}), 500
-
-
-@app.route("/api/images/<int:image_id>/thumbnail", methods=["GET"])
-def get_thumbnail(image_id):
-    """Get image thumbnail (300px, public)"""
-    try:
-        image = Image.query.get_or_404(image_id)
-        if not image.is_public:
-            return jsonify({"error": "Image not found"}), 404
-
-        # Load config
-        config = load_config()
-
-        outputs_dir = Path(
-            config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
-        ).resolve()
-        thumbnail_dir = outputs_dir / "thumbnails"
-        thumbnail_dir.mkdir(parents=True, exist_ok=True)
-        thumbnail_path = thumbnail_dir / f"{image_id}.webp"
-
-        # Resolve original image path
-        raw_path = image.file_path or ""
-        image_path = Path(raw_path)
-        if not image_path.is_absolute():
-            image_path = (outputs_dir / raw_path).resolve()
-
-        if not image_path.exists():
-            logger.warning(
-                "Thumbnail requested for missing image file",
-                extra={"image_id": image_id, "file_path": raw_path},
-            )
-            return jsonify({"error": "Image not found"}), 404
-
-        if not thumbnail_path.exists():
-            # Generate thumbnail
-            with PILImage.open(image_path) as img:
-                img.thumbnail((300, 300))
-                img.save(thumbnail_path, "WEBP", quality=85)
-
-        from flask import send_file
-
-        return send_file(thumbnail_path, mimetype="image/webp")
-    except Exception as e:
-        logger.error(f"Error generating thumbnail for image {image_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to generate thumbnail"}), 500
-
-
-# AI Labeling endpoints
 @app.route("/api/labeling/image/<int:image_id>", methods=["POST"])
 @require_admin
 def label_image(image_id):
     """Trigger AI labeling for single image (admin only)"""
-    try:
-        data = request.json or {}
-        prompt_type = data.get("prompt_type", "default")
+    data = request.get_json(silent=True) or {}
+    prompt_type = data.get("prompt_type", "default")
 
-        image = Image.query.get_or_404(image_id)
+    # Ensure image exists before queuing task
+    image = db.session.get(Image, image_id)
+    if image is None:
+        abort(404)
 
-        # Import labeling service
-        from server.services.labeling import label_image_with_claude
+    task = label_image_task.delay(image_id=image_id, prompt_type=prompt_type)
 
-        # Label the image
-        result = label_image_with_claude(image.file_path, prompt_type)
+    logger.info(
+        "Queued labeling task for image %s",
+        image_id,
+        extra={
+            "operation": "label_image",
+            "image_id": image_id,
+            "prompt_type": prompt_type,
+            "task_id": task.id,
+        },
+    )
 
-        if result["status"] == "success":
-            # Update image NSFW flag
-            image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
-
-            # Create caption label
-            if result["description"]:
-                caption_label = Label(
-                    image_id=image.id,
-                    label_text=result["description"],
-                    label_type="caption",
-                    source_model="claude-3-5-sonnet",
-                )
-                db.session.add(caption_label)
-
-            # Create tag labels
-            for tag in result["tags"]:
-                tag_label = Label(
-                    image_id=image.id,
-                    label_text=tag,
-                    label_type="tag",
-                    source_model="claude-3-5-sonnet",
-                )
-                db.session.add(tag_label)
-
-            db.session.commit()
-
-            logger.info(
-                f"Successfully labeled image {image_id}",
-                extra={
-                    "operation": "label_image",
-                    "image_id": image_id,
-                    "prompt_type": prompt_type,
-                },
-            )
-
-            return jsonify(
-                {
-                    "success": True,
-                    "description": result["description"],
-                    "nsfw_rating": result["nsfw_rating"],
-                    "tags": result["tags"],
-                }
-            )
-        else:
-            logger.error(f"Failed to label image {image_id}: {result['message']}")
-            return jsonify({"error": result["message"]}), 500
-
-    except Exception as e:
-        logger.error(f"Error labeling image {image_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to label image"}), 500
+    return jsonify({"status": "queued", "task_id": task.id}), 202
 
 
 @app.route("/api/labeling/album/<int:album_id>", methods=["POST"])
 @require_admin
 def label_album(album_id):
     """Trigger AI labeling for entire album (admin only)"""
-    try:
-        data = request.json or {}
-        prompt_type = data.get("prompt_type", "sd_training")
-        force = data.get("force", False)
+    data = request.get_json(silent=True) or {}
+    prompt_type = data.get("prompt_type", "sd_training")
+    force = data.get("force", False)
 
-        # Verify album exists
-        Album.query.get_or_404(album_id)
+    # Ensure album exists before queuing work
+    album = db.session.get(Album, album_id)
+    if album is None:
+        abort(404)
 
-        # Get all images in album
-        album_images = AlbumImage.query.filter_by(album_id=album_id).all()
-        images = [assoc.image for assoc in album_images]
+    album_images = AlbumImage.query.filter_by(album_id=album_id).all()
+    images = [assoc.image for assoc in album_images if assoc.image]
 
-        if not images:
-            return jsonify({"error": "Album is empty"}), 400
+    if not images:
+        return jsonify({"error": "Album is empty"}), 400
 
-        # Filter out already labeled images unless force=True
-        if not force:
-            images = [img for img in images if not img.labels]
+    if not force and all(image.labels for image in images):
+        return jsonify({"error": "All images already labeled"}), 400
 
-        if not images:
-            return jsonify({"error": "All images already labeled"}), 400
+    task = label_album_task.delay(album_id=album_id, prompt_type=prompt_type, force=force)
 
-        # Import labeling service
-        from server.services.labeling import batch_label_images
+    logger.info(
+        "Queued album labeling task %s for album %s",
+        task.id,
+        album_id,
+        extra={
+            "operation": "label_album",
+            "album_id": album_id,
+            "prompt_type": prompt_type,
+            "force": force,
+            "task_id": task.id,
+        },
+    )
 
-        # Label images
-        image_paths = [img.file_path for img in images]
-        results = batch_label_images(image_paths, prompt_type)
+    return jsonify({"status": "queued", "task_id": task.id}), 202
 
-        # Process results and update database
-        for i, result in enumerate(results["results"]):
-            if result["status"] == "success":
-                image = images[i]
 
-                # Update image NSFW flag
-                image.is_nsfw = result["nsfw_rating"] in ["ADULT", "EXPLICIT"]
+@app.route("/api/labeling/tasks/<task_id>", methods=["GET"])
+def get_labeling_task(task_id):
+    """Check the status of a labeling task."""
+    async_result = celery.AsyncResult(task_id)
+    response = {"task_id": task_id, "state": async_result.state}
 
-                # Create caption label
-                if result["description"]:
-                    caption_label = Label(
-                        image_id=image.id,
-                        label_text=result["description"],
-                        label_type="caption",
-                        source_model="claude-3-5-sonnet",
-                    )
-                    db.session.add(caption_label)
+    if async_result.state == "PROGRESS":
+        response["progress"] = async_result.info or {}
+    elif async_result.state == "SUCCESS":
+        response["result"] = async_result.info
+    elif async_result.state in ("FAILURE", "REVOKED"):
+        response["error"] = str(async_result.info)
 
-                # Create tag labels
-                for tag in result["tags"]:
-                    tag_label = Label(
-                        image_id=image.id,
-                        label_text=tag,
-                        label_type="tag",
-                        source_model="claude-3-5-sonnet",
-                    )
-                    db.session.add(tag_label)
-
-        db.session.commit()
-
-        logger.info(
-            f"Batch labeled album {album_id}: {results['success']} success, "
-            f"{results['failed']} failed",
-            extra={
-                "operation": "label_album",
-                "album_id": album_id,
-                "success": results["success"],
-                "failed": results["failed"],
-            },
-        )
-
-        return jsonify(
-            {
-                "success": True,
-                "total": results["total"],
-                "success_count": results["success"],
-                "failed_count": results["failed"],
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Error batch labeling album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to label album"}), 500
+    return jsonify(response)
 
 
 @app.route("/api/database/stats", methods=["GET"])

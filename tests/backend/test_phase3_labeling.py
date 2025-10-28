@@ -1,197 +1,20 @@
 """
-Tests for Phase 3: AI Labeling System
+Tests for Phase 3: AI Labeling System (Docker/CLI Implementation)
 """
 
-import base64
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
-import pytest
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
-from server.services.labeling import (
-    batch_label_images,
-    encode_image,
-    get_labeling_prompts,
-    label_image_with_claude,
-)
-
-
-class TestImageEncoding:
-    """Test image encoding for Claude API"""
-
-    def test_encode_image_small(self, temp_output_dir):
-        """Test encoding small image"""
-        # Create test image
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should be base64 encoded
-        assert isinstance(encoded, str)
-        # Decode and verify it's valid
-        decoded = base64.b64decode(encoded)
-        assert len(decoded) > 0
-
-    def test_encode_image_large(self, temp_output_dir):
-        """Test encoding large image (should be resized)"""
-        # Create large test image
-        test_img = PILImage.new("RGB", (2000, 2000), color="blue")
-        img_path = temp_output_dir / "large.jpg"
-        test_img.save(img_path, "JPEG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should be resized and encoded
-        assert isinstance(encoded, str)
-        decoded = base64.b64decode(encoded)
-
-        # Verify it was resized by checking the decoded image
-        with BytesIO(decoded) as buffer:
-            resized_img = PILImage.open(buffer)
-            assert max(resized_img.size) <= 1568
-
-    def test_encode_image_rgba_conversion(self, temp_output_dir):
-        """Test RGBA to RGB conversion"""
-        # Create RGBA image
-        test_img = PILImage.new("RGBA", (100, 100), color=(255, 0, 0, 128))
-        img_path = temp_output_dir / "rgba.png"
-        test_img.save(img_path, "PNG")
-
-        encoded = encode_image(str(img_path))
-
-        # Should convert to RGB and encode
-        assert isinstance(encoded, str)
-        decoded = base64.b64decode(encoded)
-
-        with BytesIO(decoded) as buffer:
-            converted_img = PILImage.open(buffer)
-            assert converted_img.mode == "RGB"
-
-
-class TestLabelingPrompts:
-    """Test labeling prompt templates"""
-
-    def test_get_labeling_prompts(self):
-        """Test getting labeling prompts"""
-        prompts = get_labeling_prompts()
-
-        assert "default" in prompts
-        assert "sd_training" in prompts
-        assert "detailed" in prompts
-
-        # Check prompt structure
-        for prompt_type, prompt_text in prompts.items():
-            assert isinstance(prompt_text, str)
-            assert len(prompt_text) > 0
-            assert "NSFW" in prompt_text  # All prompts should include NSFW rating
-
-    def test_prompt_types(self):
-        """Test different prompt types have different content"""
-        prompts = get_labeling_prompts()
-
-        # Each prompt should be different
-        assert prompts["default"] != prompts["sd_training"]
-        assert prompts["default"] != prompts["detailed"]
-        assert prompts["sd_training"] != prompts["detailed"]
-
-        # SD training should mention Stable Diffusion
-        assert "Stable Diffusion" in prompts["sd_training"]
-
-        # Detailed should mention comprehensive analysis
-        assert "detailed" in prompts["detailed"].lower()
-
-
-class TestClaudeLabeling:
-    """Test Claude API integration"""
-
-    @patch("server.services.labeling.ANTHROPIC_AVAILABLE", False)
-    def test_label_image_anthropic_unavailable(self, temp_output_dir):
-        """Test labeling when Anthropic library is unavailable"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        result = label_image_with_claude(str(img_path))
-
-        assert result["status"] == "error"
-        assert "not available" in result["message"]
-
-    @patch("server.services.labeling.ANTHROPIC_AVAILABLE", True)
-    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""})
-    def test_label_image_no_api_key(self, temp_output_dir):
-        """Test labeling when API key is not set"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        result = label_image_with_claude(str(img_path))
-
-        assert result["status"] == "error"
-        assert "not set" in result["message"]
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_success(self, temp_output_dir):
-        """Test successful image labeling"""
-        # Create test image
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock Claude response
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = """
-        DESCRIPTION: A beautiful red square image
-        NSFW: SAFE
-        TAGS: red, square, geometric, abstract, colorful
-        """
-
-        # This test is skipped - implementation removed
-        pass
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_api_error(self, temp_output_dir):
-        """Test handling Claude API errors"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock API error
-        # This test is skipped - implementation removed
-        pass
-
-    @pytest.mark.skip(reason="Requires anthropic library - integration test")
-    def test_label_image_different_prompts(self, temp_output_dir):
-        """Test labeling with different prompt types"""
-        test_img = PILImage.new("RGB", (100, 100), color="red")
-        img_path = temp_output_dir / "test.jpg"
-        test_img.save(img_path, "JPEG")
-
-        # Mock Claude response
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = """
-        CAPTION: A detailed red square for training
-        NSFW: SAFE
-        TAGS: red, square, training, detailed
-        """
-
-        # This test is skipped - implementation removed
-        pass
+from server.services.labeling_cli import batch_label_images
+from server.tasks.labeling import label_album_task, label_image_task
 
 
 class TestBatchLabeling:
     """Test batch labeling functionality"""
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_batch_label_images_success(self, mock_label, temp_output_dir):
         """Test successful batch labeling"""
         # Create test images
@@ -221,7 +44,7 @@ class TestBatchLabeling:
         assert results["failed"] == 1
         assert len(results["results"]) == 3
 
-    @patch("server.services.labeling.label_image_with_claude")
+    @patch("server.services.labeling_cli.label_image_with_claude")
     def test_batch_label_images_with_progress(self, mock_label, temp_output_dir):
         """Test batch labeling with progress callback"""
         # Create test images
@@ -260,123 +83,118 @@ class TestLabelingAPI:
         response = client.post("/api/labeling/image/1")
         assert response.status_code == 401
 
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_label_image_endpoint_success(self, mock_label, client, mock_admin_auth):
-        """Test successful image labeling via API"""
+    @patch("server.api.label_image_task.delay")
+    def test_label_image_endpoint_success(self, mock_delay, client, mock_admin_auth):
+        """Test queuing image labeling task"""
         with client.application.app_context():
-            # Create test image
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
             db.session.add(image)
             db.session.commit()
             image_id = image.id
 
-        # Mock successful labeling
-        mock_label.return_value = {
-            "status": "success",
-            "description": "A beautiful test image",
-            "nsfw_rating": "SAFE",
-            "tags": ["test", "beautiful"],
-        }
+        mock_delay.return_value = MagicMock(id="task-123")
 
         response = client.post(
             f"/api/labeling/image/{image_id}",
+            json={"prompt_type": "sd_training"},
+            headers={"Authorization": "Bearer admin_token"},
+        )
+
+        assert response.status_code == 202
+        data = response.get_json()
+        assert data == {"status": "queued", "task_id": "task-123"}
+        mock_delay.assert_called_once_with(image_id=image_id, prompt_type="sd_training")
+
+    def test_label_image_endpoint_not_found(self, client, mock_admin_auth):
+        """Labeling a nonexistent image should return 404"""
+        response = client.post(
+            "/api/labeling/image/9999",
             json={"prompt_type": "default"},
             headers={"Authorization": "Bearer admin_token"},
         )
 
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["success"] is True
-        assert data["description"] == "A beautiful test image"
-        assert data["nsfw_rating"] == "SAFE"
-        assert "test" in data["tags"]
-
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_label_image_endpoint_error(self, mock_label, client, mock_admin_auth):
-        """Test image labeling API error handling"""
-        with client.application.app_context():
-            # Create test image
-            image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
-            db.session.add(image)
-            db.session.commit()
-            image_id = image.id
-
-        # Mock labeling error
-        mock_label.return_value = {"status": "error", "message": "Claude API failed"}
-
-        response = client.post(
-            f"/api/labeling/image/{image_id}",
-            json={"prompt_type": "default"},
-            headers={"Authorization": "Bearer admin_token"},
-        )
-
-        assert response.status_code == 500
-        data = response.get_json()
-        assert "error" in data
+        assert response.status_code == 404
 
     def test_label_album_endpoint_unauthorized(self, client):
         """Test album labeling endpoint without admin auth"""
         response = client.post("/api/labeling/album/1")
         assert response.status_code == 401
 
-    @patch("server.services.labeling.batch_label_images")
-    def test_label_album_endpoint_success(self, mock_batch, client, mock_admin_auth):
-        """Test successful album labeling via API"""
+    @patch("server.api.label_album_task.delay")
+    def test_label_album_endpoint_success(self, mock_delay, client, mock_admin_auth):
+        """Test queuing album labeling task"""
         with client.application.app_context():
-            # Create test album and images
             album = Album(name="Test Album")
-            image1 = Image(filename="test1.jpg", file_path="/tmp/test1.jpg", is_public=True)
-            image2 = Image(filename="test2.jpg", file_path="/tmp/test2.jpg", is_public=True)
-
-            db.session.add_all([album, image1, image2])
+            image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
+            db.session.add_all([album, image])
             db.session.commit()
-
-            # Add images to album
-            assoc1 = AlbumImage(album_id=album.id, image_id=image1.id)
-            assoc2 = AlbumImage(album_id=album.id, image_id=image2.id)
-            db.session.add_all([assoc1, assoc2])
+            db.session.add(AlbumImage(album_id=album.id, image_id=image.id))
             db.session.commit()
-
             album_id = album.id
 
-        # Mock successful batch labeling
-        mock_batch.return_value = {
-            "total": 2,
-            "success": 2,
-            "failed": 0,
-            "results": [
-                {
-                    "status": "success",
-                    "description": "Image 1",
-                    "nsfw_rating": "SAFE",
-                    "tags": ["test"],
-                },
-                {
-                    "status": "success",
-                    "description": "Image 2",
-                    "nsfw_rating": "SAFE",
-                    "tags": ["test"],
-                },
-            ],
-        }
+        mock_delay.return_value = MagicMock(id="album-task-1")
 
         response = client.post(
             f"/api/labeling/album/{album_id}",
-            json={"prompt_type": "sd_training", "force": False},
+            json={"prompt_type": "sd_training"},
             headers={"Authorization": "Bearer admin_token"},
         )
 
+        assert response.status_code == 202
+        data = response.get_json()
+        assert data == {"status": "queued", "task_id": "album-task-1"}
+        mock_delay.assert_called_once_with(
+            album_id=album.id, prompt_type="sd_training", force=False
+        )
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_progress(self, mock_async, client):
+        """Task status endpoint returns progress details."""
+        async_result = MagicMock()
+        async_result.state = "PROGRESS"
+        async_result.info = {"current": 3, "total": 10, "message": "Working"}
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-xyz")
+
         assert response.status_code == 200
         data = response.get_json()
-        assert data["success"] is True
-        assert data["total"] == 2
-        assert data["success_count"] == 2
-        assert data["failed_count"] == 0
+        assert data["state"] == "PROGRESS"
+        assert data["progress"] == {"current": 3, "total": 10, "message": "Working"}
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_success(self, mock_async, client):
+        """Task status endpoint surfaces success payload."""
+        async_result = MagicMock()
+        async_result.state = "SUCCESS"
+        async_result.info = {"status": "success", "image_id": 1}
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-success")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["state"] == "SUCCESS"
+        assert data["result"] == {"status": "success", "image_id": 1}
+
+    @patch("server.api.celery.AsyncResult")
+    def test_labeling_task_status_failure(self, mock_async, client):
+        """Task status endpoint returns failure info."""
+        async_result = MagicMock()
+        async_result.state = "FAILURE"
+        async_result.info = RuntimeError("boom")
+        mock_async.return_value = async_result
+
+        response = client.get("/api/labeling/tasks/task-failure")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["state"] == "FAILURE"
+        assert "boom" in data["error"]
 
     def test_label_album_empty(self, client, mock_admin_auth):
-        """Test labeling empty album"""
+        """Album with no images should be rejected"""
         with client.application.app_context():
-            # Create empty album
             album = Album(name="Empty Album")
             db.session.add(album)
             db.session.commit()
@@ -384,29 +202,52 @@ class TestLabelingAPI:
 
         response = client.post(
             f"/api/labeling/album/{album_id}",
-            json={"prompt_type": "default"},
             headers={"Authorization": "Bearer admin_token"},
         )
 
         assert response.status_code == 400
-        data = response.get_json()
-        assert "empty" in data["error"].lower()
+        assert "empty" in response.get_json()["error"].lower()
+
+    def test_label_album_already_labeled(self, client, mock_admin_auth):
+        """Album with all images labeled should be rejected unless force=True"""
+        with client.application.app_context():
+            album = Album(name="Labeled Album")
+            image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
+            db.session.add_all([album, image])
+            db.session.commit()
+            db.session.add(AlbumImage(album_id=album.id, image_id=image.id))
+            db.session.add(
+                Label(
+                    image_id=image.id,
+                    label_text="Existing label",
+                    label_type="tag",
+                    source_model="unit-test",
+                )
+            )
+            db.session.commit()
+            album_id = album.id
+
+        response = client.post(
+            f"/api/labeling/album/{album_id}",
+            headers={"Authorization": "Bearer admin_token"},
+        )
+
+        assert response.status_code == 400
+        assert "already" in response.get_json()["error"].lower()
 
 
 class TestNSFWClassification:
     """Test NSFW classification and database updates"""
 
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_nsfw_classification_safe(self, mock_label, client, mock_admin_auth):
-        """Test SAFE classification updates database correctly"""
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_nsfw_classification_safe(self, mock_label, client):
+        """Task marks SAFE classification correctly"""
         with client.application.app_context():
-            # Create test image
             image = Image(filename="safe.jpg", file_path="/tmp/safe.jpg", is_public=True)
             db.session.add(image)
             db.session.commit()
             image_id = image.id
 
-        # Mock SAFE classification
         mock_label.return_value = {
             "status": "success",
             "description": "A safe image",
@@ -414,30 +255,23 @@ class TestNSFWClassification:
             "tags": ["safe", "family-friendly"],
         }
 
-        response = client.post(
-            f"/api/labeling/image/{image_id}",
-            json={"prompt_type": "default"},
-            headers={"Authorization": "Bearer admin_token"},
-        )
+        result = label_image_task.run(image_id=image_id, prompt_type="default")
 
-        assert response.status_code == 200
+        assert result["status"] == "success"
 
-        # Verify database update
         with client.application.app_context():
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is False
 
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_nsfw_classification_explicit(self, mock_label, client, mock_admin_auth):
-        """Test EXPLICIT classification updates database correctly"""
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_nsfw_classification_explicit(self, mock_label, client):
+        """Task marks EXPLICIT classification correctly"""
         with client.application.app_context():
-            # Create test image
             image = Image(filename="explicit.jpg", file_path="/tmp/explicit.jpg", is_public=True)
             db.session.add(image)
             db.session.commit()
             image_id = image.id
 
-        # Mock EXPLICIT classification
         mock_label.return_value = {
             "status": "success",
             "description": "An explicit image",
@@ -445,30 +279,23 @@ class TestNSFWClassification:
             "tags": ["explicit", "adult"],
         }
 
-        response = client.post(
-            f"/api/labeling/image/{image_id}",
-            json={"prompt_type": "default"},
-            headers={"Authorization": "Bearer admin_token"},
-        )
+        result = label_image_task.run(image_id=image_id, prompt_type="default")
 
-        assert response.status_code == 200
+        assert result["status"] == "success"
 
-        # Verify database update
         with client.application.app_context():
             updated_image = Image.query.get(image_id)
             assert updated_image.is_nsfw is True
 
-    @patch("server.services.labeling.label_image_with_claude")
-    def test_label_storage(self, mock_label, client, mock_admin_auth):
-        """Test that labels are properly stored in database"""
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_label_storage(self, mock_label, client):
+        """Task stores caption and tags"""
         with client.application.app_context():
-            # Create test image
             image = Image(filename="test.jpg", file_path="/tmp/test.jpg", is_public=True)
             db.session.add(image)
             db.session.commit()
             image_id = image.id
 
-        # Mock labeling with caption and tags
         mock_label.return_value = {
             "status": "success",
             "description": "A beautiful landscape with mountains",
@@ -476,25 +303,18 @@ class TestNSFWClassification:
             "tags": ["landscape", "mountains", "nature", "beautiful"],
         }
 
-        response = client.post(
-            f"/api/labeling/image/{image_id}",
-            json={"prompt_type": "default"},
-            headers={"Authorization": "Bearer admin_token"},
-        )
+        result = label_image_task.run(image_id=image_id, prompt_type="default")
 
-        assert response.status_code == 200
+        assert result["status"] == "success"
 
-        # Verify labels are stored
         with client.application.app_context():
             labels = Label.query.filter_by(image_id=image_id).all()
             assert len(labels) == 5  # 1 caption + 4 tags
 
-            # Check caption label
             caption_labels = [label for label in labels if label.label_type == "caption"]
             assert len(caption_labels) == 1
             assert "landscape" in caption_labels[0].label_text
 
-            # Check tag labels
             tag_labels = [label for label in labels if label.label_type == "tag"]
             assert len(tag_labels) == 4
             tag_texts = [label.label_text for label in tag_labels]
@@ -503,6 +323,54 @@ class TestNSFWClassification:
             assert "nature" in tag_texts
             assert "beautiful" in tag_texts
 
-            # Check source model
             for label in labels:
                 assert label.source_model == "claude-3-5-sonnet"
+
+
+class TestLabelAlbumTask:
+    """Test album labeling Celery task"""
+
+    @patch("server.services.labeling_cli.label_image_with_claude")
+    def test_album_task_labels_unlabeled_images(self, mock_label, client):
+        with client.application.app_context():
+            album = Album(name="Task Album")
+            image_one = Image(filename="one.jpg", file_path="/tmp/one.jpg", is_public=True)
+            image_two = Image(filename="two.jpg", file_path="/tmp/two.jpg", is_public=True)
+            db.session.add_all([album, image_one, image_two])
+            db.session.commit()
+            db.session.add_all(
+                [
+                    AlbumImage(album_id=album.id, image_id=image_one.id),
+                    AlbumImage(album_id=album.id, image_id=image_two.id),
+                ]
+            )
+            db.session.add(
+                Label(
+                    image_id=image_two.id,
+                    label_text="prelabeled",
+                    label_type="tag",
+                    source_model="unit-test",
+                )
+            )
+            db.session.commit()
+            album_id = album.id
+            image_one_id = image_one.id
+
+        mock_label.return_value = {
+            "status": "success",
+            "description": "fresh label",
+            "nsfw_rating": "SAFE",
+            "tags": ["tagged"],
+        }
+
+        result = label_album_task.run(album_id=album_id, prompt_type="sd_training", force=False)
+
+        assert result["status"] == "success"
+        assert result["total"] == 1
+        assert result["success"] == 1
+        assert result["failed"] == 0
+        assert image_one_id in result["results"]
+
+        with client.application.app_context():
+            labels = Label.query.filter_by(image_id=image_one_id).all()
+            assert labels, "Expected labels to be created for unlabeled image"

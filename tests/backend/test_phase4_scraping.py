@@ -140,7 +140,7 @@ class TestScrapingAPI:
 
         # Verify job was cancelled
         with client.application.app_context():
-            updated_job = ScrapeJob.query.get(job_id)
+            updated_job = db.session.get(ScrapeJob, job_id)
             assert updated_job.status == "cancelled"
 
     def test_cancel_scrape_job_invalid_status(self, client, mock_admin_auth):

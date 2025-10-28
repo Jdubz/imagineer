@@ -35,6 +35,18 @@
         "boolean",
         "null"
       ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [

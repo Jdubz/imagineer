@@ -4,12 +4,18 @@ SQLAlchemy models for image management, albums, and training data
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 logger = logging.getLogger(__name__)
+
+
+def utcnow():
+    """Timezone-aware UTC timestamp helper for SQLAlchemy defaults."""
+    return datetime.now(timezone.utc)
 
 
 class Image(db.Model):
@@ -39,8 +45,8 @@ class Image(db.Model):
     is_public = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     labels = db.relationship("Label", backref="image", lazy=True, cascade="all, delete-orphan")
@@ -94,7 +100,7 @@ class Label(db.Model):
     created_by = db.Column(db.String(255), nullable=True)  # User who created the label
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     def to_dict(self):
         return {
@@ -130,8 +136,8 @@ class Album(db.Model):
     generation_config = db.Column(db.Text)  # JSON: generation settings
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     album_images = db.relationship(
@@ -174,7 +180,7 @@ class AlbumImage(db.Model):
     added_by = db.Column(db.String(255), nullable=True)  # User who added the image to the album
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     # Unique constraint
     __table_args__ = (db.UniqueConstraint("album_id", "image_id", name="unique_album_image"),)
@@ -216,7 +222,7 @@ class ScrapeJob(db.Model):
     last_error_at = db.Column(db.DateTime)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
@@ -267,7 +273,7 @@ class TrainingRun(db.Model):
     last_error_at = db.Column(db.DateTime)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
@@ -297,6 +303,14 @@ def init_database(app):
     db.init_app(app)
 
     with app.app_context():
+        # Ensure instance directory exists for SQLite databases
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if db_uri.startswith("sqlite:///"):
+            db_path = db_uri.replace("sqlite:///", "")
+            db_file = Path(db_path)
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Ensured database directory exists: {db_file.parent}")
+
         # Create all tables
         db.create_all()
         logger.info("Database tables created successfully")

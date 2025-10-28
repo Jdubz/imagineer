@@ -17,3 +17,5 @@ class AuthStatusTypedDict(TypedDict, total=False):
     picture: NotRequired[str | None]
     role: NotRequired[str | None]
     is_admin: NotRequired[bool | None]
+    error: NotRequired[str | None]
+    message: NotRequired[str | None]

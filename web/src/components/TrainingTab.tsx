@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
@@ -30,8 +30,28 @@ interface AlbumsResponse {
   albums: TrainingAlbum[]
 }
 
+interface TrainingLogResponse {
+  training_run_id: number
+  status: JobStatus
+  progress: number
+  error_message?: string | null
+  log_path: string
+  log_available: boolean
+  logs: string
+}
+
 interface TrainingTabProps {
   isAdmin?: boolean
+}
+
+interface TrainingLogState {
+  runId: string | null
+  content: string
+  status: JobStatus | null
+  logAvailable: boolean
+  logPath: string
+  loading: boolean
+  error: string | null
 }
 
 const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
@@ -40,6 +60,16 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
+  const [logState, setLogState] = useState<TrainingLogState>({
+    runId: null,
+    content: '',
+    status: null,
+    logAvailable: false,
+    logPath: '',
+    loading: false,
+    error: null,
+  })
+  const logPollRef = useRef<number | null>(null)
 
   // Form state for creating training runs
   const [formData, setFormData] = useState<TrainingFormData>({
@@ -92,6 +122,88 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err))
     fetchAlbums().catch((err) => console.error('Error refreshing albums:', err))
   }, [fetchAlbums, fetchTrainingRuns, isAdmin])
+
+  const clearLogInterval = useCallback(() => {
+    if (logPollRef.current !== null) {
+      window.clearInterval(logPollRef.current)
+      logPollRef.current = null
+    }
+  }, [])
+
+  const fetchTrainingLogs = useCallback(async (runId: string): Promise<void> => {
+    setLogState((prev) => ({ ...prev, loading: true, error: null }))
+    try {
+      const response = await fetch(`/api/training/${runId}/logs?tail=500`, {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch logs (status ${response.status})`)
+      }
+
+      const data: TrainingLogResponse = await response.json()
+      setLogState((prev) => ({
+        ...prev,
+        runId,
+        loading: false,
+        content: data.logs ?? '',
+        status: data.status,
+        logAvailable: data.log_available,
+        logPath: data.log_path,
+        error: null,
+      }))
+
+      if (!['running', 'queued'].includes(data.status)) {
+        clearLogInterval()
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load logs'
+      setLogState((prev) => ({ ...prev, loading: false, error: message }))
+      clearLogInterval()
+    }
+  }, [clearLogInterval])
+
+  const openLogViewer = useCallback(
+    (runId: string) => {
+      clearLogInterval()
+      setLogState({
+        runId,
+        content: '',
+        status: null,
+        logAvailable: false,
+        logPath: '',
+        loading: true,
+        error: null,
+      })
+      fetchTrainingLogs(runId).catch((err) => {
+        const message = err instanceof Error ? err.message : 'Failed to load logs'
+        setLogState((prev) => ({ ...prev, loading: false, error: message }))
+      })
+
+      logPollRef.current = window.setInterval(() => {
+        fetchTrainingLogs(runId).catch((err) => {
+          const message = err instanceof Error ? err.message : 'Failed to load logs'
+          setLogState((prev) => ({ ...prev, loading: false, error: message }))
+        })
+      }, 5000)
+    },
+    [clearLogInterval, fetchTrainingLogs],
+  )
+
+  useEffect(() => () => clearLogInterval(), [clearLogInterval])
+
+  const closeLogViewer = useCallback(() => {
+    clearLogInterval()
+    setLogState({
+      runId: null,
+      content: '',
+      status: null,
+      logAvailable: false,
+      logPath: '',
+      loading: false,
+      error: null,
+    })
+  }, [clearLogInterval])
 
   const handleCreateTraining = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -327,6 +439,12 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                       Cleanup
                     </button>
                   )}
+                  <button
+                    className="action-button logs"
+                    onClick={() => openLogViewer(run.id)}
+                  >
+                    View Logs
+                  </button>
                 </div>
               )}
             </div>
@@ -468,6 +586,47 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {logState.runId && (
+        <div className="dialog-overlay" role="dialog" aria-modal="true">
+          <div className="dialog log-dialog">
+            <div className="dialog-header">
+              <h3>Training Logs</h3>
+              <button className="close-button" onClick={closeLogViewer} aria-label="Close logs">
+                ×
+              </button>
+            </div>
+
+            <div className="log-meta">
+              <div>
+                <strong>Run ID:</strong> {logState.runId}
+              </div>
+              {logState.status && (
+                <div>
+                  <strong>Status:</strong> {logState.status.toUpperCase()}
+                </div>
+              )}
+              {logState.logPath && (
+                <div className="log-path">
+                  <strong>Log file:</strong> {logState.logPath}
+                </div>
+              )}
+            </div>
+
+            <div className="log-body">
+              {logState.loading ? (
+                <div className="log-loading">Loading logs...</div>
+              ) : logState.error ? (
+                <div className="log-error">{logState.error}</div>
+              ) : logState.logAvailable ? (
+                <pre className="log-content">{logState.content || 'No log output yet.'}</pre>
+              ) : (
+                <div className="log-empty">Logs are not available yet for this run.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

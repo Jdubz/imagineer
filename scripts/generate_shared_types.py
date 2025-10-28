@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -165,12 +166,10 @@ def generate_py_typeddict(schema: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
-    schemas = load_schemas()
+def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
     if not schemas:
-        raise SystemExit("No schemas found in shared/schema")
+        raise ValueError("No schemas provided to build shared types")
 
-    # Generate TypeScript definitions
     ts_lines: list[str] = [TS_HEADER.strip("\n"), ""]
     for schema in schemas:
         description = schema.get("description")
@@ -179,10 +178,7 @@ def main() -> None:
         ts_lines.append(generate_ts_interface(schema))
         ts_lines.append("")
     ts_output = "\n".join(ts_lines).rstrip() + "\n"
-    TS_TARGET.parent.mkdir(parents=True, exist_ok=True)
-    TS_TARGET.write_text(ts_output, encoding="utf-8")
 
-    # Generate Python TypedDicts
     typeddicts: list[str] = []
     for schema in schemas:
         typeddicts.append(generate_py_typeddict(schema))
@@ -192,7 +188,8 @@ def main() -> None:
     imports = {"TypedDict", "NotRequired", "Required"}
     if "Literal[" in typeddict_body:
         imports.add("Literal")
-    if " Any" in typeddict_body or "Any[" in typeddict_body:
+
+    if re.search(r"\bAny\b", typeddict_body):
         imports.add("Any")
 
     import_items = ", ".join(sorted(imports))
@@ -209,6 +206,20 @@ def main() -> None:
         typeddict_body,
     ]
     py_output = "\n".join(py_lines).rstrip() + "\n"
+
+    return ts_output, py_output
+
+
+def main() -> None:
+    schemas = load_schemas()
+    if not schemas:
+        raise SystemExit("No schemas found in shared/schema")
+
+    ts_output, py_output = build_outputs(schemas)
+
+    TS_TARGET.parent.mkdir(parents=True, exist_ok=True)
+    TS_TARGET.write_text(ts_output, encoding="utf-8")
+
     PY_TARGET.write_text(py_output, encoding="utf-8")
 
 

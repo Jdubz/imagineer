@@ -452,7 +452,7 @@ class TestTrainingAPI:
                 assert data["message"] == "Training cancelled"
 
                 # Verify status updated
-                updated_run = TrainingRun.query.get(run.id)
+                updated_run = db.session.get(TrainingRun, run.id)
                 assert updated_run.status == "cancelled"
 
     def test_list_available_albums(self, client, app):

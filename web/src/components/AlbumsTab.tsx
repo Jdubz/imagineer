@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import '../styles/AlbumsTab.css'
+import LabelingPanel from './LabelingPanel'
 
 interface AlbumImage {
   id: string
@@ -40,14 +41,20 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     }
   }
 
-  const selectAlbum = async (albumId: string): Promise<void> => {
+  const loadAlbum = async (albumId: string): Promise<Album | null> => {
     try {
       const response = await fetch(`/api/albums/${albumId}`)
-      const data = await response.json()
+      const data = (await response.json()) as Album
       setSelectedAlbum(data)
+      return data
     } catch (error) {
       console.error('Failed to fetch album details:', error)
+      return null
     }
+  }
+
+  const selectAlbum = async (albumId: string): Promise<void> => {
+    await loadAlbum(albumId)
   }
 
   const createAlbum = async (name: string, description: string, albumType = 'manual'): Promise<void> => {
@@ -70,8 +77,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        const error = await response.json()
-        alert('Failed to create album: ' + error.error)
+        const error = (await response.json()) as { error?: string }
+        alert('Failed to create album: ' + (error.error ?? 'Unknown error'))
       }
     } catch (error) {
       console.error('Failed to create album:', error)
@@ -112,6 +119,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         onBack={() => setSelectedAlbum(null)}
         isAdmin={isAdmin}
         onDelete={deleteAlbum}
+        onRefresh={() => loadAlbum(String(selectedAlbum.id))}
       />
     )
   }
@@ -194,12 +202,18 @@ interface AlbumDetailViewProps {
   onBack: () => void
   isAdmin: boolean
   onDelete: (albumId: string) => void
+  onRefresh: () => Promise<Album | null>
 }
 
-const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmin }) => {
+const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmin, onRefresh }) => {
   const [images, setImages] = useState<AlbumImage[]>(album.images || [])
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [nsfwSetting, setNsfwSetting] = useState<'hide' | 'blur' | 'show'>('blur')
+
+  useEffect(() => {
+    setImages(album.images || [])
+    setSelectedImages([])
+  }, [album])
 
   const toggleImageSelection = (imageId: string): void => {
     if (!isAdmin) return
@@ -227,6 +241,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmi
 
     setImages(images.filter(img => !selectedImages.includes(img.id)))
     setSelectedImages([])
+    await onRefresh()
   }
 
   return (
@@ -253,6 +268,15 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmi
           </button>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="album-actions">
+          <LabelingPanel
+            albumId={album.id}
+            onComplete={async () => { await onRefresh() }}
+          />
+        </div>
+      )}
 
       <div className="album-description">
         <p>{album.description || 'No description'}</p>
@@ -286,6 +310,14 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({ album, onBack, isAdmi
 
             {image.labels && image.labels.length > 0 && (
               <div className="has-labels-badge">🏷️</div>
+            )}
+
+            {isAdmin && (
+              <LabelingPanel
+                imageId={image.id}
+                onComplete={async () => { await onRefresh() }}
+                variant="compact"
+              />
             )}
           </div>
         ))}

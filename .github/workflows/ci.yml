@@ -9,7 +9,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,6 +57,8 @@ jobs:
 
       - name: Run backend unit tests
         run: pytest -v
+        env:
+          IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
 
   deploy-tooling:
     runs-on: ubuntu-latest

@@ -24,7 +24,10 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   const checkAuth = async (): Promise<void> => {
     try {
       const response = await fetch('/api/auth/me', {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json'
+        }
       })
       const contentType = response.headers?.get?.('content-type') ?? ''
 
@@ -53,7 +56,19 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
       const data: AuthStatus = await response.json()
 
-      if (response.ok && data?.authenticated) {
+      if (!response.ok) {
+        const backendMessage =
+          typeof data?.message === 'string'
+            ? data.message
+            : typeof data?.error === 'string'
+              ? data.error
+              : 'Unable to verify authentication status. Please try again.'
+        setUser(null)
+        setError(backendMessage)
+        return
+      }
+
+      if (data?.authenticated) {
         setUser(data)
         setError(null)
       } else {
@@ -72,9 +87,17 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   const handleLogin = (): void => {
     const currentLocation = window.location.pathname + window.location.search + window.location.hash
     const nextParam = encodeURIComponent(currentLocation || '/')
-    const loginUrl = `/api/auth/login?state=${nextParam}`
 
-    const popup = window.open(loginUrl, 'oauth', 'width=500,height=700')
+    // Force HTTPS in production, use current origin in development
+    let origin = window.location.origin
+    if (import.meta.env.PROD && origin.startsWith('http://')) {
+      origin = origin.replace('http://', 'https://')
+    }
+
+    const loginUrl = new URL('/api/auth/login', origin)
+    loginUrl.searchParams.set('state', nextParam)
+
+    const popup = window.open(loginUrl.toString(), 'oauth', 'width=500,height=700')
 
     if (popup) {
       const timer = window.setInterval(() => {
@@ -84,14 +107,17 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
         }
       }, 500)
     } else {
-      window.location.href = loginUrl
+      window.location.href = loginUrl.toString()
     }
   }
 
   const handleLogout = async (): Promise<void> => {
     try {
       const response = await fetch('/api/auth/logout', {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json'
+        }
       })
       if (!response.ok) {
         const message = typeof response.text === 'function'
@@ -135,4 +161,3 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 }
 
 export default AuthButton
-

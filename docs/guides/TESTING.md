@@ -137,6 +137,15 @@ Pytest fixtures are defined in `tests/backend/conftest.py`:
 - `temp_output_dir` - Temporary output directory
 - `sample_job_data` - Sample generation job data
 
+### Memory Guard
+
+Backend tests now enforce a memory budget using the `memory-guard` hook in `tests/backend/conftest.py`. By default the suite caps RSS at **8192 MB** and records the top memory-hungry tests in the terminal summary. You can adjust or disable the guard when debugging:
+
+- `PYTEST_MAX_MEMORY_MB=4096` – lower the ceiling to 4 GB.
+- `pytest --max-mem=0` or `PYTEST_DISABLE_MEMORY_GUARD=1` – disable the guard (not recommended in CI).
+
+If a test exceeds the configured limit, pytest fails fast with guidance so we avoid runaway workers consuming all 64 GB again.
+
 ---
 
 ## Frontend Testing

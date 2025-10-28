@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PIL import Image as PILImage
@@ -22,7 +22,27 @@ TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
 SCRAPED_OUTPUT_PATH = None
 
 
-@celery.task(bind=True, name="tasks.scrape_site")
+def get_scraped_output_path() -> Path:
+    """Resolve base directory for scraped outputs from configuration."""
+    global SCRAPED_OUTPUT_PATH
+
+    if SCRAPED_OUTPUT_PATH is None:
+        from server.api import load_config
+
+        config = load_config()
+        outputs_config = config.get("outputs", {}) if isinstance(config, dict) else {}
+
+        configured_path = outputs_config.get("scraped_dir")
+        if configured_path:
+            SCRAPED_OUTPUT_PATH = Path(configured_path)
+        else:
+            base_dir = outputs_config.get("base_dir", "/tmp/imagineer/outputs")
+            SCRAPED_OUTPUT_PATH = Path(base_dir) / "scraped"
+
+    return SCRAPED_OUTPUT_PATH
+
+
+@celery.task(bind=True, name="server.tasks.scraping.scrape_site")
 def scrape_site_task(self, scrape_job_id):  # noqa: C901
     """
     Execute web scraping job using training-data project.
@@ -42,15 +62,18 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
 
         # Update job status
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = datetime.now(timezone.utc)
         job.progress = 0
         db.session.commit()
 
         logger.info(f"Starting scrape job {scrape_job_id}: {job.source_url}")
 
         try:
+            output_base = get_scraped_output_path()
+            output_base.mkdir(parents=True, exist_ok=True)
+
             # Create output directory
-            output_dir = SCRAPED_OUTPUT_PATH / f"job_{scrape_job_id}"
+            output_dir = output_base / f"job_{scrape_job_id}"
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Parse scrape config
@@ -143,7 +166,7 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                 result = import_scraped_images(scrape_job_id, output_dir)
 
                 job.status = "completed"
-                job.completed_at = datetime.utcnow()
+                job.completed_at = datetime.now(timezone.utc)
                 job.progress = 100
                 job.output_directory = str(output_dir)
                 db.session.commit()
@@ -159,9 +182,9 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                 logger.error(f"Scraper failed for job {scrape_job_id}: {error_msg}")
 
                 job.status = "failed"
-                job.completed_at = datetime.utcnow()
+                job.completed_at = datetime.now(timezone.utc)
                 job.error_message = error_msg
-                job.last_error_at = datetime.utcnow()
+                job.last_error_at = datetime.now(timezone.utc)
                 db.session.commit()
 
                 return {"status": "error", "message": error_msg}
@@ -171,9 +194,9 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             logger.error(f"Scrape job {scrape_job_id} error: {e}", exc_info=True)
 
             job.status = "failed"
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             job.error_message = error_msg
-            job.last_error_at = datetime.utcnow()
+            job.last_error_at = datetime.now(timezone.utc)
             db.session.commit()
 
             return {"status": "error", "message": error_msg}
@@ -292,7 +315,7 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     return {"imported": imported_count, "skipped": skipped_count, "album_id": album.id}
 
 
-@celery.task(name="tasks.cleanup_scrape_job")
+@celery.task(name="server.tasks.scraping.cleanup_scrape_job")
 def cleanup_scrape_job(scrape_job_id):
     """
     Clean up old scrape job data and files.
