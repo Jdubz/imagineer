@@ -48,6 +48,10 @@ describe('AuthButton', () => {
       expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
     })
     expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/auth/me',
+      expect.objectContaining({ credentials: 'include' })
+    )
   })
 
   it('shows admin label and logout button for admins', async () => {
@@ -75,7 +79,16 @@ describe('AuthButton', () => {
     const logoutButton = screen.getByRole('button', { name: /log out/i })
     await user.click(logoutButton)
 
-    expect(fetchMock).toHaveBeenCalledWith('/auth/logout', expect.any(Object))
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/auth/me',
+      expect.objectContaining({ credentials: 'include' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/auth/logout',
+      expect.objectContaining({ credentials: 'include' })
+    )
   })
 
   it('surface errors when auth check fails', async () => {

@@ -18,7 +18,7 @@ function AuthButton({ onAuthChange }) {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/auth/me', {
+      const response = await fetch('/api/auth/me', {
         credentials: 'include'
       })
       const contentType = response.headers?.get?.('content-type') ?? ''
@@ -65,12 +65,14 @@ function AuthButton({ onAuthChange }) {
   }
 
   const handleLogin = () => {
-    window.location.href = '/auth/login'
+    const currentLocation = window.location.pathname + window.location.search + window.location.hash
+    const nextParam = encodeURIComponent(currentLocation || '/')
+    window.location.href = `/api/auth/login?state=${nextParam}`
   }
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/auth/logout', {
+      const response = await fetch('/api/auth/logout', {
         credentials: 'include'
       })
       if (!response.ok) {

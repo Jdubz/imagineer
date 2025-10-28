@@ -173,6 +173,7 @@ def handle_500(e):
 # ============================================================================
 
 
+@app.route("/api/auth/login")
 @app.route("/auth/login")
 def auth_login():
     """Initiate Google OAuth flow"""
@@ -180,6 +181,7 @@ def auth_login():
     return google.authorize_redirect(redirect_uri)
 
 
+@app.route("/api/auth/google/callback")
 @app.route("/auth/google/callback")
 def auth_callback():
     """Handle Google OAuth callback"""
@@ -236,6 +238,7 @@ def auth_callback():
         return jsonify({"error": "Authentication failed"}), 500
 
 
+@app.route("/api/auth/logout")
 @app.route("/auth/logout")
 def auth_logout():
     """Logout user"""
@@ -244,6 +247,7 @@ def auth_logout():
     return jsonify({"success": True, "message": "Logged out successfully"})
 
 
+@app.route("/api/auth/me")
 @app.route("/auth/me")
 def auth_me():
     """Get current user info"""

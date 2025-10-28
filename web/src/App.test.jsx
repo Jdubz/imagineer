@@ -23,7 +23,7 @@ const defaultHandlers = () => ({
   '/api/loras': () => Promise.resolve(createResponse({ loras: [] })),
   '/api/sets': () => Promise.resolve(createResponse({ sets: [] })),
   '/api/themes/random': () => Promise.resolve(createResponse({ theme: '' })),
-  '/auth/me': () => Promise.resolve(createResponse({ authenticated: false }))
+  '/api/auth/me': () => Promise.resolve(createResponse({ authenticated: false }))
 })
 
 const setupFetchMock = (overrides = {}) => {
