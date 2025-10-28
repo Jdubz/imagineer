@@ -176,6 +176,10 @@ git commit -m "Add new feature"
 git push origin feature/new-thing
 # Create PR → Merge to develop
 
+# Version bump (commit directly)
+python scripts/version.py bump --part patch
+git push origin develop        # No PR needed for version bumps
+
 # Deploy to dev
 git checkout develop
 git pull
