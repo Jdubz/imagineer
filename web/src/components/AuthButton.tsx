@@ -1,9 +1,30 @@
 import React, { useState, useEffect } from 'react'
+import { logger } from '../lib/logger'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
 
 interface AuthButtonProps {
   onAuthChange?: (user: AuthStatus | null) => void
+}
+
+export const buildLoginState = (
+  location: Pick<Location, 'pathname' | 'search' | 'hash' | 'origin'>,
+): string => {
+  const pathPart = location.pathname.startsWith('/')
+    ? location.pathname
+    : `/${location.pathname}`
+  const rawState = `${pathPart}${location.search}${location.hash}` || '/'
+
+  try {
+    const parsed = new URL(rawState, location.origin)
+    if (parsed.origin === location.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/'
+    }
+  } catch {
+    // Ignore parsing errors and fall back to root
+  }
+
+  return '/'
 }
 
 const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
@@ -76,7 +97,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
         setError(null)
       }
     } catch (err) {
-      console.error('Failed to check auth:', err)
+      logger.error('Failed to check auth:', err)
       setUser(null)
       setError('Unable to verify authentication status. Please try again.')
     } finally {
@@ -85,8 +106,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   }
 
   const handleLogin = (): void => {
-    const currentLocation = window.location.pathname + window.location.search + window.location.hash
-    const nextParam = encodeURIComponent(currentLocation || '/')
+    const sanitizedState = buildLoginState(window.location)
 
     // Force HTTPS in production, use current origin in development
     let origin = window.location.origin
@@ -95,7 +115,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     }
 
     const loginUrl = new URL('/api/auth/login', origin)
-    loginUrl.searchParams.set('state', nextParam)
+    loginUrl.searchParams.set('state', sanitizedState)
 
     const popup = window.open(loginUrl.toString(), 'oauth', 'width=500,height=700')
 
@@ -128,7 +148,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
       setUser(null)
       setError(null)
     } catch (err) {
-      console.error('Failed to logout:', err)
+      logger.error('Failed to logout:', err)
       setError('Failed to log out. Please retry.')
     }
   }

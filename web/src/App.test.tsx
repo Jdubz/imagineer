@@ -168,4 +168,48 @@ describe('App', () => {
 
     consoleSpy.mockRestore()
   })
+
+  it('handles 401 unauthorized response for config endpoint', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    // Mock config endpoint to return 401 (requires admin auth)
+    handlers['/api/config'] = () =>
+      Promise.resolve(createResponse({ error: 'Unauthorized' }, { ok: false, status: 401 }))
+
+    render(<App />)
+
+    // App should render without crashing
+    expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
+
+    // Verify warning was logged about auth requirement
+    await waitFor(() => {
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Config endpoint requires admin authentication')
+      )
+    })
+
+    consoleWarnSpy.mockRestore()
+  })
+
+  it('handles 403 forbidden response for config endpoint', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    // Mock config endpoint to return 403 (forbidden)
+    handlers['/api/config'] = () =>
+      Promise.resolve(createResponse({ error: 'Forbidden' }, { ok: false, status: 403 }))
+
+    render(<App />)
+
+    // App should render without crashing
+    expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
+
+    // Verify warning was logged about auth requirement
+    await waitFor(() => {
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Config endpoint requires admin authentication')
+      )
+    })
+
+    consoleWarnSpy.mockRestore()
+  })
 })

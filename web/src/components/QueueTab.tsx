@@ -1,59 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { logger } from '../lib/logger'
+import { api } from '../lib/api'
+import { ApiError } from '../lib/api'
+import { useToast } from '../hooks/useToast'
+import { usePolling } from '../hooks/usePolling'
+import type { Job } from '../types/models'
 import '../styles/QueueTab.css'
 
-interface QueueJob {
-  id: string
-  prompt: string
-  lora_paths?: string[]
-  started_at?: string
-  submitted_at?: string
-  completed_at?: string
-  width?: number
-  height?: number
-  steps?: number
-  status: string
-  output_path?: string
-  error?: string
-}
-
 interface QueueData {
-  current: QueueJob | null
-  queue: QueueJob[]
-  history: QueueJob[]
+  current: Job | null
+  queue: Job[]
+  history: Job[]
 }
 
 const QueueTab: React.FC = () => {
+  const toast = useToast()
   const [queueData, setQueueData] = useState<QueueData | null>(null)
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
+  const [authError, setAuthError] = useState<boolean>(false)
 
   const fetchQueueData = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch('/api/jobs')
-      const data = await response.json()
+      const data = await api.jobs.getAll()
       setQueueData(data)
+      setAuthError(false)  // Clear auth error on successful fetch
     } catch (error) {
-      console.error('Failed to fetch queue data:', error)
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        // Admin authentication required
+        setAuthError(true)
+        logger.warn('Queue access requires admin authentication')
+        return
+      }
+      logger.error('Failed to fetch queue data:', error)
+      toast.error('Failed to load job queue')
     }
-  }, [])
+  }, [toast])
 
+  // Initial fetch on mount
   useEffect(() => {
     void fetchQueueData()
+  }, [fetchQueueData])
 
-    // Auto-refresh every 2 seconds if enabled
-    if (autoRefresh) {
-      const interval = setInterval(() => void fetchQueueData(), 2000)
-      return () => clearInterval(interval)
-    }
-    return undefined
-  }, [autoRefresh, fetchQueueData])
+  // Polling with proper cleanup and memory leak prevention
+  usePolling(fetchQueueData, {
+    interval: 2000,
+    enabled: autoRefresh,
+    pauseWhenHidden: true,
+  })
 
-  const formatDate = (dateString?: string): string => {
+  const formatDate = (dateString?: string | null): string => {
     if (!dateString) return '-'
     const date = new Date(dateString)
     return date.toLocaleString()
   }
 
-  const formatDuration = (startTime?: string, endTime?: string): string => {
+  const formatDuration = (startTime?: string | null, endTime?: string | null): string => {
     if (!startTime || !endTime) return '-'
     const start = new Date(startTime)
     const end = new Date(endTime)
@@ -64,6 +65,20 @@ const QueueTab: React.FC = () => {
   const getStatusBadge = (status: string): JSX.Element => {
     const statusClass = `status-badge status-${status}`
     return <span className={statusClass}>{status}</span>
+  }
+
+  if (authError) {
+    return (
+      <div className="queue-tab">
+        <div className="auth-error-banner">
+          <h3>🔒 Admin Authentication Required</h3>
+          <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
+          <button onClick={fetchQueueData} className="retry-button">
+            🔄 Retry
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!queueData) {
@@ -192,10 +207,12 @@ const QueueTab: React.FC = () => {
                     <strong>Prompt:</strong>
                     <span>{job.prompt}</span>
                   </div>
-                  {job.output_path && job.status === 'completed' && (
+                  {job.status === 'completed' && (job.output_filename || job.output_path) && (
                     <div className="job-field">
                       <strong>Output:</strong>
-                      <span className="output-path">{job.output_path.split('/').pop()}</span>
+                      <span className="output-path">
+                        {job.output_filename || job.output_path?.split('/').pop() || 'completed'}
+                      </span>
                     </div>
                   )}
                   {job.error && (

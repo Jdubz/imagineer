@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { logger } from '../lib/logger'
 import '../styles/LabelingPanel.css'
 
 type Identifier = number | string
@@ -103,7 +104,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
             try {
               await onComplete()
             } catch (error) {
-              console.error('Labeling onComplete handler failed:', error)
+              logger.error('Labeling onComplete handler failed:', error)
             }
           }
 
@@ -133,7 +134,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
           setStatusMessage(`Status: ${taskState}`)
         }
       } catch (error) {
-        console.error('Polling error:', error)
+        logger.error('Polling error:', error)
         handleError('Failed to poll labeling status')
       }
     }, 2000)
@@ -189,7 +190,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
         handleError(errorMessage)
       }
     } catch (error) {
-      console.error('Labeling request failed:', error)
+      logger.error('Labeling request failed:', error)
       handleError('Failed to start labeling task')
     }
   }

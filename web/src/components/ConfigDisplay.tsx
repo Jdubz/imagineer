@@ -27,9 +27,15 @@ const ConfigDisplay: React.FC<ConfigDisplayProps> = ({ config }) => {
 
   return (
     <div className="config-display">
-      <div className="config-header" onClick={() => setCollapsed(!collapsed)}>
+      <div className="config-header">
         <h2>Current Configuration</h2>
-        <button type="button" className="collapse-btn">
+        <button
+          type="button"
+          className="collapse-btn"
+          onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand configuration' : 'Collapse configuration'}
+        >
           {collapsed ? '▼' : '▲'}
         </button>
       </div>

@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
+import { logger } from '../lib/logger'
+import { api } from '../lib/api'
+import { useToast } from '../hooks/useToast'
+import { useAbortableEffect } from '../hooks/useAbortableEffect'
+import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Label, LabelAnalytics } from '../types/models'
 
 interface AlbumImage {
@@ -58,20 +63,19 @@ interface RawAlbum {
 }
 
 const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
+  const toast = useToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
 
-  useEffect(() => {
-    fetchAlbums()
+  useAbortableEffect((signal) => {
+    void fetchAlbums(signal)
   }, [])
 
-  const fetchAlbums = async (): Promise<void> => {
+  const fetchAlbums = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/albums')
-      const data = await response.json()
-      const rawAlbums = data.albums || data
+      const rawAlbums = await api.albums.getAll(signal)
       const normalizedAlbums = Array.isArray(rawAlbums)
         ? rawAlbums.map((album: Album & { id: string | number }) => ({
             ...album,
@@ -80,44 +84,34 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         : []
       setAlbums(normalizedAlbums)
     } catch (error) {
-      console.error('Failed to fetch albums:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch albums:', error)
     }
   }
 
-  const fetchAlbumAnalytics = async (albumId: string): Promise<LabelAnalytics | null> => {
+  const fetchAlbumAnalytics = async (albumId: string, signal?: AbortSignal): Promise<LabelAnalytics | null> => {
     if (!isAdmin) return null
 
     try {
-      const response = await fetch(`/api/albums/${albumId}/labeling/analytics`, {
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch analytics (status ${response.status})`)
-      }
-
-      const analytics = (await response.json()) as LabelAnalytics
+      const analytics = await api.albums.getAnalytics(albumId, signal)
       setAlbumAnalytics(analytics)
       return analytics
     } catch (error) {
-      console.error('Failed to fetch album analytics:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null
+      }
+      logger.error('Failed to fetch album analytics:', error)
       setAlbumAnalytics(null)
       return null
     }
   }
 
-  const loadAlbum = async (albumId: string): Promise<Album | null> => {
+  const loadAlbum = async (albumId: string, signal?: AbortSignal): Promise<Album | null> => {
     try {
-      const includeParam = isAdmin ? '?include_labels=1' : ''
-      const response = await fetch(`/api/albums/${albumId}${includeParam}`, {
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch album (status ${response.status})`)
-      }
-
-      const data = (await response.json()) as RawAlbum
+      const apiData = await api.albums.getById(albumId, isAdmin, signal)
+      const data = apiData as RawAlbum
 
       const normalizedImages: AlbumImage[] = Array.isArray(data.images)
         ? data.images.map((image: RawAlbumImage) => {
@@ -172,7 +166,10 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
       return normalizedAlbum
     } catch (error) {
-      console.error('Failed to fetch album details:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null
+      }
+      logger.error('Failed to fetch album details:', error)
       setAlbumAnalytics(null)
       return null
     }
@@ -186,28 +183,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     if (!isAdmin) return
 
     try {
-      const response = await fetch('/api/albums', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name,
-          description,
-          album_type: albumType,
-          is_public: true
-        })
-      })
+      const result = await api.albums.create(name, description, albumType)
 
-      if (response.ok) {
+      if (result.success) {
+        toast.success('Album created successfully!')
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        const error = (await response.json()) as { error?: string }
-        alert('Failed to create album: ' + (error.error ?? 'Unknown error'))
+        toast.error('Failed to create album: ' + (result.error ?? 'Unknown error'))
       }
     } catch (error) {
-      console.error('Failed to create album:', error)
-      alert('Error creating album')
+      logger.error('Failed to create album:', error)
+      toast.error('Error creating album')
     }
   }
 
@@ -217,24 +204,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     if (!window.confirm('Are you sure you want to delete this album?')) return
 
     try {
-      const response = await fetch(`/api/albums/${albumId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
+      const result = await api.albums.delete(albumId)
 
-      if (response.ok) {
+      if (result.success) {
+        toast.success('Album deleted successfully')
         fetchAlbums()
         if (selectedAlbum?.id === albumId) {
           setSelectedAlbum(null)
           setAlbumAnalytics(null)
         }
       } else {
-        const error = await response.json()
-        alert('Failed to delete album: ' + error.error)
+        toast.error('Failed to delete album: ' + (result.error ?? 'Unknown error'))
       }
     } catch (error) {
-      console.error('Failed to delete album:', error)
-      alert('Error deleting album')
+      logger.error('Failed to delete album:', error)
+      toast.error('Error deleting album')
     }
   }
 
@@ -345,163 +329,15 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
   analytics,
   onRefreshAnalytics,
 }) => {
-  const [images, setImages] = useState<AlbumImage[]>(album.images || [])
-  const [selectedImages, setSelectedImages] = useState<string[]>([])
-  const [nsfwSetting, setNsfwSetting] = useState<'hide' | 'blur' | 'show'>('blur')
-  const [labelInputs, setLabelInputs] = useState<Record<number, string>>({})
-  const [editingLabel, setEditingLabel] = useState<{ imageId: number; labelId: number; value: string } | null>(null)
-  const [labelError, setLabelError] = useState<string | null>(null)
-  const [isUpdatingLabels, setIsUpdatingLabels] = useState(false)
+  // Use the custom hook for state management
+  const { state, actions, isLoading } = useAlbumDetailState({
+    albumId: album.id,
+    initialImages: album.images || [],
+    onRefresh,
+    onRefreshAnalytics,
+  })
 
-  useEffect(() => {
-    setImages(album.images || [])
-    setSelectedImages([])
-    setLabelInputs({})
-    setEditingLabel(null)
-    setLabelError(null)
-  }, [album])
-
-  const refreshAlbumData = async (): Promise<void> => {
-    await onRefresh()
-    await onRefreshAnalytics()
-  }
-
-  const toggleImageSelection = (imageId: number): void => {
-    if (!isAdmin) return
-    const key = String(imageId)
-    if (selectedImages.includes(key)) {
-      setSelectedImages(selectedImages.filter((id) => id !== key))
-    } else {
-      setSelectedImages([...selectedImages, key])
-    }
-  }
-
-  const removeSelectedImages = async (): Promise<void> => {
-    if (!isAdmin || selectedImages.length === 0) return
-
-    for (const imageId of selectedImages) {
-      try {
-        await fetch(`/api/albums/${album.id}/images/${imageId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        })
-      } catch (error) {
-        console.error(`Failed to remove image ${imageId}:`, error)
-      }
-    }
-
-    setSelectedImages([])
-    await refreshAlbumData()
-  }
-
-  const handleLabelInputChange = (imageId: number, value: string): void => {
-    setLabelInputs((prev) => ({ ...prev, [imageId]: value }))
-  }
-
-  const handleAddLabel = async (imageId: number): Promise<void> => {
-    const value = (labelInputs[imageId] || '').trim()
-    if (!value) {
-      setLabelError('Label text cannot be empty.')
-      return
-    }
-
-    setIsUpdatingLabels(true)
-    setLabelError(null)
-
-    try {
-      const response = await fetch(`/api/images/${imageId}/labels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ text: value, type: 'manual' }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(typeof errorData.error === 'string' ? errorData.error : 'Failed to add label')
-      }
-
-      setLabelInputs((prev) => ({ ...prev, [imageId]: '' }))
-      await refreshAlbumData()
-    } catch (error) {
-      console.error('Failed to add label:', error)
-      setLabelError(error instanceof Error ? error.message : 'Failed to add label')
-    } finally {
-      setIsUpdatingLabels(false)
-    }
-  }
-
-  const handleDeleteLabel = async (imageId: number, labelId: number): Promise<void> => {
-    if (!window.confirm('Remove this label?')) return
-
-    setIsUpdatingLabels(true)
-    setLabelError(null)
-
-    try {
-      const response = await fetch(`/api/images/${imageId}/labels/${labelId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(typeof errorData.error === 'string' ? errorData.error : 'Failed to remove label')
-      }
-
-      await refreshAlbumData()
-    } catch (error) {
-      console.error('Failed to remove label:', error)
-      setLabelError(error instanceof Error ? error.message : 'Failed to remove label')
-    } finally {
-      setIsUpdatingLabels(false)
-    }
-  }
-
-  const startEditingLabel = (imageId: number, label: Label): void => {
-    setEditingLabel({ imageId, labelId: label.id, value: label.label_text })
-    setLabelError(null)
-  }
-
-  const cancelEditingLabel = (): void => {
-    setEditingLabel(null)
-  }
-
-  const saveEditedLabel = async (): Promise<void> => {
-    if (!editingLabel) return
-    const trimmed = editingLabel.value.trim()
-    if (!trimmed) {
-      setLabelError('Label text cannot be empty.')
-      return
-    }
-
-    setIsUpdatingLabels(true)
-    setLabelError(null)
-
-    try {
-      const response = await fetch(
-        `/api/images/${editingLabel.imageId}/labels/${editingLabel.labelId}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ text: trimmed }),
-        },
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(typeof errorData.error === 'string' ? errorData.error : 'Failed to update label')
-      }
-
-      setEditingLabel(null)
-      await refreshAlbumData()
-    } catch (error) {
-      console.error('Failed to update label:', error)
-      setLabelError(error instanceof Error ? error.message : 'Failed to update label')
-    } finally {
-      setIsUpdatingLabels(false)
-    }
-  }
+  const { images, selectedImages, nsfwSetting, labelInputs, editingLabel, labelError } = state
 
   return (
     <div className="album-detail">
@@ -516,7 +352,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           <select
             value={nsfwSetting}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-              setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')
+              actions.setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')
             }
           >
             <option value="hide">Hide</option>
@@ -525,9 +361,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           </select>
         </div>
 
-        {isAdmin && selectedImages.length > 0 && (
-          <button className="remove-images-btn" onClick={removeSelectedImages}>
-            Remove {selectedImages.length} images
+        {isAdmin && selectedImages.size > 0 && (
+          <button className="remove-images-btn" onClick={actions.removeSelectedImages}>
+            Remove {selectedImages.size} images
           </button>
         )}
       </div>
@@ -589,7 +425,8 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           <LabelingPanel
             albumId={album.id}
             onComplete={async () => {
-              await refreshAlbumData()
+              await onRefresh()
+              await onRefreshAnalytics()
             }}
           />
         </div>
@@ -611,13 +448,13 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
             <div
               key={image.id}
               className={`image-card ${image.is_nsfw ? 'nsfw' : ''} ${nsfwSetting}`}
-              onClick={() => isAdmin && toggleImageSelection(image.id)}
+              onClick={() => isAdmin && actions.toggleImageSelection(image.id)}
             >
               {isAdmin && (
                 <input
                   type="checkbox"
-                  checked={selectedImages.includes(imageKey)}
-                  onChange={() => toggleImageSelection(image.id)}
+                  checked={selectedImages.has(imageKey)}
+                  onChange={() => actions.toggleImageSelection(image.id)}
                   className="image-checkbox"
                 />
               )}
@@ -637,7 +474,8 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                   <LabelingPanel
                     imageId={image.id}
                     onComplete={async () => {
-                      await refreshAlbumData()
+                      await onRefresh()
+                      await onRefreshAnalytics()
                     }}
                     variant="compact"
                   />
@@ -649,6 +487,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                         const isEditing = activeEdit && activeEdit.labelId === label.id
                         const labelType = (label.label_type || 'unknown').toLowerCase()
                         const isCaption = labelType === 'caption'
+                        const isDeletingThisLabel = isLoading.deletingLabel(image.id, label.id)
 
                         return (
                           <div
@@ -661,26 +500,22 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                                   type="text"
                                   value={activeEdit?.value ?? ''}
                                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                    setEditingLabel(
-                                      activeEdit
-                                        ? { ...activeEdit, value: e.target.value }
-                                        : null,
-                                    )
+                                    actions.updateEditingLabel(e.target.value)
                                   }
-                                  disabled={isUpdatingLabels}
+                                  disabled={state.loadingStates.editingLabel}
                                 />
                                 <div className="label-chip-actions">
                                   <button
                                     type="button"
-                                    onClick={saveEditedLabel}
-                                    disabled={isUpdatingLabels || !(activeEdit?.value ?? '').trim()}
+                                    onClick={actions.saveEditedLabel}
+                                    disabled={state.loadingStates.editingLabel || !(activeEdit?.value ?? '').trim()}
                                   >
-                                    Save
+                                    {state.loadingStates.editingLabel ? 'Saving...' : 'Save'}
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={cancelEditingLabel}
-                                    disabled={isUpdatingLabels}
+                                    onClick={actions.cancelEditingLabel}
+                                    disabled={state.loadingStates.editingLabel}
                                   >
                                     Cancel
                                   </button>
@@ -693,18 +528,18 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                                   {!isCaption && (
                                     <button
                                       type="button"
-                                      onClick={() => startEditingLabel(image.id, label)}
-                                      disabled={isUpdatingLabels}
+                                      onClick={() => actions.startEditingLabel(image.id, label)}
+                                      disabled={state.loadingStates.editingLabel}
                                     >
                                       Edit
                                     </button>
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteLabel(image.id, label.id)}
-                                    disabled={isUpdatingLabels}
+                                    onClick={() => actions.deleteLabel(image.id, label.id)}
+                                    disabled={isDeletingThisLabel}
                                   >
-                                    Remove
+                                    {isDeletingThisLabel ? 'Removing...' : 'Remove'}
                                   </button>
                                 </div>
                               </>
@@ -718,7 +553,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                       className="label-add-form"
                       onSubmit={(event) => {
                         event.preventDefault()
-                        void handleAddLabel(image.id)
+                        void actions.addLabel(image.id)
                       }}
                     >
                       <input
@@ -726,15 +561,15 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                         placeholder="Add manual tag"
                         value={inputValue}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          handleLabelInputChange(image.id, e.target.value)
+                          actions.updateLabelInput(image.id, e.target.value)
                         }
-                        disabled={isUpdatingLabels}
+                        disabled={isLoading.addingLabel(image.id)}
                       />
                       <button
                         type="submit"
-                        disabled={isUpdatingLabels || !inputValue.trim()}
+                        disabled={isLoading.addingLabel(image.id) || !inputValue.trim()}
                       >
-                        Add
+                        {isLoading.addingLabel(image.id) ? 'Adding...' : 'Add'}
                       </button>
                     </form>
                   </div>
@@ -778,8 +613,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Album Name:</label>
+            <label htmlFor="album-name">Album Name:</label>
             <input
+              id="album-name"
               type="text"
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
@@ -789,8 +625,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
           </div>
 
           <div className="form-group">
-            <label>Description:</label>
+            <label htmlFor="album-description">Description:</label>
             <textarea
+              id="album-description"
               value={description}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
               placeholder="Enter album description (optional)"
@@ -799,8 +636,8 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
           </div>
 
           <div className="form-group">
-            <label>Album Type:</label>
-            <select value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
+            <label htmlFor="album-type">Album Type:</label>
+            <select id="album-type" value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
               <option value="manual">Manual Collection</option>
               <option value="batch">Generated Batch</option>
               <option value="set">CSV Set</option>

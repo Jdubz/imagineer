@@ -5,6 +5,7 @@ Web scraping integration tasks
 import hashlib
 import json
 import logging
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,10 +17,9 @@ from server.database import Album, AlbumImage, Image, Label, ScrapeJob, db
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-TRAINING_DATA_PATH = Path("/home/jdubz/Development/training-data")
 # Will be set from config in the task
 SCRAPED_OUTPUT_PATH = None
+TRAINING_DATA_REPO_PATH: Path | None = None
 
 
 def _load_scrape_config(job: ScrapeJob) -> dict:
@@ -65,6 +65,45 @@ def _persist_runtime_state(
     job.scrape_config = json.dumps(config)
 
 
+def _get_training_data_repo() -> Path:
+    """Return the root of the training-data repository used for scraping."""
+    global TRAINING_DATA_REPO_PATH
+
+    if TRAINING_DATA_REPO_PATH is not None:
+        return TRAINING_DATA_REPO_PATH
+
+    candidate = os.environ.get("IMAGINEER_TRAINING_DATA_PATH")
+
+    if not candidate:
+        from server.api import load_config
+
+        config = load_config()
+        candidate = (
+            config.get("scraping", {}).get("training_data_repo")
+            if isinstance(config, dict)
+            else None
+        )
+
+    if candidate:
+        repo_path = Path(candidate).expanduser()
+    else:
+        repo_path = Path(__file__).parent.parent.parent / "training-data"
+
+    if not repo_path.exists():
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                "Training data repository path not configured. "
+                "Set IMAGINEER_TRAINING_DATA_PATH or scraping.training_data_repo in config.yaml."
+            )
+        logger.warning(
+            "Training data repository %s does not exist; continuing using development defaults.",
+            repo_path,
+        )
+
+    TRAINING_DATA_REPO_PATH = repo_path
+    return repo_path
+
+
 def get_scraped_output_path() -> Path:
     """Resolve base directory for scraped outputs from configuration."""
     global SCRAPED_OUTPUT_PATH
@@ -75,24 +114,43 @@ def get_scraped_output_path() -> Path:
         config = load_config()
         outputs_config = config.get("outputs", {}) if isinstance(config, dict) else {}
 
-        base_dir = outputs_config.get("base_dir", "/tmp/imagineer/outputs")
-        fallback_path = Path(base_dir) / "scraped"
+        base_dir = outputs_config.get("base_dir")
+        scraped_dir = outputs_config.get("scraped_dir")
 
-        configured_path = outputs_config.get("scraped_dir")
-        candidate_path = Path(configured_path) if configured_path else fallback_path
+        if scraped_dir:
+            candidate_path = Path(scraped_dir).expanduser()
+        elif base_dir:
+            candidate_path = Path(base_dir).expanduser() / "scraped"
+        else:
+            candidate_path = Path("/tmp/imagineer/outputs/scraped")
+
+        fallback_path = Path(base_dir).expanduser() / "scraped" if base_dir else None
 
         try:
             candidate_path.mkdir(parents=True, exist_ok=True)
-            SCRAPED_OUTPUT_PATH = candidate_path
         except OSError as exc:
+            if os.environ.get("FLASK_ENV") == "production":
+                raise RuntimeError(
+                    f"Unable to initialize scraped output directory at {candidate_path}: {exc}. "
+                    "Configure outputs.base_dir or outputs.scraped_dir with writable storage."
+                ) from exc
+
             logger.warning(
-                "Unable to initialize scraped output directory %s: %s. Falling back to %s",
+                "Unable to initialize scraped output directory %s: %s. "
+                "Attempting fallback for development.",
                 candidate_path,
                 exc,
-                fallback_path,
             )
-            fallback_path.mkdir(parents=True, exist_ok=True)
-            SCRAPED_OUTPUT_PATH = fallback_path
+
+            fallback_candidate = (
+                fallback_path
+                if fallback_path and fallback_path != candidate_path
+                else Path("/tmp/imagineer/outputs/scraped")
+            )
+            fallback_candidate.mkdir(parents=True, exist_ok=True)
+            candidate_path = fallback_candidate
+
+        SCRAPED_OUTPUT_PATH = candidate_path
 
     return SCRAPED_OUTPUT_PATH
 
@@ -147,6 +205,8 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             max_images = config.get("max_images", 1000)
 
             # Run training-data scraper
+            training_data_repo = _get_training_data_repo()
+
             cmd = [
                 "python",
                 "-m",
@@ -160,7 +220,7 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                 "--max-images",
                 str(max_images),
                 "--config",
-                str(TRAINING_DATA_PATH / "config/default_config.yaml"),
+                str(training_data_repo / "config/default_config.yaml"),
             ]
 
             # Add additional config options if present
@@ -173,7 +233,7 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
 
             process = subprocess.Popen(
                 cmd,
-                cwd=TRAINING_DATA_PATH,
+                cwd=training_data_repo,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

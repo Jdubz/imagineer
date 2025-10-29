@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -139,6 +140,54 @@ app.register_blueprint(images_bp)
 app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
+
+# ============================================================================
+# Generation Endpoint Safeguards
+# ============================================================================
+
+GENERATION_RATE_LIMIT = int(os.environ.get("IMAGINEER_GENERATE_LIMIT", "10"))
+GENERATION_RATE_WINDOW_SECONDS = int(os.environ.get("IMAGINEER_GENERATE_WINDOW_SECONDS", "60"))
+
+_generation_rate_lock = threading.Lock()
+_generation_request_times: defaultdict[str, deque[float]] = defaultdict(deque)
+
+
+def _check_generation_rate_limit():
+    """Apply a simple per-user rate limit for generation endpoints."""
+    if GENERATION_RATE_LIMIT <= 0 or GENERATION_RATE_WINDOW_SECONDS <= 0:
+        return None
+
+    identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
+    now = time.monotonic()
+
+    with _generation_rate_lock:
+        history = _generation_request_times[identifier]
+        while history and now - history[0] > GENERATION_RATE_WINDOW_SECONDS:
+            history.popleft()
+
+        if len(history) >= GENERATION_RATE_LIMIT:
+            retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - history[0])))
+            logger.warning(
+                "Generation rate limit exceeded",
+                extra={
+                    "operation": "generate_rate_limit",
+                    "identifier": identifier,
+                    "limit": GENERATION_RATE_LIMIT,
+                    "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
+                },
+            )
+            response = jsonify(
+                {
+                    "success": False,
+                    "error": "Rate limit exceeded. Please wait before submitting another job.",
+                }
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response, 429
+
+        history.append(now)
+
+    return None
 
 
 # Add request timing and performance logging
@@ -303,6 +352,58 @@ def auth_callback():
             "Failed login attempt", extra={"event": "authentication_failure", "error": str(e)}
         )
         return jsonify({"error": "Authentication failed"}), 500
+
+
+@app.route("/api/auth/google/<path:anomalous_path>")
+def auth_callback_path_anomaly(anomalous_path, *, allow_callback: bool = False):
+    """Handle OAuth callbacks that arrive on mis-encoded paths.
+
+    Some reverse proxy deployments have reported Google returning to
+    ``/api/auth/google/%2F<redirect>`` (double-encoded slash plus redirect URI),
+    which the canonical callback route does not match and would therefore
+    log a 404. When the request still contains an OAuth ``code`` parameter,
+    treat it as a legitimate callback and process it normally.
+    """
+
+    normalized = anomalous_path.lstrip("/").rstrip("/")
+
+    # Allow the canonical callback handler to process the standard routes.
+    if normalized in {"callback", ""} and not allow_callback:
+        abort(404)
+
+    if "code" not in request.args:
+        logger.warning(
+            "Discarding unexpected Google OAuth path without code parameter",
+            extra={
+                "operation": "oauth_path_anomaly",
+                "path": request.path,
+                "query": request.query_string.decode("utf-8", errors="ignore"),
+            },
+        )
+        return jsonify({"error": "Invalid OAuth callback"}), 400
+
+    logger.warning(
+        "Recovered Google OAuth callback from unexpected path",
+        extra={
+            "operation": "oauth_path_anomaly_recovered",
+            "path": request.path,
+            "normalized": normalized,
+            "query": request.query_string.decode("utf-8", errors="ignore"),
+        },
+    )
+    return auth_callback()
+
+
+@app.before_request
+def reroute_google_oauth_path_anomalies():
+    """Intercept double-slashed Google OAuth callbacks before routing resolves."""
+
+    path = request.path
+    anomaly_prefix = "/api/auth/google//"
+
+    if path.startswith(anomaly_prefix):
+        anomalous_path = path[len("/api/auth/google/") :]  # Preserve leading slash for logging
+        return auth_callback_path_anomaly(anomalous_path, allow_callback=True)
 
 
 @app.route("/api/auth/logout")
@@ -871,6 +972,7 @@ def update_generation_config():
 
 
 @app.route("/api/generate", methods=["POST"])
+@require_admin
 def generate():  # noqa: C901
     """Submit a new image generation job"""
     try:
@@ -1001,6 +1103,10 @@ def generate():  # noqa: C901
             "submitted_at": datetime.now().isoformat(),
         }
 
+        rate_limit_response = _check_generation_rate_limit()
+        if rate_limit_response:
+            return rate_limit_response
+
         job_queue.put(job)
 
         # Return 201 Created with Location header pointing to job status
@@ -1085,6 +1191,7 @@ def get_random_theme():
 
 
 @app.route("/api/generate/batch", methods=["POST"])
+@require_admin
 def generate_batch():  # noqa: C901
     """Submit batch generation from CSV set
 
@@ -1206,6 +1313,10 @@ def generate_batch():  # noqa: C901
             negative_prompt = f"{negative_prompt}, {set_negative_prompt}"
         elif set_negative_prompt:
             negative_prompt = set_negative_prompt
+
+        rate_limit_response = _check_generation_rate_limit()
+        if rate_limit_response:
+            return rate_limit_response
 
         # Create jobs for each item in the set
         job_ids = []

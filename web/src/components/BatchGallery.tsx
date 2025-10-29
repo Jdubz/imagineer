@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import FocusLock from 'react-focus-lock'
+import { logger } from '../lib/logger'
 import type { ImageMetadata } from '../types/models'
 
 interface BatchImage {
@@ -31,7 +33,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
       const data = await response.json()
       setBatch(data)
     } catch (error) {
-      console.error('Failed to fetch batch:', error)
+      logger.error('Failed to fetch batch:', error)
     } finally {
       setLoading(false)
     }
@@ -49,10 +51,24 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
     setSelectedImage(null)
   }
 
+  // Add Escape key handler for modal
+  useEffect(() => {
+    if (!selectedImage) return
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedImage])
+
   if (loading) {
     return (
       <div className="batch-gallery">
-        <div className="loading-indicator">
+        <div className="loading-indicator" role="status" aria-live="polite" aria-atomic="true">
           <div className="spinner"></div>
           <p>Loading batch...</p>
         </div>
@@ -108,8 +124,9 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>×</button>
+          <FocusLock returnFocus>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.relative_path}`}
@@ -167,7 +184,8 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
                 <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
               </div>
             </div>
-          </div>
+            </div>
+          </FocusLock>
         </div>
       )}
     </div>

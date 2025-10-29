@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react'
-import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
+import React, { useState } from 'react'
+import { logger } from '../lib/logger'
+import { api, ApiError } from '../lib/api'
+import { useToast } from '../hooks/useToast'
+import { useAbortableEffect } from '../hooks/useAbortableEffect'
+import type { Config, GenerateParams, BatchGenerateParams, SetInfo } from '../types/models'
+import {
+  validateForm,
+  generateFormSchema,
+  batchGenerateFormSchema,
+} from '../lib/validation'
 
 interface SetLoraConfig {
   folder: string
   weight: number
-}
-
-interface SetInfo {
-  name: string
-  description: string
-  item_count: number
-  example_theme?: string
 }
 
 interface AvailableSet {
@@ -28,9 +30,11 @@ interface GenerateFormProps {
   onGenerateBatch: (params: BatchGenerateParams) => void
   loading: boolean
   config: Config | null
+  isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config }) => {
+const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config, isAdmin }) => {
+  const toast = useToast()
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
@@ -48,92 +52,105 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
   const [availableLoras, setAvailableLoras] = useState<LoraModel[]>([])
   const [showLoraConfig, setShowLoraConfig] = useState<boolean>(false)
 
+  // Validation error state
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
   // Load available sets and LoRAs on mount
-  useEffect(() => {
-    fetchAvailableSets()
-    fetchAvailableLoras()
+  useAbortableEffect((signal) => {
+    void fetchAvailableSets(signal)
+    void fetchAvailableLoras(signal)
   }, [])
 
-  const fetchAvailableSets = async (): Promise<void> => {
+  const fetchAvailableSets = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/sets')
-      const data = await response.json()
-      setAvailableSets(data.sets || [])
+      const sets = await api.sets.getAll(signal)
+      setAvailableSets(sets)
     } catch (error) {
-      console.error('Failed to fetch sets:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch sets:', error)
     }
   }
 
-  const fetchAvailableLoras = async (): Promise<void> => {
+  const fetchAvailableLoras = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/loras')
-      const data = await response.json()
-      setAvailableLoras(data.loras || [])
+      const loras = await api.loras.getAll(signal)
+      setAvailableLoras(loras)
     } catch (error) {
-      console.error('Failed to fetch LoRAs:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch LoRAs:', error)
     }
   }
 
-  const fetchRandomTheme = async (): Promise<void> => {
+  const fetchRandomTheme = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/themes/random')
-      const data = await response.json()
-      setUserTheme(data.theme || '')
+      const theme = await api.themes.getRandom(signal)
+      setUserTheme(theme)
     } catch (error) {
-      console.error('Failed to fetch random theme:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch random theme:', error)
     }
   }
 
   // When set selection changes, load set info and LoRAs
-  useEffect(() => {
+  useAbortableEffect((signal) => {
     if (selectedSet) {
-      fetchSetInfo(selectedSet)
-      fetchSetLoras(selectedSet)
+      void fetchSetInfo(selectedSet, signal)
+      void fetchSetLoras(selectedSet, signal)
     } else {
       setSelectedSetInfo(null)
       setSetLoras([])
     }
   }, [selectedSet])
 
-  const fetchSetInfo = async (setName: string): Promise<void> => {
+  const fetchSetInfo = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/info`)
-      const data = await response.json()
-      setSelectedSetInfo(data)
+      const setInfo = await api.sets.getInfo(setName, signal)
+      setSelectedSetInfo(setInfo)
     } catch (error) {
-      console.error('Failed to fetch set info:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch set info:', error)
     }
   }
 
-  const fetchSetLoras = async (setName: string): Promise<void> => {
+  const fetchSetLoras = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/loras`)
-      const data = await response.json()
-      setSetLoras(data.loras || [])
+      const loras = await api.sets.getLoras(setName, signal)
+      setSetLoras(loras)
     } catch (error) {
-      console.error('Failed to fetch set LoRAs:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      logger.error('Failed to fetch set LoRAs:', error)
     }
   }
 
   const updateSetLoras = async (setName: string, loras: SetLoraConfig[]): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/loras`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ loras })
-      })
-      const data = await response.json()
-      if (data.success) {
-        fetchSetLoras(setName)  // Refresh the list
+      const result = await api.sets.updateLoras(setName, loras)
+
+      if (result.success) {
+        toast.success('LoRA configuration updated successfully')
+        void fetchSetLoras(setName)  // Refresh the list
       } else {
-        console.error('Failed to update LoRAs:', data.error)
-        alert(`Error: ${data.error}`)
+        logger.error('Failed to update LoRAs:', result.error)
+        toast.error(`Error: ${result.error || 'Failed to update LoRA configuration'}`)
       }
     } catch (error) {
-      console.error('Failed to update set LoRAs:', error)
-      alert('Failed to update LoRA configuration')
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        toast.error('Admin authentication required to update LoRA configuration. Please log in as admin.')
+        logger.warn('LoRA update requires admin authentication')
+        return
+      }
+      logger.error('Failed to update set LoRAs:', error)
+      toast.error('Failed to update LoRA configuration')
     }
   }
 
@@ -142,7 +159,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
     // Check if already in set
     if (setLoras.some(l => l.folder === loraFolder)) {
-      alert('This LoRA is already in the set')
+      toast.warning('This LoRA is already in the set')
       return
     }
 
@@ -178,21 +195,40 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (prompt.trim()) {
-      const params: GenerateParams = {
-        prompt: prompt.trim(),
-        steps,
-        guidance_scale: guidanceScale
-      }
+    setValidationErrors({}) // Clear previous errors
 
-      // Only include seed if user provided one
-      if (!useRandomSeed && seed) {
-        params.seed = parseInt(seed)
-      }
-
-      onGenerate(params)
-      setPrompt('')
+    // Prepare data for validation
+    const formData = {
+      prompt: prompt.trim(),
+      steps,
+      guidance_scale: guidanceScale,
+      seed: !useRandomSeed && seed ? parseInt(seed) : undefined,
     }
+
+    // Validate form data
+    const validation = validateForm(generateFormSchema, formData)
+
+    if (!validation.success) {
+      setValidationErrors(validation.errors)
+      logger.warn('Form validation failed:', validation.errors)
+      return
+    }
+
+    // Validation passed, submit the form
+    const params: GenerateParams = {
+      prompt: validation.data.prompt,
+      steps: validation.data.steps,
+      guidance_scale: validation.data.guidance_scale,
+    }
+
+    // Only include seed if user provided one
+    if (validation.data.seed !== undefined) {
+      params.seed = validation.data.seed
+    }
+
+    onGenerate(params)
+    setPrompt('')
+    setValidationErrors({}) // Clear errors on successful submission
   }
 
   const generateRandomSeed = (): void => {
@@ -203,17 +239,36 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const handleBatchSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (selectedSet && userTheme.trim()) {
-      const params: BatchGenerateParams = {
-        set_name: selectedSet,
-        user_theme: userTheme.trim(),
-        steps,
-        guidance_scale: guidanceScale
-      }
+    setValidationErrors({}) // Clear previous errors
 
-      onGenerateBatch(params)
-      setUserTheme('')
+    // Prepare data for validation
+    const formData = {
+      set_name: selectedSet,
+      user_theme: userTheme.trim(),
+      steps,
+      guidance_scale: guidanceScale,
     }
+
+    // Validate form data
+    const validation = validateForm(batchGenerateFormSchema, formData)
+
+    if (!validation.success) {
+      setValidationErrors(validation.errors)
+      logger.warn('Batch form validation failed:', validation.errors)
+      return
+    }
+
+    // Validation passed, submit the form
+    const params: BatchGenerateParams = {
+      set_name: validation.data.set_name,
+      user_theme: validation.data.user_theme,
+      steps: validation.data.steps,
+      guidance_scale: validation.data.guidance_scale,
+    }
+
+    onGenerateBatch(params)
+    setUserTheme('')
+    setValidationErrors({}) // Clear errors on successful submission
   }
 
   return (
@@ -225,12 +280,24 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
           <textarea
             id="prompt"
             value={prompt}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPrompt(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+              setPrompt(e.target.value)
+              // Clear error on change
+              if (validationErrors.prompt) {
+                const newErrors = { ...validationErrors }
+                delete newErrors.prompt
+                setValidationErrors(newErrors)
+              }
+            }}
             placeholder="Describe the image you want to generate..."
             rows={4}
             disabled={loading}
             required
+            className={validationErrors.prompt ? 'error' : ''}
           />
+          {validationErrors.prompt && (
+            <span className="error-message">{validationErrors.prompt}</span>
+          )}
         </div>
 
         <div className="controls-grid">
@@ -351,6 +418,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
               disabled={loading}
               className="generate-seed-btn"
               title="Generate random seed"
+              aria-label="Generate random seed"
             >
               🎲
             </button>
@@ -399,7 +467,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
           </select>
           {selectedSetInfo && (
             <p className="set-info">
-              {selectedSetInfo.description} ({selectedSetInfo.item_count} items)
+              {selectedSetInfo.name} ({selectedSetInfo.item_count} items)
             </p>
           )}
         </div>
@@ -456,14 +524,15 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                               onMouseUp={saveLoraWeights}
                               onTouchEnd={saveLoraWeights}
                               className="weight-slider"
-                              disabled={loading}
+                              disabled={loading || !isAdmin}
+                              title={!isAdmin ? 'Admin access required to modify LoRA weights' : ''}
                             />
                             <button
                               type="button"
                               onClick={() => removeLoraFromSet(lora.folder)}
                               className="remove-lora-btn"
-                              disabled={loading}
-                              title="Remove LoRA"
+                              disabled={loading || !isAdmin}
+                              title={!isAdmin ? 'Admin access required to remove LoRAs' : 'Remove LoRA'}
                             >
                               ✕
                             </button>
@@ -484,10 +553,11 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                         e.target.value = ''  // Reset selection
                       }
                     }}
-                    disabled={loading}
+                    disabled={loading || !isAdmin}
                     className="add-lora-select"
+                    title={!isAdmin ? 'Admin access required to add LoRAs' : ''}
                   >
-                    <option value="">-- Select LoRA to Add --</option>
+                    <option value="">{!isAdmin ? '-- Admin Access Required --' : '-- Select LoRA to Add --'}</option>
                     {availableLoras
                       .filter(lora => !setLoras.some(sl => sl.folder === lora.folder))
                       .map(lora => (
@@ -512,10 +582,10 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                 <br/>• "watercolor pastels with soft dreamy lighting"
                 <br/>• "cyberpunk neon with dark urban background"
                 <br/>• "vintage botanical illustrations"
-                {selectedSetInfo?.example_theme && (
+                {selectedSetInfo?.style_suffix && (
                   <>
-                    <br/><br/>Suggestion for {selectedSetInfo.name}:
-                    <br/>"{selectedSetInfo.example_theme}"
+                    <br/><br/>Style suffix for {selectedSetInfo.name}:
+                    <br/>"{selectedSetInfo.style_suffix}"
                   </>
                 )}
               </span>
@@ -525,22 +595,35 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
             <textarea
               id="user-theme"
               value={userTheme}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserTheme(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                setUserTheme(e.target.value)
+                // Clear error on change
+                if (validationErrors.user_theme) {
+                  const newErrors = { ...validationErrors }
+                  delete newErrors.user_theme
+                  setValidationErrors(newErrors)
+                }
+              }}
               placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
               rows={3}
               disabled={loading}
               required
+              className={validationErrors.user_theme ? 'error' : ''}
             />
             <button
               type="button"
-              onClick={fetchRandomTheme}
+              onClick={() => void fetchRandomTheme()}
               disabled={loading}
               className="random-theme-btn"
               title="Generate random theme"
+              aria-label="Generate random theme"
             >
               🎲 Random Theme
             </button>
           </div>
+          {validationErrors.user_theme && (
+            <span className="error-message">{validationErrors.user_theme}</span>
+          )}
         </div>
 
         <button type="submit" disabled={loading || !selectedSet || !userTheme.trim()} className="batch-submit-btn">

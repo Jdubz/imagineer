@@ -254,7 +254,7 @@ class TestScrapingOutputPath:
         def guarded_mkdir(self, *args, **kwargs):
             if self == bad_path:
                 raise PermissionError("denied")
-            return original_mkdir(self, *args, **kwargs)
+            return original_mkdir.__get__(self, Path)(*args, **kwargs)
 
         monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
 

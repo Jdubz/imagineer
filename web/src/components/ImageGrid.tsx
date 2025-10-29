@@ -1,13 +1,26 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import FocusLock from 'react-focus-lock'
+import { SkeletonImageCard } from './Skeleton'
 import type { GeneratedImage } from '../types/models'
 
 interface ImageGridProps {
   images: GeneratedImage[]
   onRefresh: () => Promise<void>
+  loading?: boolean
 }
 
-const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
+const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = false }) => {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleRefresh = async (): Promise<void> => {
+    setIsRefreshing(true)
+    try {
+      await onRefresh()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   const openModal = (image: GeneratedImage): void => {
     setSelectedImage(image)
@@ -17,16 +30,40 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
     setSelectedImage(null)
   }
 
+  // Add Escape key handler for modal
+  useEffect(() => {
+    if (!selectedImage) return
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedImage])
+
   return (
     <div className="image-grid-container">
       <div className="grid-header">
-        <h2>Generated Images ({images.length})</h2>
-        <button onClick={onRefresh} className="refresh-btn">
-          Refresh
+        <h2>Generated Images ({loading ? '...' : images.length})</h2>
+        <button
+          onClick={handleRefresh}
+          className="refresh-btn"
+          disabled={isRefreshing || loading}
+        >
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      {images.length === 0 ? (
+      {loading ? (
+        <div className="image-grid">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <SkeletonImageCard key={index} />
+          ))}
+        </div>
+      ) : images.length === 0 ? (
         <div className="no-images">
           <p>No images generated yet.</p>
           <p>Use the form above to create your first image!</p>
@@ -61,8 +98,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>×</button>
+          <FocusLock returnFocus>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.filename}`}
@@ -122,7 +160,8 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          </FocusLock>
         </div>
       )}
     </div>

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { logger } from '../lib/logger'
+import { usePolling } from '../hooks/usePolling'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
@@ -108,7 +110,6 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     loading: false,
     error: null,
   })
-  const logPollRef = useRef<number | null>(null)
   const copyTimeoutRef = useRef<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
 
@@ -136,7 +137,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       setTrainingRuns(data.training_runs || [])
     } catch (err) {
       setError('Failed to fetch training runs')
-      console.error('Error fetching training runs:', err)
+      logger.error('Error fetching training runs:', err)
     } finally {
       setLoading(false)
     }
@@ -151,25 +152,19 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       const data: AlbumsResponse = await response.json()
       setAlbums(data.albums || [])
     } catch (err) {
-      console.error('Error fetching albums:', err)
+      logger.error('Error fetching albums:', err)
     }
   }, [isAdmin])
 
+  // Initial fetch on mount
   useEffect(() => {
     if (!isAdmin) {
       setLoading(false)
       return
     }
-    fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err))
-    fetchAlbums().catch((err) => console.error('Error refreshing albums:', err))
+    fetchTrainingRuns().catch((err) => logger.error('Error refreshing runs:', err))
+    fetchAlbums().catch((err) => logger.error('Error refreshing albums:', err))
   }, [fetchAlbums, fetchTrainingRuns, isAdmin])
-
-  const clearLogInterval = useCallback(() => {
-    if (logPollRef.current !== null) {
-      window.clearInterval(logPollRef.current)
-      logPollRef.current = null
-    }
-  }, [])
 
   const fetchTrainingLogs = useCallback(async (runId: string | number): Promise<void> => {
     const runIdStr = String(runId)
@@ -195,20 +190,19 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         error: null,
       }))
 
+      // Stop polling if training is complete
       if (!['running', 'queued'].includes(data.status)) {
-        clearLogInterval()
+        setLogState((prev) => ({ ...prev, runId: null }))
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load logs'
       setLogState((prev) => ({ ...prev, loading: false, error: message }))
-      clearLogInterval()
     }
-  }, [clearLogInterval])
+  }, [])
 
   const openLogViewer = useCallback(
     (runId: string | number) => {
       const runIdStr = String(runId)
-      clearLogInterval()
       setLogState({
         runId: runIdStr,
         content: '',
@@ -222,18 +216,25 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         const message = err instanceof Error ? err.message : 'Failed to load logs'
         setLogState((prev) => ({ ...prev, loading: false, error: message }))
       })
-
-      logPollRef.current = window.setInterval(() => {
-        fetchTrainingLogs(runIdStr).catch((err) => {
-          const message = err instanceof Error ? err.message : 'Failed to load logs'
-          setLogState((prev) => ({ ...prev, loading: false, error: message }))
-        })
-      }, 5000)
     },
-    [clearLogInterval, fetchTrainingLogs],
+    [fetchTrainingLogs],
   )
 
-  useEffect(() => () => clearLogInterval(), [clearLogInterval])
+  // Polling for training logs with proper cleanup
+  const pollLogs = useCallback(async () => {
+    if (logState.runId) {
+      await fetchTrainingLogs(logState.runId).catch((err) => {
+        const message = err instanceof Error ? err.message : 'Failed to load logs'
+        setLogState((prev) => ({ ...prev, loading: false, error: message }))
+      })
+    }
+  }, [logState.runId, fetchTrainingLogs])
+
+  usePolling(pollLogs, {
+    interval: 5000,
+    enabled: logState.runId !== null,
+    pauseWhenHidden: true,
+  })
   useEffect(
     () => () => {
       if (copyTimeoutRef.current) {
@@ -244,7 +245,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   )
 
   const closeLogViewer = useCallback(() => {
-    clearLogInterval()
+    // Setting runId to null will automatically stop the polling
     setLogState({
       runId: null,
       content: '',
@@ -254,7 +255,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       loading: false,
       error: null,
     })
-  }, [clearLogInterval])
+  }, [])
 
   const handleCopy = useCallback(
     (value: string, runId: number | string, field: CopyField) => {
@@ -327,7 +328,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to create training run')
-      console.error('Error creating training run:', err)
+      logger.error('Error creating training run:', err)
     }
   }
 
@@ -347,7 +348,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to start training')
-      console.error('Error starting training:', err)
+      logger.error('Error starting training:', err)
     }
   }
 
@@ -367,7 +368,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to cancel training')
-      console.error('Error cancelling training:', err)
+      logger.error('Error cancelling training:', err)
     }
   }
 
@@ -387,7 +388,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to cleanup training')
-      console.error('Error cleaning up training:', err)
+      logger.error('Error cleaning up training:', err)
     }
   }
 
@@ -443,7 +444,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       {error && (
         <div className="error-message">
           {error}
-          <button onClick={() => setError(null)}>×</button>
+          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
         </div>
       )}
 

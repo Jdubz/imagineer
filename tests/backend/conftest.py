@@ -14,6 +14,10 @@ import yaml
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Configure unique database path per worker for pytest-xdist
+worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+os.environ["DATABASE_URL"] = f"sqlite:////tmp/imagineer_test_{worker_id}.db"
+
 from server.api import app as flask_app  # noqa: E402
 
 
@@ -212,6 +216,27 @@ def app():
 def client(app):
     """A test client for the app"""
     return app.test_client()
+
+
+@pytest.fixture
+def admin_client(client):
+    """Return a test client with an authenticated admin session."""
+    from server import api as api_module
+
+    with client.session_transaction() as session:
+        session["_user_id"] = "admin@example.com"
+        session["_fresh"] = True
+        session["user"] = {
+            "email": "admin@example.com",
+            "name": "Test Admin",
+            "picture": "",
+            "role": "admin",
+        }
+
+    with api_module._generation_rate_lock:
+        api_module._generation_request_times.clear()
+
+    return client
 
 
 @pytest.fixture

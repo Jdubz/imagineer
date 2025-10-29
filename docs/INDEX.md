@@ -54,7 +54,8 @@ docs/
 │   └── NEXT_STEPS.md
 │
 └── plans/                          (Planning & audit documents)
-    └── FRONTEND_CODE_AUDIT.md
+    ├── FRONTEND_CODE_AUDIT.md
+    └── FRONTEND_AUDIT_TASKS.md
 ```
 
 ---
@@ -193,6 +194,14 @@ docs/
 - Test coverage gaps and recommendations
 - Immediate actions and long-term roadmap
 
+### [plans/FRONTEND_AUDIT_TASKS.md](plans/FRONTEND_AUDIT_TASKS.md)
+**Frontend audit task tracking (2025-10-28)**
+- All 30 issues organized by priority
+- Detailed task descriptions and acceptance criteria
+- Effort estimates (S/M/L/XL)
+- Sprint planning guidance
+- Progress tracking and dependencies
+
 ---
 
 ## 🎯 Documentation by Task
@@ -227,9 +236,10 @@ docs/
 2. [../CLAUDE.md](../CLAUDE.md) (Claude Code instructions)
 
 **...improve frontend code quality**
-1. [plans/FRONTEND_CODE_AUDIT.md](plans/FRONTEND_CODE_AUDIT.md)
-2. [guides/TESTING.md](guides/TESTING.md)
-3. [guides/LINTING.md](guides/LINTING.md)
+1. [plans/FRONTEND_AUDIT_TASKS.md](plans/FRONTEND_AUDIT_TASKS.md) (start here for actionable tasks)
+2. [plans/FRONTEND_CODE_AUDIT.md](plans/FRONTEND_CODE_AUDIT.md) (detailed analysis)
+3. [guides/TESTING.md](guides/TESTING.md)
+4. [guides/LINTING.md](guides/LINTING.md)
 
 **...troubleshoot issues**
 - Deployment: [deployment/DEPLOYMENT_ORCHESTRATION.md](deployment/DEPLOYMENT_ORCHESTRATION.md#troubleshooting)

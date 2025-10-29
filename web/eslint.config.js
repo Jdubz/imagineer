@@ -43,7 +43,7 @@ export default tseslint.config(
       'react/jsx-uses-vars': 'error',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': 'error', // No console usage - use logger instead
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
@@ -62,6 +62,13 @@ export default tseslint.config(
     // Disable type-checking for config files
     files: ['**/*.config.{js,ts}', 'vite.config.{js,ts}', 'vitest.config.{js,ts}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    // Allow console in logger and test files
+    files: ['src/lib/logger.ts', '**/*.test.ts', '**/*.test.tsx', 'src/test/**'],
+    rules: {
+      'no-console': 'off',
+    },
   },
   {
     ignores: [

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import AuthButton from './AuthButton'
+import AuthButton, { buildLoginState } from './AuthButton'
 
 interface MockResponseInit {
   ok?: boolean
@@ -168,5 +168,56 @@ describe('AuthButton', () => {
     await waitFor(() => {
       expect(screen.getByText(/failed to determine authentication status/i)).toBeInTheDocument()
     })
+  })
+
+  it('opens OAuth popup with normalized state', async () => {
+    window.history.replaceState({}, '', '/dashboard/view?tab=gallery#images')
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      createResponse({
+        authenticated: false,
+      }),
+    )
+    globalThis.fetch = fetchMock
+
+    let closedState = false
+    const popupRef = {
+      get closed() {
+        return closedState
+      }
+    } as unknown as WindowProxy
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(popupRef)
+
+    render(<AuthButton />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
+    })
+
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(screen.getByRole('button', { name: /viewer/i }))
+      closedState = true
+      vi.runOnlyPendingTimers()
+
+      expect(openSpy).toHaveBeenCalledTimes(1)
+      const loginUrl = new URL(openSpy.mock.calls[0][0] as string, window.location.origin)
+      expect(loginUrl.pathname).toBe('/api/auth/login')
+      expect(loginUrl.searchParams.get('state')).toBe('/dashboard/view?tab=gallery#images')
+    } finally {
+      openSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('falls back to root state when location resolves outside origin', () => {
+    const hostileLocation = {
+      pathname: '//malicious.example.com/path',
+      search: '?redirect=1',
+      hash: '',
+      origin: 'http://localhost:5173',
+    }
+
+    expect(buildLoginState(hostileLocation)).toBe('/')
   })
 })

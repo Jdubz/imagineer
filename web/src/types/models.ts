@@ -67,8 +67,15 @@ export interface Job {
   created?: string
   created_at?: string
   started_at?: string | null
+  submitted_at?: string | null
   completed_at?: string | null
-  output_path?: string | null
+  output_path?: string | null  // Legacy field
+  output_filename?: string  // Backend sanitized field
+  output_directory?: string  // Backend sanitized field
+  lora_paths?: string[]  // Backend returns shortened paths
+  width?: number
+  height?: number
+  steps?: number
   error?: string | null
 }
 
