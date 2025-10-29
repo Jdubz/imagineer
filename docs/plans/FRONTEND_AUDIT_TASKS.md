@@ -3,7 +3,7 @@
 **Created:** 2025-10-28
 **Last Updated:** 2025-10-29
 **Source:** [FRONTEND_CODE_AUDIT.md](FRONTEND_CODE_AUDIT.md)
-**Overall Progress:** 1/30 tasks complete (3%)
+**Overall Progress:** 2/30 tasks complete (7%)
 
 ---
 
@@ -11,11 +11,11 @@
 
 | Priority | Total | Complete | In Progress | Not Started |
 |----------|-------|----------|-------------|-------------|
-| P0 (Critical) | 5 | 0 | 0 | 5 |
+| P0 (Critical) | 5 | 1 | 0 | 4 |
 | P1 (High) | 5 | 1 | 0 | 4 |
 | P2 (Medium) | 10 | 0 | 0 | 10 |
 | P3 (Low) | 10 | 0 | 0 | 10 |
-| **Total** | **30** | **1** | **0** | **29** |
+| **Total** | **30** | **2** | **0** | **28** |
 
 ### Effort Distribution
 
@@ -95,34 +95,43 @@ Direct state mutations and race conditions in label management. Multiple async o
 
 ---
 
-### Task #3: Fix Memory Leaks in Polling Mechanisms
+### Task #3: Fix Memory Leaks in Polling Mechanisms ✅
 **Priority:** P0
 **Effort:** M
-**Status:** Not Started
-**Assignee:** Unassigned
+**Status:** ✅ Complete
+**Completed:** 2025-10-29
+**Commit:** c2bc2e5
 
 **Files:**
-- `web/src/components/ScrapingTab.tsx:77-82`
-- `web/src/components/QueueTab.tsx:39-48`
-- `web/src/components/TrainingTab.tsx:226-231`
-- New: `web/src/hooks/usePolling.ts` (recommended)
+- ✅ `web/src/components/ScrapingTab.tsx` - Refactored to use usePolling
+- ✅ `web/src/components/QueueTab.tsx` - Refactored to use usePolling
+- ✅ `web/src/components/TrainingTab.tsx` - Refactored to use usePolling
+- ✅ `web/src/hooks/usePolling.ts` - Created custom hook
+- ✅ `web/src/hooks/usePolling.test.ts` - Added comprehensive tests (12/12 passing)
 
 **Description:**
 Intervals not properly cleaned up when components unmount or dependencies change. Dependencies change on every render, creating new intervals without clearing old ones, leading to memory leaks.
 
 **Tasks:**
-- [ ] Move data fetching functions outside component or wrap with `useCallback`
-- [ ] Store interval ID in ref
-- [ ] Add cleanup in useEffect return
-- [ ] Create reusable `usePolling` hook
-- [ ] Add Page Visibility API to pause when tab hidden
-- [ ] Add tests to verify cleanup on unmount
+- [x] Move data fetching functions outside component or wrap with `useCallback`
+- [x] Store interval ID in ref
+- [x] Add cleanup in useEffect return
+- [x] Create reusable `usePolling` hook
+- [x] Add Page Visibility API to pause when tab hidden
+- [x] Add tests to verify cleanup on unmount
 
 **Acceptance Criteria:**
-- [ ] No memory leaks in polling components
-- [ ] Intervals properly cleaned up on unmount
-- [ ] Polling pauses when tab is hidden
-- [ ] Tests verify cleanup behavior
+- [x] No memory leaks in polling components
+- [x] Intervals properly cleaned up on unmount
+- [x] Polling pauses when tab is hidden
+- [x] Tests verify cleanup behavior
+
+**Implementation Details:**
+- Created `usePolling` hook with proper cleanup, stable callback references, and Page Visibility API support
+- QueueTab: Replaced manual autoRefresh interval with usePolling
+- ScrapingTab: Replaced manual job/stats polling with usePolling
+- TrainingTab: Replaced manual log polling with conditional usePolling (enabled when log viewer open)
+- All 12 tests passing, build successful
 
 **Reference:** FRONTEND_CODE_AUDIT.md:69-92
 
