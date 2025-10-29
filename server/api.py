@@ -3,7 +3,6 @@ Imagineer API Server
 Flask-based REST API for managing image generation
 """
 
-import csv
 import json
 import logging
 import mimetypes
@@ -458,10 +457,6 @@ CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
 GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 
-# Load sets directory from config (will be set after config loads)
-SETS_DIR = None
-SETS_CONFIG_PATH = None
-
 # Job queue
 job_queue = queue.Queue()
 job_history = []
@@ -469,9 +464,7 @@ current_job = None
 
 
 def load_config():
-    """Load config.yaml and initialize sets paths"""
-    global SETS_DIR, SETS_CONFIG_PATH
-
+    """Load config.yaml"""
     try:
         with open(CONFIG_PATH, "r") as f:
             config = yaml.safe_load(f)
@@ -489,18 +482,8 @@ def load_config():
                 "max_train_steps": 1000,
                 "lora": {"rank": 4, "alpha": 32, "dropout": 0.1},
             },
-            "sets": {"directory": "/tmp/imagineer/sets"},
             "dataset": {"data_dir": "/tmp/imagineer/data/training"},
         }
-
-    # Initialize sets directory paths from config
-    if "sets" in config and "directory" in config["sets"]:
-        SETS_DIR = Path(config["sets"]["directory"])
-        SETS_CONFIG_PATH = SETS_DIR / "config.yaml"
-    else:
-        # Fallback to repo location if not in config
-        SETS_DIR = PROJECT_ROOT / "data" / "sets"
-        SETS_CONFIG_PATH = SETS_DIR / "config.yaml"
 
     return config
 
@@ -509,104 +492,6 @@ def save_config(config):
     """Save config.yaml"""
     with open(CONFIG_PATH, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-
-def load_sets_config():
-    """Load sets configuration, dynamically discovering sets from CSV files
-
-    Returns:
-        Dict with set configurations. Merges config.yaml with auto-discovered CSV files.
-    """
-    # Start with empty config
-    config = {}
-
-    # Load config.yaml if it exists
-    if SETS_CONFIG_PATH and SETS_CONFIG_PATH.exists():
-        with open(SETS_CONFIG_PATH, "r") as f:
-            config = yaml.safe_load(f) or {}
-
-    # Dynamically discover CSV files in sets directory
-    if SETS_DIR and SETS_DIR.exists():
-        for csv_file in SETS_DIR.glob("*.csv"):
-            set_id = csv_file.stem
-
-            # If not in config, create default config
-            if set_id not in config:
-                # Create friendly name from file name
-                name = set_id.replace("_", " ").title()
-
-                config[set_id] = {
-                    "name": name,
-                    "description": f"Auto-discovered set: {name}",
-                    "csv_path": str(csv_file),
-                    "base_prompt": f"A {name.lower()} card",
-                    "prompt_template": (
-                        "{name}, {description}"
-                        if set_id != "card_deck"
-                        else "{value} of {suit}, {personality}"
-                    ),
-                    "style_suffix": "card design, professional illustration",
-                    "example_theme": "artistic style with creative lighting",
-                }
-            else:
-                # Ensure csv_path is set correctly from SETS_DIR
-                if "csv_path" not in config[set_id] or not config[set_id]["csv_path"].startswith(
-                    str(SETS_DIR)
-                ):
-                    config[set_id]["csv_path"] = str(SETS_DIR / f"{set_id}.csv")
-
-    return config
-
-
-def get_set_config(set_name):
-    """Get configuration for a specific set
-
-    Args:
-        set_name: Name of the set
-
-    Returns:
-        Dict with set configuration or None if not found
-    """
-    sets_config = load_sets_config()
-    return sets_config.get(set_name)
-
-
-def discover_set_loras(set_name, config):
-    """Dynamically discover LoRAs from set-specific folder
-
-    Looks for LoRAs in /mnt/speedy/imagineer/models/lora/{set_name}/
-    and returns list of LoRA configurations with paths and weights.
-
-    Args:
-        set_name: Name of the set
-        config: Main config dict containing model paths
-
-    Returns:
-        List of dicts with 'path' and 'weight' keys, or empty list if no LoRAs found
-    """
-    # Get lora base directory from config
-    lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-    set_lora_dir = lora_base_dir / set_name
-
-    if not set_lora_dir.exists() or not set_lora_dir.is_dir():
-        return []
-
-    # Find all .safetensors files in the set folder
-    lora_files = sorted(set_lora_dir.glob("*.safetensors"))
-
-    if not lora_files:
-        return []
-
-    # Build list of LoRA configs with default weights
-    # Default weight distributed evenly, but not exceeding 1.0 total
-    num_loras = len(lora_files)
-    default_weight = min(0.8 / num_loras, 0.6)  # Cap individual weights at 0.6
-
-    loras = []
-    for lora_file in lora_files:
-        loras.append({"path": str(lora_file), "weight": default_weight})
-
-    return loras
 
 
 def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):
@@ -642,64 +527,6 @@ def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_s
         parts.append(style_suffix)
 
     return ". ".join(parts)
-
-
-def load_set_data(set_name):
-    """Load data from a CSV set file
-
-    Args:
-        set_name: Name of the set (without .csv extension)
-
-    Returns:
-        List of dicts with all CSV columns as keys
-
-    Raises:
-        FileNotFoundError: If set doesn't exist
-        ValueError: If CSV is malformed
-    """
-    # Security: Validate set_name to prevent path traversal
-    if ".." in set_name or "/" in set_name or "\\" in set_name:
-        raise ValueError("Invalid set name")
-
-    # Get set config to find CSV path
-    set_config = get_set_config(set_name)
-    if set_config and "csv_path" in set_config:
-        set_path = Path(set_config["csv_path"])
-    else:
-        # Fallback to SETS_DIR if config doesn't specify path
-        if not SETS_DIR:
-            raise FileNotFoundError("Sets directory not configured")
-        set_path = SETS_DIR / f"{set_name}.csv"
-
-    if not set_path.exists():
-        raise FileNotFoundError(f'Set "{set_name}" not found at {set_path}')
-
-    items = []
-    with open(set_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-
-        if not reader.fieldnames:
-            raise ValueError("CSV must have column headers")
-
-        for row in reader:
-            # Strip whitespace from all values
-            item = {key: value.strip() for key, value in row.items()}
-            items.append(item)
-
-    if not items:
-        raise ValueError("Set is empty")
-
-    return items
-
-
-def list_available_sets():
-    """List all available CSV sets from configuration
-
-    Returns:
-        List of set IDs
-    """
-    sets_config = load_sets_config()
-    return sorted(sets_config.keys())
 
 
 def generate_random_theme():
@@ -845,16 +672,10 @@ def process_jobs():  # noqa: C901
                 cmd.extend(["--guidance-scale", str(job["guidance_scale"])])
             if job.get("negative_prompt"):
                 cmd.extend(["--negative-prompt", job["negative_prompt"]])
-            # Handle LoRAs (backward compatible with single LoRA)
+            # Handle LoRAs
             if job.get("lora_paths") and job.get("lora_weights"):
-                # Multi-LoRA format
                 cmd.extend(["--lora-paths"] + job["lora_paths"])
                 cmd.extend(["--lora-weights"] + [str(w) for w in job["lora_weights"]])
-            elif job.get("lora_path"):
-                # Single LoRA format (backward compatibility)
-                cmd.extend(["--lora-path", job["lora_path"]])
-                if job.get("lora_weight"):
-                    cmd.extend(["--lora-weight", str(job["lora_weight"])])
 
             # Handle output path
             if job.get("output"):
@@ -1128,58 +949,6 @@ def generate():  # noqa: C901
         return jsonify({"error": "Invalid request"}), 400
 
 
-@app.route("/api/sets", methods=["GET"])
-def get_sets():
-    """List available CSV sets with their configuration"""
-    try:
-        sets_config = load_sets_config()
-        sets_list = []
-
-        for set_name, config in sets_config.items():
-            sets_list.append(
-                {
-                    "id": set_name,
-                    "name": config.get("name", set_name),
-                    "description": config.get("description", ""),
-                    "example_theme": config.get("example_theme", ""),
-                }
-            )
-
-        return jsonify({"sets": sets_list})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/sets/<set_name>/info", methods=["GET"])
-def get_set_info(set_name):
-    """Get detailed information about a specific set"""
-    try:
-        set_config = get_set_config(set_name)
-        if not set_config:
-            return jsonify({"error": f'Set "{set_name}" not found'}), 404
-
-        # Load CSV to get item count
-        try:
-            set_items = load_set_data(set_name)
-            item_count = len(set_items)
-        except Exception:
-            item_count = 0
-
-        return jsonify(
-            {
-                "id": set_name,
-                "name": set_config.get("name", set_name),
-                "description": set_config.get("description", ""),
-                "example_theme": set_config.get("example_theme", ""),
-                "item_count": item_count,
-                "base_prompt": set_config.get("base_prompt", ""),
-                "style_suffix": set_config.get("style_suffix", ""),
-            }
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/themes/random", methods=["GET"])
 def get_random_theme():
     """Generate a random art style theme for inspiration"""
@@ -1190,240 +959,182 @@ def get_random_theme():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/generate/batch", methods=["POST"])
+@app.route("/api/albums/<int:album_id>/generate/batch", methods=["POST"])
 @require_admin
-def generate_batch():  # noqa: C901
-    """Submit batch generation from CSV set
+def generate_batch_from_album(album_id):
+    """Generate all items from a set template album
 
-    Creates multiple jobs by combining user theme with set configuration.
-    All images will be saved in a subfolder named after the batch.
+    Request JSON:
+        user_theme: User's art style theme (required)
+        seed: Random seed (optional)
+        steps: Number of steps (optional)
+        width: Image width (optional, defaults to album config)
+        height: Image height (optional, defaults to album config)
+        guidance_scale: Guidance scale (optional)
+        negative_prompt: Negative prompt (optional, appended to album's)
+
+    Returns:
+        JSON with queued job IDs and batch info
     """
-    try:
-        data = request.json
+    # Get album
+    album = db.session.get(Album, album_id)
+    if not album:
+        return jsonify({"error": "Album not found"}), 404
 
-        if not data or not data.get("set_name"):
-            return jsonify({"error": "set_name is required"}), 400
+    if not album.is_set_template:
+        return jsonify({"error": "Album is not a set template"}), 400
 
-        if not data.get("user_theme"):
-            return jsonify({"error": "user_theme is required"}), 400
+    # Validate user_theme
+    data = request.json or {}
+    if "user_theme" not in data:
+        return jsonify({"error": "user_theme is required"}), 400
 
-        set_name = str(data["set_name"]).strip()
-        user_theme = str(data["user_theme"]).strip()
+    user_theme = str(data["user_theme"]).strip()
+    if not user_theme:
+        return jsonify({"error": "user_theme cannot be empty"}), 400
+    if len(user_theme) > 500:
+        return jsonify({"error": "user_theme too long (max 500 chars)"}), 400
 
-        if not user_theme:
-            return jsonify({"error": "user_theme cannot be empty"}), 400
+    # Parse template items
+    template_items = json.loads(album.csv_data or "[]")
+    if not template_items:
+        return jsonify({"error": "No template items in album"}), 400
 
-        if len(user_theme) > 500:
-            return jsonify({"error": "user_theme too long (max 500 chars)"}), 400
+    # Parse album configuration
+    gen_config = json.loads(album.generation_config or "{}")
+    loras = json.loads(album.lora_config or "[]")
 
-        # Load set configuration
-        set_config = get_set_config(set_name)
-        if not set_config:
-            return jsonify({"error": f'Set "{set_name}" not found in configuration'}), 404
-
-        # Load set data
+    # Get optional parameters
+    seed = data.get("seed")
+    if seed is not None:
         try:
-            set_items = load_set_data(set_name)
-        except FileNotFoundError:
-            return jsonify({"error": f'Set "{set_name}" CSV file not found'}), 404
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            seed = int(seed)
+            if seed < 0 or seed > 2147483647:
+                return jsonify({"error": "Seed must be between 0 and 2147483647"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid seed value"}), 400
 
-        # Get optional parameters (applied to all jobs in batch)
-        seed = data.get("seed")
-        if seed is not None:
-            try:
-                seed = int(seed)
-                if seed < 0 or seed > 2147483647:
-                    return jsonify({"error": "Seed must be between 0 and 2147483647"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid seed value"}), 400
+    steps = data.get("steps")
+    if steps is not None:
+        try:
+            steps = int(steps)
+            if steps < 1 or steps > 150:
+                return jsonify({"error": "Steps must be between 1 and 150"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid steps value"}), 400
 
-        steps = data.get("steps")
-        if steps is not None:
-            try:
-                steps = int(steps)
-                if steps < 1 or steps > 150:
-                    return jsonify({"error": "Steps must be between 1 and 150"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid steps value"}), 400
+    width = data.get("width")
+    if width is None:
+        width = gen_config.get("width", 512)
+    else:
+        try:
+            width = int(width)
+            if width < 64 or width > 2048 or width % 8 != 0:
+                return jsonify({"error": "Width must be between 64-2048 and divisible by 8"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid width value"}), 400
 
-        width = data.get("width")
-        if width is not None:
-            try:
-                width = int(width)
-                if width < 64 or width > 2048 or width % 8 != 0:
-                    return (
-                        jsonify({"error": "Width must be between 64-2048 and divisible by 8"}),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid width value"}), 400
+    height = data.get("height")
+    if height is None:
+        height = gen_config.get("height", 512)
+    else:
+        try:
+            height = int(height)
+            if height < 64 or height > 2048 or height % 8 != 0:
+                return jsonify({"error": "Height must be between 64-2048 and divisible by 8"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid height value"}), 400
 
-        height = data.get("height")
-        if height is not None:
-            try:
-                height = int(height)
-                if height < 64 or height > 2048 or height % 8 != 0:
-                    return (
-                        jsonify({"error": "Height must be between 64-2048 and divisible by 8"}),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid height value"}), 400
+    guidance_scale = data.get("guidance_scale")
+    if guidance_scale is not None:
+        try:
+            guidance_scale = float(guidance_scale)
+            if guidance_scale < 0 or guidance_scale > 30:
+                return jsonify({"error": "Guidance scale must be between 0 and 30"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid guidance scale value"}), 400
 
-        guidance_scale = data.get("guidance_scale")
-        if guidance_scale is not None:
-            try:
-                guidance_scale = float(guidance_scale)
-                if guidance_scale < 0 or guidance_scale > 30:
-                    return jsonify({"error": "Guidance scale must be between 0 and 30"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid guidance scale value"}), 400
+    negative_prompt = data.get("negative_prompt")
+    album_negative = gen_config.get("negative_prompt", "")
+    if negative_prompt and album_negative:
+        negative_prompt = f"{negative_prompt}, {album_negative}"
+    elif album_negative:
+        negative_prompt = album_negative
+    if negative_prompt and len(negative_prompt) > 2000:
+        return jsonify({"error": "Negative prompt too long (max 2000 chars)"}), 400
 
-        negative_prompt = data.get("negative_prompt")
-        if negative_prompt is not None:
-            negative_prompt = str(negative_prompt).strip()
-            if len(negative_prompt) > 2000:
-                return jsonify({"error": "Negative prompt too long (max 2000 chars)"}), 400
+    # Create batch ID and output subfolder
+    batch_id = f"{album.name.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    config = load_config()
+    batch_output_dir = Path(config["output"]["directory"]) / batch_id
+    batch_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create batch ID and output subfolder
-        batch_id = f"{set_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        config = load_config()
-        batch_output_dir = Path(config["output"]["directory"]) / batch_id
+    # Check rate limit
+    rate_limit_response = _check_generation_rate_limit()
+    if rate_limit_response:
+        return rate_limit_response
 
-        # Create the subfolder
-        batch_output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Extract set configuration
-        base_prompt = set_config.get("base_prompt", "")
-        prompt_template = set_config.get("prompt_template", "")
-        style_suffix = set_config.get("style_suffix", "")
-
-        # Use set-specific dimensions if not provided by user
-        if width is None and "width" in set_config:
-            width = set_config["width"]
-        if height is None and "height" in set_config:
-            height = set_config["height"]
-
-        # Use set-specific negative prompt if not provided by user
-        # If user provided one, append set's negative prompt to it
-        set_negative_prompt = set_config.get("negative_prompt", "")
-        if negative_prompt and set_negative_prompt:
-            negative_prompt = f"{negative_prompt}, {set_negative_prompt}"
-        elif set_negative_prompt:
-            negative_prompt = set_negative_prompt
-
-        rate_limit_response = _check_generation_rate_limit()
-        if rate_limit_response:
-            return rate_limit_response
-
-        # Create jobs for each item in the set
-        job_ids = []
-        for item in set_items:
-            # Construct prompt using optimal ordering
-            prompt = construct_prompt(
-                base_prompt=base_prompt,
-                user_theme=user_theme,
-                csv_data=item,
-                prompt_template=prompt_template,
-                style_suffix=style_suffix,
-            )
-
-            # Create a name for the file from available columns
-            # Priority: value+suit, name, first column
-            if "value" in item and "suit" in item:
-                item_name = f"{item['value']}_of_{item['suit']}"
-            elif "name" in item:
-                item_name = item["name"]
-            else:
-                # Use first column value
-                item_name = next(iter(item.values()))
-
-            job_id = len(job_history) + job_queue.qsize() + 1
-
-            job = {
-                "id": job_id,
-                "prompt": prompt,
-                "seed": seed,
-                "steps": steps,
-                "width": width,
-                "height": height,
-                "guidance_scale": guidance_scale,
-                "negative_prompt": negative_prompt,
-                "status": "queued",
-                "submitted_at": datetime.now().isoformat(),
-                "batch_id": batch_id,
-                "batch_item_name": item_name,
-                "batch_item_data": item,  # Store full item data for reference
-                "output_dir": str(batch_output_dir),  # Custom output directory for this job
-            }
-
-            # Add LoRA parameters - try multiple sources in priority order:
-            # 1. Explicit 'loras' config in set config (multi-LoRA)
-            # 2. Dynamic discovery from set-specific folder
-            # 3. Old 'lora' config in set config (single LoRA, backward compatibility)
-            loras_to_load = None
-
-            if "loras" in set_config and set_config["loras"]:
-                # Explicit multi-LoRA format in config
-                loras = set_config["loras"]
-                if isinstance(loras, list) and len(loras) > 0:
-                    loras_to_load = loras
-            else:
-                # Try dynamic discovery from set folder
-                discovered_loras = discover_set_loras(set_name, config)
-                if discovered_loras:
-                    loras_to_load = discovered_loras
-                    # Apply weight overrides from config if specified
-                    if "lora_weights" in set_config:
-                        weight_overrides = set_config["lora_weights"]
-                        if isinstance(weight_overrides, dict):
-                            # Dict format: {filename: weight}
-                            for lora in loras_to_load:
-                                lora_filename = Path(lora["path"]).name
-                                if lora_filename in weight_overrides:
-                                    lora["weight"] = weight_overrides[lora_filename]
-                        elif isinstance(weight_overrides, list):
-                            # List format: apply weights in order
-                            for i, weight in enumerate(weight_overrides):
-                                if i < len(loras_to_load):
-                                    loras_to_load[i]["weight"] = weight
-
-            if loras_to_load:
-                # Multi-LoRA format
-                job["lora_paths"] = [lora["path"] for lora in loras_to_load if "path" in lora]
-                job["lora_weights"] = [
-                    lora.get("weight", 0.5) for lora in loras_to_load if "path" in lora
-                ]
-            elif "lora" in set_config and set_config["lora"]:
-                # Old single LoRA format (backward compatibility)
-                lora_config = set_config["lora"]
-                if "path" in lora_config:
-                    job["lora_path"] = lora_config["path"]
-                    job["lora_weight"] = lora_config.get("weight", 0.5)
-
-            job_queue.put(job)
-            job_ids.append(job_id)
-
-        # Return 201 Created with batch info
-        response = jsonify(
-            {
-                "batch_id": batch_id,
-                "set_name": set_name,
-                "total_jobs": len(job_ids),
-                "job_ids": job_ids,
-                "output_directory": str(batch_output_dir),
-                "submitted_at": datetime.now().isoformat(),
-            }
+    # Queue generation jobs
+    job_ids = []
+    for item in template_items:
+        # Build prompt from template
+        prompt = construct_prompt(
+            base_prompt=album.base_prompt or "",
+            user_theme=user_theme,
+            csv_data=item,
+            prompt_template=album.prompt_template or "",
+            style_suffix=album.style_suffix or "",
         )
-        response.status_code = 201
-        response.headers["Location"] = f"/api/batches/{batch_id}"
 
-        return response
+        # Create item name from CSV data
+        if "value" in item and "suit" in item:
+            item_name = f"{item['value']}_of_{item['suit']}"
+        elif "name" in item:
+            item_name = item["name"]
+        else:
+            item_name = next(iter(item.values())) if item else "item"
 
-    except Exception:
-        return jsonify({"error": "Invalid request"}), 400
+        job_id = len(job_history) + job_queue.qsize() + 1
+
+        job = {
+            "id": job_id,
+            "prompt": prompt,
+            "seed": seed,
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "guidance_scale": guidance_scale,
+            "negative_prompt": negative_prompt,
+            "status": "queued",
+            "submitted_at": datetime.now().isoformat(),
+            "batch_id": batch_id,
+            "batch_item_name": item_name,
+            "batch_item_data": item,
+            "output_dir": str(batch_output_dir),
+            "album_id": album.id,  # Link to source album
+        }
+
+        # Add LoRA configuration
+        if loras:
+            job["lora_paths"] = [lora["path"] for lora in loras]
+            job["lora_weights"] = [lora["weight"] for lora in loras]
+
+        job_queue.put(job)
+        job_ids.append(job_id)
+
+    return (
+        jsonify(
+            {
+                "message": f"Queued {len(job_ids)} generation jobs",
+                "album_id": album.id,
+                "album_name": album.name,
+                "batch_id": batch_id,
+                "job_ids": job_ids,
+                "output_dir": str(batch_output_dir),
+            }
+        ),
+        201,
+    )
 
 
 @app.route("/api/jobs", methods=["GET"])
@@ -1435,7 +1146,6 @@ def get_jobs():
         {
             "current": current_job,
             "queue": queue_list,
-            "queued": queue_list,  # Backward compatibility for legacy clients
             "history": job_history[-50:],  # Last 50 jobs
         }
     )
@@ -1700,150 +1410,6 @@ def get_lora_details(folder):
                     details.update(index[folder])
 
         return jsonify(details)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/sets/<set_name>/loras", methods=["GET"])
-def get_set_loras(set_name):
-    """Get LoRA configuration for a specific set
-
-    Returns list of LoRAs with their paths, weights, and metadata
-    """
-    try:
-        # Security: Validate set_name
-        if ".." in set_name or "/" in set_name or "\\" in set_name:
-            return jsonify({"error": "Invalid set name"}), 400
-
-        set_config = get_set_config(set_name)
-        if not set_config:
-            return jsonify({"error": f'Set "{set_name}" not found'}), 404
-
-        config = load_config()
-        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-
-        loras = []
-
-        # Check if set has explicit 'loras' configuration
-        if "loras" in set_config and set_config["loras"]:
-            for lora_config in set_config["loras"]:
-                lora_path = Path(lora_config["path"])
-
-                # Try to find this LoRA in the index to get metadata
-                folder_name = lora_path.parent.name if lora_path.parent != lora_base_dir else None
-                metadata = {}
-
-                if folder_name:
-                    index_path = lora_base_dir / "index.json"
-                    if index_path.exists():
-                        with open(index_path, "r") as f:
-                            index = json.load(f)
-                            if folder_name in index:
-                                metadata = index[folder_name]
-
-                loras.append(
-                    {
-                        "path": lora_config["path"],
-                        "weight": lora_config.get("weight", 0.5),
-                        "folder": folder_name,
-                        "filename": lora_path.name,
-                        "metadata": metadata,
-                    }
-                )
-
-        return jsonify({"loras": loras})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/sets/<set_name>/loras", methods=["PUT"])
-def update_set_loras(set_name):  # noqa: C901
-    """Update LoRA configuration for a specific set
-
-    Expected JSON body:
-    {
-        "loras": [
-            {"folder": "card_style", "weight": 0.6},
-            {"folder": "tarot_theme", "weight": 0.4}
-        ]
-    }
-    """
-    try:
-        # Security: Validate set_name
-        if ".." in set_name or "/" in set_name or "\\" in set_name:
-            return jsonify({"error": "Invalid set name"}), 400
-
-        data = request.json
-        if not data or "loras" not in data:
-            return jsonify({"error": "loras field is required"}), 400
-
-        loras_config = data["loras"]
-        if not isinstance(loras_config, list):
-            return jsonify({"error": "loras must be a list"}), 400
-
-        # Load main config
-        config = load_config()
-        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-
-        # Convert folder names to full paths and validate
-        loras_list = []
-        for lora in loras_config:
-            if not isinstance(lora, dict) or "folder" not in lora:
-                return jsonify({"error": "Each LoRA must have a folder field"}), 400
-
-            folder = lora["folder"]
-            weight = lora.get("weight", 0.5)
-
-            # Validate weight
-            try:
-                weight = float(weight)
-                if weight < 0 or weight > 2.0:
-                    return (
-                        jsonify({"error": f"Weight must be between 0 and 2.0, got {weight}"}),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid weight value"}), 400
-
-            # Find the .safetensors file in this folder
-            lora_folder = lora_base_dir / folder
-            if not lora_folder.exists():
-                return jsonify({"error": f'LoRA folder "{folder}" not found'}), 404
-
-            safetensors_files = list(lora_folder.glob("*.safetensors"))
-            if not safetensors_files:
-                return jsonify({"error": f'No .safetensors file found in folder "{folder}"'}), 404
-
-            lora_path = safetensors_files[0]  # Use first .safetensors file
-
-            loras_list.append({"path": str(lora_path), "weight": weight})
-
-        # Load sets config
-        if not SETS_CONFIG_PATH or not SETS_CONFIG_PATH.exists():
-            return jsonify({"error": "Sets configuration file not found"}), 404
-
-        with open(SETS_CONFIG_PATH, "r") as f:
-            sets_config = yaml.safe_load(f) or {}
-
-        if set_name not in sets_config:
-            return jsonify({"error": f'Set "{set_name}" not found in configuration'}), 404
-
-        # Update the loras configuration for this set
-        sets_config[set_name]["loras"] = loras_list
-
-        # Save updated config
-        with open(SETS_CONFIG_PATH, "w") as f:
-            yaml.dump(sets_config, f, default_flow_style=False, sort_keys=False)
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f'Updated LoRA configuration for set "{set_name}"',
-                "loras": loras_list,
-            }
-        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

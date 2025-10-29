@@ -62,6 +62,19 @@ export const JobSchema = z.object({
 // Images
 // ============================================
 
+/**
+ * ImageMetadataSchema - Runtime validation for image metadata
+ *
+ * TODO: This schema duplicates the shared/schema/image_metadata.json schema.
+ * Ideally, we should auto-generate this Zod schema from the JSON Schema
+ * definition to maintain a single source of truth. The challenge is that
+ * JSON Schema doesn't have a 1:1 mapping to Zod (e.g., Zod's .optional() vs
+ * JSON Schema's required array). For now, we maintain both manually and
+ * rely on contract tests to catch drift.
+ *
+ * @see shared/schema/image_metadata.json - Source of truth for this schema
+ * @see web/src/__tests__/sharedContract.test.ts - Tests that validate consistency
+ */
 export const ImageMetadataSchema = z.object({
   prompt: z.string().optional(),
   negative_prompt: z.string().optional(),
@@ -77,8 +90,6 @@ export const ImageMetadataSchema = z.object({
     path: z.string(),
     weight: z.number(),
   })).optional(),
-  set_name: z.string().optional(),
-  card_data: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const GeneratedImageSchema = z.object({
@@ -144,12 +155,17 @@ export const ConfigSchema = z.object({
 
 export const AuthStatusSchema = z.object({
   authenticated: z.boolean(),
-  username: z.string().optional(),
-  role: z.string().optional(),
+  email: z.string().nullish(),
+  name: z.string().nullish(),
+  picture: z.string().nullish(),
+  role: z.string().nullish(),
+  is_admin: z.boolean().nullish(),
+  error: z.string().nullish(),
+  message: z.string().nullish(),
 })
 
 // ============================================
-// Sets
+// LoRAs and Albums
 // ============================================
 
 export const LoRAConfigSchema = z.object({
@@ -157,24 +173,6 @@ export const LoRAConfigSchema = z.object({
   weight: z.number(),
   name: z.string().optional(),
 })
-
-export const SetConfigSchema = z.object({
-  name: z.string(),
-  prompt_template: z.string(),
-  negative_prompt: z.string().optional(),
-  width: z.number(),
-  height: z.number(),
-  loras: z.array(LoRAConfigSchema).optional(),
-  style_suffix: z.string().optional(),
-})
-
-export const SetInfoSchema = SetConfigSchema.extend({
-  item_count: z.number(),
-})
-
-// ============================================
-// Albums
-// ============================================
 
 export const AlbumSchema = z.object({
   id: z.string(),
@@ -220,24 +218,10 @@ export const BatchesResponseSchema = z.object({
   batches: z.array(BatchSummarySchema),
 })
 
-export const SetsResponseSchema = z.object({
-  sets: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-  })),
-})
-
 export const LorasResponseSchema = z.object({
   loras: z.array(z.object({
     folder: z.string(),
     filename: z.string(),
-  })),
-})
-
-export const SetLorasResponseSchema = z.object({
-  loras: z.array(z.object({
-    folder: z.string(),
-    weight: z.number(),
   })),
 })
 
@@ -272,7 +256,5 @@ export type BatchDetail = z.infer<typeof BatchDetailSchema>
 export type Config = z.infer<typeof ConfigSchema>
 export type AuthStatus = z.infer<typeof AuthStatusSchema>
 export type LoRAConfig = z.infer<typeof LoRAConfigSchema>
-export type SetConfig = z.infer<typeof SetConfigSchema>
-export type SetInfo = z.infer<typeof SetInfoSchema>
 export type Album = z.infer<typeof AlbumSchema>
 export type LabelAnalytics = z.infer<typeof LabelAnalyticsSchema>

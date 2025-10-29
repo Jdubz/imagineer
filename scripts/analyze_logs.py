@@ -6,9 +6,7 @@ Analyzes structured JSON logs for insights and monitoring
 
 import json
 import sys
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
+from collections import Counter
 
 
 def load_logs(log_file):
@@ -75,7 +73,7 @@ def analyze_request_logs(logs):
         avg_time = sum(response_times) / len(response_times)
         max_time = max(response_times)
         min_time = min(response_times)
-        print(f"Response times (ms):")
+        print("Response times (ms):")
         print(f"  Average: {avg_time:.1f}")
         print(f"  Min: {min_time}")
         print(f"  Max: {max_time}")

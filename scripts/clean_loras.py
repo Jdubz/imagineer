@@ -11,7 +11,6 @@ Compatible: Standard SD1.5 LoRAs with lora_up/lora_down keys
 """
 
 import shutil
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -186,11 +185,14 @@ def scan_lora_directory(base_dir, dry_run=True, move_incompatible=True):
 
             if is_compatible:
                 print(
-                    f"  {GREEN}✓{RESET} {lora_file.name:<45} {format_size(file_size):>10} - {details}"
+                    f"  {GREEN}✓{RESET} {lora_file.name:<45} "
+                    f"{format_size(file_size):>10} - {details}"
                 )
             else:
                 print(
-                    f"  {RED}✗{RESET} {lora_file.name:<45} {format_size(file_size):>10} - {RED}{reason.upper()}{RESET}: {details}"
+                    f"  {RED}✗{RESET} {lora_file.name:<45} "
+                    f"{format_size(file_size):>10} - "
+                    f"{RED}{reason.upper()}{RESET}: {details}"
                 )
 
         print()
@@ -218,7 +220,8 @@ def scan_lora_directory(base_dir, dry_run=True, move_incompatible=True):
             incompatible_dir.mkdir(exist_ok=True)
 
             print(
-                f"\n{YELLOW}Moving {len(incompatible_files)} incompatible file(s) to _incompatible/{RESET}"
+                f"\n{YELLOW}Moving {len(incompatible_files)} "
+                f"incompatible file(s) to _incompatible/{RESET}"
             )
 
             for result in incompatible_files:
@@ -237,7 +240,8 @@ def scan_lora_directory(base_dir, dry_run=True, move_incompatible=True):
         incompatible_count = sum(1 for r in results if not r["compatible"])
         if incompatible_count > 0:
             print(
-                f"\n{YELLOW}Dry run mode: Would move {incompatible_count} incompatible file(s){RESET}"
+                f"\n{YELLOW}Dry run mode: Would move "
+                f"{incompatible_count} incompatible file(s){RESET}"
             )
             print(f"{YELLOW}Run with --clean to actually move files{RESET}")
 

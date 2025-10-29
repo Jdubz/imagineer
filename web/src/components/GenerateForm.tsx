@@ -1,197 +1,61 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
-import { api, ApiError } from '../lib/api'
+import { api } from '../lib/api'
 import { useToast } from '../hooks/useToast'
-import { useAbortableEffect } from '../hooks/useAbortableEffect'
-import type { Config, GenerateParams, BatchGenerateParams, SetInfo } from '../types/models'
+import type { Config, GenerateParams, Album } from '../types/models'
 import {
   validateForm,
   generateFormSchema,
-  batchGenerateFormSchema,
+  themeSchema,
 } from '../lib/validation'
-
-interface SetLoraConfig {
-  folder: string
-  weight: number
-}
-
-interface AvailableSet {
-  id: string
-  name: string
-}
-
-interface LoraModel {
-  folder: string
-  filename: string
-}
 
 interface GenerateFormProps {
   onGenerate: (params: GenerateParams) => void
-  onGenerateBatch: (params: BatchGenerateParams) => void
   loading: boolean
   config: Config | null
   isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config, isAdmin }) => {
+const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config, isAdmin }) => {
   const toast = useToast()
+  // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
   const [seed, setSeed] = useState<string>('')
   const [useRandomSeed, setUseRandomSeed] = useState<boolean>(true)
-
-  // Batch generation state
-  const [availableSets, setAvailableSets] = useState<AvailableSet[]>([])
-  const [selectedSet, setSelectedSet] = useState<string>('')
-  const [userTheme, setUserTheme] = useState<string>('')
-  const [selectedSetInfo, setSelectedSetInfo] = useState<SetInfo | null>(null)
-
-  // LoRA configuration state
-  const [setLoras, setSetLoras] = useState<SetLoraConfig[]>([])
-  const [availableLoras, setAvailableLoras] = useState<LoraModel[]>([])
-  const [showLoraConfig, setShowLoraConfig] = useState<boolean>(false)
-
-  // Validation error state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
-  // Load available sets and LoRAs on mount
-  useAbortableEffect((signal) => {
-    void fetchAvailableSets(signal)
-    void fetchAvailableLoras(signal)
-  }, [])
+  // Batch generation state
+  const [templates, setTemplates] = useState<Album[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [batchTheme, setBatchTheme] = useState<string>('')
+  const [batchSteps, setBatchSteps] = useState<string>('')
+  const [batchSeed, setBatchSeed] = useState<string>('')
+  const [loadingTemplates, setLoadingTemplates] = useState<boolean>(false)
+  const [submittingBatch, setSubmittingBatch] = useState<boolean>(false)
+  const [batchValidationErrors, setBatchValidationErrors] = useState<Record<string, string>>({})
 
-  const fetchAvailableSets = async (signal?: AbortSignal): Promise<void> => {
+  const fetchTemplates = useCallback(async (): Promise<void> => {
+    setLoadingTemplates(true)
     try {
-      const sets = await api.sets.getAll(signal)
-      setAvailableSets(sets)
+      const albums = await api.albums.getAll()
+      const templateAlbums = albums.filter(album => album.is_set_template === true)
+      setTemplates(templateAlbums)
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch sets:', error)
+      logger.error('Failed to fetch templates:', error)
+      toast.error('Failed to load batch templates')
+    } finally {
+      setLoadingTemplates(false)
     }
-  }
+  }, [toast])
 
-  const fetchAvailableLoras = async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const loras = await api.loras.getAll(signal)
-      setAvailableLoras(loras)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch LoRAs:', error)
+  // Load templates on mount
+  useEffect(() => {
+    if (isAdmin) {
+      fetchTemplates()
     }
-  }
-
-  const fetchRandomTheme = async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const theme = await api.themes.getRandom(signal)
-      setUserTheme(theme)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch random theme:', error)
-    }
-  }
-
-  // When set selection changes, load set info and LoRAs
-  useAbortableEffect((signal) => {
-    if (selectedSet) {
-      void fetchSetInfo(selectedSet, signal)
-      void fetchSetLoras(selectedSet, signal)
-    } else {
-      setSelectedSetInfo(null)
-      setSetLoras([])
-    }
-  }, [selectedSet])
-
-  const fetchSetInfo = async (setName: string, signal?: AbortSignal): Promise<void> => {
-    try {
-      const setInfo = await api.sets.getInfo(setName, signal)
-      setSelectedSetInfo(setInfo)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch set info:', error)
-    }
-  }
-
-  const fetchSetLoras = async (setName: string, signal?: AbortSignal): Promise<void> => {
-    try {
-      const loras = await api.sets.getLoras(setName, signal)
-      setSetLoras(loras)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch set LoRAs:', error)
-    }
-  }
-
-  const updateSetLoras = async (setName: string, loras: SetLoraConfig[]): Promise<void> => {
-    try {
-      const result = await api.sets.updateLoras(setName, loras)
-
-      if (result.success) {
-        toast.success('LoRA configuration updated successfully')
-        void fetchSetLoras(setName)  // Refresh the list
-      } else {
-        logger.error('Failed to update LoRAs:', result.error)
-        toast.error(`Error: ${result.error || 'Failed to update LoRA configuration'}`)
-      }
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        toast.error('Admin authentication required to update LoRA configuration. Please log in as admin.')
-        logger.warn('LoRA update requires admin authentication')
-        return
-      }
-      logger.error('Failed to update set LoRAs:', error)
-      toast.error('Failed to update LoRA configuration')
-    }
-  }
-
-  const addLoraToSet = (loraFolder: string): void => {
-    if (!selectedSet || !loraFolder) return
-
-    // Check if already in set
-    if (setLoras.some(l => l.folder === loraFolder)) {
-      toast.warning('This LoRA is already in the set')
-      return
-    }
-
-    const updatedLoras = [
-      ...setLoras,
-      { folder: loraFolder, weight: 0.5 }
-    ]
-
-    updateSetLoras(selectedSet, updatedLoras)
-  }
-
-  const removeLoraFromSet = (loraFolder: string): void => {
-    if (!selectedSet) return
-
-    const updatedLoras = setLoras.filter(l => l.folder !== loraFolder)
-    updateSetLoras(selectedSet, updatedLoras)
-  }
-
-  const updateLoraWeight = (loraFolder: string, newWeight: string): void => {
-    if (!selectedSet) return
-
-    const updatedLoras = setLoras.map(l =>
-      l.folder === loraFolder ? { ...l, weight: parseFloat(newWeight) } : l
-    )
-
-    setSetLoras(updatedLoras)  // Update UI immediately
-  }
-
-  const saveLoraWeights = (): void => {
-    if (!selectedSet) return
-    updateSetLoras(selectedSet, setLoras)
-  }
+  }, [isAdmin, fetchTemplates])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
@@ -237,43 +101,65 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
     setUseRandomSeed(false)
   }
 
-  const handleBatchSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleBatchSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
-    setValidationErrors({}) // Clear previous errors
+    setBatchValidationErrors({})
 
-    // Prepare data for validation
-    const formData = {
-      set_name: selectedSet,
-      user_theme: userTheme.trim(),
-      steps,
-      guidance_scale: guidanceScale,
-    }
-
-    // Validate form data
-    const validation = validateForm(batchGenerateFormSchema, formData)
-
-    if (!validation.success) {
-      setValidationErrors(validation.errors)
-      logger.warn('Batch form validation failed:', validation.errors)
+    if (!selectedTemplate) {
+      toast.error('Please select a template')
       return
     }
 
-    // Validation passed, submit the form
-    const params: BatchGenerateParams = {
-      set_name: validation.data.set_name,
-      user_theme: validation.data.user_theme,
-      steps: validation.data.steps,
-      guidance_scale: validation.data.guidance_scale,
+    // Validate theme
+    const themeValidation = validateForm(themeSchema, batchTheme.trim())
+    if (!themeValidation.success) {
+      setBatchValidationErrors(themeValidation.errors)
+      return
     }
 
-    onGenerateBatch(params)
-    setUserTheme('')
-    setValidationErrors({}) // Clear errors on successful submission
+    setSubmittingBatch(true)
+
+    try {
+      const params: {
+        user_theme: string
+        steps?: number
+        seed?: number
+      } = {
+        user_theme: batchTheme.trim(),
+      }
+
+      if (batchSteps) {
+        const stepsNum = parseInt(batchSteps, 10)
+        if (!isNaN(stepsNum)) params.steps = stepsNum
+      }
+
+      if (batchSeed) {
+        const seedNum = parseInt(batchSeed, 10)
+        if (!isNaN(seedNum)) params.seed = seedNum
+      }
+
+      const result = await api.albums.generateBatch(selectedTemplate, params)
+
+      if (result.success) {
+        const template = templates.find(t => t.id === selectedTemplate)
+        toast.success(`Batch generation started! ${template?.template_item_count || 0} jobs queued.`)
+        setBatchTheme('')
+        setBatchSteps('')
+        setBatchSeed('')
+      } else {
+        toast.error(result.error || 'Failed to start batch generation')
+      }
+    } catch (error) {
+      logger.error('Failed to generate batch:', error)
+      toast.error('Error starting batch generation')
+    } finally {
+      setSubmittingBatch(false)
+    }
   }
 
   return (
     <div className="generate-form">
-      <h2>Generate Image</h2>
+      <h2>Generate Single Image</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="prompt">Prompt</label>
@@ -439,204 +325,112 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
       <div className="form-divider"></div>
 
-      <h2>Generate Set</h2>
-      <form onSubmit={handleBatchSubmit} className="batch-form">
-        <div className="form-group">
-          <label htmlFor="set-select">
-            Select Set
-            <span className="tooltip">?
-              <span className="tooltip-text">
-                Choose a predefined set (e.g., card deck, tarot deck) to generate multiple images.
-                <br/>Each item in the set will be styled with your art theme.
-              </span>
-            </span>
-          </label>
-          <select
-            id="set-select"
-            value={selectedSet}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSet(e.target.value)}
-            disabled={loading}
-            required
-          >
-            <option value="">-- Select a set --</option>
-            {availableSets.map((set) => (
-              <option key={set.id} value={set.id}>
-                {set.name}
-              </option>
-            ))}
-          </select>
-          {selectedSetInfo && (
-            <p className="set-info">
-              {selectedSetInfo.name} ({selectedSetInfo.item_count} items)
-            </p>
-          )}
-        </div>
-
-        {selectedSet && (
-          <div className="form-group lora-config-section">
-            <div className="lora-header">
-              <label>
-                LoRA Configuration
-                <span className="tooltip">?
-                  <span className="tooltip-text">
-                    Configure which LoRAs to apply to this set and their influence weights.
-                    <br/>• Weight 0.0 = No effect
-                    <br/>• Weight 0.5 = Moderate effect (recommended)
-                    <br/>• Weight 1.0 = Strong effect
-                    <br/>• Weight 1.5+ = Very strong (may distort)
-                  </span>
-                </span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowLoraConfig(!showLoraConfig)}
-                className="toggle-lora-btn"
+      {isAdmin ? (
+        <>
+          <h2>Generate Batch from Template</h2>
+          <form onSubmit={handleBatchSubmit} className="batch-generate-form">
+            <div className="form-group">
+              <label htmlFor="template">Select Template</label>
+              <select
+                id="template"
+                value={selectedTemplate}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedTemplate(e.target.value)}
+                disabled={loadingTemplates || submittingBatch}
+                required
               >
-                {showLoraConfig ? '▼ Hide' : '▶ Show'} LoRAs ({setLoras.length})
-              </button>
+                <option value="">-- Choose a template --</option>
+                {templates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} ({template.template_item_count || 0} items)
+                  </option>
+                ))}
+              </select>
+              {loadingTemplates && <span className="loading-text">Loading templates...</span>}
+              {templates.length === 0 && !loadingTemplates && (
+                <span className="info-text">No templates available. Create one in the Albums tab.</span>
+              )}
             </div>
 
-            {showLoraConfig && (
-              <>
-                {setLoras.length === 0 ? (
-                  <p className="no-loras-message">No LoRAs configured for this set. Add one below.</p>
-                ) : (
-                  <div className="lora-list">
-                    {setLoras.map((lora) => {
-                      const loraInfo = availableLoras.find(l => l.folder === lora.folder)
-                      return (
-                        <div key={lora.folder} className="lora-item">
-                          <div className="lora-info">
-                            <span className="lora-name">{loraInfo?.filename || lora.folder}</span>
-                          </div>
-                          <div className="lora-controls">
-                            <label htmlFor={`weight-${lora.folder}`} className="weight-label">
-                              Weight: {lora.weight.toFixed(2)}
-                            </label>
-                            <input
-                              type="range"
-                              id={`weight-${lora.folder}`}
-                              min="0"
-                              max="2"
-                              step="0.05"
-                              value={lora.weight}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLoraWeight(lora.folder, e.target.value)}
-                              onMouseUp={saveLoraWeights}
-                              onTouchEnd={saveLoraWeights}
-                              className="weight-slider"
-                              disabled={loading || !isAdmin}
-                              title={!isAdmin ? 'Admin access required to modify LoRA weights' : ''}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeLoraFromSet(lora.folder)}
-                              className="remove-lora-btn"
-                              disabled={loading || !isAdmin}
-                              title={!isAdmin ? 'Admin access required to remove LoRAs' : 'Remove LoRA'}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+            <div className="form-group">
+              <label htmlFor="batch-theme">Art Style Theme</label>
+              <input
+                id="batch-theme"
+                type="text"
+                value={batchTheme}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setBatchTheme(e.target.value)
+                  if (batchValidationErrors.theme) {
+                    const newErrors = { ...batchValidationErrors }
+                    delete newErrors.theme
+                    setBatchValidationErrors(newErrors)
+                  }
+                }}
+                placeholder="e.g., gothic style with ravens and purple tones"
+                disabled={submittingBatch}
+                required
+                className={batchValidationErrors.theme ? 'error' : ''}
+              />
+              {batchValidationErrors.theme && (
+                <span className="error-message">{batchValidationErrors.theme}</span>
+              )}
+              {selectedTemplate && (
+                <span className="info-text">
+                  Example: {templates.find(t => t.id === selectedTemplate)?.example_theme || 'Choose a template to see example'}
+                </span>
+              )}
+            </div>
 
-                <div className="add-lora-section">
-                  <label htmlFor="add-lora-select">Add LoRA:</label>
-                  <select
-                    id="add-lora-select"
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                      if (e.target.value) {
-                        addLoraToSet(e.target.value)
-                        e.target.value = ''  // Reset selection
-                      }
-                    }}
-                    disabled={loading || !isAdmin}
-                    className="add-lora-select"
-                    title={!isAdmin ? 'Admin access required to add LoRAs' : ''}
-                  >
-                    <option value="">{!isAdmin ? '-- Admin Access Required --' : '-- Select LoRA to Add --'}</option>
-                    {availableLoras
-                      .filter(lora => !setLoras.some(sl => sl.folder === lora.folder))
-                      .map(lora => (
-                        <option key={lora.folder} value={lora.folder}>
-                          {lora.filename || lora.folder}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+            <div className="controls-grid">
+              <div className="form-group">
+                <label htmlFor="batch-steps">Steps (Optional)</label>
+                <input
+                  type="number"
+                  id="batch-steps"
+                  value={batchSteps}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSteps(e.target.value)}
+                  placeholder="Leave empty for template default"
+                  min="1"
+                  max="150"
+                  disabled={submittingBatch}
+                />
+              </div>
 
-        <div className="form-group">
-          <label htmlFor="user-theme">
-            Art Style Theme
-            <span className="tooltip">?
-              <span className="tooltip-text">
-                Describe the artistic style and atmosphere for your card set.
-                <br/><br/>Examples:
-                <br/>• "watercolor pastels with soft dreamy lighting"
-                <br/>• "cyberpunk neon with dark urban background"
-                <br/>• "vintage botanical illustrations"
-                {selectedSetInfo?.style_suffix && (
-                  <>
-                    <br/><br/>Style suffix for {selectedSetInfo.name}:
-                    <br/>"{selectedSetInfo.style_suffix}"
-                  </>
-                )}
-              </span>
-            </span>
-          </label>
-          <div className="theme-input-group">
-            <textarea
-              id="user-theme"
-              value={userTheme}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                setUserTheme(e.target.value)
-                // Clear error on change
-                if (validationErrors.user_theme) {
-                  const newErrors = { ...validationErrors }
-                  delete newErrors.user_theme
-                  setValidationErrors(newErrors)
-                }
-              }}
-              placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
-              rows={3}
-              disabled={loading}
-              required
-              className={validationErrors.user_theme ? 'error' : ''}
-            />
-            <button
-              type="button"
-              onClick={() => void fetchRandomTheme()}
-              disabled={loading}
-              className="random-theme-btn"
-              title="Generate random theme"
-              aria-label="Generate random theme"
-            >
-              🎲 Random Theme
+              <div className="form-group">
+                <label htmlFor="batch-seed">Seed (Optional)</label>
+                <input
+                  type="number"
+                  id="batch-seed"
+                  value={batchSeed}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSeed(e.target.value)}
+                  placeholder="Random seed for reproducibility"
+                  min="0"
+                  max="2147483647"
+                  disabled={submittingBatch}
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}>
+              {submittingBatch ? 'Starting Batch...' : 'Generate Batch'}
             </button>
-          </div>
-          {validationErrors.user_theme && (
-            <span className="error-message">{validationErrors.user_theme}</span>
-          )}
+
+            {submittingBatch && (
+              <div className="loading-indicator">
+                <div className="spinner"></div>
+                <p>Queuing batch generation jobs...</p>
+              </div>
+            )}
+          </form>
+        </>
+      ) : (
+        <div className="info-box">
+          <h3>🎨 Batch Generation from Templates</h3>
+          <p>
+            Admin users can generate complete sets of themed images from templates.
+            Batch generation is available in the <strong>Albums</strong> tab.
+          </p>
         </div>
-
-        <button type="submit" disabled={loading || !selectedSet || !userTheme.trim()} className="batch-submit-btn">
-          {loading ? 'Generating Set...' : 'Generate Complete Set'}
-        </button>
-
-        {loading && (
-          <div className="loading-indicator">
-            <div className="spinner"></div>
-            <p>Queuing batch generation... This will create multiple jobs</p>
-          </div>
-        )}
-      </form>
+      )}
     </div>
   )
 }

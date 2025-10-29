@@ -40,20 +40,20 @@ const GalleryTab: React.FC<GalleryTabProps> = ({
       ) : (
         <>
           <section className="gallery-section">
-            <h2>📁 Batch Sets</h2>
-            <BatchList
-              batches={batches}
-              onSelectBatch={handleSelectBatch}
-              loading={loadingBatches}
-            />
-          </section>
-
-          <section className="gallery-section">
             <h2>🖼️ Recent Images</h2>
             <ImageGrid
               images={images}
               onRefresh={onRefreshImages}
               loading={loadingImages}
+            />
+          </section>
+
+          <section className="gallery-section">
+            <h2>📁 Albums</h2>
+            <BatchList
+              batches={batches}
+              onSelectBatch={handleSelectBatch}
+              loading={loadingBatches}
             />
           </section>
         </>

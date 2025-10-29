@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
 import { ToastProvider } from '../contexts/ToastContext'
 import type { Config } from '../types/models'
+import { api } from '../lib/api'
 
 describe('GenerateForm', () => {
   const mockOnGenerate = vi.fn()
-  const mockOnGenerateBatch = vi.fn()
   const mockConfig: Partial<Config> = {
     generation: {
       steps: 30,
@@ -20,18 +20,22 @@ describe('GenerateForm', () => {
       <ToastProvider>
         <GenerateForm
           onGenerate={mockOnGenerate}
-          onGenerateBatch={mockOnGenerateBatch}
           loading={false}
           config={(mockConfig as Config) ?? null}
-          isAdmin={true}
+          isAdmin={false}
           {...overrides}
         />
       </ToastProvider>,
     )
 
   beforeEach(() => {
+    vi.restoreAllMocks()
     mockOnGenerate.mockReset()
-    mockOnGenerateBatch.mockReset()
+    vi.spyOn(api.albums, 'getAll').mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('renders the form with all inputs', () => {
@@ -44,11 +48,9 @@ describe('GenerateForm', () => {
   it('shows loading state when generating', () => {
     renderForm({ loading: true })
 
-    const generatingButtons = screen.getAllByRole('button', { name: /generating/i })
-    expect(generatingButtons).toHaveLength(2)
-    generatingButtons.forEach((button) => {
-      expect(button).toBeDisabled()
-    })
+    const generatingButton = screen.getByRole('button', { name: /generating/i })
+    expect(generatingButton).toBeDisabled()
+    expect(screen.getByText(/generating your image/i)).toBeInTheDocument()
   })
 
   it('submits form with prompt', async () => {
@@ -180,4 +182,3 @@ describe('GenerateForm', () => {
     expect(guidanceDisplay).toBeInTheDocument()
   })
 })
-

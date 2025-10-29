@@ -3,14 +3,13 @@
 Setup script to create admin users for Imagineer
 """
 
-import json
 import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from server.auth import ROLE_ADMIN, load_users, save_users
+from server.auth import ROLE_ADMIN, load_users, save_users  # noqa: E402
 
 
 def setup_admin(email):

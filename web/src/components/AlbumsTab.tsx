@@ -2,11 +2,11 @@ import React, { useState } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
-import { api } from '../lib/api'
+import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import type { Label, LabelAnalytics } from '../types/models'
+import type { Album as SharedAlbum, Label, LabelAnalytics } from '../types/models'
 
 interface AlbumImage {
   id: number
@@ -18,12 +18,7 @@ interface AlbumImage {
   manual_label_count?: number
 }
 
-interface Album {
-  id: string
-  name: string
-  description?: string
-  image_count: number
-  album_type?: string
+type Album = SharedAlbum & {
   images?: AlbumImage[]
 }
 
@@ -60,7 +55,21 @@ interface RawAlbum {
   album_type?: string
   image_count?: number
   images?: RawAlbumImage[]
+  created_at?: string
+  updated_at?: string
+  is_set_template?: boolean
+  csv_data?: string
+  base_prompt?: string
+  prompt_template?: string
+  style_suffix?: string
+  example_theme?: string
+  lora_config?: string
+  template_item_count?: number
+  generation_prompt?: string
+  generation_config?: string
 }
+
+type AlbumFilter = 'all' | 'sets' | 'regular'
 
 const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
   const toast = useToast()
@@ -68,6 +77,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
+  const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
+  const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
 
   useAbortableEffect((signal) => {
     void fetchAlbums(signal)
@@ -153,6 +164,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         description: data.description,
         album_type: data.album_type,
         image_count: data.image_count ?? normalizedImages.length,
+        created_at: data.created_at ?? '',
+        updated_at: data.updated_at ?? '',
+        is_set_template: data.is_set_template,
+        csv_data: data.csv_data,
+        base_prompt: data.base_prompt,
+        prompt_template: data.prompt_template,
+        style_suffix: data.style_suffix,
+        example_theme: data.example_theme,
+        lora_config: data.lora_config,
+        template_item_count: data.template_item_count,
+        generation_prompt: data.generation_prompt,
+        generation_config: data.generation_config,
         images: normalizedImages,
       }
 
@@ -222,6 +245,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     }
   }
 
+  const handleBatchGenerate = (album: Album, event: React.MouseEvent): void => {
+    event.stopPropagation()
+    setShowBatchDialog(album)
+  }
+
+  const filteredAlbums = albums.filter((album) => {
+    if (albumFilter === 'all') return true
+    if (albumFilter === 'sets') return album.is_set_template === true
+    if (albumFilter === 'regular') return !album.is_set_template
+    return true
+  })
+
   if (selectedAlbum) {
     return (
       <AlbumDetailView
@@ -242,18 +277,40 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     <div className="albums-tab">
       <div className="albums-header">
         <h2>Albums</h2>
-        {isAdmin && (
-          <button
-            className="create-album-btn"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            Create Album
-          </button>
-        )}
+        <div className="albums-header-actions">
+          <div className="album-filter-buttons">
+            <button
+              className={`filter-btn ${albumFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setAlbumFilter('all')}
+            >
+              All Albums
+            </button>
+            <button
+              className={`filter-btn ${albumFilter === 'sets' ? 'active' : ''}`}
+              onClick={() => setAlbumFilter('sets')}
+            >
+              Set Templates
+            </button>
+            <button
+              className={`filter-btn ${albumFilter === 'regular' ? 'active' : ''}`}
+              onClick={() => setAlbumFilter('regular')}
+            >
+              Regular Albums
+            </button>
+          </div>
+          {isAdmin && (
+            <button
+              className="create-album-btn"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              Create Album
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="albums-grid">
-        {albums.map(album => (
+        {filteredAlbums.map(album => (
           <div
             key={album.id}
             className="album-card"
@@ -273,12 +330,30 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
             </div>
 
             <div className="album-info">
-              <h3>{album.name}</h3>
+              <div className="album-title-row">
+                <h3>{album.name}</h3>
+                {album.is_set_template && (
+                  <span className="set-template-badge">Set Template</span>
+                )}
+              </div>
               <p>{album.description || 'No description'}</p>
+              {album.is_set_template && album.template_item_count && (
+                <p className="template-info">{album.template_item_count} template items</p>
+              )}
               <div className="album-meta">
                 <span>{album.image_count || 0} images</span>
                 <span className="album-type">{album.album_type || 'manual'}</span>
-                {isAdmin && (
+              </div>
+              {isAdmin && (
+                <div className="album-actions">
+                  {album.is_set_template && (
+                    <button
+                      className="generate-batch-btn"
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)}
+                    >
+                      Generate Batch
+                    </button>
+                  )}
                   <button
                     className="delete-album-btn"
                     onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
@@ -288,12 +363,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
                   >
                     Delete
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {filteredAlbums.length === 0 && albums.length > 0 && (
+        <div className="empty-state">
+          <p>No {albumFilter === 'sets' ? 'set template' : albumFilter === 'regular' ? 'regular' : ''} albums found.</p>
+        </div>
+      )}
 
       {albums.length === 0 && (
         <div className="empty-state">
@@ -305,6 +386,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         <CreateAlbumDialog
           onClose={() => setShowCreateDialog(false)}
           onCreate={createAlbum}
+        />
+      )}
+
+      {showBatchDialog && (
+        <BatchGenerateDialog
+          album={showBatchDialog}
+          onClose={() => setShowBatchDialog(null)}
+          onSuccess={(result) => {
+            setShowBatchDialog(null)
+            const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
+            toast.success(`${result.message}${suffix}`)
+          }}
         />
       )}
     </div>
@@ -585,6 +678,125 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           <p>This album is empty.</p>
         </div>
       )}
+    </div>
+  )
+}
+
+interface BatchGenerateDialogProps {
+  album: Album
+  onClose: () => void
+  onSuccess: (result: GenerateBatchSuccess) => void
+}
+
+const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClose, onSuccess }) => {
+  const toast = useToast()
+  const [userTheme, setUserTheme] = useState<string>('')
+  const [steps, setSteps] = useState<string>('')
+  const [seed, setSeed] = useState<string>('')
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    if (!userTheme.trim()) {
+      toast.error('User theme is required')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const params: GenerateBatchParams = {
+        user_theme: userTheme.trim(),
+      }
+
+      if (steps) {
+        const stepsNum = parseInt(steps, 10)
+        if (!isNaN(stepsNum)) params.steps = stepsNum
+      }
+
+      if (seed) {
+        const seedNum = parseInt(seed, 10)
+        if (!isNaN(seedNum)) params.seed = seedNum
+      }
+
+      const result = await api.albums.generateBatch(album.id, params)
+
+      if (result.success) {
+        onSuccess(result)
+      } else {
+        toast.error(result.error)
+      }
+    } catch (error) {
+      logger.error('Failed to generate batch:', error)
+      toast.error('Error starting batch generation')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="dialog-overlay" onClick={onClose}>
+      <div className="dialog" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
+        <h2>Generate Batch: {album.name}</h2>
+        <p className="dialog-description">
+          Generate {album.template_item_count || 0} images using this set template
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="user-theme">Art Style Theme (required):</label>
+            <input
+              id="user-theme"
+              type="text"
+              value={userTheme}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUserTheme(e.target.value)}
+              placeholder={album.example_theme || "e.g., gothic style with ravens"}
+              required
+              disabled={isSubmitting}
+            />
+            {album.example_theme && (
+              <small className="form-hint">Example: {album.example_theme}</small>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="steps">Steps (optional):</label>
+            <input
+              id="steps"
+              type="number"
+              value={steps}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSteps(e.target.value)}
+              placeholder="Leave empty to use album defaults"
+              min="1"
+              max="150"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="seed">Seed (optional):</label>
+            <input
+              id="seed"
+              type="number"
+              value={seed}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSeed(e.target.value)}
+              placeholder="Random seed for reproducibility"
+              min="0"
+              max="2147483647"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="dialog-actions">
+            <button type="submit" disabled={isSubmitting || !userTheme.trim()}>
+              {isSubmitting ? 'Starting...' : 'Start Generation'}
+            </button>
+            <button type="button" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

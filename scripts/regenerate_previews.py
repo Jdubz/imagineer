@@ -16,13 +16,12 @@ Usage:
     python scripts/regenerate_previews.py --queue --lora devil_carnival-000001 --lora tarot
 """
 
-import json
 import sys
 from pathlib import Path
 
 # Import from generate_previews
 sys.path.insert(0, str(Path(__file__).parent))
-from generate_previews import main as generate_main
+from generate_previews import main as generate_main  # noqa: E402
 
 if __name__ == "__main__":
     # Override sys.argv to call generate_previews with proper args

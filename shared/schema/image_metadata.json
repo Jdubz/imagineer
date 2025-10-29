@@ -1,0 +1,56 @@
+{
+  "name": "ImageMetadata",
+  "description": "Generation metadata saved alongside generated images.",
+  "type": "object",
+  "properties": {
+    "prompt": {
+      "type": "string"
+    },
+    "negative_prompt": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "number"
+    },
+    "steps": {
+      "type": "number"
+    },
+    "guidance_scale": {
+      "type": "number"
+    },
+    "width": {
+      "type": "number"
+    },
+    "height": {
+      "type": "number"
+    },
+    "model": {
+      "type": "string"
+    },
+    "lora_path": {
+      "type": "string"
+    },
+    "lora_weight": {
+      "type": "number"
+    },
+    "loras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "path",
+          "weight"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

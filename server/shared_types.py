@@ -19,3 +19,24 @@ class AuthStatusTypedDict(TypedDict, total=False):
     is_admin: NotRequired[bool | None]
     error: NotRequired[str | None]
     message: NotRequired[str | None]
+
+
+class ImageMetadataLorasItem(TypedDict, total=False):
+    path: Required[str]
+    weight: Required[float]
+
+
+class ImageMetadataTypedDict(TypedDict, total=False):
+    """Generation metadata saved alongside generated images."""
+
+    prompt: NotRequired[str]
+    negative_prompt: NotRequired[str]
+    seed: NotRequired[float]
+    steps: NotRequired[float]
+    guidance_scale: NotRequired[float]
+    width: NotRequired[float]
+    height: NotRequired[float]
+    model: NotRequired[str]
+    lora_path: NotRequired[str]
+    lora_weight: NotRequired[float]
+    loras: NotRequired[list[ImageMetadataLorasItem]]
