@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import FocusLock from 'react-focus-lock'
 import { logger } from '../lib/logger'
 import type { ImageMetadata } from '../types/models'
 
@@ -123,8 +124,9 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
+          <FocusLock returnFocus>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.relative_path}`}
@@ -182,7 +184,8 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
                 <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
               </div>
             </div>
-          </div>
+            </div>
+          </FocusLock>
         </div>
       )}
     </div>

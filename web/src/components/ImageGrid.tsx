@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import FocusLock from 'react-focus-lock'
 import type { GeneratedImage } from '../types/models'
 
 interface ImageGridProps {
@@ -75,8 +76,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
+          <FocusLock returnFocus>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.filename}`}
@@ -136,7 +138,8 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          </FocusLock>
         </div>
       )}
     </div>

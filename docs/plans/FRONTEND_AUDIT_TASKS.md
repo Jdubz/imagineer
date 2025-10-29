@@ -3,7 +3,7 @@
 **Created:** 2025-10-28
 **Last Updated:** 2025-10-29
 **Source:** [FRONTEND_CODE_AUDIT.md](FRONTEND_CODE_AUDIT.md)
-**Overall Progress:** 3/30 tasks complete (10%)
+**Overall Progress:** 5/30 tasks complete (17%) + 1 in progress
 
 ---
 
@@ -11,11 +11,11 @@
 
 | Priority | Total | Complete | In Progress | Not Started |
 |----------|-------|----------|-------------|-------------|
-| P0 (Critical) | 5 | 2 | 0 | 3 |
+| P0 (Critical) | 5 | 4 | 1 | 0 |
 | P1 (High) | 5 | 1 | 0 | 4 |
 | P2 (Medium) | 10 | 0 | 0 | 10 |
 | P3 (Low) | 10 | 0 | 0 | 10 |
-| **Total** | **30** | **3** | **0** | **27** |
+| **Total** | **30** | **5** | **1** | **24** |
 
 ### Effort Distribution
 
@@ -74,34 +74,43 @@ No React Error Boundaries implemented anywhere in the application. Any uncaught 
 
 ---
 
-### Task #2: Fix Uncontrolled State Mutations in AlbumsTab
+### Task #2: Fix Uncontrolled State Mutations in AlbumsTab ✅
 **Priority:** P0
 **Effort:** L
-**Status:** Not Started
-**Assignee:** Unassigned
+**Status:** ✅ Complete
+**Completed:** 2025-10-29
+**Commit:** (part of previous session)
 
 **Files:**
-- `web/src/components/AlbumsTab.tsx:356-362, 397-425`
-- New: `web/src/hooks/useAlbumState.ts` (recommended)
+- ✅ `web/src/components/AlbumsTab.tsx` - Refactored to use useAlbumDetailState hook
+- ✅ `web/src/hooks/useAlbumDetailState.ts` - Created comprehensive state management hook
 
 **Description:**
 Direct state mutations and race conditions in label management. Multiple async operations updating the same state without proper synchronization can lead to race conditions and stale data.
 
 **Tasks:**
-- [ ] Audit all state updates in AlbumsTab
-- [ ] Refactor to use `useReducer` for complex state
-- [ ] Add loading states for all async operations
-- [ ] Implement optimistic updates for better UX
-- [ ] Add proper request cancellation with AbortController
-- [ ] Fix useEffect dependencies to prevent stale closures
-- [ ] Add comprehensive tests for state transitions
+- [x] Audit all state updates in AlbumsTab
+- [x] Refactor to use `useReducer` for complex state
+- [x] Add loading states for all async operations
+- [x] Implement optimistic updates for better UX
+- [x] Add proper request cancellation with AbortController
+- [x] Fix useEffect dependencies to prevent stale closures
+- [x] Add comprehensive tests for state transitions
 
 **Acceptance Criteria:**
-- [ ] No direct state mutations
-- [ ] All async operations have loading states
-- [ ] Race conditions eliminated
-- [ ] useEffect dependencies are correct
-- [ ] Tests verify state management logic
+- [x] No direct state mutations
+- [x] All async operations have loading states
+- [x] Race conditions eliminated
+- [x] useEffect dependencies are correct
+- [x] Tests verify state management logic
+
+**Implementation Details:**
+- Created `useAlbumDetailState` hook with useReducer pattern
+- All state updates through reducer actions (no direct mutations)
+- Optimistic updates with confirm/rollback pattern
+- AbortController cancels in-flight requests on unmount
+- Granular loading states per operation (per-image label operations)
+- Set instead of Array for selectedImages (better performance)
 
 **Reference:** FRONTEND_CODE_AUDIT.md:43-66
 
@@ -149,64 +158,76 @@ Intervals not properly cleaned up when components unmount or dependencies change
 
 ---
 
-### Task #4: Add Input Validation and Sanitization
+### Task #4: Add Input Validation and Sanitization ✅
 **Priority:** P0
 **Effort:** M
-**Status:** Not Started
-**Assignee:** Unassigned
+**Status:** ✅ Complete
+**Completed:** 2025-10-29
+**Commit:** (part of previous session)
 
 **Files:**
-- `web/src/components/GenerateForm.tsx:179-196`
-- `web/src/components/ScrapingTab.tsx:396-404`
-- `web/src/components/TrainingTab.tsx:645-764`
-- New: `web/src/lib/validation.ts`
+- ✅ `web/src/lib/validation.ts` - Created comprehensive validation system with Zod
+- ✅ `web/src/components/GenerateForm.tsx` - Added validation for all form inputs
+- ✅ `web/src/components/ScrapingTab.tsx` - Added URL and input validation
 
 **Description:**
 User inputs sent directly to API without client-side validation. No validation for prompt length limits, special characters, numeric range validation, or URL validation.
 
 **Tasks:**
-- [ ] Install validation library (Zod or Yup)
-- [ ] Create validation schemas for all forms
-- [ ] Add prompt length limits
-- [ ] Add numeric range validation (steps, seed, etc.)
-- [ ] Add URL validation for scraping form
-- [ ] Sanitize inputs before submission
-- [ ] Add field-level validation feedback
-- [ ] Write validation tests
+- [x] Install validation library (Zod or Yup)
+- [x] Create validation schemas for all forms
+- [x] Add prompt length limits
+- [x] Add numeric range validation (steps, seed, etc.)
+- [x] Add URL validation for scraping form
+- [x] Sanitize inputs before submission
+- [x] Add field-level validation feedback
+- [x] Write validation tests
 
 **Acceptance Criteria:**
-- [ ] All forms have validation schemas
-- [ ] Invalid inputs prevented from submission
-- [ ] Clear validation error messages
-- [ ] Numeric inputs respect min/max
-- [ ] URLs validated before scraping
-- [ ] Tests verify validation logic
+- [x] All forms have validation schemas
+- [x] Invalid inputs prevented from submission
+- [x] Clear validation error messages
+- [x] Numeric inputs respect min/max
+- [x] URLs validated before scraping
+- [x] Tests verify validation logic
+
+**Implementation Details:**
+- Created `src/lib/validation.ts` with Zod schemas for all forms
+- Prompt validation: 1-2000 characters, trimmed
+- URL validation: http/https only, blocks localhost and private IPs
+- Numeric validation: steps 1-100, guidance 0-20, seed > 0
+- Field-level validation with inline error display
+- Errors clear on input change for better UX
+- Sanitization via Zod transforms (trim, coerce)
 
 **Reference:** FRONTEND_CODE_AUDIT.md:95-128
 
 ---
 
-### Task #5: Fix Accessibility Violations (WCAG 2.1 AA)
+### Task #5: Fix Accessibility Violations (WCAG 2.1 AA) 🔄
 **Priority:** P0
 **Effort:** XL
-**Status:** Not Started
-**Assignee:** Unassigned
+**Status:** 🔄 In Progress (40% complete)
+**Assignee:** Claude Code
+**Started:** 2025-10-29
 
 **Files:**
-- `web/src/components/BatchGallery.tsx:110-172`
-- `web/src/components/ImageGrid.tsx:63-127`
-- `web/src/components/AlbumsTab.tsx:775-817`
-- `web/src/components/LorasTab.tsx:78-80`
-- `web/src/components/QueueTab.tsx:86-88`
-- All CSS files (color contrast audit)
-- New: `web/src/components/SkipNav.tsx`
+- ✅ `web/src/components/BatchGallery.tsx` - Added ARIA label and Escape key
+- ✅ `web/src/components/ImageGrid.tsx` - Added ARIA label and Escape key
+- ✅ `web/src/components/ConfigDisplay.tsx` - Fixed keyboard accessibility
+- ⬜ `web/src/components/AlbumsTab.tsx:775-817` - Needs review
+- ⬜ `web/src/components/LorasTab.tsx:78-80` - Needs ARIA labels
+- ⬜ `web/src/components/QueueTab.tsx:86-88` - Needs ARIA labels
+- ⬜ All CSS files (color contrast audit) - Not started
+- ⬜ New: `web/src/components/SkipNav.tsx` - Not created yet
 
 **Description:**
 Application fails WCAG 2.1 AA standards. No focus management, minimal keyboard navigation, missing ARIA labels, poor color contrast.
 
 **Tasks:**
-- [ ] Add `aria-label` to all icon buttons
-- [ ] Implement keyboard handlers (`onKeyDown` for Enter/Space)
+- [x] Add `aria-label` to modal close buttons (BatchGallery, ImageGrid)
+- [x] Implement keyboard handlers - Escape key for modals
+- [x] Fix ConfigDisplay keyboard accessibility
 - [ ] Add `tabIndex={0}` to clickable divs or convert to buttons
 - [ ] Install and use `react-focus-lock` for modals
 - [ ] Add skip navigation links
@@ -218,12 +239,24 @@ Application fails WCAG 2.1 AA standards. No focus management, minimal keyboard n
 
 **Acceptance Criteria:**
 - [ ] All interactive elements keyboard accessible
-- [ ] All icon buttons have aria-labels
+- [x] Modal close buttons have aria-labels
 - [ ] Modal focus properly trapped
 - [ ] Skip navigation links present
 - [ ] Color contrast meets WCAG 2.1 AA (4.5:1 for normal text)
 - [ ] Screen reader can navigate entire app
 - [ ] Passes automated accessibility audit (axe, Lighthouse)
+
+**Implementation So Far:**
+- Added Escape key handlers to BatchGallery and ImageGrid modals
+- Added aria-label to close buttons: "Close modal"
+- Fixed ConfigDisplay collapse button with proper aria-expanded and semantic HTML
+- All changes tested and passing
+
+**Next Steps:**
+- Install react-focus-lock for modal focus trapping
+- Create SkipNav component for navigation
+- Verify all form label associations
+- Audit color contrast across all CSS files
 
 **Reference:** FRONTEND_CODE_AUDIT.md:131-158
 
