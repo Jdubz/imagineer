@@ -56,7 +56,7 @@ describe('AuthContext', () => {
     })
 
     it('calls checkAuth on mount', async () => {
-      const mockFetch = vi.fn()mockResolvedValue({
+      const mockFetch = vi.fn().mockResolvedValue({
         status: 204,
       })
       vi.stubGlobal('fetch', mockFetch)
