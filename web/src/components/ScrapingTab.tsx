@@ -3,6 +3,7 @@ import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
 import '../styles/ScrapingTab.css'
 import type { ScrapingJob } from '../types/models'
+import { validateForm, scrapeFormSchema } from '../lib/validation'
 
 // Helper function to clamp progress values between 0 and 100
 const clampProgress = (value: number | null | undefined): number | undefined => {
@@ -441,15 +442,41 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
   const [description, setDescription] = useState<string>('')
   const [depth, setDepth] = useState<number>(3)
   const [maxImages, setMaxImages] = useState<number>(1000)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (!url) return
+    setValidationErrors({}) // Clear previous errors
 
     const jobName = name || `Scrape ${url}`
     const jobDescription = description || `Web scraping job for ${url}`
 
-    onSubmit(url, jobName, jobDescription, depth, maxImages)
+    // Prepare data for validation
+    const formData = {
+      url: url.trim(),
+      name: jobName,
+      description: jobDescription,
+      depth,
+      maxImages,
+    }
+
+    // Validate form data
+    const validation = validateForm(scrapeFormSchema, formData)
+
+    if (!validation.success) {
+      setValidationErrors(validation.errors)
+      logger.warn('Scrape form validation failed:', validation.errors)
+      return
+    }
+
+    // Validation passed, submit the form
+    onSubmit(
+      validation.data.url,
+      validation.data.name || jobName,
+      validation.data.description || jobDescription,
+      validation.data.depth,
+      validation.data.maxImages
+    )
   }
 
   return (
@@ -464,11 +491,23 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
               id="url"
               type="url"
               value={url}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setUrl(e.target.value)
+                // Clear error on change
+                if (validationErrors.url) {
+                  const newErrors = { ...validationErrors }
+                  delete newErrors.url
+                  setValidationErrors(newErrors)
+                }
+              }}
               placeholder="https://example.com/gallery"
               required
               disabled={loading}
+              className={validationErrors.url ? 'error' : ''}
             />
+            {validationErrors.url && (
+              <span className="error-message">{validationErrors.url}</span>
+            )}
           </div>
 
           <div className="form-group">
@@ -502,12 +541,24 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
                 id="depth"
                 type="number"
                 value={depth}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDepth(parseInt(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setDepth(parseInt(e.target.value))
+                  // Clear error on change
+                  if (validationErrors.depth) {
+                    const newErrors = { ...validationErrors }
+                    delete newErrors.depth
+                    setValidationErrors(newErrors)
+                  }
+                }}
                 min="1"
                 max="10"
                 disabled={loading}
+                className={validationErrors.depth ? 'error' : ''}
               />
-              <small>How many links deep to follow (1-10)</small>
+              <small>How many links deep to follow (1-5)</small>
+              {validationErrors.depth && (
+                <span className="error-message">{validationErrors.depth}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -516,12 +567,24 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
                 id="maxImages"
                 type="number"
                 value={maxImages}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxImages(parseInt(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setMaxImages(parseInt(e.target.value))
+                  // Clear error on change
+                  if (validationErrors.maxImages) {
+                    const newErrors = { ...validationErrors }
+                    delete newErrors.maxImages
+                    setValidationErrors(newErrors)
+                  }
+                }}
                 min="1"
                 max="10000"
                 disabled={loading}
+                className={validationErrors.maxImages ? 'error' : ''}
               />
               <small>Maximum images to download (1-10000)</small>
+              {validationErrors.maxImages && (
+                <span className="error-message">{validationErrors.maxImages}</span>
+              )}
             </div>
           </div>
 

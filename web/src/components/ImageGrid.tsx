@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { GeneratedImage } from '../types/models'
 
 interface ImageGridProps {
@@ -16,6 +16,20 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
   const closeModal = (): void => {
     setSelectedImage(null)
   }
+
+  // Add Escape key handler for modal
+  useEffect(() => {
+    if (!selectedImage) return
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedImage])
 
   return (
     <div className="image-grid-container">
@@ -62,7 +76,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh }) => {
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>×</button>
+            <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.filename}`}

@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { logger } from '../lib/logger'
 import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
+import {
+  validateForm,
+  generateFormSchema,
+  batchGenerateFormSchema,
+} from '../lib/validation'
 
 interface SetLoraConfig {
   folder: string
@@ -48,6 +53,9 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
   const [setLoras, setSetLoras] = useState<SetLoraConfig[]>([])
   const [availableLoras, setAvailableLoras] = useState<LoraModel[]>([])
   const [showLoraConfig, setShowLoraConfig] = useState<boolean>(false)
+
+  // Validation error state
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   // Load available sets and LoRAs on mount
   useEffect(() => {
@@ -179,21 +187,40 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (prompt.trim()) {
-      const params: GenerateParams = {
-        prompt: prompt.trim(),
-        steps,
-        guidance_scale: guidanceScale
-      }
+    setValidationErrors({}) // Clear previous errors
 
-      // Only include seed if user provided one
-      if (!useRandomSeed && seed) {
-        params.seed = parseInt(seed)
-      }
-
-      onGenerate(params)
-      setPrompt('')
+    // Prepare data for validation
+    const formData = {
+      prompt: prompt.trim(),
+      steps,
+      guidance_scale: guidanceScale,
+      seed: !useRandomSeed && seed ? parseInt(seed) : undefined,
     }
+
+    // Validate form data
+    const validation = validateForm(generateFormSchema, formData)
+
+    if (!validation.success) {
+      setValidationErrors(validation.errors)
+      logger.warn('Form validation failed:', validation.errors)
+      return
+    }
+
+    // Validation passed, submit the form
+    const params: GenerateParams = {
+      prompt: validation.data.prompt,
+      steps: validation.data.steps,
+      guidance_scale: validation.data.guidance_scale,
+    }
+
+    // Only include seed if user provided one
+    if (validation.data.seed !== undefined) {
+      params.seed = validation.data.seed
+    }
+
+    onGenerate(params)
+    setPrompt('')
+    setValidationErrors({}) // Clear errors on successful submission
   }
 
   const generateRandomSeed = (): void => {
@@ -204,17 +231,36 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const handleBatchSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (selectedSet && userTheme.trim()) {
-      const params: BatchGenerateParams = {
-        set_name: selectedSet,
-        user_theme: userTheme.trim(),
-        steps,
-        guidance_scale: guidanceScale
-      }
+    setValidationErrors({}) // Clear previous errors
 
-      onGenerateBatch(params)
-      setUserTheme('')
+    // Prepare data for validation
+    const formData = {
+      set_name: selectedSet,
+      user_theme: userTheme.trim(),
+      steps,
+      guidance_scale: guidanceScale,
     }
+
+    // Validate form data
+    const validation = validateForm(batchGenerateFormSchema, formData)
+
+    if (!validation.success) {
+      setValidationErrors(validation.errors)
+      logger.warn('Batch form validation failed:', validation.errors)
+      return
+    }
+
+    // Validation passed, submit the form
+    const params: BatchGenerateParams = {
+      set_name: validation.data.set_name,
+      user_theme: validation.data.user_theme,
+      steps: validation.data.steps,
+      guidance_scale: validation.data.guidance_scale,
+    }
+
+    onGenerateBatch(params)
+    setUserTheme('')
+    setValidationErrors({}) // Clear errors on successful submission
   }
 
   return (
@@ -226,12 +272,24 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
           <textarea
             id="prompt"
             value={prompt}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPrompt(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+              setPrompt(e.target.value)
+              // Clear error on change
+              if (validationErrors.prompt) {
+                const newErrors = { ...validationErrors }
+                delete newErrors.prompt
+                setValidationErrors(newErrors)
+              }
+            }}
             placeholder="Describe the image you want to generate..."
             rows={4}
             disabled={loading}
             required
+            className={validationErrors.prompt ? 'error' : ''}
           />
+          {validationErrors.prompt && (
+            <span className="error-message">{validationErrors.prompt}</span>
+          )}
         </div>
 
         <div className="controls-grid">
@@ -352,6 +410,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
               disabled={loading}
               className="generate-seed-btn"
               title="Generate random seed"
+              aria-label="Generate random seed"
             >
               🎲
             </button>
@@ -526,11 +585,20 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
             <textarea
               id="user-theme"
               value={userTheme}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserTheme(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                setUserTheme(e.target.value)
+                // Clear error on change
+                if (validationErrors.user_theme) {
+                  const newErrors = { ...validationErrors }
+                  delete newErrors.user_theme
+                  setValidationErrors(newErrors)
+                }
+              }}
               placeholder="e.g., watercolor mystical forest, ethereal glowing light..."
               rows={3}
               disabled={loading}
               required
+              className={validationErrors.user_theme ? 'error' : ''}
             />
             <button
               type="button"
@@ -538,10 +606,14 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
               disabled={loading}
               className="random-theme-btn"
               title="Generate random theme"
+              aria-label="Generate random theme"
             >
               🎲 Random Theme
             </button>
           </div>
+          {validationErrors.user_theme && (
+            <span className="error-message">{validationErrors.user_theme}</span>
+          )}
         </div>
 
         <button type="submit" disabled={loading || !selectedSet || !userTheme.trim()} className="batch-submit-btn">

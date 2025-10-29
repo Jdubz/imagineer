@@ -444,7 +444,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       {error && (
         <div className="error-message">
           {error}
-          <button onClick={() => setError(null)}>×</button>
+          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
         </div>
       )}
 

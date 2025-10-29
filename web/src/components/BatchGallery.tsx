@@ -50,6 +50,20 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
     setSelectedImage(null)
   }
 
+  // Add Escape key handler for modal
+  useEffect(() => {
+    if (!selectedImage) return
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedImage])
+
   if (loading) {
     return (
       <div className="batch-gallery">
@@ -110,7 +124,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>×</button>
+            <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
             <img
               src={`/api/outputs/${selectedImage.relative_path}`}
