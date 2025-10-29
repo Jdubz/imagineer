@@ -59,6 +59,7 @@ jobs:
         run: pytest -v
         env:
           IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
+          IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
 
   deploy-tooling:
     runs-on: ubuntu-latest
