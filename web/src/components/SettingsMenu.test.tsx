@@ -15,12 +15,12 @@ vi.mock('../contexts/BugReportContext', () => ({
 
 describe('SettingsMenu', () => {
   const mockUser = {
-    email: 'admin@example.com',
+    email: 'admin@example.com', authenticated: true,
     role: 'admin',
   }
 
   const mockViewerUser = {
-    email: 'viewer@example.com',
+    email: 'viewer@example.com', authenticated: true,
     role: 'viewer',
   }
 

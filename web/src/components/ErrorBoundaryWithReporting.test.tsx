@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ErrorBoundaryWithReporting from './ErrorBoundaryWithReporting'
-import * as AuthContext from '../contexts/AuthContext'
 
 // Mock child component that can throw errors
 const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
