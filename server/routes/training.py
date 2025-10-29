@@ -93,11 +93,6 @@ def create_training_run():  # noqa: C901
     if len(albums) != len(album_ids):
         return jsonify({"error": "One or more albums not found"}), 400
 
-    # Load config
-    from server.api import load_config
-
-    load_config()
-
     # Merge config overrides and persist album selections
     config_overrides = data.get("config", {}) or {}
     training_config = {**config_overrides, "album_ids": album_ids}
@@ -121,9 +116,7 @@ def create_training_run():  # noqa: C901
     output_root = get_model_cache_dir() / "lora"
 
     dataset_path = dataset_root / f"training_run_{run.id}"
-    fallback_dataset = Path(f"/tmp/imagineer/training/run_{run.id}")
     output_path = output_root / f"trained_{run.id}"
-    fallback_output = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
 
     try:
         dataset_path.mkdir(parents=True, exist_ok=True)
@@ -132,6 +125,7 @@ def create_training_run():  # noqa: C901
             raise RuntimeError(
                 f"Unable to create dataset directory at {dataset_path}: {exc}"
             ) from exc
+        fallback_dataset = Path(f"/tmp/imagineer/training/run_{run.id}")
         logger.warning(
             "Unable to create dataset directory %s (%s); falling back to %s for development",
             dataset_path,
@@ -148,6 +142,7 @@ def create_training_run():  # noqa: C901
             raise RuntimeError(
                 f"Unable to create output directory at {output_path}: {exc}"
             ) from exc
+        fallback_output = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
         logger.warning(
             "Unable to create output directory %s (%s); falling back to %s for development",
             output_path,
