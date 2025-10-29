@@ -2,17 +2,17 @@ import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
-import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
-import ErrorBoundary from './components/ErrorBoundary'
+import ErrorBoundaryWithReporting from './components/ErrorBoundaryWithReporting'
 import ToastContainer from './components/Toast'
 import Spinner from './components/Spinner'
 import { ToastProvider } from './contexts/ToastContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { useToast } from './hooks/useToast'
+import { useKeyboardShortcut } from './hooks/useKeyboardShortcut'
 import { logger } from './lib/logger'
 import { api } from './lib/api'
 import { JobSchema } from './lib/schemas'
-import type { AuthStatus } from './types/shared'
 import type {
   Config,
   GeneratedImage,
@@ -22,7 +22,7 @@ import type {
   Tab,
 } from './types/models'
 import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
-import BugReportButton from './components/BugReportButton'
+import SettingsMenu from './components/SettingsMenu'
 
 // Lazy load tab components for code splitting
 const GenerateTab = lazy(() => import('./components/GenerateTab'))
@@ -38,6 +38,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const AppContent: React.FC = () => {
   const toast = useToast()
   const location = useLocation()
+  const { user, logout } = useAuth()
+  const { openBugReport, registerCollector } = useBugReporter()
   const [config, setConfig] = useState<Config | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -46,8 +48,7 @@ const AppContent: React.FC = () => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null)
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [batches, setBatches] = useState<BatchSummary[]>([])
-  const [user, setUser] = useState<AuthStatus | null>(null)
-  const { registerCollector } = useBugReporter()
+  const [nsfwEnabled, setNsfwEnabled] = useState<boolean>(false)
 
   // Tab configuration
   const tabs: Tab[] = [
@@ -63,24 +64,14 @@ const AppContent: React.FC = () => {
   // Get active tab from URL
   const activeTab = location.pathname.slice(1) || 'generate'
 
-  const checkAuth = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const data = await api.auth.checkAuth(signal)
-
-      if (data.authenticated) {
-        setUser(data)
-      } else {
-        setUser(null)
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Request was cancelled - this is expected behavior
-        return
-      }
-      logger.error('Failed to check auth', error as Error)
-      setUser(null)
-    }
-  }, [])
+  // Register Ctrl+Shift+B keyboard shortcut for bug reporting (admin only)
+  useKeyboardShortcut({
+    key: 'b',
+    ctrlKey: true,
+    shiftKey: true,
+    enabled: user?.role === 'admin',
+    callback: openBugReport,
+  })
 
   const fetchConfig = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -139,10 +130,9 @@ const AppContent: React.FC = () => {
     void fetchConfig(signal)
     void fetchImages(signal)
     void fetchBatches(signal)
-    void checkAuth(signal)
 
     return () => abortController.abort()
-  }, [fetchConfig, fetchImages, fetchBatches, checkAuth])
+  }, [fetchConfig, fetchImages, fetchBatches])
 
   useEffect(() => {
     const unregister = registerCollector('application_state', () => {
@@ -305,8 +295,27 @@ const AppContent: React.FC = () => {
             <p>AI Image Generation Toolkit</p>
           </div>
           <div className="header-actions">
-            <BugReportButton />
-            <AuthButton onAuthChange={setUser} />
+            {user ? (
+              <SettingsMenu
+                user={user}
+                onLogout={logout}
+                onNsfwToggle={setNsfwEnabled}
+                nsfwEnabled={nsfwEnabled}
+              />
+            ) : (
+              <button
+                type="button"
+                className="auth-button auth-button--primary"
+                onClick={() => {
+                  const sanitizedState = window.location.pathname + window.location.search + window.location.hash || '/'
+                  const loginUrl = new URL('/api/auth/login', window.location.origin)
+                  loginUrl.searchParams.set('state', sanitizedState)
+                  window.location.href = loginUrl.toString()
+                }}
+              >
+                Login
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -323,7 +332,7 @@ const AppContent: React.FC = () => {
               <Route
                 path="/generate"
                 element={
-                  <ErrorBoundary boundaryName="Generate Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Generate Tab">
                     <GenerateTab
                       config={config}
                       loading={loading}
@@ -332,13 +341,13 @@ const AppContent: React.FC = () => {
                       onGenerate={handleGenerate}
                       isAdmin={user?.role === 'admin'}
                     />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/gallery"
                 element={
-                  <ErrorBoundary boundaryName="Gallery Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Gallery Tab">
                     <GalleryTab
                       batches={batches}
                       images={images}
@@ -347,47 +356,47 @@ const AppContent: React.FC = () => {
                       loadingImages={loadingImages}
                       loadingBatches={loadingBatches}
                     />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/albums"
                 element={
-                  <ErrorBoundary boundaryName="Albums Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Albums Tab">
                     <AlbumsTab isAdmin={user?.role === 'admin'} />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/scraping"
                 element={
-                  <ErrorBoundary boundaryName="Scraping Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Scraping Tab">
                     <ScrapingTab isAdmin={user?.role === 'admin'} />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/training"
                 element={
-                  <ErrorBoundary boundaryName="Training Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Training Tab">
                     <TrainingTab isAdmin={user?.role === 'admin'} />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/queue"
                 element={
-                  <ErrorBoundary boundaryName="Queue Tab">
+                  <ErrorBoundaryWithReporting boundaryName="Queue Tab">
                     <QueueTab />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
               <Route
                 path="/loras"
                 element={
-                  <ErrorBoundary boundaryName="LoRAs Tab">
+                  <ErrorBoundaryWithReporting boundaryName="LoRAs Tab">
                     <LorasTab />
-                  </ErrorBoundary>
+                  </ErrorBoundaryWithReporting>
                 }
               />
             </Routes>
@@ -402,9 +411,11 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <BugReportProvider>
-          <AppContent />
-        </BugReportProvider>
+        <AuthProvider>
+          <BugReportProvider>
+            <AppContent />
+          </BugReportProvider>
+        </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
   )

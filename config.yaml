@@ -64,3 +64,6 @@ hardware:
   enable_attention_slicing: true
   enable_vae_slicing: false
   enable_xformers: false
+bug_reports:
+  storage_path: /mnt/storage/imagineer/bug_reports
+  retention_days: 30
