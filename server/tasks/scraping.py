@@ -91,8 +91,20 @@ def get_scraped_output_path() -> Path:
                 exc,
                 fallback_path,
             )
-            fallback_path.mkdir(parents=True, exist_ok=True)
-            SCRAPED_OUTPUT_PATH = fallback_path
+            if candidate_path != fallback_path:
+                try:
+                    fallback_path.mkdir(parents=True, exist_ok=True)
+                    SCRAPED_OUTPUT_PATH = fallback_path
+                except OSError as fallback_exc:
+                    logger.error(
+                        "Unable to initialize fallback scraped output directory %s: %s.",
+                        fallback_path,
+                        fallback_exc,
+                    )
+                    raise
+            else:
+                # No point in retrying, re-raise the original exception
+                raise
 
     return SCRAPED_OUTPUT_PATH
 
