@@ -34,6 +34,8 @@ const AppContent: React.FC = () => {
   const [config, setConfig] = useState<Config | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [loading, setLoading] = useState<boolean>(false)
+  const [loadingImages, setLoadingImages] = useState<boolean>(false)
+  const [loadingBatches, setLoadingBatches] = useState<boolean>(false)
   const [currentJob, setCurrentJob] = useState<Job | null>(null)
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [batches, setBatches] = useState<BatchSummary[]>([])
@@ -103,6 +105,7 @@ const AppContent: React.FC = () => {
   }
 
   const fetchImages = async (signal?: AbortSignal): Promise<void> => {
+    setLoadingImages(true)
     try {
       const images = await api.images.getAll(signal)
       setImages(images)
@@ -111,10 +114,13 @@ const AppContent: React.FC = () => {
         return
       }
       logger.error('Failed to fetch images', error as Error)
+    } finally {
+      setLoadingImages(false)
     }
   }
 
   const fetchBatches = async (signal?: AbortSignal): Promise<void> => {
+    setLoadingBatches(true)
     try {
       const batches = await api.batches.getAll(signal)
       setBatches(batches)
@@ -123,6 +129,8 @@ const AppContent: React.FC = () => {
         return
       }
       logger.error('Failed to fetch batches', error as Error)
+    } finally {
+      setLoadingBatches(false)
     }
   }
 
@@ -279,6 +287,8 @@ const AppContent: React.FC = () => {
                 images={images}
                 onRefreshImages={fetchImages}
                 onRefreshBatches={fetchBatches}
+                loadingImages={loadingImages}
+                loadingBatches={loadingBatches}
               />
             </ErrorBoundary>
           )}

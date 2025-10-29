@@ -10,6 +10,8 @@ interface GalleryTabProps {
   images: GeneratedImage[]
   onRefreshImages: () => Promise<void>
   onRefreshBatches: () => Promise<void>
+  loadingImages?: boolean
+  loadingBatches?: boolean
 }
 
 const GalleryTab: React.FC<GalleryTabProps> = ({
@@ -17,6 +19,8 @@ const GalleryTab: React.FC<GalleryTabProps> = ({
   images,
   onRefreshImages,
   onRefreshBatches,
+  loadingImages = false,
+  loadingBatches = false,
 }) => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
 
@@ -37,12 +41,20 @@ const GalleryTab: React.FC<GalleryTabProps> = ({
         <>
           <section className="gallery-section">
             <h2>📁 Batch Sets</h2>
-            <BatchList batches={batches} onSelectBatch={handleSelectBatch} />
+            <BatchList
+              batches={batches}
+              onSelectBatch={handleSelectBatch}
+              loading={loadingBatches}
+            />
           </section>
 
           <section className="gallery-section">
             <h2>🖼️ Recent Images</h2>
-            <ImageGrid images={images} onRefresh={onRefreshImages} />
+            <ImageGrid
+              images={images}
+              onRefresh={onRefreshImages}
+              loading={loadingImages}
+            />
           </section>
         </>
       )}

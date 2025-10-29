@@ -1,12 +1,27 @@
 import React from 'react'
+import { SkeletonBatchItem } from './Skeleton'
 import type { BatchSummary } from '../types/models'
 
 interface BatchListProps {
   batches: BatchSummary[]
   onSelectBatch: (batchId: string) => void
+  loading?: boolean
 }
 
-const BatchList: React.FC<BatchListProps> = ({ batches, onSelectBatch }) => {
+const BatchList: React.FC<BatchListProps> = ({ batches, onSelectBatch, loading = false }) => {
+  if (loading) {
+    return (
+      <div className="batch-list">
+        <h3>Generated Sets</h3>
+        <div className="batch-items">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonBatchItem key={index} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (!batches || batches.length === 0) {
     return (
       <div className="batch-list">
