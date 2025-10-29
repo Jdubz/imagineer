@@ -72,6 +72,7 @@ jobs:
         env:
           IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
           IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
+          IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
 
   # Summary job that requires both frontend and backend to pass
   verify:
