@@ -64,6 +64,13 @@ describe('ScrapingTab', () => {
             total_jobs: 1,
             total_images_scraped: 12,
             recent_jobs: 1,
+            storage: {
+              path: '/mnt/storage/imagineer/scraped',
+              total_gb: 900,
+              used_gb: 300,
+              free_gb: 600,
+              free_percent: 66.7,
+            },
           }),
       })
 
@@ -81,6 +88,8 @@ describe('ScrapingTab', () => {
     expect(await screen.findByText(/images downloaded: 12/i)).toBeInTheDocument()
     expect(await screen.findByText(/downloading latest images/i)).toBeInTheDocument()
     expect(await screen.findByText(/images scraped:\s*12/i)).toBeInTheDocument()
+    expect(await screen.findByText(/storage free/i)).toBeInTheDocument()
+    expect(await screen.findByText(/\/mnt\/storage\/imagineer\/scraped/i)).toBeInTheDocument()
   })
 
   it('starts a new scrape and refreshes the job list', async () => {
@@ -101,6 +110,13 @@ describe('ScrapingTab', () => {
             total_jobs: 0,
             total_images_scraped: 0,
             recent_jobs: 0,
+            storage: {
+              path: '/mnt/storage/imagineer/scraped',
+              total_gb: 900,
+              used_gb: 300,
+              free_gb: 600,
+              free_percent: 66.7,
+            },
           }),
       })
       .mockResolvedValueOnce({
@@ -134,6 +150,13 @@ describe('ScrapingTab', () => {
             total_jobs: 1,
             total_images_scraped: 0,
             recent_jobs: 1,
+            storage: {
+              path: '/mnt/storage/imagineer/scraped',
+              total_gb: 900,
+              used_gb: 300,
+              free_gb: 600,
+              free_percent: 66.7,
+            },
           }),
       })
 

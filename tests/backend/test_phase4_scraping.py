@@ -1,8 +1,10 @@
 """Simplified tests for Phase 4: Web Scraping."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import server.api
+import server.routes.scraping as scraping_routes
 from server.database import ScrapeJob, db
 from server.tasks import scraping
 
@@ -173,7 +175,7 @@ class TestScrapingAPI:
         # In a real scenario, we would mock the Celery task properly
         pass
 
-    def test_get_scraping_stats(self, client):
+    def test_get_scraping_stats(self, client, monkeypatch, tmp_path):
         """Test getting scraping statistics"""
         with client.application.app_context():
             # Create test jobs with different statuses
@@ -183,6 +185,18 @@ class TestScrapingAPI:
             db.session.add_all([job1, job2, job3])
             db.session.commit()
 
+        storage_root = tmp_path / "scraped"
+        storage_root.mkdir()
+        monkeypatch.setattr(scraping_routes, "get_scraped_output_path", lambda: storage_root)
+        total_bytes = 1024**4  # 1 TiB
+        used_bytes = 400 * 1024**3
+        free_bytes = total_bytes - used_bytes
+        monkeypatch.setattr(
+            scraping_routes.shutil,
+            "disk_usage",
+            lambda path: SimpleNamespace(total=total_bytes, used=used_bytes, free=free_bytes),
+        )
+
         response = client.get("/api/scraping/stats")
         assert response.status_code == 200
         result = response.get_json()
@@ -191,6 +205,13 @@ class TestScrapingAPI:
         assert "completed" in result["status_breakdown"]
         assert "running" in result["status_breakdown"]
         assert "failed" in result["status_breakdown"]
+        storage = result.get("storage")
+        assert storage
+        assert storage["path"] == str(storage_root)
+        assert storage["total_gb"] == round(total_bytes / (1024**3), 2)
+        assert storage["used_gb"] == round(used_bytes / (1024**3), 2)
+        assert storage["free_gb"] == round(free_bytes / (1024**3), 2)
+        assert storage["free_percent"] == round((free_bytes / total_bytes) * 100, 2)
 
 
 class TestScrapingOutputPath:

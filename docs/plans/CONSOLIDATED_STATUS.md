@@ -145,6 +145,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - Admin-only scraping endpoints
    - Job history tracking
    - Default scrape output root moved to `/mnt/storage/imagineer/scraped` to reserve NVMe capacity for active jobs
+   - Dashboard surfaces HDD capacity (total/used/free) so operators can watch free space without shell access
 
 ### ⚠️ Outstanding Issues
 

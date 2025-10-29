@@ -4,12 +4,13 @@ Web scraping API endpoints
 
 import json
 import logging
+import shutil
 
 from flask import Blueprint, abort, jsonify, request
 
 from server.auth import require_admin
 from server.database import ScrapeJob, db
-from server.tasks.scraping import cleanup_scrape_job, scrape_site_task
+from server.tasks.scraping import cleanup_scrape_job, get_scraped_output_path, scrape_site_task
 
 logger = logging.getLogger(__name__)
 
@@ -206,11 +207,38 @@ def get_scraping_stats():
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         recent_jobs = ScrapeJob.query.filter(ScrapeJob.created_at >= week_ago).count()
 
+        output_root = get_scraped_output_path()
+        storage: dict[str, object]
+        try:
+            usage = shutil.disk_usage(output_root)
+            total_gb = round(usage.total / (1024**3), 2)
+            used_gb = round(usage.used / (1024**3), 2)
+            free_gb = round(usage.free / (1024**3), 2)
+            free_percent = round((usage.free / usage.total) * 100, 2) if usage.total else None
+            storage = {
+                "path": str(output_root),
+                "total_gb": total_gb,
+                "used_gb": used_gb,
+                "free_gb": free_gb,
+                "free_percent": free_percent,
+            }
+        except OSError as exc:
+            logger.warning(
+                "Unable to read disk usage for scrape output directory %s: %s",
+                output_root,
+                exc,
+            )
+            storage = {
+                "path": str(output_root),
+                "error": str(exc),
+            }
+
         stats = {
             "total_jobs": ScrapeJob.query.count(),
             "total_images_scraped": int(total_images),
             "recent_jobs": recent_jobs,
             "status_breakdown": dict(status_counts),
+            "storage": storage,
         }
 
         return jsonify(stats)
