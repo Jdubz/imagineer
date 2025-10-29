@@ -73,11 +73,26 @@ const App: React.FC = () => {
 
   const fetchConfig = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/config')
+      const response = await fetch('/api/config', {
+        credentials: 'include', // Include cookies for admin auth
+      })
+
+      // Handle auth failures - config endpoint now requires admin auth
+      if (response.status === 401 || response.status === 403) {
+        logger.warn('Config endpoint requires admin authentication')
+        setConfig(null)
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch config: ${response.status}`)
+      }
+
       const payload = (await response.json()) as unknown
       setConfig(isRecord(payload) ? (payload as Config) : null)
     } catch (error) {
       logger.error('Failed to fetch config', error as Error)
+      setConfig(null)
     }
   }
 
@@ -250,6 +265,7 @@ const App: React.FC = () => {
                 currentJob={currentJob}
                 onGenerate={handleGenerate}
                 onGenerateBatch={handleGenerateBatch}
+                isAdmin={user?.role === 'admin'}
               />
             </ErrorBoundary>
           )}

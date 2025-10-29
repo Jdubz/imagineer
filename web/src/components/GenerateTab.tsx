@@ -9,6 +9,7 @@ interface GenerateTabProps {
   currentJob: Job | null
   onGenerate: (params: GenerateParams) => Promise<void>
   onGenerateBatch: (params: BatchGenerateParams) => Promise<void>
+  isAdmin: boolean
 }
 
 const GenerateTab: React.FC<GenerateTabProps> = ({
@@ -17,6 +18,7 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
   queuePosition,
   onGenerate,
   onGenerateBatch,
+  isAdmin,
 }) => {
   return (
     <div className="generate-tab">
@@ -38,6 +40,7 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
           onGenerateBatch={onGenerateBatch}
           loading={loading}
           config={config}
+          isAdmin={isAdmin}
         />
       )}
     </div>

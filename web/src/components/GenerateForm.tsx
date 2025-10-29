@@ -34,9 +34,10 @@ interface GenerateFormProps {
   onGenerateBatch: (params: BatchGenerateParams) => void
   loading: boolean
   config: Config | null
+  isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config }) => {
+const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config, isAdmin }) => {
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
@@ -131,8 +132,24 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include', // Include cookies for admin auth
         body: JSON.stringify({ loras })
       })
+
+      // Handle auth failures
+      if (response.status === 401 || response.status === 403) {
+        alert('Admin authentication required to update LoRA configuration. Please log in as admin.')
+        logger.warn('LoRA update requires admin authentication')
+        return
+      }
+
+      if (!response.ok) {
+        const data = await response.json()
+        logger.error('Failed to update LoRAs:', data.error)
+        alert(`Error: ${data.error || 'Failed to update LoRA configuration'}`)
+        return
+      }
+
       const data = await response.json()
       if (data.success) {
         fetchSetLoras(setName)  // Refresh the list
@@ -516,14 +533,15 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                               onMouseUp={saveLoraWeights}
                               onTouchEnd={saveLoraWeights}
                               className="weight-slider"
-                              disabled={loading}
+                              disabled={loading || !isAdmin}
+                              title={!isAdmin ? 'Admin access required to modify LoRA weights' : ''}
                             />
                             <button
                               type="button"
                               onClick={() => removeLoraFromSet(lora.folder)}
                               className="remove-lora-btn"
-                              disabled={loading}
-                              title="Remove LoRA"
+                              disabled={loading || !isAdmin}
+                              title={!isAdmin ? 'Admin access required to remove LoRAs' : 'Remove LoRA'}
                             >
                               ✕
                             </button>
@@ -544,10 +562,11 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                         e.target.value = ''  // Reset selection
                       }
                     }}
-                    disabled={loading}
+                    disabled={loading || !isAdmin}
                     className="add-lora-select"
+                    title={!isAdmin ? 'Admin access required to add LoRAs' : ''}
                   >
-                    <option value="">-- Select LoRA to Add --</option>
+                    <option value="">{!isAdmin ? '-- Admin Access Required --' : '-- Select LoRA to Add --'}</option>
                     {availableLoras
                       .filter(lora => !setLoras.some(sl => sl.folder === lora.folder))
                       .map(lora => (

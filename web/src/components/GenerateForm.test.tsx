@@ -21,6 +21,7 @@ describe('GenerateForm', () => {
         onGenerateBatch={mockOnGenerateBatch}
         loading={false}
         config={(mockConfig as Config) ?? null}
+        isAdmin={true}
         {...overrides}
       />,
     )
