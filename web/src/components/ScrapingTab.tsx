@@ -440,8 +440,8 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
   const [url, setUrl] = useState<string>('')
   const [name, setName] = useState<string>('')
   const [description, setDescription] = useState<string>('')
-  const [depth, setDepth] = useState<number>(3)
-  const [maxImages, setMaxImages] = useState<number>(1000)
+  const [depthValue, setDepthValue] = useState<string>('3')
+  const [maxImagesValue, setMaxImagesValue] = useState<string>('1000')
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
@@ -452,12 +452,15 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
     const jobDescription = description || `Web scraping job for ${url}`
 
     // Prepare data for validation
+    const depthNumber = depthValue.trim() === '' ? Number.NaN : Number(depthValue)
+    const maxImagesNumber = maxImagesValue.trim() === '' ? Number.NaN : Number(maxImagesValue)
+
     const formData = {
       url: url.trim(),
       name: jobName,
       description: jobDescription,
-      depth,
-      maxImages,
+      depth: depthNumber,
+      maxImages: maxImagesNumber,
     }
 
     // Validate form data
@@ -540,9 +543,9 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
               <input
                 id="depth"
                 type="number"
-                value={depth}
+                value={depthValue}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  setDepth(parseInt(e.target.value))
+                  setDepthValue(e.target.value)
                   // Clear error on change
                   if (validationErrors.depth) {
                     const newErrors = { ...validationErrors }
@@ -566,9 +569,9 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
               <input
                 id="maxImages"
                 type="number"
-                value={maxImages}
+                value={maxImagesValue}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  setMaxImages(parseInt(e.target.value))
+                  setMaxImagesValue(e.target.value)
                   // Clear error on change
                   if (validationErrors.maxImages) {
                     const newErrors = { ...validationErrors }
