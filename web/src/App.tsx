@@ -87,6 +87,12 @@ const AppContent: React.FC = () => {
     try {
       const config = await api.getConfig(signal)
       setConfig(config)
+
+      // Config is null when 401/403 (admin auth required) - already handled by api.getConfig
+      if (config === null && user?.role !== 'admin') {
+        // Only show message if user is not admin - helps them understand why config isn't loading
+        logger.info('Config requires admin authentication')
+      }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -127,6 +133,7 @@ const AppContent: React.FC = () => {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(params)
       })
 
@@ -162,6 +169,7 @@ const AppContent: React.FC = () => {
       const response = await fetch('/api/generate/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(params)
       })
 

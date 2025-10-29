@@ -167,9 +167,24 @@ export const api = {
   jobs: {
     /**
      * Fetch job status by ID
+     * Requires admin authentication
      */
     async getById(jobId: string, signal?: AbortSignal): Promise<Job> {
-      return apiRequest<Job>(`/api/jobs/${jobId}`, { signal })
+      return apiRequest<Job>(`/api/jobs/${jobId}`, {
+        credentials: 'include',
+        signal,
+      })
+    },
+
+    /**
+     * Fetch all jobs (current, queue, history)
+     * Requires admin authentication
+     */
+    async getAll(signal?: AbortSignal): Promise<{ current: Job | null; queue: Job[]; history: Job[] }> {
+      return apiRequest(`/api/jobs`, {
+        credentials: 'include',
+        signal,
+      })
     },
   },
 
