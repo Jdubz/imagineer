@@ -4,6 +4,7 @@ Training pipeline API endpoints
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,7 +12,13 @@ from flask import Blueprint, abort, jsonify, request
 
 from server.auth import require_admin
 from server.database import Album, TrainingRun, db
-from server.tasks.training import cleanup_training_data, train_lora_task, training_log_path
+from server.tasks.training import (
+    cleanup_training_data,
+    get_model_cache_dir,
+    get_training_dataset_root,
+    train_lora_task,
+    training_log_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +117,8 @@ def create_training_run():
     db.session.commit()
 
     # Derive dataset/output locations now that the run has an ID
-    dataset_root = Path(config.get("dataset", {}).get("data_dir", "/tmp/imagineer/data/training"))
-    output_root = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
+    dataset_root = get_training_dataset_root()
+    output_root = get_model_cache_dir() / "lora"
 
     dataset_path = dataset_root / f"training_run_{run.id}"
     fallback_dataset = Path(f"/tmp/imagineer/training/run_{run.id}")
@@ -121,25 +128,31 @@ def create_training_run():
     try:
         dataset_path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:  # pragma: no cover - depends on host FS
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                f"Unable to create dataset directory at {dataset_path}: {exc}"
+            ) from exc
         logger.warning(
-            "Unable to create dataset directory %s (%s); falling back to %s",
+            "Unable to create dataset directory %s (%s); falling back to /tmp for development",
             dataset_path,
             exc,
-            fallback_dataset,
         )
-        dataset_path = fallback_dataset
+        dataset_path = Path(f"/tmp/imagineer/training/run_{run.id}")
         dataset_path.mkdir(parents=True, exist_ok=True)
 
     try:
         output_path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:  # pragma: no cover - depends on host FS
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                f"Unable to create output directory at {output_path}: {exc}"
+            ) from exc
         logger.warning(
-            "Unable to create output directory %s (%s); falling back to %s",
+            "Unable to create output directory %s (%s); falling back to /tmp for development",
             output_path,
             exc,
-            fallback_output,
         )
-        output_path = fallback_output
+        output_path = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
         output_path.mkdir(parents=True, exist_ok=True)
 
     run.dataset_path = str(dataset_path)

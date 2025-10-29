@@ -5,6 +5,7 @@ LoRA training task integration
 import hashlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -16,12 +17,57 @@ from server.database import Album, AlbumImage, Image, TrainingRun, db
 logger = logging.getLogger(__name__)
 
 
+def get_model_cache_dir() -> Path:
+    """Return the configured model cache directory."""
+    candidate = os.environ.get("IMAGINEER_MODEL_CACHE_DIR")
+
+    if not candidate:
+        from server.api import load_config
+
+        config = load_config()
+        candidate = config.get("model", {}).get("cache_dir") if isinstance(config, dict) else None
+
+    if not candidate:
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                "Model cache directory not configured. "
+                "Set IMAGINEER_MODEL_CACHE_DIR or add model.cache_dir "
+                "to config.yaml."
+            )
+        candidate = "/tmp/imagineer/models"
+
+    cache_dir = Path(candidate).expanduser()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def get_training_dataset_root() -> Path:
+    """Return the configured dataset root for training runs."""
+    candidate = os.environ.get("IMAGINEER_DATASET_ROOT")
+
+    if not candidate:
+        from server.api import load_config
+
+        config = load_config()
+        candidate = config.get("dataset", {}).get("data_dir") if isinstance(config, dict) else None
+
+    if not candidate:
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(
+                "Dataset root not configured. "
+                "Set IMAGINEER_DATASET_ROOT or add dataset.data_dir "
+                "to config.yaml."
+            )
+        candidate = "/tmp/imagineer/data/training"
+
+    dataset_root = Path(candidate).expanduser()
+    dataset_root.mkdir(parents=True, exist_ok=True)
+    return dataset_root
+
+
 def training_log_path(run: TrainingRun) -> Path:
     """Derive filesystem path for a run's training log."""
-    if run.output_path:
-        base_dir = Path(run.output_path).parent
-    else:
-        base_dir = Path("/tmp/imagineer/models") / "lora"
+    base_dir = Path(run.output_path).parent if run.output_path else get_model_cache_dir() / "lora"
 
     log_dir = base_dir / "logs"
     return log_dir / f"training_{run.id}.log"
@@ -29,7 +75,11 @@ def training_log_path(run: TrainingRun) -> Path:
 
 def _cleanup_training_directory(run: TrainingRun) -> None:
     """Remove temporary training data for a run."""
-    training_dir = Path(run.dataset_path) if run.dataset_path else Path(f"/tmp/training_{run.id}")
+    training_dir = (
+        Path(run.dataset_path)
+        if run.dataset_path
+        else get_training_dataset_root() / f"training_run_{run.id}"
+    )
     if training_dir.exists():
         try:
             shutil.rmtree(training_dir)
@@ -103,14 +153,10 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             db.session.commit()
 
             # Build training command
-            from server.api import load_config
-
-            app_config = load_config()
-
             output_dir = (
                 Path(run.output_path)
                 if run.output_path
-                else Path(f"{app_config['model']['cache_dir']}/lora/trained_{training_run_id}")
+                else get_model_cache_dir() / "lora" / f"trained_{training_run_id}"
             )
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -282,7 +328,7 @@ def prepare_training_data(training_run):
     training_dir = (
         Path(training_run.dataset_path)
         if training_run.dataset_path
-        else Path(f"/tmp/training_{training_run.id}")
+        else get_training_dataset_root() / f"training_run_{training_run.id}"
     )
     training_dir.mkdir(parents=True, exist_ok=True)
 
