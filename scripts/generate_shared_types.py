@@ -42,6 +42,16 @@ PY_PRIMITIVES: dict[str, str] = {
 }
 
 
+def _pascal_case(value: str) -> str:
+    parts = re.split(r"[^a-zA-Z0-9]", value)
+    return "".join(part.capitalize() for part in parts if part)
+
+
+def _nested_typeddict_name(root: str, path: list[str]) -> str:
+    suffix = "".join(_pascal_case(segment) for segment in path)
+    return f"{root}{suffix}"
+
+
 def load_schemas() -> list[dict[str, Any]]:
     schemas: list[dict[str, Any]] = []
     if not SCHEMA_DIR.exists():
@@ -75,6 +85,22 @@ def ts_type(prop: dict[str, Any]) -> str:
         return f"Array<{item_type}>"
 
     if schema_type == "object":
+        properties = prop.get("properties")
+        if isinstance(properties, dict) and properties:
+            required = set(prop.get("required", []))
+            members = []
+            for key, value in properties.items():
+                optional = "?" if key not in required else ""
+                members.append(f"{key}{optional}: {ts_type(value)}")
+            members_str = "; ".join(members)
+            return f"{{ {members_str} }}"
+
+        additional = prop.get("additionalProperties", True)
+        if additional is False:
+            return "Record<string, never>"
+        if isinstance(additional, dict):
+            value_type = ts_type(additional)
+            return f"Record<string, {value_type}>"
         return "Record<string, unknown>"
 
     if isinstance(schema_type, str):
@@ -97,7 +123,12 @@ def _format_literal(value: Any) -> str:
     return repr(value)
 
 
-def py_type(prop: dict[str, Any]) -> str:
+def py_type(
+    prop: dict[str, Any],
+    schema_name: str,
+    nested_defs: dict[str, dict[str, Any]],
+    path: list[str],
+) -> str:
     if "enum" in prop:
         return f"Literal[{', '.join(_format_literal(value) for value in prop['enum'])}]"
 
@@ -106,26 +137,49 @@ def py_type(prop: dict[str, Any]) -> str:
     if isinstance(schema_type, list):
         includes_null = "null" in schema_type
         sub_types = [
-            py_type({**prop, "type": subtype}) for subtype in schema_type if subtype != "null"
+            py_type({**prop, "type": subtype}, schema_name, nested_defs, path)
+            for subtype in schema_type
+            if subtype != "null"
         ]
         base = " | ".join(filter(None, sub_types)) or "Any"
         return f"{base} | None" if includes_null else base
 
     if schema_type == "array":
-        item_type = py_type(prop.get("items", {}))
+        item_type = py_type(prop.get("items", {}), schema_name, nested_defs, path + ["item"])
         return f"list[{item_type}]"
 
     if schema_type == "object":
+        properties = prop.get("properties")
+        if isinstance(properties, dict) and properties:
+            class_name = _nested_typeddict_name(schema_name, path)
+            if class_name not in nested_defs:
+                nested_defs[class_name] = {
+                    "schema_name": schema_name,
+                    "prop": prop,
+                    "path": path,
+                }
+            return class_name
+
+        additional = prop.get("additionalProperties", True)
+        if additional is False:
+            return "dict[str, Any]"
+        if isinstance(additional, dict):
+            value_type = py_type(additional, schema_name, nested_defs, path + ["value"])
+            return f"dict[str, {value_type}]"
         return "dict[str, Any]"
 
     if isinstance(schema_type, str):
         return PY_PRIMITIVES.get(schema_type, "Any")
 
     if "anyOf" in prop:
-        return " | ".join(py_type(option) for option in prop["anyOf"])  # type: ignore[arg-type]
+        return " | ".join(
+            py_type(option, schema_name, nested_defs, path) for option in prop["anyOf"]
+        )  # type: ignore[arg-type]
 
     if "oneOf" in prop:
-        return " | ".join(py_type(option) for option in prop["oneOf"])  # type: ignore[arg-type]
+        return " | ".join(
+            py_type(option, schema_name, nested_defs, path) for option in prop["oneOf"]
+        )  # type: ignore[arg-type]
 
     return "Any"
 
@@ -141,29 +195,65 @@ def generate_ts_interface(schema: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def generate_py_typeddict(schema: dict[str, Any]) -> str:
-    class_name = f"{schema['name']}TypedDict"
+def _render_typeddict_body(
+    class_name: str,
+    schema_name: str,
+    prop_schema: dict[str, Any],
+    nested_defs: dict[str, dict[str, Any]],
+    base_path: list[str],
+) -> list[str]:
     lines: list[str] = [f"class {class_name}(TypedDict, total=False):"]
 
-    description = schema.get("description")
+    description = prop_schema.get("description")
     if description:
         lines.append(f'    """{description}"""')
         lines.append("")
 
-    properties: dict[str, Any] = schema.get("properties", {})
+    properties: dict[str, Any] = prop_schema.get("properties", {})
     if not properties:
         lines.append("    pass")
-        return "\n".join(lines)
+        return lines
 
-    required = set(schema.get("required", []))
-    for key, prop in properties.items():
-        type_hint = py_type(prop)
+    required = set(prop_schema.get("required", []))
+    for key, value in properties.items():
+        type_hint = py_type(value, schema_name, nested_defs, base_path + [key])
         if key in required:
             lines.append(f"    {key}: Required[{type_hint}]")
         else:
             lines.append(f"    {key}: NotRequired[{type_hint}]")
 
-    return "\n".join(lines)
+    return lines
+
+
+def generate_py_typeddict(schema: dict[str, Any]) -> str:
+    class_name = f"{schema['name']}TypedDict"
+    nested_defs: dict[str, dict[str, Any]] = {}
+
+    lines = _render_typeddict_body(class_name, schema["name"], schema, nested_defs, [])
+
+    nested_outputs: list[str] = []
+    processed: set[str] = set()
+
+    while True:
+        pending = [(name, data) for name, data in nested_defs.items() if name not in processed]
+        if not pending:
+            break
+
+        pending.sort(key=lambda item: len(item[1]["path"]))
+        name, data = pending[0]
+        nested_lines = _render_typeddict_body(
+            name,
+            data["schema_name"],
+            data["prop"],
+            nested_defs,
+            data["path"],
+        )
+        nested_outputs.append("\n".join(nested_lines))
+        processed.add(name)
+
+    body_sections = nested_outputs + ["\n".join(lines)]
+    separator = "\n\n\n"
+    return separator.join(section for section in body_sections if section)
 
 
 def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
@@ -182,6 +272,7 @@ def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
     typeddicts: list[str] = []
     for schema in schemas:
         typeddicts.append(generate_py_typeddict(schema))
+        typeddicts.append("")
         typeddicts.append("")
     typeddict_body = "\n".join(typeddicts).rstrip()
 

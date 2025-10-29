@@ -13,3 +13,20 @@ export interface AuthStatus {
   error?: string | null;
   message?: string | null;
 }
+
+/** Generation metadata saved alongside generated images. */
+export interface ImageMetadata {
+  prompt?: string;
+  negative_prompt?: string;
+  seed?: number;
+  steps?: number;
+  guidance_scale?: number;
+  width?: number;
+  height?: number;
+  model?: string;
+  lora_path?: string;
+  lora_weight?: number;
+  loras?: Array<{ path: string; weight: number }>;
+  set_name?: string;
+  card_data?: Record<string, unknown>;
+}

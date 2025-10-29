@@ -144,12 +144,17 @@ export const ConfigSchema = z.object({
 
 export const AuthStatusSchema = z.object({
   authenticated: z.boolean(),
-  username: z.string().optional(),
-  role: z.string().optional(),
+  email: z.string().nullish(),
+  name: z.string().nullish(),
+  picture: z.string().nullish(),
+  role: z.string().nullish(),
+  is_admin: z.boolean().nullish(),
+  error: z.string().nullish(),
+  message: z.string().nullish(),
 })
 
 // ============================================
-// Sets
+// LoRAs and Albums
 // ============================================
 
 export const LoRAConfigSchema = z.object({
@@ -157,24 +162,6 @@ export const LoRAConfigSchema = z.object({
   weight: z.number(),
   name: z.string().optional(),
 })
-
-export const SetConfigSchema = z.object({
-  name: z.string(),
-  prompt_template: z.string(),
-  negative_prompt: z.string().optional(),
-  width: z.number(),
-  height: z.number(),
-  loras: z.array(LoRAConfigSchema).optional(),
-  style_suffix: z.string().optional(),
-})
-
-export const SetInfoSchema = SetConfigSchema.extend({
-  item_count: z.number(),
-})
-
-// ============================================
-// Albums
-// ============================================
 
 export const AlbumSchema = z.object({
   id: z.string(),
@@ -220,24 +207,10 @@ export const BatchesResponseSchema = z.object({
   batches: z.array(BatchSummarySchema),
 })
 
-export const SetsResponseSchema = z.object({
-  sets: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-  })),
-})
-
 export const LorasResponseSchema = z.object({
   loras: z.array(z.object({
     folder: z.string(),
     filename: z.string(),
-  })),
-})
-
-export const SetLorasResponseSchema = z.object({
-  loras: z.array(z.object({
-    folder: z.string(),
-    weight: z.number(),
   })),
 })
 
@@ -272,7 +245,5 @@ export type BatchDetail = z.infer<typeof BatchDetailSchema>
 export type Config = z.infer<typeof ConfigSchema>
 export type AuthStatus = z.infer<typeof AuthStatusSchema>
 export type LoRAConfig = z.infer<typeof LoRAConfigSchema>
-export type SetConfig = z.infer<typeof SetConfigSchema>
-export type SetInfo = z.infer<typeof SetInfoSchema>
 export type Album = z.infer<typeof AlbumSchema>
 export type LabelAnalytics = z.infer<typeof LabelAnalyticsSchema>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
 import AuthButton from './components/AuthButton'
@@ -19,7 +19,6 @@ import type {
   BatchSummary,
   Job,
   GenerateParams,
-  BatchGenerateParams,
   Tab,
 } from './types/models'
 
@@ -37,7 +36,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const AppContent: React.FC = () => {
   const toast = useToast()
   const location = useLocation()
-  const navigate = useNavigate()
   const [config, setConfig] = useState<Config | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -62,20 +60,7 @@ const AppContent: React.FC = () => {
   // Get active tab from URL
   const activeTab = location.pathname.slice(1) || 'generate'
 
-  // Load config on mount
-  useEffect(() => {
-    const abortController = new AbortController()
-    const { signal } = abortController
-
-    void fetchConfig(signal)
-    void fetchImages(signal)
-    void fetchBatches(signal)
-    void checkAuth(signal)
-
-    return () => abortController.abort()
-  }, [])
-
-  const checkAuth = async (signal?: AbortSignal): Promise<void> => {
+  const checkAuth = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
       const data = await api.auth.checkAuth(signal)
 
@@ -92,9 +77,9 @@ const AppContent: React.FC = () => {
       logger.error('Failed to check auth', error as Error)
       setUser(null)
     }
-  }
+  }, [])
 
-  const fetchConfig = async (signal?: AbortSignal): Promise<void> => {
+  const fetchConfig = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
       const config = await api.getConfig(signal)
       setConfig(config)
@@ -111,9 +96,9 @@ const AppContent: React.FC = () => {
       logger.error('Failed to fetch config', error as Error)
       setConfig(null)
     }
-  }
+  }, [user?.role])
 
-  const fetchImages = async (signal?: AbortSignal): Promise<void> => {
+  const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setLoadingImages(true)
     try {
       const images = await api.images.getAll(signal)
@@ -126,9 +111,9 @@ const AppContent: React.FC = () => {
     } finally {
       setLoadingImages(false)
     }
-  }
+  }, [])
 
-  const fetchBatches = async (signal?: AbortSignal): Promise<void> => {
+  const fetchBatches = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setLoadingBatches(true)
     try {
       const batches = await api.batches.getAll(signal)
@@ -141,7 +126,20 @@ const AppContent: React.FC = () => {
     } finally {
       setLoadingBatches(false)
     }
-  }
+  }, [])
+
+  // Load config on mount
+  useEffect(() => {
+    const abortController = new AbortController()
+    const { signal } = abortController
+
+    void fetchConfig(signal)
+    void fetchImages(signal)
+    void fetchBatches(signal)
+    void checkAuth(signal)
+
+    return () => abortController.abort()
+  }, [fetchConfig, fetchImages, fetchBatches, checkAuth])
 
   const handleGenerate = async (params: GenerateParams): Promise<void> => {
     setLoading(true)
@@ -181,41 +179,6 @@ const AppContent: React.FC = () => {
     } catch (error) {
       logger.error('Failed to generate', error as Error)
       toast.error('Error submitting job')
-      setLoading(false)
-    }
-  }
-
-  const handleGenerateBatch = async (params: BatchGenerateParams): Promise<void> => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/generate/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(params)
-      })
-
-      if (response.status === 201) {
-        const payload = (await response.json()) as unknown
-        if (isRecord(payload) && typeof payload.total_jobs === 'number') {
-          toast.success(`Batch generation started! ${payload.total_jobs} jobs queued for ${String(payload.set_name ?? 'unknown set')}`)
-        } else {
-          toast.success('Batch generation started!')
-        }
-        fetchBatches().catch((error) => logger.error('Failed to refresh batches', error as Error))
-        navigate('/gallery')
-      } else {
-        const payload = (await response.json()) as unknown
-        const errorMessage =
-          isRecord(payload) && typeof payload.error === 'string'
-            ? payload.error
-            : 'Unknown error'
-        toast.error(`Failed to submit batch: ${errorMessage}`)
-      }
-    } catch (error: unknown) {
-      logger.error('Failed to generate batch', error as Error)
-      toast.error('Error submitting batch')
-    } finally {
       setLoading(false)
     }
   }
@@ -293,7 +256,6 @@ const AppContent: React.FC = () => {
                       queuePosition={queuePosition}
                       currentJob={currentJob}
                       onGenerate={handleGenerate}
-                      onGenerateBatch={handleGenerateBatch}
                       isAdmin={user?.role === 'admin'}
                     />
                   </ErrorBoundary>

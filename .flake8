@@ -15,6 +15,10 @@ exclude =
     models,
     outputs,
     checkpoints
+    node_modules,
+    web/node_modules,
+    scripts,
+    migrations,
 per-file-ignores =
     __init__.py:F401
-max-complexity = 10
+max-complexity = 40

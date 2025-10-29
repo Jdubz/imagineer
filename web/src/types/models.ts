@@ -1,3 +1,5 @@
+import type { ImageMetadata as SharedImageMetadata } from './shared'
+
 export interface Config {
   model?: {
     name?: string
@@ -22,24 +24,7 @@ export interface Config {
   [key: string]: unknown
 }
 
-export interface ImageMetadata {
-  prompt?: string
-  negative_prompt?: string
-  seed?: number
-  steps?: number
-  guidance_scale?: number
-  width?: number
-  height?: number
-  model?: string
-  lora_path?: string
-  lora_weight?: number
-  loras?: {
-    path: string
-    weight: number
-  }[]
-  set_name?: string
-  card_data?: Record<string, unknown>
-}
+export type ImageMetadata = SharedImageMetadata
 
 export interface GeneratedImage {
   filename: string
@@ -69,9 +54,9 @@ export interface Job {
   started_at?: string | null
   submitted_at?: string | null
   completed_at?: string | null
-  output_path?: string | null  // Legacy field
-  output_filename?: string  // Backend sanitized field
-  output_directory?: string  // Backend sanitized field
+  output_path?: string | null  // Full path to generated image
+  output_filename?: string  // Backend sanitized filename
+  output_directory?: string  // Backend sanitized directory
   lora_paths?: string[]  // Backend returns shortened paths
   width?: number
   height?: number
@@ -91,13 +76,23 @@ export interface GenerateParams {
   lora_weight?: number
 }
 
-export interface BatchGenerateParams {
-  set_name: string
-  user_theme?: string
+export interface AlbumBatchGenerateParams {
+  user_theme: string
+  seed?: number
   steps?: number
-  guidance_scale?: number
   width?: number
   height?: number
+  guidance_scale?: number
+  negative_prompt?: string
+}
+
+export interface AlbumBatchGenerateResponse {
+  message: string
+  album_id: number
+  album_name: string
+  batch_id: string
+  job_ids: number[]
+  output_dir: string
 }
 
 export interface LoRAConfig {
@@ -110,20 +105,6 @@ export interface LoRA {
   name: string
   path: string
   size?: number
-}
-
-export interface SetConfig {
-  name: string
-  prompt_template: string
-  negative_prompt?: string
-  width: number
-  height: number
-  loras?: LoRAConfig[]
-  style_suffix?: string
-}
-
-export interface SetInfo extends SetConfig {
-  item_count: number
 }
 
 export interface Tab {
@@ -140,6 +121,21 @@ export interface Album {
   cover_image?: string
   created_at: string
   updated_at: string
+  album_type?: string
+  is_public?: boolean
+  is_training_source?: boolean
+  created_by?: string
+  // Set template fields
+  is_set_template?: boolean
+  csv_data?: string
+  base_prompt?: string
+  prompt_template?: string
+  style_suffix?: string
+  example_theme?: string
+  lora_config?: string
+  template_item_count?: number
+  generation_prompt?: string
+  generation_config?: string
 }
 
 export interface Label {
