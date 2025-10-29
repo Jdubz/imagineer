@@ -77,7 +77,7 @@ describe('useAbortableEffect', () => {
     expect(cleanup).toHaveBeenCalledTimes(1)
   })
 
-  it('handles fetch cancellation gracefully', async () => {
+  it('handles fetch cancellation gracefully', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: 'test' }),
