@@ -217,13 +217,9 @@ describe('ErrorBoundary', () => {
     it('should navigate to home when Go Home is clicked', async () => {
       const user = userEvent.setup()
 
-      // Mock window.location.href
-      const locationMock = { href: '' } as Location
-      delete (window as { location?: unknown }).location
-      Object.defineProperty(window, 'location', {
-        value: locationMock,
-        writable: true,
-      })
+      // Mock window.location.href using vi.stubGlobal
+      const locationMock = { href: '' }
+      vi.stubGlobal('location', locationMock)
 
       render(
         <ErrorBoundary>
@@ -235,6 +231,9 @@ describe('ErrorBoundary', () => {
       await user.click(goHomeButton)
 
       expect(locationMock.href).toBe('/')
+
+      // Clean up the mock
+      vi.unstubAllGlobals()
     })
   })
 
