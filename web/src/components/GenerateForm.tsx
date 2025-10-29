@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useToast } from '../hooks/useToast'
@@ -16,7 +16,7 @@ interface GenerateFormProps {
   isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config, isAdmin }) => {
+const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, config, isAdmin }) => {
   const toast = useToast()
   // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
@@ -57,7 +57,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
     }
   }, [isAdmin, fetchTemplates])
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     setValidationErrors({}) // Clear previous errors
 
@@ -93,15 +93,15 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
     onGenerate(params)
     setPrompt('')
     setValidationErrors({}) // Clear errors on successful submission
-  }
+  }, [prompt, steps, guidanceScale, useRandomSeed, seed, onGenerate])
 
-  const generateRandomSeed = (): void => {
+  const generateRandomSeed = useCallback((): void => {
     const randomSeed = Math.floor(Math.random() * 2147483647)
     setSeed(randomSeed.toString())
     setUseRandomSeed(false)
-  }
+  }, [])
 
-  const handleBatchSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleBatchSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     setBatchValidationErrors({})
 
@@ -155,7 +155,70 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
     } finally {
       setSubmittingBatch(false)
     }
-  }
+  }, [selectedTemplate, batchTheme, batchSteps, batchSeed, templates, toast])
+
+  // Memoize onChange handlers to prevent re-renders
+  const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(e.target.value)
+    if (validationErrors.prompt) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.prompt
+        return newErrors
+      })
+    }
+  }, [validationErrors.prompt])
+
+  const handleStepsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSteps(parseInt(e.target.value))
+  }, [])
+
+  const handleGuidanceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setGuidanceScale(parseFloat(e.target.value))
+  }, [])
+
+  const handleSeedModeRandom = useCallback(() => {
+    setUseRandomSeed(true)
+    setSeed('')
+  }, [])
+
+  const handleSeedModeFixed = useCallback(() => {
+    setUseRandomSeed(false)
+  }, [])
+
+  const handleSeedChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSeed(e.target.value)
+  }, [])
+
+  const handleTemplateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedTemplate(e.target.value)
+  }, [])
+
+  const handleBatchThemeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setBatchTheme(e.target.value)
+    if (batchValidationErrors.theme) {
+      setBatchValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.theme
+        return newErrors
+      })
+    }
+  }, [batchValidationErrors.theme])
+
+  const handleBatchStepsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setBatchSteps(e.target.value)
+  }, [])
+
+  const handleBatchSeedChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setBatchSeed(e.target.value)
+  }, [])
+
+  // Memoize selected template example
+  const selectedTemplateExample = useMemo(() => {
+    return selectedTemplate
+      ? templates.find(t => t.id === selectedTemplate)?.example_theme || 'Choose a template to see example'
+      : 'Choose a template to see example'
+  }, [selectedTemplate, templates])
 
   return (
     <div className="generate-form">
@@ -166,15 +229,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
           <textarea
             id="prompt"
             value={prompt}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-              setPrompt(e.target.value)
-              // Clear error on change
-              if (validationErrors.prompt) {
-                const newErrors = { ...validationErrors }
-                delete newErrors.prompt
-                setValidationErrors(newErrors)
-              }
-            }}
+            onChange={handlePromptChange}
             placeholder="Describe the image you want to generate..."
             rows={4}
             disabled={loading}
@@ -206,7 +261,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
               max="75"
               step="5"
               value={steps}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSteps(parseInt(e.target.value))}
+              onChange={handleStepsChange}
               disabled={loading}
             />
             <div className="range-labels">
@@ -237,7 +292,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
               max="20"
               step="0.5"
               value={guidanceScale}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGuidanceScale(parseFloat(e.target.value))}
+              onChange={handleGuidanceChange}
               disabled={loading}
             />
             <div className="range-labels">
@@ -268,10 +323,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
                   type="radio"
                   name="seed-mode"
                   checked={useRandomSeed}
-                  onChange={() => {
-                    setUseRandomSeed(true)
-                    setSeed('')
-                  }}
+                  onChange={handleSeedModeRandom}
                   disabled={loading}
                 />
                 <span>Random</span>
@@ -281,7 +333,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
                   type="radio"
                   name="seed-mode"
                   checked={!useRandomSeed}
-                  onChange={() => setUseRandomSeed(false)}
+                  onChange={handleSeedModeFixed}
                   disabled={loading}
                 />
                 <span>Fixed</span>
@@ -291,7 +343,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
               type="number"
               id="seed"
               value={seed}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSeed(e.target.value)}
+              onChange={handleSeedChange}
               placeholder="Enter seed or generate random"
               min="0"
               max="2147483647"
@@ -334,7 +386,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
               <select
                 id="template"
                 value={selectedTemplate}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedTemplate(e.target.value)}
+                onChange={handleTemplateChange}
                 disabled={loadingTemplates || submittingBatch}
                 required
               >
@@ -357,14 +409,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
                 id="batch-theme"
                 type="text"
                 value={batchTheme}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  setBatchTheme(e.target.value)
-                  if (batchValidationErrors.theme) {
-                    const newErrors = { ...batchValidationErrors }
-                    delete newErrors.theme
-                    setBatchValidationErrors(newErrors)
-                  }
-                }}
+                onChange={handleBatchThemeChange}
                 placeholder="e.g., gothic style with ravens and purple tones"
                 disabled={submittingBatch}
                 required
@@ -375,7 +420,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
               )}
               {selectedTemplate && (
                 <span className="info-text">
-                  Example: {templates.find(t => t.id === selectedTemplate)?.example_theme || 'Choose a template to see example'}
+                  Example: {selectedTemplateExample}
                 </span>
               )}
             </div>
@@ -387,7 +432,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
                   type="number"
                   id="batch-steps"
                   value={batchSteps}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSteps(e.target.value)}
+                  onChange={handleBatchStepsChange}
                   placeholder="Leave empty for template default"
                   min="1"
                   max="150"
@@ -401,7 +446,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
                   type="number"
                   id="batch-seed"
                   value={batchSeed}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSeed(e.target.value)}
+                  onChange={handleBatchSeedChange}
                   placeholder="Random seed for reproducibility"
                   min="0"
                   max="2147483647"
@@ -433,6 +478,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
       )}
     </div>
   )
-}
+})
+
+GenerateForm.displayName = 'GenerateForm'
 
 export default GenerateForm
