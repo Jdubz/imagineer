@@ -136,7 +136,8 @@ def get_scraped_output_path() -> Path:
                 ) from exc
 
             logger.warning(
-                "Unable to initialize scraped output directory %s: %s. Attempting fallback for development.",
+                "Unable to initialize scraped output directory %s: %s. "
+                "Attempting fallback for development.",
                 candidate_path,
                 exc,
             )
