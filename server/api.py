@@ -141,11 +141,12 @@ from server.celery_app import make_celery  # noqa: E402
 
 celery = make_celery(app)
 
+from server.routes.bug_reports import bug_reports_bp  # noqa: E402
+
 # Register blueprints
 from server.routes.images import images_bp, outputs_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
-from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 
 app.register_blueprint(images_bp)
 app.register_blueprint(outputs_bp)
