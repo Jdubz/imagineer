@@ -79,6 +79,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
               <img
                 src={`/api/outputs/${image.filename}`}
                 alt={image.metadata?.prompt || 'Generated image'}
+                loading="lazy"
               />
               <div className="image-overlay">
                 <p className="image-prompt">
@@ -105,6 +106,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
             <img
               src={`/api/outputs/${selectedImage.filename}`}
               alt={selectedImage.metadata?.prompt || 'Generated image'}
+              loading="eager"
             />
 
             <div className="modal-info">

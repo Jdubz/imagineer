@@ -556,6 +556,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                 src={`/api/images/${image.id}/thumbnail`}
                 alt={image.filename}
                 className={image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}
+                loading="lazy"
               />
 
               {image.is_nsfw && <div className="nsfw-badge">18+</div>}

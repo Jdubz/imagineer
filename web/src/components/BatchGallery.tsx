@@ -131,6 +131,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
             <img
               src={`/api/outputs/${selectedImage.relative_path}`}
               alt={selectedImage.metadata?.prompt || 'Generated image'}
+              loading="eager"
             />
 
             <div className="modal-info">
