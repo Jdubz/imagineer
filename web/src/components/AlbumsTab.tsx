@@ -431,6 +431,11 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
   })
 
   const { images, selectedImages, nsfwSetting, labelInputs, editingLabel, labelError } = state
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
+
+  const handleImageLoad = (imageId: number): void => {
+    setLoadedImages((prev) => new Set(prev).add(imageId))
+  }
 
   return (
     <div className="album-detail">
@@ -555,8 +560,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
               <img
                 src={`/api/images/${image.id}/thumbnail`}
                 alt={image.filename}
-                className={image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}
+                className={`${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
                 loading="lazy"
+                onLoad={() => handleImageLoad(image.id)}
               />
 
               {image.is_nsfw && <div className="nsfw-badge">18+</div>}

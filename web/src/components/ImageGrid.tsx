@@ -12,6 +12,7 @@ interface ImageGridProps {
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = false }) => {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
 
   const handleRefresh = async (): Promise<void> => {
     setIsRefreshing(true)
@@ -28,6 +29,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
 
   const closeModal = (): void => {
     setSelectedImage(null)
+  }
+
+  const handleImageLoad = (filename: string): void => {
+    setLoadedImages((prev) => new Set(prev).add(filename))
   }
 
   // Add Escape key handler for modal
@@ -80,6 +85,8 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
                 src={`/api/outputs/${image.filename}`}
                 alt={image.metadata?.prompt || 'Generated image'}
                 loading="lazy"
+                className={loadedImages.has(image.filename) ? 'loaded' : 'loading'}
+                onLoad={() => handleImageLoad(image.filename)}
               />
               <div className="image-overlay">
                 <p className="image-prompt">
