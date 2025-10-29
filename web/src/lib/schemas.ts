@@ -62,6 +62,19 @@ export const JobSchema = z.object({
 // Images
 // ============================================
 
+/**
+ * ImageMetadataSchema - Runtime validation for image metadata
+ *
+ * TODO: This schema duplicates the shared/schema/image_metadata.json schema.
+ * Ideally, we should auto-generate this Zod schema from the JSON Schema
+ * definition to maintain a single source of truth. The challenge is that
+ * JSON Schema doesn't have a 1:1 mapping to Zod (e.g., Zod's .optional() vs
+ * JSON Schema's required array). For now, we maintain both manually and
+ * rely on contract tests to catch drift.
+ *
+ * @see shared/schema/image_metadata.json - Source of truth for this schema
+ * @see web/src/__tests__/sharedContract.test.ts - Tests that validate consistency
+ */
 export const ImageMetadataSchema = z.object({
   prompt: z.string().optional(),
   negative_prompt: z.string().optional(),
@@ -77,8 +90,6 @@ export const ImageMetadataSchema = z.object({
     path: z.string(),
     weight: z.number(),
   })).optional(),
-  set_name: z.string().optional(),
-  card_data: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const GeneratedImageSchema = z.object({

@@ -218,88 +218,6 @@ export const api = {
   },
 
   // ============================================
-  // Sets
-  // ============================================
-
-  sets: {
-    /**
-     * Fetch all available sets
-     */
-    async getAll(signal?: AbortSignal): Promise<Array<{ id: string; name: string }>> {
-      const response = await apiRequest('/api/sets', schemas.SetsResponseSchema, { signal })
-      return response.sets || []
-    },
-
-    /**
-     * Fetch set information
-     */
-    async getInfo(setName: string, signal?: AbortSignal): Promise<SetInfo> {
-      return apiRequest(`/api/sets/${setName}/info`, schemas.SetInfoSchema, { signal })
-    },
-
-    /**
-     * Fetch set LoRA configuration
-     */
-    async getLoras(setName: string, signal?: AbortSignal): Promise<Array<{ folder: string; weight: number }>> {
-      const response = await apiRequest(
-        `/api/sets/${setName}/loras`,
-        schemas.SetLorasResponseSchema,
-        { signal }
-      )
-      return response.loras || []
-    },
-
-    /**
-     * Update set LoRA configuration
-     */
-    async updateLoras(
-      setName: string,
-      loras: Array<{ folder: string; weight: number }>,
-      signal?: AbortSignal
-    ): Promise<{ success: boolean; error?: string }> {
-      try {
-        const response = await fetch(`/api/sets/${setName}/loras`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ loras }),
-          signal,
-        })
-
-        if (response.status === 401 || response.status === 403) {
-          return {
-            success: false,
-            error: 'Admin authentication required',
-          }
-        }
-
-        if (!response.ok) {
-          const data = await response.json()
-          return {
-            success: false,
-            error: isRecord(data) && typeof data.error === 'string' ? data.error : 'Failed to update LoRAs',
-          }
-        }
-
-        const data = await response.json()
-        return {
-          success: isRecord(data) && typeof data.success === 'boolean' ? data.success : true,
-          error: isRecord(data) && typeof data.error === 'string' ? data.error : undefined,
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw error
-        }
-        logger.error('Failed to update set LoRAs:', error)
-        return {
-          success: false,
-          error: 'Failed to update LoRA configuration',
-        }
-      }
-    },
-  },
-
-  // ============================================
   // LoRAs
   // ============================================
 
@@ -448,6 +366,52 @@ export const api = {
         credentials: 'include',
         signal,
       })
+    },
+
+    /**
+     * Generate batch of images from album template
+     */
+    async generateBatch(
+      albumId: string,
+      params: {
+        user_theme: string
+        steps?: number
+        seed?: number
+        width?: number
+        height?: number
+        guidance_scale?: number
+        negative_prompt?: string
+      },
+      signal?: AbortSignal
+    ): Promise<{ success: boolean; error?: string }> {
+      try {
+        const response = await fetch(`/api/albums/${albumId}/generate/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(params),
+          signal,
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          return {
+            success: false,
+            error: isRecord(data) && typeof data.error === 'string' ? data.error : 'Failed to generate batch',
+          }
+        }
+
+        return { success: true }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw error
+        }
+        logger.error('Failed to generate batch:', error)
+        return {
+          success: false,
+          error: 'Error generating batch',
+        }
+      }
     },
   },
 }

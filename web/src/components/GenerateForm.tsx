@@ -1,9 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { logger } from '../lib/logger'
-import type { Config, GenerateParams } from '../types/models'
+import { api } from '../lib/api'
+import { useToast } from '../hooks/useToast'
+import type { Config, GenerateParams, Album } from '../types/models'
 import {
   validateForm,
   generateFormSchema,
+  themeSchema,
 } from '../lib/validation'
 
 interface GenerateFormProps {
@@ -14,15 +17,46 @@ interface GenerateFormProps {
   isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config }) => {
+const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config, isAdmin }) => {
+  const toast = useToast()
+  // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
   const [seed, setSeed] = useState<string>('')
   const [useRandomSeed, setUseRandomSeed] = useState<boolean>(true)
-
-  // Validation error state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
+  // Batch generation state
+  const [templates, setTemplates] = useState<Album[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [batchTheme, setBatchTheme] = useState<string>('')
+  const [batchSteps, setBatchSteps] = useState<string>('')
+  const [batchSeed, setBatchSeed] = useState<string>('')
+  const [loadingTemplates, setLoadingTemplates] = useState<boolean>(false)
+  const [submittingBatch, setSubmittingBatch] = useState<boolean>(false)
+  const [batchValidationErrors, setBatchValidationErrors] = useState<Record<string, string>>({})
+
+  // Load templates on mount
+  useEffect(() => {
+    if (isAdmin) {
+      fetchTemplates()
+    }
+  }, [isAdmin])
+
+  const fetchTemplates = async (): Promise<void> => {
+    setLoadingTemplates(true)
+    try {
+      const albums = await api.albums.getAll()
+      const templateAlbums = albums.filter(album => album.is_set_template === true)
+      setTemplates(templateAlbums)
+    } catch (error) {
+      logger.error('Failed to fetch templates:', error)
+      toast.error('Failed to load batch templates')
+    } finally {
+      setLoadingTemplates(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
@@ -66,6 +100,62 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
     const randomSeed = Math.floor(Math.random() * 2147483647)
     setSeed(randomSeed.toString())
     setUseRandomSeed(false)
+  }
+
+  const handleBatchSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    setBatchValidationErrors({})
+
+    if (!selectedTemplate) {
+      toast.error('Please select a template')
+      return
+    }
+
+    // Validate theme
+    const themeValidation = validateForm(themeSchema, batchTheme.trim())
+    if (!themeValidation.success) {
+      setBatchValidationErrors(themeValidation.errors)
+      return
+    }
+
+    setSubmittingBatch(true)
+
+    try {
+      const params: {
+        user_theme: string
+        steps?: number
+        seed?: number
+      } = {
+        user_theme: batchTheme.trim(),
+      }
+
+      if (batchSteps) {
+        const stepsNum = parseInt(batchSteps, 10)
+        if (!isNaN(stepsNum)) params.steps = stepsNum
+      }
+
+      if (batchSeed) {
+        const seedNum = parseInt(batchSeed, 10)
+        if (!isNaN(seedNum)) params.seed = seedNum
+      }
+
+      const result = await api.albums.generateBatch(selectedTemplate, params)
+
+      if (result.success) {
+        const template = templates.find(t => t.id === selectedTemplate)
+        toast.success(`Batch generation started! ${template?.template_item_count || 0} jobs queued.`)
+        setBatchTheme('')
+        setBatchSteps('')
+        setBatchSeed('')
+      } else {
+        toast.error(result.error || 'Failed to start batch generation')
+      }
+    } catch (error) {
+      logger.error('Failed to generate batch:', error)
+      toast.error('Error starting batch generation')
+    } finally {
+      setSubmittingBatch(false)
+    }
   }
 
   return (
@@ -236,22 +326,112 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
 
       <div className="form-divider"></div>
 
-      <div className="info-box">
-        <h3>🎨 Generate Multiple Images from Templates</h3>
-        <p>
-          To generate complete sets of themed images (card decks, tarot, zodiac, etc.):
-        </p>
-        <ol>
-          <li>Go to the <strong>Albums</strong> tab</li>
-          <li>Filter by <strong>Set Templates</strong></li>
-          <li>Click <strong>Generate Batch</strong> on any template</li>
-          <li>Enter your art style theme</li>
-          <li>Watch your complete themed collection generate!</li>
-        </ol>
-        <p className="info-note">
-          <strong>Note:</strong> Set templates automatically create albums where all generated images are organized together.
-        </p>
-      </div>
+      {isAdmin ? (
+        <>
+          <h2>Generate Batch from Template</h2>
+          <form onSubmit={handleBatchSubmit} className="batch-generate-form">
+            <div className="form-group">
+              <label htmlFor="template">Select Template</label>
+              <select
+                id="template"
+                value={selectedTemplate}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedTemplate(e.target.value)}
+                disabled={loadingTemplates || submittingBatch}
+                required
+              >
+                <option value="">-- Choose a template --</option>
+                {templates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} ({template.template_item_count || 0} items)
+                  </option>
+                ))}
+              </select>
+              {loadingTemplates && <span className="loading-text">Loading templates...</span>}
+              {templates.length === 0 && !loadingTemplates && (
+                <span className="info-text">No templates available. Create one in the Albums tab.</span>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="batch-theme">Art Style Theme</label>
+              <input
+                id="batch-theme"
+                type="text"
+                value={batchTheme}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setBatchTheme(e.target.value)
+                  if (batchValidationErrors.theme) {
+                    const newErrors = { ...batchValidationErrors }
+                    delete newErrors.theme
+                    setBatchValidationErrors(newErrors)
+                  }
+                }}
+                placeholder="e.g., gothic style with ravens and purple tones"
+                disabled={submittingBatch}
+                required
+                className={batchValidationErrors.theme ? 'error' : ''}
+              />
+              {batchValidationErrors.theme && (
+                <span className="error-message">{batchValidationErrors.theme}</span>
+              )}
+              {selectedTemplate && (
+                <span className="info-text">
+                  Example: {templates.find(t => t.id === selectedTemplate)?.example_theme || 'Choose a template to see example'}
+                </span>
+              )}
+            </div>
+
+            <div className="controls-grid">
+              <div className="form-group">
+                <label htmlFor="batch-steps">Steps (Optional)</label>
+                <input
+                  type="number"
+                  id="batch-steps"
+                  value={batchSteps}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSteps(e.target.value)}
+                  placeholder="Leave empty for template default"
+                  min="1"
+                  max="150"
+                  disabled={submittingBatch}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="batch-seed">Seed (Optional)</label>
+                <input
+                  type="number"
+                  id="batch-seed"
+                  value={batchSeed}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchSeed(e.target.value)}
+                  placeholder="Random seed for reproducibility"
+                  min="0"
+                  max="2147483647"
+                  disabled={submittingBatch}
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}>
+              {submittingBatch ? 'Starting Batch...' : 'Generate Batch'}
+            </button>
+
+            {submittingBatch && (
+              <div className="loading-indicator">
+                <div className="spinner"></div>
+                <p>Queuing batch generation jobs...</p>
+              </div>
+            )}
+          </form>
+        </>
+      ) : (
+        <div className="info-box">
+          <h3>🎨 Batch Generation from Templates</h3>
+          <p>
+            Admin users can generate complete sets of themed images from templates.
+            Batch generation is available in the <strong>Albums</strong> tab.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -51,13 +51,6 @@
         ],
         "additionalProperties": false
       }
-    },
-    "set_name": {
-      "type": "string"
-    },
-    "card_data": {
-      "type": "object",
-      "additionalProperties": {}
     }
   }
 }

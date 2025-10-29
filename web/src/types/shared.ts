@@ -27,6 +27,4 @@ export interface ImageMetadata {
   lora_path?: string;
   lora_weight?: number;
   loras?: Array<{ path: string; weight: number }>;
-  set_name?: string;
-  card_data?: Record<string, unknown>;
 }
