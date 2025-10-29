@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { logger } from '../lib/logger'
+import { api, ApiError } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
-import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
+import type { Config, GenerateParams, BatchGenerateParams, SetInfo } from '../types/models'
 import {
   validateForm,
   generateFormSchema,
@@ -12,13 +13,6 @@ import {
 interface SetLoraConfig {
   folder: string
   weight: number
-}
-
-interface SetInfo {
-  name: string
-  description: string
-  item_count: number
-  example_theme?: string
 }
 
 interface AvailableSet {
@@ -69,9 +63,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const fetchAvailableSets = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/sets', { signal })
-      const data = await response.json()
-      setAvailableSets(data.sets || [])
+      const sets = await api.sets.getAll(signal)
+      setAvailableSets(sets)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -82,9 +75,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const fetchAvailableLoras = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/loras', { signal })
-      const data = await response.json()
-      setAvailableLoras(data.loras || [])
+      const loras = await api.loras.getAll(signal)
+      setAvailableLoras(loras)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -95,9 +87,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const fetchRandomTheme = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/themes/random', { signal })
-      const data = await response.json()
-      setUserTheme(data.theme || '')
+      const theme = await api.themes.getRandom(signal)
+      setUserTheme(theme)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -119,9 +110,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const fetchSetInfo = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/info`, { signal })
-      const data = await response.json()
-      setSelectedSetInfo(data)
+      const setInfo = await api.sets.getInfo(setName, signal)
+      setSelectedSetInfo(setInfo)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -132,9 +122,8 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const fetchSetLoras = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/loras`, { signal })
-      const data = await response.json()
-      setSetLoras(data.loras || [])
+      const loras = await api.sets.getLoras(setName, signal)
+      setSetLoras(loras)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -145,38 +134,21 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
   const updateSetLoras = async (setName: string, loras: SetLoraConfig[]): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/loras`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include', // Include cookies for admin auth
-        body: JSON.stringify({ loras })
-      })
+      const result = await api.sets.updateLoras(setName, loras)
 
-      // Handle auth failures
-      if (response.status === 401 || response.status === 403) {
+      if (result.success) {
+        toast.success('LoRA configuration updated successfully')
+        void fetchSetLoras(setName)  // Refresh the list
+      } else {
+        logger.error('Failed to update LoRAs:', result.error)
+        toast.error(`Error: ${result.error || 'Failed to update LoRA configuration'}`)
+      }
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         toast.error('Admin authentication required to update LoRA configuration. Please log in as admin.')
         logger.warn('LoRA update requires admin authentication')
         return
       }
-
-      if (!response.ok) {
-        const data = await response.json()
-        logger.error('Failed to update LoRAs:', data.error)
-        toast.error(`Error: ${data.error || 'Failed to update LoRA configuration'}`)
-        return
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        toast.success('LoRA configuration updated successfully')
-        void fetchSetLoras(setName)  // Refresh the list
-      } else {
-        logger.error('Failed to update LoRAs:', data.error)
-        toast.error(`Error: ${data.error}`)
-      }
-    } catch (error) {
       logger.error('Failed to update set LoRAs:', error)
       toast.error('Failed to update LoRA configuration')
     }
@@ -495,7 +467,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
           </select>
           {selectedSetInfo && (
             <p className="set-info">
-              {selectedSetInfo.description} ({selectedSetInfo.item_count} items)
+              {selectedSetInfo.name} ({selectedSetInfo.item_count} items)
             </p>
           )}
         </div>
@@ -610,10 +582,10 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
                 <br/>• "watercolor pastels with soft dreamy lighting"
                 <br/>• "cyberpunk neon with dark urban background"
                 <br/>• "vintage botanical illustrations"
-                {selectedSetInfo?.example_theme && (
+                {selectedSetInfo?.style_suffix && (
                   <>
-                    <br/><br/>Suggestion for {selectedSetInfo.name}:
-                    <br/>"{selectedSetInfo.example_theme}"
+                    <br/><br/>Style suffix for {selectedSetInfo.name}:
+                    <br/>"{selectedSetInfo.style_suffix}"
                   </>
                 )}
               </span>
@@ -640,7 +612,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
             />
             <button
               type="button"
-              onClick={fetchRandomTheme}
+              onClick={() => void fetchRandomTheme()}
               disabled={loading}
               className="random-theme-btn"
               title="Generate random theme"

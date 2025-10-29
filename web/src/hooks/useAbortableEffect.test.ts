@@ -21,14 +21,14 @@ describe('useAbortableEffect', () => {
   })
 
   it('aborts the signal when unmounted', () => {
-    let capturedSignal: AbortSignal | null = null
+    let capturedSignal: AbortSignal | undefined
     const effect = vi.fn((signal: AbortSignal) => {
       capturedSignal = signal
     })
 
     const { unmount } = renderHook(() => useAbortableEffect(effect, []))
 
-    expect(capturedSignal).not.toBeNull()
+    expect(capturedSignal).toBeDefined()
     expect(capturedSignal?.aborted).toBe(false)
 
     unmount()
@@ -37,8 +37,8 @@ describe('useAbortableEffect', () => {
   })
 
   it('aborts the signal when dependencies change', () => {
-    let firstSignal: AbortSignal | null = null
-    let secondSignal: AbortSignal | null = null
+    let firstSignal: AbortSignal | undefined
+    let secondSignal: AbortSignal | undefined
     let callCount = 0
 
     const effect = vi.fn((signal: AbortSignal) => {
@@ -54,13 +54,13 @@ describe('useAbortableEffect', () => {
       initialProps: { dep: 1 },
     })
 
-    expect(firstSignal).not.toBeNull()
+    expect(firstSignal).toBeDefined()
     expect(firstSignal?.aborted).toBe(false)
 
     rerender({ dep: 2 })
 
     expect(firstSignal?.aborted).toBe(true)
-    expect(secondSignal).not.toBeNull()
+    expect(secondSignal).toBeDefined()
     expect(secondSignal?.aborted).toBe(false)
   })
 
@@ -83,17 +83,16 @@ describe('useAbortableEffect', () => {
       json: () => Promise.resolve({ data: 'test' }),
     })
 
-    global.fetch = fetchMock
-
-    let abortError: Error | null = null
+    globalThis.fetch = fetchMock
 
     const effect = (signal: AbortSignal) => {
       const fetchData = async () => {
         try {
           await fetch('/api/test', { signal })
         } catch (error) {
+          // AbortError is expected when signal is aborted
           if (error instanceof Error && error.name === 'AbortError') {
-            abortError = error
+            // Expected behavior - do nothing
           }
         }
       }

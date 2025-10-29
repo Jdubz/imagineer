@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
+import { api } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
@@ -74,9 +75,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
   const fetchAlbums = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/albums', { signal })
-      const data = await response.json()
-      const rawAlbums = data.albums || data
+      const rawAlbums = await api.albums.getAll(signal)
       const normalizedAlbums = Array.isArray(rawAlbums)
         ? rawAlbums.map((album: Album & { id: string | number }) => ({
             ...album,
@@ -96,16 +95,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     if (!isAdmin) return null
 
     try {
-      const response = await fetch(`/api/albums/${albumId}/labeling/analytics`, {
-        credentials: 'include',
-        signal
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch analytics (status ${response.status})`)
-      }
-
-      const analytics = (await response.json()) as LabelAnalytics
+      const analytics = await api.albums.getAnalytics(albumId, signal)
       setAlbumAnalytics(analytics)
       return analytics
     } catch (error) {
@@ -120,17 +110,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
   const loadAlbum = async (albumId: string, signal?: AbortSignal): Promise<Album | null> => {
     try {
-      const includeParam = isAdmin ? '?include_labels=1' : ''
-      const response = await fetch(`/api/albums/${albumId}${includeParam}`, {
-        credentials: 'include',
-        signal
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch album (status ${response.status})`)
-      }
-
-      const data = (await response.json()) as RawAlbum
+      const apiData = await api.albums.getById(albumId, isAdmin, signal)
+      const data = apiData as RawAlbum
 
       const normalizedImages: AlbumImage[] = Array.isArray(data.images)
         ? data.images.map((image: RawAlbumImage) => {
@@ -202,25 +183,14 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     if (!isAdmin) return
 
     try {
-      const response = await fetch('/api/albums', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name,
-          description,
-          album_type: albumType,
-          is_public: true
-        })
-      })
+      const result = await api.albums.create(name, description, albumType)
 
-      if (response.ok) {
+      if (result.success) {
         toast.success('Album created successfully!')
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        const error = (await response.json()) as { error?: string }
-        toast.error('Failed to create album: ' + (error.error ?? 'Unknown error'))
+        toast.error('Failed to create album: ' + (result.error ?? 'Unknown error'))
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
@@ -234,12 +204,9 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
     if (!window.confirm('Are you sure you want to delete this album?')) return
 
     try {
-      const response = await fetch(`/api/albums/${albumId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
+      const result = await api.albums.delete(albumId)
 
-      if (response.ok) {
+      if (result.success) {
         toast.success('Album deleted successfully')
         fetchAlbums()
         if (selectedAlbum?.id === albumId) {
@@ -247,8 +214,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
           setAlbumAnalytics(null)
         }
       } else {
-        const error = await response.json()
-        toast.error('Failed to delete album: ' + error.error)
+        toast.error('Failed to delete album: ' + (result.error ?? 'Unknown error'))
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)

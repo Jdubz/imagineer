@@ -15,6 +15,7 @@ import ToastContainer from './components/Toast'
 import { ToastProvider } from './contexts/ToastContext'
 import { useToast } from './hooks/useToast'
 import { logger } from './lib/logger'
+import { api } from './lib/api'
 import type { AuthStatus } from './types/shared'
 import type {
   Config,
@@ -65,11 +66,7 @@ const AppContent: React.FC = () => {
 
   const checkAuth = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include',
-        signal
-      })
-      const data: AuthStatus = await response.json()
+      const data = await api.auth.checkAuth(signal)
 
       if (data.authenticated) {
         setUser(data)
@@ -88,24 +85,8 @@ const AppContent: React.FC = () => {
 
   const fetchConfig = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/config', {
-        credentials: 'include', // Include cookies for admin auth
-        signal
-      })
-
-      // Handle auth failures - config endpoint now requires admin auth
-      if (response.status === 401 || response.status === 403) {
-        logger.warn('Config endpoint requires admin authentication')
-        setConfig(null)
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch config: ${response.status}`)
-      }
-
-      const payload = (await response.json()) as unknown
-      setConfig(isRecord(payload) ? (payload as Config) : null)
+      const config = await api.getConfig(signal)
+      setConfig(config)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -117,15 +98,7 @@ const AppContent: React.FC = () => {
 
   const fetchImages = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/outputs', { signal })
-      const payload = (await response.json()) as unknown
-      let images: GeneratedImage[] = []
-      if (isRecord(payload)) {
-        const maybeImages = (payload as { images?: unknown }).images
-        if (Array.isArray(maybeImages)) {
-          images = maybeImages as GeneratedImage[]
-        }
-      }
+      const images = await api.images.getAll(signal)
       setImages(images)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -137,15 +110,7 @@ const AppContent: React.FC = () => {
 
   const fetchBatches = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/batches', { signal })
-      const payload = (await response.json()) as unknown
-      let batches: BatchSummary[] = []
-      if (isRecord(payload)) {
-        const maybeBatches = (payload as { batches?: unknown }).batches
-        if (Array.isArray(maybeBatches)) {
-          batches = maybeBatches as BatchSummary[]
-        }
-      }
+      const batches = await api.batches.getAll(signal)
       setBatches(batches)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -228,8 +193,7 @@ const AppContent: React.FC = () => {
   const pollJobStatus = (jobId: string): void => {
     const checkStatus = async (): Promise<void> => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`)
-        const job: Job = await response.json()
+        const job = await api.jobs.getById(jobId)
 
         // Update queue position
         const queuePosition = typeof job.queue_position === 'number' ? job.queue_position : null
