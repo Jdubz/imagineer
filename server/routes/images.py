@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -196,11 +197,17 @@ def upload_images():
 
         if filepath.exists():
             stem = Path(filename).stem
-            counter = 1
-            while filepath.exists():
-                filename = f"{stem}_{counter}{ext}"
-                filepath = upload_dir / filename
-                counter += 1
+            # Try a bounded number of deterministic suffixes before falling back to a UUID.
+            for counter in range(1, 50):
+                candidate = upload_dir / f"{stem}_{counter}{ext}"
+                if not candidate.exists():
+                    filename = candidate.name
+                    filepath = candidate
+                    break
+            else:
+                unique_name = f"{stem}_{uuid.uuid4().hex}{ext}"
+                filepath = upload_dir / unique_name
+                filename = filepath.name
 
         _persist_upload(filepath, file_bytes)
 

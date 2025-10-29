@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build --outDir ../public",
     "build:prod": "NODE_ENV=production vite build --outDir ../public",
-    "build:analyze": "NODE_ENV=production vite build --outDir ../public && (open dist/stats.html || xdg-open dist/stats.html || start dist/stats.html)",
+    "build:analyze": "NODE_ENV=production vite build --outDir ../public && (open ../public/stats.html || xdg-open ../public/stats.html || start ../public/stats.html)",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",

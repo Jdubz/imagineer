@@ -462,7 +462,11 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
 
   const handleImageLoad = useCallback((imageId: number): void => {
-    setLoadedImages((prev) => new Set(prev).add(imageId))
+    setLoadedImages((prev) => {
+      const next = new Set(prev)
+      next.add(imageId)
+      return next
+    })
   }, [])
 
   const handleNsfwChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
