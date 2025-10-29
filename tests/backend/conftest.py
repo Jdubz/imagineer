@@ -6,7 +6,9 @@ import gc
 import os
 import sys
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -309,8 +311,6 @@ def sample_job_data():
 @pytest.fixture
 def mock_admin_auth():
     """Mock admin authentication"""
-    from unittest.mock import MagicMock, patch
-
     # Create a mock admin user
     admin_user = MagicMock()
     admin_user.email = "admin@test.com"
@@ -320,15 +320,26 @@ def mock_admin_auth():
     admin_user.is_authenticated = True
     admin_user.is_admin.return_value = True
 
-    with patch("server.auth.current_user", admin_user):
+    patch_targets = [
+        "server.auth.current_user",
+        "server.routes.images.current_user",
+        "server.routes.albums.current_user",
+        "server.routes.training.current_user",
+        "server.routes.scraping.current_user",
+    ]
+
+    with ExitStack() as stack:
+        for target in patch_targets:
+            try:
+                stack.enter_context(patch(target, admin_user))
+            except ModuleNotFoundError:
+                continue
         yield admin_user
 
 
 @pytest.fixture
 def mock_public_auth():
     """Mock public user authentication"""
-    from unittest.mock import MagicMock, patch
-
     # Create a mock public user
     public_user = MagicMock()
     public_user.email = "public@test.com"
@@ -338,7 +349,20 @@ def mock_public_auth():
     public_user.is_authenticated = True
     public_user.is_admin.return_value = False
 
-    with patch("server.auth.current_user", public_user):
+    patch_targets = [
+        "server.auth.current_user",
+        "server.routes.images.current_user",
+        "server.routes.albums.current_user",
+        "server.routes.training.current_user",
+        "server.routes.scraping.current_user",
+    ]
+
+    with ExitStack() as stack:
+        for target in patch_targets:
+            try:
+                stack.enter_context(patch(target, public_user))
+            except ModuleNotFoundError:
+                continue
         yield public_user
 
 

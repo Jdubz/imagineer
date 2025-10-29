@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image as PILImage
 
 from server.database import Album, AlbumImage, Image, Label, db
+from server.utils import rate_limiter
 
 
 class TestAlbumAPI:
@@ -202,6 +203,94 @@ class TestImageAPI:
         data = response.get_json()
         assert "uploaded" in data
         assert data["uploaded"] == 1
+
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("server.api.load_config")
+    @patch("builtins.open", create=True)
+    def test_upload_images_rate_limited(
+        self, mock_open, mock_load_config, mock_exists, mock_mkdir, client, mock_admin_auth
+    ):
+        """Uploading images respects per-admin throttling."""
+        rate_limiter._local_counters.clear()
+        app = client.application
+        app.config["IMAGE_UPLOAD_RATE_LIMIT"] = 1
+        app.config["IMAGE_UPLOAD_RATE_WINDOW_SECONDS"] = 3600
+
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        def make_image_bytes():
+            buffer = io.BytesIO()
+            img = PILImage.new("RGB", (100, 100), color="red")
+            img.save(buffer, format="JPEG")
+            buffer.seek(0)
+            return buffer
+
+        first_response = client.post(
+            "/api/images/upload",
+            data={"files": (make_image_bytes(), "first.jpg")},
+            content_type="multipart/form-data",
+            headers={"Authorization": "Bearer admin_token"},
+        )
+        assert first_response.status_code == 201
+
+        second_response = client.post(
+            "/api/images/upload",
+            data={"files": (make_image_bytes(), "second.jpg")},
+            content_type="multipart/form-data",
+            headers={"Authorization": "Bearer admin_token"},
+        )
+        assert second_response.status_code == 429
+        payload = second_response.get_json()
+        assert payload["success"] is False
+        assert "upload limit" in payload["error"].lower()
+
+    def test_list_images_public_redacts_paths(self, client):
+        """Public listing should hide filesystem paths."""
+        with client.application.app_context():
+            image = Image(
+                filename="public.jpg",
+                file_path="/tmp/imagineer/outputs/public.jpg",
+                is_public=True,
+            )
+            db.session.add(image)
+            db.session.commit()
+
+        response = client.get("/api/images")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["images"], "expected at least one image in response"
+        image_payload = next(
+            (item for item in payload["images"] if item["filename"] == "public.jpg"), None
+        )
+        assert image_payload is not None, "public image not returned in listing"
+        assert image_payload["file_path"] is None
+        assert image_payload["thumbnail_path"] is None
+        assert image_payload["download_url"].endswith("/file")
+
+    def test_list_images_admin_includes_paths(self, client, mock_admin_auth):
+        """Admins should receive filesystem paths for maintenance tasks."""
+        path = "/tmp/imagineer/outputs/admin.jpg"
+        with client.application.app_context():
+            image = Image(filename="admin.jpg", file_path=path, is_public=True)
+            db.session.add(image)
+            db.session.commit()
+
+        response = client.get("/api/images")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["images"], "expected at least one image in response"
+        image_payload = next(
+            (item for item in payload["images"] if item["filename"] == "admin.jpg"), None
+        )
+        assert image_payload is not None, "admin image not returned in listing"
+        assert image_payload["file_path"] == path
+        assert image_payload["thumbnail_path"] is None
 
     def test_upload_images_unauthorized(self, client):
         """Test uploading images without admin auth"""

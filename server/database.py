@@ -60,13 +60,21 @@ class Image(db.Model):
         """Get albums containing this image"""
         return [ai.album for ai in self.album_images if ai.album]
 
-    def to_dict(self):
-        """Convert to dictionary for API serialization"""
-        return {
+    def to_dict(self, include_sensitive: bool = False):
+        """Convert to dictionary for API serialization."""
+        storage_path = None
+        if self.file_path:
+            try:
+                storage_path = str(Path(self.file_path).name)
+            except ValueError:
+                storage_path = None
+
+        data = {
             "id": self.id,
             "filename": self.filename,
-            "file_path": self.file_path,
-            "thumbnail_path": self.thumbnail_path,
+            "storage_name": storage_path,
+            "download_url": f"/api/images/{self.id}/file",
+            "thumbnail_url": f"/api/images/{self.id}/thumbnail",
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
             "seed": self.seed,
@@ -80,6 +88,15 @@ class Image(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+        if include_sensitive:
+            data["file_path"] = self.file_path
+            data["thumbnail_path"] = self.thumbnail_path
+        else:
+            data["file_path"] = None
+            data["thumbnail_path"] = None
+
+        return data
 
 
 class Label(db.Model):
@@ -227,7 +244,7 @@ class ScrapeJob(db.Model):
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
-    def to_dict(self):
+    def to_dict(self, include_sensitive: bool = False):
         config_data = {}
         runtime_data = {}
         if self.scrape_config:
@@ -240,7 +257,7 @@ class ScrapeJob(db.Model):
                 config_data = {}
                 runtime_data = {}
 
-        return {
+        data = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -253,14 +270,21 @@ class ScrapeJob(db.Model):
             "progress": self.progress,
             "progress_message": self.description,
             "images_scraped": self.images_scraped,
-            "output_directory": self.output_directory,
-            "output_dir": self.output_directory,
             "error_message": self.error_message,
             "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+
+        if include_sensitive:
+            data["output_directory"] = self.output_directory
+            data["output_dir"] = self.output_directory
+        else:
+            data["output_directory"] = None
+            data["output_dir"] = None
+
+        return data
 
 
 class TrainingRun(db.Model):
@@ -295,13 +319,11 @@ class TrainingRun(db.Model):
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_sensitive: bool = False):
+        data = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "dataset_path": self.dataset_path,
-            "output_path": self.output_path,
             "training_config": self.training_config,
             "status": self.status,
             "progress": self.progress,
@@ -314,6 +336,15 @@ class TrainingRun(db.Model):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+
+        if include_sensitive:
+            data["dataset_path"] = self.dataset_path
+            data["output_path"] = self.output_path
+        else:
+            data["dataset_path"] = None
+            data["output_path"] = None
+
+        return data
 
 
 class MigrationHistory(db.Model):

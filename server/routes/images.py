@@ -5,17 +5,21 @@ Image management endpoints
 import io
 import json
 import logging
+import mimetypes
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, current_app, jsonify, request, send_file, send_from_directory
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 
 from server.auth import current_user, require_admin
 from server.database import Album, AlbumImage, Image, Label, db
+from server.utils.rate_limiter import enforce_rate_limit
+
+logger = logging.getLogger(__name__)
 
 images_bp = Blueprint("images", __name__, url_prefix="/api/images")
 outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/outputs")
@@ -76,6 +80,24 @@ def _attach_image_to_album(image_id: int, album_id: int | None, added_by: str | 
     db.session.add(assoc)
 
 
+def _upload_rate_settings() -> tuple[int, int]:
+    """Return per-admin upload rate limit configuration."""
+    limit_default = int(os.environ.get("IMAGINEER_UPLOAD_RATE_LIMIT", "6"))
+    window_default = int(os.environ.get("IMAGINEER_UPLOAD_RATE_WINDOW_SECONDS", "3600"))
+    config = getattr(current_app, "config", {})
+    limit = int(config.get("IMAGE_UPLOAD_RATE_LIMIT", limit_default))
+    window = int(config.get("IMAGE_UPLOAD_RATE_WINDOW_SECONDS", window_default))
+    return limit, window
+
+
+def _is_admin_user() -> bool:
+    """Return True when the requester is an authenticated admin user."""
+    try:
+        return bool(current_user.is_authenticated and current_user.is_admin())
+    except Exception:  # pragma: no cover - default to False when auth unavailable
+        return False
+
+
 @images_bp.route("", methods=["GET"])
 def list_images():
     """List images with pagination, public visibility, and optional NSFW filtering."""
@@ -96,9 +118,13 @@ def list_images():
         page=page, per_page=per_page, error_out=False
     )
 
+    include_sensitive = _is_admin_user()
+
     return jsonify(
         {
-            "images": [image.to_dict() for image in pagination.items],
+            "images": [
+                image.to_dict(include_sensitive=include_sensitive) for image in pagination.items
+            ],
             "total": pagination.total,
             "page": page,
             "per_page": per_page,
@@ -115,7 +141,7 @@ def get_image(image_id: int):
         return jsonify({"error": "Image not found"}), 404
 
     include_labels = request.args.get("include") == "labels"
-    payload = image.to_dict()
+    payload = image.to_dict(include_sensitive=_is_admin_user())
     if include_labels:
         payload["labels"] = [label.to_dict() for label in image.labels]
     return jsonify(payload)
@@ -125,6 +151,19 @@ def get_image(image_id: int):
 @require_admin
 def upload_images():
     """Upload images (admin only)."""
+    limit, window_seconds = _upload_rate_settings()
+    rate_identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
+    rate_limit_response = enforce_rate_limit(
+        namespace="images:upload",
+        limit=limit,
+        window_seconds=window_seconds,
+        identifier=rate_identifier,
+        message="Upload limit reached. Please wait before uploading more images.",
+        logger=logger,
+    )
+    if rate_limit_response:
+        return rate_limit_response
+
     if "files" not in request.files:
         return jsonify({"error": "No files provided"}), 400
 
@@ -231,7 +270,7 @@ def upload_images():
 
         added_by = current_user.email if getattr(current_user, "is_authenticated", False) else None
         _attach_image_to_album(image.id, album_id, added_by)
-        uploaded_images.append(image.to_dict())
+        uploaded_images.append(image.to_dict(include_sensitive=True))
 
     db.session.commit()
 
@@ -341,6 +380,26 @@ def _prepare_label_updates(payload: dict[str, object]) -> tuple[dict[str, object
     return updates, None
 
 
+@images_bp.route("/<int:image_id>/file", methods=["GET"])
+def get_image_file(image_id: int):
+    """Serve the original image file when permitted."""
+    image = Image.query.get_or_404(image_id)
+
+    if not image.is_public and not _is_admin_user():
+        return jsonify({"error": "Image not found"}), 404
+
+    file_path = Path(image.file_path or "")
+    if not file_path.exists() or not file_path.is_file():
+        logger.warning(
+            "Requested image file missing",
+            extra={"operation": "images:file", "image_id": image_id, "path": str(file_path)},
+        )
+        return jsonify({"error": "File not found"}), 404
+
+    guessed_mimetype = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+    return send_file(file_path, mimetype=guessed_mimetype)
+
+
 @images_bp.route("/<int:image_id>/labels", methods=["GET"])
 @require_admin
 def list_labels(image_id: int):
@@ -398,7 +457,8 @@ def list_outputs():
             images.append(
                 {
                     "filename": img_file.name,
-                    "path": str(img_file),
+                    "relative_path": img_file.name,
+                    "download_url": f"/api/outputs/{img_file.name}",
                     "size": img_file.stat().st_size,
                     "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
                     "metadata": metadata,

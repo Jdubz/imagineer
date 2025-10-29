@@ -14,6 +14,7 @@ from server.tasks.training import (
     prepare_training_data,
     train_lora_task,
 )
+from server.utils import rate_limiter
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,14 @@ def clean_database(app):
         db.session.query(Image).delete()
         db.session.query(Album).delete()
         db.session.commit()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    """Ensure rate limiter state does not leak between tests."""
+    rate_limiter._local_counters.clear()
+    yield
+    rate_limiter._local_counters.clear()
 
 
 @pytest.fixture
@@ -345,12 +354,52 @@ class TestTrainingAPI:
 
     def test_list_training_runs(self, client):
         """Test listing training runs"""
+        with client.application.app_context():
+            run = TrainingRun(
+                name="Public Run",
+                dataset_path="/tmp/training/public",
+                output_path="/tmp/training/output",
+                status="completed",
+            )
+            db.session.add(run)
+            db.session.commit()
+
         response = client.get("/api/training")
         assert response.status_code == 200
 
         data = response.get_json()
         assert "training_runs" in data
         assert "pagination" in data
+        assert data["training_runs"], "expected at least one training run"
+        payload = next(
+            (item for item in data["training_runs"] if item["name"] == "Public Run"), None
+        )
+        assert payload is not None
+        assert payload["dataset_path"] is None
+        assert payload["output_path"] is None
+
+    def test_list_training_runs_admin_includes_paths(self, client, mock_admin_auth):
+        """Admins should see dataset/output paths when listing runs."""
+        with client.application.app_context():
+            run = TrainingRun(
+                name="Admin Run",
+                dataset_path="/tmp/training/admin",
+                output_path="/tmp/training/admin_out",
+                status="pending",
+            )
+            db.session.add(run)
+            db.session.commit()
+
+        response = client.get("/api/training")
+        assert response.status_code == 200
+        data = response.get_json()
+        payload = next(
+            (item for item in data["training_runs"] if item["name"] == "Admin Run"),
+            None,
+        )
+        assert payload is not None
+        assert payload["dataset_path"] == "/tmp/training/admin"
+        assert payload["output_path"] == "/tmp/training/admin_out"
 
     def test_get_training_run(self, client, app):
         """Test getting specific training run"""
@@ -369,6 +418,26 @@ class TestTrainingAPI:
 
             data = response.get_json()
             assert data["name"] == "Test Run"
+            assert data["dataset_path"] is None
+            assert data["output_path"] is None
+
+    def test_get_training_run_admin_includes_paths(self, client, app, mock_admin_auth):
+        """Admins should receive full path details for a specific run."""
+        with app.app_context():
+            run = TrainingRun(
+                name="Admin Detail Run",
+                dataset_path="/tmp/data-admin",
+                output_path="/tmp/output-admin",
+                status="pending",
+            )
+            db.session.add(run)
+            db.session.commit()
+
+            response = client.get(f"/api/training/{run.id}")
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["dataset_path"] == "/tmp/data-admin"
+            assert data["output_path"] == "/tmp/output-admin"
 
     def test_get_training_run_not_found(self, client):
         """Test getting non-existent training run"""
@@ -396,6 +465,8 @@ class TestTrainingAPI:
 
                 data = response.get_json()
                 assert data["name"] == "Test Training"
+                assert data["dataset_path"]
+                assert data["output_path"]
 
     def test_create_training_run_validation(self, client, mock_admin_user):
         """Test training run creation validation"""
@@ -431,6 +502,74 @@ class TestTrainingAPI:
                 data = response.get_json()
                 assert data["message"] == "Training started"
                 assert "task_id" in data
+
+    def test_start_training_rate_limited(self, client, app, mock_admin_user):
+        """Ensure training starts are throttled per administrator."""
+        with app.app_context():
+            app.config["TRAINING_RATE_LIMIT"] = 1
+            app.config["TRAINING_RATE_WINDOW_SECONDS"] = 3600
+            app.config["TRAINING_MAX_CONCURRENT_RUNS"] = 5
+
+            run_one = TrainingRun(
+                name="Run 1",
+                dataset_path="/tmp/data1",
+                output_path="/tmp/output1",
+                status="pending",
+            )
+            run_two = TrainingRun(
+                name="Run 2",
+                dataset_path="/tmp/data2",
+                output_path="/tmp/output2",
+                status="pending",
+            )
+            db.session.add_all([run_one, run_two])
+            db.session.commit()
+
+            with patch("server.tasks.training.train_lora_task.delay") as mock_task, patch(
+                "server.auth.current_user", mock_admin_user
+            ):
+                mock_task.return_value = MagicMock(id="task-123")
+
+                first_response = client.post(f"/api/training/{run_one.id}/start")
+                assert first_response.status_code == 200
+
+                second_response = client.post(f"/api/training/{run_two.id}/start")
+                assert second_response.status_code == 429
+                payload = second_response.get_json()
+                assert payload["success"] is False
+                assert "training" in payload["error"].lower()
+
+    def test_start_training_concurrency_guard(self, client, app, mock_admin_user):
+        """Block new training jobs when the concurrency ceiling is reached."""
+        with app.app_context():
+            app.config["TRAINING_RATE_LIMIT"] = 100
+            app.config["TRAINING_RATE_WINDOW_SECONDS"] = 60
+            app.config["TRAINING_MAX_CONCURRENT_RUNS"] = 1
+
+            active_run = TrainingRun(
+                name="Active Run",
+                dataset_path="/tmp/data-active",
+                output_path="/tmp/output-active",
+                status="running",
+            )
+            pending_run = TrainingRun(
+                name="Pending Run",
+                dataset_path="/tmp/data-pending",
+                output_path="/tmp/output-pending",
+                status="pending",
+            )
+            db.session.add_all([active_run, pending_run])
+            db.session.commit()
+
+            with patch("server.tasks.training.train_lora_task.delay") as mock_task, patch(
+                "server.auth.current_user", mock_admin_user
+            ):
+                response = client.post(f"/api/training/{pending_run.id}/start")
+                assert response.status_code == 429
+                data = response.get_json()
+                assert data["success"] is False
+                assert "Training is already running" in data["error"]
+                mock_task.assert_not_called()
 
     def test_cancel_training(self, client, app, mock_admin_user):
         """Test cancelling training run (admin)"""

@@ -94,6 +94,7 @@ class TestScrapingAPI:
             # Create test jobs
             job1 = ScrapeJob(name="Job 1", source_url="https://example1.com", status="completed")
             job2 = ScrapeJob(name="Job 2", source_url="https://example2.com", status="running")
+            job1.output_directory = "/tmp/scrape/job1"
             db.session.add_all([job1, job2])
             db.session.commit()
 
@@ -101,11 +102,13 @@ class TestScrapingAPI:
         assert response.status_code == 200
         result = response.get_json()
         assert len(result["jobs"]) == 2
+        assert all(entry["output_directory"] is None for entry in result["jobs"])
 
     def test_get_scrape_job(self, client):
         """Test getting specific scrape job"""
         with client.application.app_context():
             job = ScrapeJob(name="Test Job", source_url="https://example.com", status="completed")
+            job.output_directory = "/tmp/scrape/job"
             db.session.add(job)
             db.session.commit()
             job_id = job.id
@@ -114,6 +117,21 @@ class TestScrapingAPI:
         assert response.status_code == 200
         result = response.get_json()
         assert result["name"] == "Test Job"
+        assert result["output_directory"] is None
+
+    def test_get_scrape_job_admin_includes_paths(self, client, mock_admin_auth):
+        """Admins should see scrape job output directories."""
+        with client.application.app_context():
+            job = ScrapeJob(name="Admin Job", source_url="https://example.com", status="completed")
+            job.output_directory = "/tmp/scrape/admin"
+            db.session.add(job)
+            db.session.commit()
+            job_id = job.id
+
+        response = client.get(f"/api/scraping/jobs/{job_id}")
+        assert response.status_code == 200
+        result = response.get_json()
+        assert result["output_directory"] == "/tmp/scrape/admin"
 
     def test_get_scrape_job_not_found(self, client):
         """Test getting non-existent scrape job"""

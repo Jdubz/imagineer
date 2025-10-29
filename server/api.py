@@ -1301,8 +1301,8 @@ def get_batch(batch_id):
             images.append(
                 {
                     "filename": img_file.name,
-                    "path": str(img_file),
                     "relative_path": f"{batch_id}/{img_file.name}",
+                    "download_url": f"/api/outputs/{batch_id}/{img_file.name}",
                     "size": img_file.stat().st_size,
                     "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
                     "metadata": metadata,
