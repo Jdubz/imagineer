@@ -11,15 +11,15 @@ Owner: Backend Platform · Status: Draft
 
 ## P0 Tasks
 - [x] **Lock down image generation endpoints** *(Oct 29, 2025)*  
-  Redis-backed limiter now supplements existing admin gating; responses include  hints. (, )
+  Redis-backed limiter now supplements existing admin gating; responses include `Retry-After` hints. (`server/api.py`, `server/utils/rate_limiter.py`)
 - [x] **Externalize training/scraping paths** *(Oct 28, 2025)*  
-  Paths hydrate from /env vars with production safeguards. (, )
+  Paths hydrate from `config.yaml`/env vars with production safeguards. (`server/tasks/training.py`, `server/tasks/scraping.py`)
 - [x] **Add execution guards around long-running subprocesses** *(Oct 29, 2025)*  
-  Training and scraping tasks stream output on background threads/selectors, enforce wall/idle timeouts, and terminate hung child processes. (, )
+  Training and scraping tasks stream output on background threads/selectors, enforce wall/idle timeouts, and terminate hung child processes. (`server/tasks/training.py`, `server/tasks/scraping.py`)
 - [x] **Harden image uploads** *(Oct 29, 2025)*  
-  Upload API enforces allow-listed extensions, dimensional/byte ceilings, and duplicate-safe filenames. ()
+  Upload API enforces allow-listed extensions, dimensional/byte ceilings, and duplicate-safe filenames. (`server/routes/images.py`)
 - [x] **Require production-grade database configuration** *(Oct 29, 2025)*  
-  Production boot aborts without , eliminating silent SQLite fallbacks. ()
+  Production boot aborts without `DATABASE_URL`, eliminating silent SQLite fallbacks. (`server/api.py`)
 
 ## Recently Completed
 - **(Oct 29, 2025)** Rescued mis-encoded Google OAuth callbacks that previously produced `/api/auth/google/%2F…` 404 loops.  
@@ -32,10 +32,9 @@ Owner: Backend Platform · Status: Draft
    - Problem: Admin endpoints can enqueue heavy Celery work or bulk uploads without throttle, allowing accidental or malicious floods.  
    - Fix: Add server-side throttling (Flask-Limiter or NGINX) and queue-depth checks before enqueuing new jobs.
 
-2. **Distribute generation rate limits**  
-   - File: `server/api.py:150-223`  
-   - Problem: Rate limiting state lives in-process only; with multiple workers attackers can bypass quotas.  
-   - Fix: Persist counters in Redis/DB (or another shared store) and enforce per-user quotas across instances.
+- [x] **Distribute generation rate limits** *(Oct 29, 2025)*  
+  - Files: `server/api.py:150-223`, `server/utils/rate_limiter.py`  
+  - Status: Completed for `/api/generate` (Redis-backed with local fallback). **Follow-up:** extend limiter helpers to other heavy admin endpoints (`/api/training`, `/api/images/upload`) during the next pass.
 
 3. **Redact internal filesystem details from API responses**  
     - Files: `server/api.py:1300-1496`, `server/routes/images.py:250-420`  
@@ -53,10 +52,9 @@ Owner: Backend Platform · Status: Draft
     - Problem: Request logs currently dump method/path only; task logs may contain user prompts or external URLs.  
     - Fix: Add structured logging fields (request ids, user email) and central prompt redaction to avoid leaking PII into CloudWatch/Splunk.
 
-3. **Automate artifact lifecycle management**  
-    - Files: `server/tasks/scraping.py:240-410`, `server/tasks/training.py:32-120`  
-    - Problem: Scrape outputs and training datasets accumulate indefinitely with only best-effort cleanup.  
-    - Fix: Add periodic cleanup jobs with retention windows and disk utilisation alerts.
+- **Automate artifact lifecycle management** *(in progress)*  
+    - Files: `server/tasks/scraping.py`, `server/tasks/training.py`, `server/routes/training.py`, `server/routes/scraping.py`  
+    - Status: Added retention-aware purge tasks and admin endpoints to queue cleanups. **Remaining:** wire purge jobs into scheduled automation (Celery beat/crontab) and surface disk utilisation alerts.
 
 4. **Validation for public training run visibility**  
     - File: `server/routes/training.py:28-76`  

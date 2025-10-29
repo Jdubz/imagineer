@@ -152,6 +152,8 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 1. **Progress Telemetry Enhancements (LOW)**
    - Scrape jobs now expose stage, discovered, and downloaded counts in the UI
    - Consider adding historical stats (average throughput, error buckets) if additional insight is needed
+2. **Scheduled Artifact Purge (LOW)**
+   - Manual/admin-triggered purge task exists for stale scrape outputs; wire it into Celery beat/cron and surface alerts when storage runs hot.
 
 ---
 
@@ -183,8 +185,8 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 ### ⚠️ Outstanding Issues
 
 1. **Training Directory Housekeeping (LOW)**
-   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention automation is TBD
-   - **Action:** Automate pruning of stale checkpoints/datasets or wire into existing scheduler once policy is finalized
+   - Manual cleanup endpoints now exist and Celery helpers can purge stale datasets/logs.
+   - **Action:** Schedule the new purge task (Celery beat/cron) and add disk-utilisation alerting so operators get notified before NVMe fills up.
 
 ---
 
