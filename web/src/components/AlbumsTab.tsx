@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback, useMemo, memo } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
@@ -71,7 +71,7 @@ interface RawAlbum {
 
 type AlbumFilter = 'all' | 'sets' | 'regular'
 
-const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
+const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const toast = useToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
@@ -80,11 +80,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
   const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
   const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
 
-  useAbortableEffect((signal) => {
-    void fetchAlbums(signal)
-  }, [])
-
-  const fetchAlbums = async (signal?: AbortSignal): Promise<void> => {
+  const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
       const rawAlbums = await api.albums.getAll(signal)
       const normalizedAlbums = Array.isArray(rawAlbums)
@@ -100,9 +96,13 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       }
       logger.error('Failed to fetch albums:', error)
     }
-  }
+  }, [])
 
-  const fetchAlbumAnalytics = async (albumId: string, signal?: AbortSignal): Promise<LabelAnalytics | null> => {
+  useAbortableEffect((signal) => {
+    void fetchAlbums(signal)
+  }, [fetchAlbums])
+
+  const fetchAlbumAnalytics = useCallback(async (albumId: string, signal?: AbortSignal): Promise<LabelAnalytics | null> => {
     if (!isAdmin) return null
 
     try {
@@ -117,9 +117,9 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       setAlbumAnalytics(null)
       return null
     }
-  }
+  }, [isAdmin])
 
-  const loadAlbum = async (albumId: string, signal?: AbortSignal): Promise<Album | null> => {
+  const loadAlbum = useCallback(async (albumId: string, signal?: AbortSignal): Promise<Album | null> => {
     try {
       const apiData = await api.albums.getById(albumId, isAdmin, signal)
       const data = apiData as RawAlbum
@@ -196,13 +196,13 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       setAlbumAnalytics(null)
       return null
     }
-  }
+  }, [isAdmin, fetchAlbumAnalytics])
 
-  const selectAlbum = async (albumId: string): Promise<void> => {
+  const selectAlbum = useCallback(async (albumId: string): Promise<void> => {
     await loadAlbum(albumId)
-  }
+  }, [loadAlbum])
 
-  const createAlbum = async (name: string, description: string, albumType = 'manual'): Promise<void> => {
+  const createAlbum = useCallback(async (name: string, description: string, albumType = 'manual'): Promise<void> => {
     if (!isAdmin) return
 
     try {
@@ -219,9 +219,9 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       logger.error('Failed to create album:', error)
       toast.error('Error creating album')
     }
-  }
+  }, [isAdmin, toast, fetchAlbums])
 
-  const deleteAlbum = async (albumId: string): Promise<void> => {
+  const deleteAlbum = useCallback(async (albumId: string): Promise<void> => {
     if (!isAdmin) return
 
     if (!window.confirm('Are you sure you want to delete this album?')) return
@@ -243,32 +243,56 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       logger.error('Failed to delete album:', error)
       toast.error('Error deleting album')
     }
-  }
+  }, [isAdmin, toast, fetchAlbums, selectedAlbum])
 
-  const handleBatchGenerate = (album: Album, event: React.MouseEvent): void => {
+  const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
     setShowBatchDialog(album)
-  }
+  }, [])
 
-  const filteredAlbums = albums.filter((album) => {
-    if (albumFilter === 'all') return true
-    if (albumFilter === 'sets') return album.is_set_template === true
-    if (albumFilter === 'regular') return !album.is_set_template
-    return true
-  })
+  const filteredAlbums = useMemo(() => {
+    return albums.filter((album) => {
+      if (albumFilter === 'all') return true
+      if (albumFilter === 'sets') return album.is_set_template === true
+      if (albumFilter === 'regular') return !album.is_set_template
+      return true
+    })
+  }, [albums, albumFilter])
+
+  const handleFilterAll = useCallback(() => setAlbumFilter('all'), [])
+  const handleFilterSets = useCallback(() => setAlbumFilter('sets'), [])
+  const handleFilterRegular = useCallback(() => setAlbumFilter('regular'), [])
+  const handleShowCreateDialog = useCallback(() => setShowCreateDialog(true), [])
+  const handleCloseCreateDialog = useCallback(() => setShowCreateDialog(false), [])
+  const handleCloseBatchDialog = useCallback(() => setShowBatchDialog(null), [])
+  const handleBackToList = useCallback(() => setSelectedAlbum(null), [])
+
+  const handleRefreshAlbum = useCallback(() => {
+    if (!selectedAlbum) return Promise.resolve(null)
+    return loadAlbum(String(selectedAlbum.id))
+  }, [selectedAlbum, loadAlbum])
+
+  const handleRefreshAnalytics = useCallback(async () => {
+    if (!selectedAlbum) return
+    await fetchAlbumAnalytics(String(selectedAlbum.id))
+  }, [selectedAlbum, fetchAlbumAnalytics])
+
+  const handleBatchSuccess = useCallback((result: GenerateBatchSuccess) => {
+    setShowBatchDialog(null)
+    const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
+    toast.success(`${result.message}${suffix}`)
+  }, [toast])
 
   if (selectedAlbum) {
     return (
       <AlbumDetailView
         album={selectedAlbum}
-        onBack={() => setSelectedAlbum(null)}
+        onBack={handleBackToList}
         isAdmin={isAdmin}
         onDelete={deleteAlbum}
-        onRefresh={() => loadAlbum(String(selectedAlbum.id))}
+        onRefresh={handleRefreshAlbum}
         analytics={albumAnalytics}
-        onRefreshAnalytics={async () => {
-          await fetchAlbumAnalytics(String(selectedAlbum.id))
-        }}
+        onRefreshAnalytics={handleRefreshAnalytics}
       />
     )
   }
@@ -281,19 +305,19 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
           <div className="album-filter-buttons">
             <button
               className={`filter-btn ${albumFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setAlbumFilter('all')}
+              onClick={handleFilterAll}
             >
               All Albums
             </button>
             <button
               className={`filter-btn ${albumFilter === 'sets' ? 'active' : ''}`}
-              onClick={() => setAlbumFilter('sets')}
+              onClick={handleFilterSets}
             >
               Set Templates
             </button>
             <button
               className={`filter-btn ${albumFilter === 'regular' ? 'active' : ''}`}
-              onClick={() => setAlbumFilter('regular')}
+              onClick={handleFilterRegular}
             >
               Regular Albums
             </button>
@@ -301,7 +325,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
           {isAdmin && (
             <button
               className="create-album-btn"
-              onClick={() => setShowCreateDialog(true)}
+              onClick={handleShowCreateDialog}
             >
               Create Album
             </button>
@@ -310,12 +334,20 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       </div>
 
       <div className="albums-grid">
-        {filteredAlbums.map(album => (
-          <div
-            key={album.id}
-            className="album-card"
-            onClick={() => selectAlbum(album.id)}
-          >
+        {filteredAlbums.map(album => {
+          const handleSelectAlbum = () => selectAlbum(album.id)
+          const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation()
+            deleteAlbum(album.id)
+          }
+          const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)
+
+          return (
+            <div
+              key={album.id}
+              className="album-card"
+              onClick={handleSelectAlbum}
+            >
             <div className="album-cover">
               {album.images && album.images.length > 0 ? (
                 <img
@@ -349,17 +381,14 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
                   {album.is_set_template && (
                     <button
                       className="generate-batch-btn"
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)}
+                      onClick={handleBatchClick}
                     >
                       Generate Batch
                     </button>
                   )}
                   <button
                     className="delete-album-btn"
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.stopPropagation()
-                      deleteAlbum(album.id)
-                    }}
+                    onClick={handleDeleteAlbum}
                   >
                     Delete
                   </button>
@@ -367,7 +396,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {filteredAlbums.length === 0 && albums.length > 0 && (
@@ -384,7 +414,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
       {showCreateDialog && (
         <CreateAlbumDialog
-          onClose={() => setShowCreateDialog(false)}
+          onClose={handleCloseCreateDialog}
           onCreate={createAlbum}
         />
       )}
@@ -392,17 +422,15 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       {showBatchDialog && (
         <BatchGenerateDialog
           album={showBatchDialog}
-          onClose={() => setShowBatchDialog(null)}
-          onSuccess={(result) => {
-            setShowBatchDialog(null)
-            const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
-            toast.success(`${result.message}${suffix}`)
-          }}
+          onClose={handleCloseBatchDialog}
+          onSuccess={handleBatchSuccess}
         />
       )}
     </div>
   )
-}
+})
+
+AlbumsTab.displayName = 'AlbumsTab'
 
 interface AlbumDetailViewProps {
   album: Album
@@ -414,7 +442,7 @@ interface AlbumDetailViewProps {
   onRefreshAnalytics: () => Promise<void>
 }
 
-const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
+const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
   album,
   onBack,
   isAdmin,
@@ -433,9 +461,18 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
   const { images, selectedImages, nsfwSetting, labelInputs, editingLabel, labelError } = state
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
 
-  const handleImageLoad = (imageId: number): void => {
+  const handleImageLoad = useCallback((imageId: number): void => {
     setLoadedImages((prev) => new Set(prev).add(imageId))
-  }
+  }, [])
+
+  const handleNsfwChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    actions.setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')
+  }, [actions])
+
+  const handleLabelingComplete = useCallback(async () => {
+    await onRefresh()
+    await onRefreshAnalytics()
+  }, [onRefresh, onRefreshAnalytics])
 
   return (
     <div className="album-detail">
@@ -449,9 +486,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           <label>NSFW:</label>
           <select
             value={nsfwSetting}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-              actions.setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')
-            }
+            onChange={handleNsfwChange}
           >
             <option value="hide">Hide</option>
             <option value="blur">Blur</option>
@@ -522,10 +557,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
         <div className="album-actions">
           <LabelingPanel
             albumId={album.id}
-            onComplete={async () => {
-              await onRefresh()
-              await onRefreshAnalytics()
-            }}
+            onComplete={handleLabelingComplete}
           />
         </div>
       )}
@@ -542,17 +574,28 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           const activeEdit =
             editingLabel && editingLabel.imageId === image.id ? editingLabel : null
 
+          const handleImageClick = () => isAdmin && actions.toggleImageSelection(image.id)
+          const handleToggleSelection = () => actions.toggleImageSelection(image.id)
+          const handleImageLoaded = () => handleImageLoad(image.id)
+          const handleAddLabelSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+            event.preventDefault()
+            void actions.addLabel(image.id)
+          }
+          const handleUpdateLabelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+            actions.updateLabelInput(image.id, e.target.value)
+          }
+
           return (
             <div
               key={image.id}
               className={`image-card ${image.is_nsfw ? 'nsfw' : ''} ${nsfwSetting}`}
-              onClick={() => isAdmin && actions.toggleImageSelection(image.id)}
+              onClick={handleImageClick}
             >
               {isAdmin && (
                 <input
                   type="checkbox"
                   checked={selectedImages.has(imageKey)}
-                  onChange={() => actions.toggleImageSelection(image.id)}
+                  onChange={handleToggleSelection}
                   className="image-checkbox"
                 />
               )}
@@ -562,7 +605,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                 alt={image.filename}
                 className={`${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
                 loading="lazy"
-                onLoad={() => handleImageLoad(image.id)}
+                onLoad={handleImageLoaded}
               />
 
               {image.is_nsfw && <div className="nsfw-badge">18+</div>}
@@ -573,10 +616,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                 <>
                   <LabelingPanel
                     imageId={image.id}
-                    onComplete={async () => {
-                      await onRefresh()
-                      await onRefreshAnalytics()
-                    }}
+                    onComplete={handleLabelingComplete}
                     variant="compact"
                   />
 
@@ -588,6 +628,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                         const labelType = (label.label_type || 'unknown').toLowerCase()
                         const isCaption = labelType === 'caption'
                         const isDeletingThisLabel = isLoading.deletingLabel(image.id, label.id)
+
+                        const handleStartEdit = () => actions.startEditingLabel(image.id, label)
+                        const handleDeleteLabel = () => actions.deleteLabel(image.id, label.id)
 
                         return (
                           <div
@@ -628,7 +671,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                                   {!isCaption && (
                                     <button
                                       type="button"
-                                      onClick={() => actions.startEditingLabel(image.id, label)}
+                                      onClick={handleStartEdit}
                                       disabled={state.loadingStates.editingLabel}
                                     >
                                       Edit
@@ -636,7 +679,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => actions.deleteLabel(image.id, label.id)}
+                                    onClick={handleDeleteLabel}
                                     disabled={isDeletingThisLabel}
                                   >
                                     {isDeletingThisLabel ? 'Removing...' : 'Remove'}
@@ -651,18 +694,13 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
 
                     <form
                       className="label-add-form"
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        void actions.addLabel(image.id)
-                      }}
+                      onSubmit={handleAddLabelSubmit}
                     >
                       <input
                         type="text"
                         placeholder="Add manual tag"
                         value={inputValue}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          actions.updateLabelInput(image.id, e.target.value)
-                        }
+                        onChange={handleUpdateLabelInput}
                         disabled={isLoading.addingLabel(image.id)}
                       />
                       <button
@@ -687,7 +725,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
       )}
     </div>
   )
-}
+})
+
+AlbumDetailView.displayName = 'AlbumDetailView'
 
 interface BatchGenerateDialogProps {
   album: Album
@@ -695,14 +735,34 @@ interface BatchGenerateDialogProps {
   onSuccess: (result: GenerateBatchSuccess) => void
 }
 
-const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClose, onSuccess }) => {
+const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
   const toast = useToast()
   const [userTheme, setUserTheme] = useState<string>('')
   const [steps, setSteps] = useState<string>('')
   const [seed, setSeed] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleUserThemeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserTheme(e.target.value)
+  }, [])
+
+  const handleStepsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSteps(e.target.value)
+  }, [])
+
+  const handleSeedChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSeed(e.target.value)
+  }, [])
+
+  const handleOverlayClick = useCallback(() => {
+    onClose()
+  }, [onClose])
+
+  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+  }, [])
+
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
       toast.error('User theme is required')
@@ -739,11 +799,11 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
     } finally {
       setIsSubmitting(false)
     }
-  }
+  }, [userTheme, steps, seed, album.id, toast, onSuccess])
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
+    <div className="dialog-overlay" onClick={handleOverlayClick}>
+      <div className="dialog" onClick={handleDialogClick}>
         <h2>Generate Batch: {album.name}</h2>
         <p className="dialog-description">
           Generate {album.template_item_count || 0} images using this set template
@@ -756,7 +816,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
               id="user-theme"
               type="text"
               value={userTheme}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUserTheme(e.target.value)}
+              onChange={handleUserThemeChange}
               placeholder={album.example_theme || "e.g., gothic style with ravens"}
               required
               disabled={isSubmitting}
@@ -772,7 +832,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
               id="steps"
               type="number"
               value={steps}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSteps(e.target.value)}
+              onChange={handleStepsChange}
               placeholder="Leave empty to use album defaults"
               min="1"
               max="150"
@@ -786,7 +846,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
               id="seed"
               type="number"
               value={seed}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSeed(e.target.value)}
+              onChange={handleSeedChange}
               placeholder="Random seed for reproducibility"
               min="0"
               max="2147483647"
@@ -806,7 +866,9 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
       </div>
     </div>
   )
-}
+})
+
+BatchGenerateDialog.displayName = 'BatchGenerateDialog'
 
 interface CreateAlbumDialogProps {
   onClose: () => void

@@ -6,7 +6,9 @@ import hashlib
 import json
 import logging
 import os
+import selectors
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +22,14 @@ logger = logging.getLogger(__name__)
 # Will be set from config in the task
 SCRAPED_OUTPUT_PATH = None
 TRAINING_DATA_REPO_PATH: Path | None = None
+
+SCRAPING_MAX_DURATION_SECONDS = int(
+    os.environ.get("IMAGINEER_SCRAPE_TIMEOUT_SECONDS", str(2 * 60 * 60))
+)
+SCRAPING_IDLE_TIMEOUT_SECONDS = int(os.environ.get("IMAGINEER_SCRAPE_IDLE_TIMEOUT_SECONDS", "600"))
+SCRAPING_TERMINATE_GRACE_SECONDS = int(
+    os.environ.get("IMAGINEER_SCRAPE_TERMINATE_GRACE_SECONDS", "30")
+)
 
 
 def _load_scrape_config(job: ScrapeJob) -> dict:
@@ -244,59 +254,136 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             discovered_count = 0
             downloaded_count = 0
             stage = "running"
+            start_time = time.monotonic()
+            last_output_time = start_time
+            timeout_reason: str | None = None
 
-            for line in process.stdout:
-                line = line.strip()
-                if line:
-                    logger.info(f"Scraper: {line}")
+            selector = selectors.DefaultSelector()
+            if process.stdout:
+                selector.register(process.stdout, selectors.EVENT_READ)
 
-                    # Parse progress from output
-                    if "Discovered:" in line:
-                        try:
-                            discovered_count = int(line.split("Discovered:")[1].split()[0])
-                            job.images_scraped = discovered_count
-                            stage = "discovering"
-                        except (ValueError, IndexError):
-                            pass
-                    elif "Downloaded:" in line:
-                        try:
-                            downloaded_count = int(line.split("Downloaded:")[1].split()[0])
-                            job.images_scraped = downloaded_count
+            try:
+                while True:
+                    now = time.monotonic()
+                    if (
+                        SCRAPING_MAX_DURATION_SECONDS > 0
+                        and now - start_time > SCRAPING_MAX_DURATION_SECONDS
+                        and timeout_reason is None
+                    ):
+                        timeout_reason = (
+                            "Scrape exceeded maximum duration of "
+                            f"{SCRAPING_MAX_DURATION_SECONDS} seconds"
+                        )
+                        break
 
-                            # Update progress percentage
-                            if max_images > 0:
-                                progress = min(90, int((downloaded_count / max_images) * 90))
-                                job.progress = progress
-                            stage = "downloading"
-                        except (ValueError, IndexError):
-                            pass
+                    events = selector.select(timeout=1)
+                    if events:
+                        for key, _ in events:
+                            line = key.fileobj.readline()
+                            if line == "":
+                                continue
+                            line = line.strip()
+                            if not line:
+                                continue
 
-                    # Update progress message
-                    job.description = line[-200:] if len(line) > 200 else line
-                    _persist_runtime_state(
-                        job,
-                        config,
-                        stage=stage,
-                        discovered=discovered_count,
-                        downloaded=downloaded_count,
-                        message=job.description,
-                    )
-                    db.session.commit()
+                            last_output_time = time.monotonic()
+                            logger.info(f"Scraper: {line}")
 
-                    # Update Celery task progress
-                    self.update_state(
-                        state="PROGRESS",
-                        meta={
-                            "discovered": discovered_count,
-                            "downloaded": downloaded_count,
-                            "progress": job.progress,
-                            "message": job.description,
-                        },
-                    )
+                            if "Discovered:" in line:
+                                try:
+                                    discovered_count = int(line.split("Discovered:")[1].split()[0])
+                                    job.images_scraped = discovered_count
+                                    stage = "discovering"
+                                except (ValueError, IndexError):
+                                    pass
+                            elif "Downloaded:" in line:
+                                try:
+                                    downloaded_count = int(line.split("Downloaded:")[1].split()[0])
+                                    job.images_scraped = downloaded_count
+                                    if max_images > 0:
+                                        progress = min(
+                                            90, int((downloaded_count / max_images) * 90)
+                                        )
+                                        job.progress = progress
+                                    stage = "downloading"
+                                except (ValueError, IndexError):
+                                    pass
 
-            process.wait()
+                            job.description = line[-200:] if len(line) > 200 else line
+                            _persist_runtime_state(
+                                job,
+                                config,
+                                stage=stage,
+                                discovered=discovered_count,
+                                downloaded=downloaded_count,
+                                message=job.description,
+                            )
+                            db.session.commit()
 
-            if process.returncode == 0:
+                            self.update_state(
+                                state="PROGRESS",
+                                meta={
+                                    "discovered": discovered_count,
+                                    "downloaded": downloaded_count,
+                                    "progress": job.progress,
+                                    "message": job.description,
+                                },
+                            )
+                    else:
+                        if (
+                            SCRAPING_IDLE_TIMEOUT_SECONDS > 0
+                            and time.monotonic() - last_output_time > SCRAPING_IDLE_TIMEOUT_SECONDS
+                            and timeout_reason is None
+                        ):
+                            timeout_reason = (
+                                "Scrape produced no output for "
+                                f"{SCRAPING_IDLE_TIMEOUT_SECONDS} seconds"
+                            )
+                            break
+
+                    if process.poll() is not None:
+                        break
+            finally:
+                if process.stdout:
+                    try:
+                        selector.unregister(process.stdout)
+                    except Exception:  # pragma: no cover - best effort cleanup
+                        pass
+                    process.stdout.close()
+                selector.close()
+
+            if timeout_reason:
+                try:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=SCRAPING_TERMINATE_GRACE_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                except Exception as exc:  # pragma: no cover - best effort terminate
+                    logger.warning("Failed to terminate scraper process: %s", exc, exc_info=True)
+
+                job.status = "failed"
+                job.completed_at = datetime.now(timezone.utc)
+                job.description = timeout_reason
+                job.progress = job.progress if job.progress else 0
+                _persist_runtime_state(
+                    job,
+                    config,
+                    stage="failed",
+                    discovered=discovered_count,
+                    downloaded=downloaded_count,
+                    message=timeout_reason,
+                )
+                db.session.commit()
+
+                return {
+                    "status": "failed",
+                    "message": timeout_reason,
+                }
+
+            return_code = process.wait()
+
+            if return_code == 0:
                 # Scraping successful - import results
                 logger.info(f"Scraper completed successfully for job {scrape_job_id}")
                 result = import_scraped_images(scrape_job_id, output_dir)

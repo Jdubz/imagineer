@@ -66,8 +66,10 @@ data/training/*
 # Frontend
 node_modules/
 **/node_modules/
-public/              # Built frontend (generated)
-web/dist/            # Alternative build output
+# Built frontend artifacts
+public/*
+!public/.gitkeep
+web/dist/
 .vite/
 
 # IDE

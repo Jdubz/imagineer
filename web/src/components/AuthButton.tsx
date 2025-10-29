@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { logger } from '../lib/logger'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
@@ -31,18 +32,51 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   const [user, setUser] = useState<AuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const popupRef = useRef<Window | null>(null)
+  const popupTimerRef = useRef<number | null>(null)
+  const pollCountRef = useRef(0)
+  const authCheckInFlightRef = useRef(false)
 
-  useEffect(() => {
-    void checkAuth()
+  const clearPopupTimer = useCallback((): void => {
+    if (popupTimerRef.current != null) {
+      window.clearInterval(popupTimerRef.current)
+      popupTimerRef.current = null
+    }
+    pollCountRef.current = 0
   }, [])
 
-  useEffect(() => {
-    if (!loading && typeof onAuthChange === 'function') {
-      onAuthChange(user)
-    }
-  }, [user, loading, onAuthChange])
+  const closeAuthWindow = useCallback(
+    (reason?: 'success' | 'closed' | 'cancelled'): void => {
+      clearPopupTimer()
 
-  const checkAuth = async (): Promise<void> => {
+      const popupWindow = popupRef.current
+      popupRef.current = null
+
+      if (popupWindow && !popupWindow.closed) {
+        try {
+          popupWindow.close()
+        } catch (err) {
+          logger.warn?.('Unable to close OAuth popup', err)
+        }
+      }
+
+      setIsAuthModalOpen(false)
+
+      if (reason === 'cancelled') {
+        setError('Login was cancelled. You can try again when you are ready.')
+      }
+    },
+    [clearPopupTimer],
+  )
+
+  const checkAuth = useCallback(async (): Promise<void> => {
+    if (authCheckInFlightRef.current) {
+      return
+    }
+
+    authCheckInFlightRef.current = true
+
     try {
       const response = await fetch('/api/auth/me', {
         credentials: 'include',
@@ -101,11 +135,60 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
       setUser(null)
       setError('Unable to verify authentication status. Please try again.')
     } finally {
+      authCheckInFlightRef.current = false
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void checkAuth()
+  }, [checkAuth])
+
+  useEffect(() => {
+    if (!loading && typeof onAuthChange === 'function') {
+      onAuthChange(user)
+    }
+  }, [user, loading, onAuthChange])
+
+  useEffect(() => {
+    if (!loading && user?.authenticated) {
+      closeAuthWindow('success')
+    }
+  }, [loading, user?.authenticated, closeAuthWindow])
+
+  useEffect(() => {
+    return () => {
+      closeAuthWindow()
+    }
+  }, [closeAuthWindow])
+
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent): void => {
+      if (event.origin !== window.location.origin) {
+        return
+      }
+
+      const payload =
+        typeof event.data === 'object' && event.data !== null
+          ? (event.data as { type?: string })
+          : null
+
+      if (payload?.type === 'imagineer-auth-success') {
+        closeAuthWindow('success')
+        void checkAuth()
+      }
+    }
+
+    window.addEventListener('message', handleAuthMessage)
+
+    return () => {
+      window.removeEventListener('message', handleAuthMessage)
+    }
+  }, [checkAuth, closeAuthWindow])
 
   const handleLogin = (): void => {
+    closeAuthWindow()
+
     const sanitizedState = buildLoginState(window.location)
 
     // Force HTTPS in production, use current origin in development
@@ -120,9 +203,21 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     const popup = window.open(loginUrl.toString(), 'oauth', 'width=500,height=700')
 
     if (popup) {
-      const timer = window.setInterval(() => {
-        if (popup.closed) {
-          window.clearInterval(timer)
+      popupRef.current = popup
+      popup.focus?.()
+      pollCountRef.current = 0
+      setIsAuthModalOpen(true)
+
+      popupTimerRef.current = window.setInterval(() => {
+        const activePopup = popupRef.current
+        if (!activePopup || activePopup.closed) {
+          closeAuthWindow('closed')
+          void checkAuth()
+          return
+        }
+
+        pollCountRef.current += 1
+        if (pollCountRef.current % 6 === 0) {
           void checkAuth()
         }
       }, 500)
@@ -157,26 +252,60 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     return null
   }
 
+  const authModal = isAuthModalOpen
+    ? createPortal(
+        <div className="auth-modal-backdrop" role="presentation">
+          <div
+            className="auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-modal-title"
+          >
+            <h2 id="auth-modal-title">Complete Google Sign-In</h2>
+            <p className="auth-modal-message">
+              Finish signing in with Google in the window that just opened. This dialog will close
+              automatically once we confirm your account.
+            </p>
+            <div className="auth-modal-actions">
+              <button
+                type="button"
+                className="auth-modal-button"
+                onClick={() => {
+                  closeAuthWindow('cancelled')
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null
+
   const primaryLabel = user?.role === 'admin' ? 'Admin' : 'Viewer'
 
   return (
-    <div className="auth-button-container">
-      <div className="auth-actions">
-        <button type="button" onClick={handleLogin} className="auth-button auth-button--primary">
-          {primaryLabel}
-        </button>
-        {user && (
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="auth-button auth-button--secondary"
-          >
-            Log Out
+    <>
+      <div className="auth-button-container">
+        <div className="auth-actions">
+          <button type="button" onClick={handleLogin} className="auth-button auth-button--primary">
+            {primaryLabel}
           </button>
-        )}
+          {user && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="auth-button auth-button--secondary"
+            >
+              Log Out
+            </button>
+          )}
+        </div>
+        {error && <div className="auth-error">{error}</div>}
       </div>
-      {error && <div className="auth-error">{error}</div>}
-    </div>
+      {authModal}
+    </>
   )
 }
 

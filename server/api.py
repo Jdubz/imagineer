@@ -10,9 +10,7 @@ import os
 import queue
 import subprocess
 import sys
-import threading
 import time
-from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -52,6 +50,7 @@ from server.database import (  # noqa: E402
 )
 from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
+from server.utils.rate_limiter import is_rate_limit_exceeded  # noqa: E402
 
 app = Flask(__name__, static_folder="../public", static_url_path="")
 
@@ -71,7 +70,13 @@ if os.environ.get("FLASK_ENV") == "production":
 # Configure database
 # Use absolute path to ensure consistency
 db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "instance", "imagineer.db"))
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
+database_url = os.environ.get("DATABASE_URL")
+if os.environ.get("FLASK_ENV") == "production" and not database_url:
+    raise RuntimeError(
+        "DATABASE_URL must be configured in production. "
+        "Point it at a persistent PostgreSQL or MySQL instance for SD 1.5 training metadata."
+    )
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Configure CORS with environment-based origins
@@ -147,9 +152,6 @@ app.register_blueprint(training_bp)
 GENERATION_RATE_LIMIT = int(os.environ.get("IMAGINEER_GENERATE_LIMIT", "10"))
 GENERATION_RATE_WINDOW_SECONDS = int(os.environ.get("IMAGINEER_GENERATE_WINDOW_SECONDS", "60"))
 
-_generation_rate_lock = threading.Lock()
-_generation_request_times: defaultdict[str, deque[float]] = defaultdict(deque)
-
 
 def _check_generation_rate_limit():
     """Apply a simple per-user rate limit for generation endpoints."""
@@ -157,34 +159,31 @@ def _check_generation_rate_limit():
         return None
 
     identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
-    now = time.monotonic()
+    exceeded = is_rate_limit_exceeded(
+        "generate",
+        identifier,
+        GENERATION_RATE_LIMIT,
+        GENERATION_RATE_WINDOW_SECONDS,
+    )
 
-    with _generation_rate_lock:
-        history = _generation_request_times[identifier]
-        while history and now - history[0] > GENERATION_RATE_WINDOW_SECONDS:
-            history.popleft()
-
-        if len(history) >= GENERATION_RATE_LIMIT:
-            retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - history[0])))
-            logger.warning(
-                "Generation rate limit exceeded",
-                extra={
-                    "operation": "generate_rate_limit",
-                    "identifier": identifier,
-                    "limit": GENERATION_RATE_LIMIT,
-                    "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
-                },
-            )
-            response = jsonify(
-                {
-                    "success": False,
-                    "error": "Rate limit exceeded. Please wait before submitting another job.",
-                }
-            )
-            response.headers["Retry-After"] = str(retry_after)
-            return response, 429
-
-        history.append(now)
+    if exceeded:
+        logger.warning(
+            "Generation rate limit exceeded",
+            extra={
+                "operation": "generate_rate_limit",
+                "identifier": identifier,
+                "limit": GENERATION_RATE_LIMIT,
+                "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
+            },
+        )
+        response = jsonify(
+            {
+                "success": False,
+                "error": "Rate limit exceeded. Please wait before submitting another job.",
+            }
+        )
+        response.headers["Retry-After"] = str(GENERATION_RATE_WINDOW_SECONDS)
+        return response, 429
 
     return None
 
@@ -324,13 +323,15 @@ def auth_callback():
             extra={"event": "authentication_success", "user_email": user.email, "role": user.role},
         )
 
-        # Close the OAuth popup window (frontend will detect and refresh)
-        # The frontend polls for window.closed and then calls checkAuth()
+        # Close the OAuth popup window and notify the opener
         return """
         <html>
             <head><title>Login Successful</title></head>
             <body>
                 <script>
+                    if (window.opener && typeof window.opener.postMessage === 'function') {
+                        window.opener.postMessage({ type: 'imagineer-auth-success' }, window.location.origin);
+                    }
                     // Close the popup window
                     window.close();
                     // Fallback if window.close() is blocked
