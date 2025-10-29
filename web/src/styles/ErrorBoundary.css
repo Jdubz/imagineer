@@ -82,6 +82,17 @@
   transform: translateY(-2px);
 }
 
+.error-button.report-bug {
+  background: #f56565;
+  color: white;
+}
+
+.error-button.report-bug:hover {
+  background: #e53e3e;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+}
+
 .error-button:active {
   transform: translateY(0);
 }

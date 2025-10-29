@@ -16,6 +16,14 @@ interface ErrorBoundaryProps {
    * Optional name for this boundary (for logging context)
    */
   boundaryName?: string
+  /**
+   * Whether to show the "Report Bug" button (admin only)
+   */
+  showReportBugButton?: boolean
+  /**
+   * Callback when "Report Bug" button is clicked
+   */
+  onReportBug?: (error: Error, errorInfo: ErrorInfo | null, boundaryName?: string) => void
 }
 
 interface ErrorBoundaryState {
@@ -109,9 +117,21 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     window.location.href = '/'
   }
 
+  /**
+   * Report bug with error details
+   */
+  handleReportBug = (): void => {
+    const { onReportBug, boundaryName } = this.props
+    const { error, errorInfo } = this.state
+
+    if (onReportBug && error) {
+      onReportBug(error, errorInfo, boundaryName)
+    }
+  }
+
   render(): ReactNode {
     const { hasError, error, errorInfo } = this.state
-    const { children, fallback, boundaryName } = this.props
+    const { children, fallback, boundaryName, showReportBugButton } = this.props
 
     if (hasError && error) {
       // Use custom fallback if provided
@@ -157,6 +177,16 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               >
                 Go Home
               </button>
+              {showReportBugButton && (
+                <button
+                  className="error-button report-bug"
+                  onClick={this.handleReportBug}
+                  type="button"
+                  title="Report this error to the development team"
+                >
+                  🐞 Report Bug
+                </button>
+              )}
             </div>
 
             {isDevelopment && (

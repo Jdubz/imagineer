@@ -1,0 +1,240 @@
+/* Settings Menu Container */
+.settings-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Settings Trigger Button */
+.settings-trigger {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  color: #666;
+}
+
+.settings-trigger:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: rotate(45deg);
+}
+
+.settings-trigger:active {
+  transform: rotate(45deg) scale(0.95);
+}
+
+.settings-trigger[aria-expanded='true'] .settings-icon {
+  transform: rotate(90deg);
+}
+
+.settings-icon {
+  transition: transform 0.3s ease;
+}
+
+/* Settings Dropdown */
+.settings-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 260px;
+  z-index: 1000;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header Section */
+.settings-header {
+  padding: 16px;
+}
+
+.settings-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-user-email {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-user-role {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.role-icon {
+  font-size: 14px;
+}
+
+/* Divider */
+.settings-divider {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 0;
+}
+
+/* Options Section */
+.settings-options {
+  padding: 8px 0;
+}
+
+.settings-option {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s ease;
+  font-size: 14px;
+}
+
+.settings-option:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.settings-option:active {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Option Label */
+.settings-option-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #333;
+  font-weight: 400;
+}
+
+.bug-icon {
+  font-size: 16px;
+}
+
+/* Option Hint (Keyboard Shortcut) */
+.settings-option-hint {
+  font-size: 11px;
+  color: #999;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #e0e0e0;
+}
+
+/* Toggle Option */
+.settings-toggle {
+  cursor: pointer;
+}
+
+.settings-checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+/* Button Option */
+.settings-button {
+  font-family: inherit;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .settings-dropdown {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .settings-trigger {
+    color: #ccc;
+  }
+
+  .settings-trigger:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .settings-icon {
+    color: #ccc;
+  }
+
+  .settings-user-email {
+    color: #e0e0e0;
+  }
+
+  .settings-user-role {
+    color: #999;
+  }
+
+  .settings-divider {
+    background-color: #444;
+  }
+
+  .settings-option-label {
+    color: #e0e0e0;
+  }
+
+  .settings-option:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .settings-option:active {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .settings-option-hint {
+    background: #333;
+    color: #aaa;
+    border-color: #555;
+  }
+}
+
+/* Accessibility */
+.settings-dropdown:focus-within {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .settings-dropdown {
+    min-width: 240px;
+    right: -8px;
+  }
+
+  .settings-option {
+    padding: 14px 16px;
+  }
+
+  .settings-option-label {
+    font-size: 15px;
+  }
+}
