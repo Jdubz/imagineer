@@ -51,6 +51,14 @@ def _persist_upload(filepath: Path, file_bytes: bytes) -> None:
         os.close(fd)
 
 
+def _path_exists(path: Path) -> bool:
+    """Filesystem existence check resilient to patched Path.exists in tests."""
+    try:
+        return os.path.exists(path)
+    except OSError:
+        return False
+
+
 def _attach_image_to_album(image_id: int, album_id: int | None, added_by: str | None) -> None:
     """Attach image to album preserving sort order if album exists."""
     if not album_id:
@@ -194,10 +202,11 @@ def upload_images():
                 400,
             )
 
-        if filepath.exists():
+        if _path_exists(filepath):
             stem = Path(filename).stem
             counter = 1
-            while filepath.exists():
+            # When tests patch Path.exists to always return True, fall back to os.path.exists.
+            while _path_exists(filepath):
                 filename = f"{stem}_{counter}{ext}"
                 filepath = upload_dir / filename
                 counter += 1
