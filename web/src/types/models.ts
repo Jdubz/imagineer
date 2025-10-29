@@ -135,6 +135,37 @@ export interface Album {
   updated_at: string
 }
 
+export interface Label {
+  id: number
+  image_id: number
+  label_text: string
+  confidence?: number | null
+  label_type?: string | null
+  source_model?: string | null
+  source_prompt?: string | null
+  created_by?: string | null
+  created_at?: string | null
+}
+
+export interface LabelAnalytics {
+  album_id: number
+  image_count: number
+  labels_total: number
+  labels_by_type: Record<string, number>
+  images_with_labels: number
+  images_with_manual_labels: number
+  images_with_captions: number
+  unlabeled_images: number
+  average_labels_per_image: number
+  coverage: {
+    labels_percent: number
+    manual_percent: number
+    caption_percent: number
+  }
+  top_tags: Array<{ label_text: string; count: number }>
+  last_labeled_at?: string | null
+}
+
 export interface TrainingDataset {
   name: string
   path: string

@@ -1,6 +1,6 @@
 # Imagineer - Consolidated Implementation Status
 
-**Last Updated:** 2025-10-28
+**Last Updated:** 2025-10-29
 **Purpose:** Single source of truth for what's been implemented and what remains
 
 ---
@@ -173,15 +173,16 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - examples/train_lora.py already exists
    - Supports dataset loading and LoRA fine-tuning
 
+4. **Training Asset Surfacing & Docs (Oct 29, 2025)**
+   - TrainingTab now surfaces dataset/output directories and final checkpoint paths with copy controls
+   - Log viewer exposes log file paths to streamline debugging
+   - Admin playbook updated in `docs/guides/TRAINING_OPERATIONS.md` with retention guidance
+
 ### ⚠️ Outstanding Issues
 
-1. **Training UX Enhancements (MEDIUM)**
-   - Logs and dataset exports are available but lack documentation in the UI
-   - **Action:** Surface links/tooltips so admins know where to download assets
-
-2. **Training Directory Housekeeping (LOW)**
-   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention policy is TBD
-   - **Action:** Document retention expectations or add configurable policy if needed
+1. **Training Directory Housekeeping (LOW)**
+   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention automation is TBD
+   - **Action:** Automate pruning of stale checkpoints/datasets or wire into existing scheduler once policy is finalized
 
 ---
 
@@ -244,9 +245,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟢 Medium (Polish & UX)
 
-1. **Add Label Analytics & Manual Tag Editing**
-   - Files: extend labeling endpoints in `server/api.py` (or new blueprint) plus matching frontend surfaces.
-   - Impact: Enables dataset curation and manual corrections promised in earlier plans.
+1. ✅ **Add Label Analytics & Manual Tag Editing**
+   - Files: `server/routes/albums.py`, `server/routes/images.py`, `web/src/components/AlbumsTab.tsx`, associated styles/tests.
+   - Impact: Admins now see coverage dashboards per album and can add, edit, or remove tags directly from the UI.
 
 2. **Broaden Scrape QA & Import Validation**
    - Files: `server/tasks/scraping.py`, `server/routes/scraping.py`, dataset QA scripts.

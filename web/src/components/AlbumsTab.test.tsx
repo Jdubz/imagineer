@@ -40,24 +40,77 @@ describe('AlbumsTab admin labeling integration', () => {
     description: 'Test description',
     images: [
       {
-        id: '100',
+        id: 100,
         filename: 'cover.png',
         is_nsfw: false,
-        labels: [],
+        labels: [
+          {
+            id: 501,
+            image_id: 100,
+            label_text: 'existing',
+            label_type: 'tag',
+            confidence: null,
+            source_model: 'unit-test',
+            source_prompt: null,
+            created_by: 'tester@example.com',
+            created_at: '2025-10-20T12:00:00Z',
+          },
+        ],
+        label_count: 1,
+        manual_label_count: 0,
       },
     ],
   }
 
+  const mockAnalyticsResponse = {
+    album_id: 1,
+    image_count: 1,
+    labels_total: 1,
+    labels_by_type: { tag: 1 },
+    images_with_labels: 1,
+    images_with_manual_labels: 0,
+    images_with_captions: 0,
+    unlabeled_images: 0,
+    average_labels_per_image: 1,
+    coverage: {
+      labels_percent: 100,
+      manual_percent: 0,
+      caption_percent: 0,
+    },
+    top_tags: [{ label_text: 'existing', count: 1 }],
+    last_labeled_at: '2025-10-20T12:00:00Z',
+  }
+
   it('shows labeling controls for admins', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
+    mockFetch.mockImplementation((input: RequestInfo) => {
+      const url = typeof input === 'string' ? input : input.url
+
+      if (url === '/api/albums') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockAlbumListResponse),
+        } as Response)
+      }
+
+      if (url.startsWith('/api/albums/1?include_labels=1')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockAlbumDetailResponse),
+        } as Response)
+      }
+
+      if (url.startsWith('/api/albums/1/labeling/analytics')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockAnalyticsResponse),
+        } as Response)
+      }
+
+      return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockAlbumListResponse),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockAlbumDetailResponse),
-      })
+        json: () => Promise.resolve({}),
+      } as Response)
+    })
 
     const user = userEvent.setup()
     render(<AlbumsTab isAdmin />)
@@ -70,6 +123,9 @@ describe('AlbumsTab admin labeling integration', () => {
     })
 
     expect(await screen.findByRole('button', { name: /label image/i })).toBeInTheDocument()
+    expect(screen.getByText(/top tags/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/existing/i)[0]).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/add manual tag/i)).toBeInTheDocument()
   })
 
   it('hides labeling controls for non-admin users', async () => {

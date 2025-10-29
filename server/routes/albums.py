@@ -3,9 +3,11 @@ Album management endpoints
 """
 
 from flask import Blueprint, jsonify, request
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from server.auth import current_user, require_admin
-from server.database import Album, AlbumImage, db
+from server.database import Album, AlbumImage, Image, Label, db
 
 albums_bp = Blueprint("albums", __name__, url_prefix="/api/albums")
 
@@ -35,10 +37,153 @@ def list_albums():
 @albums_bp.route("/<int:album_id>", methods=["GET"])
 def get_album(album_id):
     """Get album details with images (public)"""
-    album = Album.query.get_or_404(album_id)
+    include_param = request.args.get("include_labels")
+    include_labels = False
+    if isinstance(include_param, str):
+        include_labels = include_param.lower() not in {"0", "false", "no"}
+
+    loader = joinedload(Album.album_images).joinedload(AlbumImage.image)
+    if include_labels:
+        loader = loader.joinedload(Image.labels)
+
+    album = Album.query.options(loader).get_or_404(album_id)
     album_data = album.to_dict()
-    album_data["images"] = [img.to_dict() for img in album.images]
+    images_payload: list[dict] = []
+
+    for association in album.album_images:
+        image = association.image
+        if not image:
+            continue
+
+        image_payload = image.to_dict()
+
+        labels = image.labels or []
+        image_payload["labels"] = [label.to_dict() for label in labels]
+
+        if include_labels:
+            image_payload["label_count"] = len(labels)
+            image_payload["manual_label_count"] = sum(
+                1 for label in labels if (label.label_type or "").lower() in {"manual", "user"}
+            )
+
+        images_payload.append(image_payload)
+
+    album_data["images"] = images_payload
     return jsonify(album_data)
+
+
+@albums_bp.route("/<int:album_id>/labeling/analytics", methods=["GET"])
+@require_admin
+def album_labeling_analytics(album_id: int):
+    """Return aggregated labeling statistics for an album (admin only)."""
+    album = Album.query.options(
+        joinedload(Album.album_images).joinedload(AlbumImage.image)
+    ).get_or_404(album_id)
+
+    image_ids = [association.image_id for association in album.album_images if association.image_id]
+    distinct_image_ids = list({image_id for image_id in image_ids if image_id is not None})
+    image_count = len(distinct_image_ids)
+
+    if image_count == 0:
+        return jsonify(
+            {
+                "album_id": album.id,
+                "image_count": 0,
+                "labels_total": 0,
+                "labels_by_type": {},
+                "images_with_labels": 0,
+                "images_with_manual_labels": 0,
+                "images_with_captions": 0,
+                "unlabeled_images": 0,
+                "average_labels_per_image": 0.0,
+                "coverage": {
+                    "labels_percent": 0.0,
+                    "manual_percent": 0.0,
+                    "caption_percent": 0.0,
+                },
+                "top_tags": [],
+                "last_labeled_at": None,
+            }
+        )
+
+    base_filter = Label.image_id.in_(distinct_image_ids)
+
+    labels_by_type_rows = (
+        db.session.query(Label.label_type, func.count())
+        .filter(base_filter)
+        .group_by(Label.label_type)
+        .all()
+    )
+    labels_by_type: dict[str, int] = {}
+    total_labels = 0
+    for label_type, count in labels_by_type_rows:
+        key = (label_type or "unknown").lower()
+        labels_by_type[key] = count
+        total_labels += count
+
+    images_with_labels = (
+        db.session.query(func.count(func.distinct(Label.image_id))).filter(base_filter).scalar()
+        or 0
+    )
+    images_with_manual = (
+        db.session.query(func.count(func.distinct(Label.image_id)))
+        .filter(
+            base_filter,
+            Label.label_type.in_(("manual", "user")),
+        )
+        .scalar()
+        or 0
+    )
+    images_with_captions = (
+        db.session.query(func.count(func.distinct(Label.image_id)))
+        .filter(base_filter, Label.label_type == "caption")
+        .scalar()
+        or 0
+    )
+
+    unlabeled_images = max(0, image_count - images_with_labels)
+    average_labels = total_labels / image_count if image_count else 0.0
+
+    top_tags_rows = (
+        db.session.query(Label.label_text, func.count().label("count"))
+        .filter(
+            base_filter,
+            Label.label_text.isnot(None),
+            Label.label_text != "",
+            Label.label_type.in_(("tag", "manual", "user")),
+        )
+        .group_by(Label.label_text)
+        .order_by(func.count().desc())
+        .limit(10)
+        .all()
+    )
+    top_tags = [{"label_text": text, "count": count} for text, count in top_tags_rows]
+
+    last_labeled_at = db.session.query(func.max(Label.created_at)).filter(base_filter).scalar()
+
+    def _percent(part: int) -> float:
+        return round((part / image_count) * 100.0, 2) if image_count else 0.0
+
+    return jsonify(
+        {
+            "album_id": album.id,
+            "image_count": image_count,
+            "labels_total": total_labels,
+            "labels_by_type": labels_by_type,
+            "images_with_labels": images_with_labels,
+            "images_with_manual_labels": images_with_manual,
+            "images_with_captions": images_with_captions,
+            "unlabeled_images": unlabeled_images,
+            "average_labels_per_image": round(average_labels, 2),
+            "coverage": {
+                "labels_percent": _percent(images_with_labels),
+                "manual_percent": _percent(images_with_manual),
+                "caption_percent": _percent(images_with_captions),
+            },
+            "top_tags": top_tags,
+            "last_labeled_at": last_labeled_at.isoformat() if last_labeled_at else None,
+        }
+    )
 
 
 @albums_bp.route("", methods=["POST"])
