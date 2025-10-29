@@ -124,10 +124,7 @@ def get_scraped_output_path() -> Path:
         else:
             candidate_path = Path("/tmp/imagineer/outputs/scraped")
 
-        fallback_path = (
-            Path(base_dir).expanduser() / "scraped"
-            if base_dir else None
-        )
+        fallback_path = Path(base_dir).expanduser() / "scraped" if base_dir else None
 
         try:
             candidate_path.mkdir(parents=True, exist_ok=True)
@@ -139,13 +136,16 @@ def get_scraped_output_path() -> Path:
                 ) from exc
 
             logger.warning(
-                "Unable to initialize scraped output directory %s: %s. Attempting fallback for development.",
+                "Unable to initialize scraped output directory %s: %s. "
+                "Attempting fallback for development.",
                 candidate_path,
                 exc,
             )
 
             fallback_candidate = (
-                fallback_path if fallback_path and fallback_path != candidate_path else Path("/tmp/imagineer/outputs/scraped")
+                fallback_path
+                if fallback_path and fallback_path != candidate_path
+                else Path("/tmp/imagineer/outputs/scraped")
             )
             fallback_candidate.mkdir(parents=True, exist_ok=True)
             candidate_path = fallback_candidate
