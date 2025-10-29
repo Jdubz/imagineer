@@ -18,4 +18,4 @@ def safe_remove_path(path: Path) -> bool:
             return False
         return True
     except Exception as exc:  # pragma: no cover - best effort cleanup
-        logger.warning(Failed
+        logger.warning("Failed to remove artifact at %s: %s", path, exc, exc_info=True)

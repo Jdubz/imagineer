@@ -9,13 +9,14 @@ import os
 import selectors
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image as PILImage
 
 from server.celery_app import celery
 from server.database import Album, AlbumImage, Image, Label, ScrapeJob, db
+from server.utils.file_ops import safe_remove_path
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ SCRAPING_IDLE_TIMEOUT_SECONDS = int(os.environ.get("IMAGINEER_SCRAPE_IDLE_TIMEOU
 SCRAPING_TERMINATE_GRACE_SECONDS = int(
     os.environ.get("IMAGINEER_SCRAPE_TERMINATE_GRACE_SECONDS", "30")
 )
+SCRAPING_RETENTION_DAYS = int(os.environ.get("IMAGINEER_SCRAPE_RETENTION_DAYS", "30"))
 
 
 def _load_scrape_config(job: ScrapeJob) -> dict:
@@ -563,6 +565,51 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     )
 
     return {"imported": imported_count, "skipped": skipped_count, "album_id": album.id}
+
+
+@celery.task(name="server.tasks.scraping.purge_stale_scrape_artifacts")
+def purge_stale_scrape_artifacts(retention_days: int | None = None):
+    """Delete scrape outputs beyond the retention window."""
+
+    from server.api import app
+
+    days = int(retention_days or SCRAPING_RETENTION_DAYS)
+    if days <= 0:
+        return {"status": "skipped", "reason": "retention-disabled"}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    jobs_processed = 0
+    outputs_removed = 0
+
+    with app.app_context():
+        candidates = ScrapeJob.query.filter(
+            ScrapeJob.status.in_(["completed", "failed", "cancelled", "cleaned_up"])
+        )
+        for job in candidates:
+            reference_ts = job.completed_at or job.last_error_at or job.created_at
+            if not reference_ts or reference_ts >= cutoff:
+                continue
+
+            target_path = (
+                Path(job.output_directory)
+                if job.output_directory
+                else get_scraped_output_path() / f"job_{job.id}"
+            )
+
+            if safe_remove_path(target_path):
+                outputs_removed += 1
+                job.output_directory = ""
+
+            jobs_processed += 1
+
+        db.session.commit()
+
+    return {
+        "status": "success",
+        "retention_days": days,
+        "jobs_processed": jobs_processed,
+        "outputs_removed": outputs_removed,
+    }
 
 
 @celery.task(name="server.tasks.scraping.cleanup_scrape_job")

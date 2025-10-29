@@ -16,6 +16,7 @@ from server.tasks.training import (
     cleanup_training_data,
     get_model_cache_dir,
     get_training_dataset_root,
+    purge_stale_training_artifacts,
     train_lora_task,
     training_log_path,
 )
@@ -220,6 +221,26 @@ def cleanup_training(run_id):
             "message": "Cleanup started",
             "task_id": task.id,
         }
+    )
+
+
+@training_bp.route("/artifacts/purge", methods=["POST"])
+@require_admin
+def purge_training_artifacts():
+    """Queue background cleanup of stale training datasets/logs (admin only)."""
+    payload = request.get_json(silent=True) or {}
+    retention_days = payload.get("retention_days")
+
+    task = purge_stale_training_artifacts.delay(retention_days)
+    return (
+        jsonify(
+            {
+                "message": "Training artifact purge started",
+                "task_id": task.id,
+                "retention_days": retention_days,
+            }
+        ),
+        202,
     )
 
 

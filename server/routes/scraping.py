@@ -10,7 +10,12 @@ from flask import Blueprint, abort, jsonify, request
 
 from server.auth import require_admin
 from server.database import ScrapeJob, db
-from server.tasks.scraping import cleanup_scrape_job, get_scraped_output_path, scrape_site_task
+from server.tasks.scraping import (
+    cleanup_scrape_job,
+    get_scraped_output_path,
+    purge_stale_scrape_artifacts,
+    scrape_site_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +188,26 @@ def cleanup_job(job_id):
     except Exception as e:
         logger.error(f"Error starting cleanup for job {job_id}: {e}", exc_info=True)
         return jsonify({"error": "Failed to start cleanup"}), 500
+
+
+@scraping_bp.route("/artifacts/purge", methods=["POST"])
+@require_admin
+def purge_scrape_artifacts():
+    """Queue background cleanup of stale scrape outputs (admin only)."""
+    payload = request.get_json(silent=True) or {}
+    retention_days = payload.get("retention_days")
+    task = purge_stale_scrape_artifacts.delay(retention_days)
+    return (
+        jsonify(
+            {
+                "success": True,
+                "message": "Scrape artifact purge started",
+                "task_id": task.id,
+                "retention_days": retention_days,
+            }
+        ),
+        202,
+    )
 
 
 @scraping_bp.route("/stats", methods=["GET"])
