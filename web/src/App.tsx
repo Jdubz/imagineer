@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
 import AuthButton from './components/AuthButton'
@@ -35,6 +36,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 
 const AppContent: React.FC = () => {
   const toast = useToast()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [config, setConfig] = useState<Config | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -43,7 +46,6 @@ const AppContent: React.FC = () => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null)
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [batches, setBatches] = useState<BatchSummary[]>([])
-  const [activeTab, setActiveTab] = useState<string>('generate')
   const [user, setUser] = useState<AuthStatus | null>(null)
 
   // Tab configuration
@@ -56,6 +58,9 @@ const AppContent: React.FC = () => {
     { id: 'queue', label: 'Queue', icon: '📋' },
     { id: 'loras', label: 'LoRAs', icon: '🎨' }
   ]
+
+  // Get active tab from URL
+  const activeTab = location.pathname.slice(1) || 'generate'
 
   // Load config on mount
   useEffect(() => {
@@ -198,7 +203,7 @@ const AppContent: React.FC = () => {
           toast.success('Batch generation started!')
         }
         fetchBatches().catch((error) => logger.error('Failed to refresh batches', error as Error))
-        setActiveTab('gallery')
+        navigate('/gallery')
       } else {
         const payload = (await response.json()) as unknown
         const errorMessage =
@@ -271,67 +276,85 @@ const AppContent: React.FC = () => {
 
       <div className="container">
         <nav id="tabs-navigation" aria-label="Main navigation">
-          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+          <Tabs tabs={tabs} activeTab={activeTab} />
         </nav>
 
         <main id="main-content" className="main-content">
           <Suspense fallback={<Spinner size="large" message="Loading..." />}>
-            {activeTab === 'generate' && (
-              <ErrorBoundary boundaryName="Generate Tab">
-                <GenerateTab
-                  config={config}
-                  loading={loading}
-                  queuePosition={queuePosition}
-                  currentJob={currentJob}
-                  onGenerate={handleGenerate}
-                  onGenerateBatch={handleGenerateBatch}
-                  isAdmin={user?.role === 'admin'}
-                />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'gallery' && (
-              <ErrorBoundary boundaryName="Gallery Tab">
-                <GalleryTab
-                  batches={batches}
-                  images={images}
-                  onRefreshImages={fetchImages}
-                  onRefreshBatches={fetchBatches}
-                  loadingImages={loadingImages}
-                  loadingBatches={loadingBatches}
-                />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'albums' && (
-              <ErrorBoundary boundaryName="Albums Tab">
-                <AlbumsTab isAdmin={user?.role === 'admin'} />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'scraping' && (
-              <ErrorBoundary boundaryName="Scraping Tab">
-                <ScrapingTab isAdmin={user?.role === 'admin'} />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'training' && (
-              <ErrorBoundary boundaryName="Training Tab">
-                <TrainingTab isAdmin={user?.role === 'admin'} />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'queue' && (
-              <ErrorBoundary boundaryName="Queue Tab">
-                <QueueTab />
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'loras' && (
-              <ErrorBoundary boundaryName="LoRAs Tab">
-                <LorasTab />
-              </ErrorBoundary>
-            )}
+            <Routes>
+              <Route path="/" element={<Navigate to="/generate" replace />} />
+              <Route
+                path="/generate"
+                element={
+                  <ErrorBoundary boundaryName="Generate Tab">
+                    <GenerateTab
+                      config={config}
+                      loading={loading}
+                      queuePosition={queuePosition}
+                      currentJob={currentJob}
+                      onGenerate={handleGenerate}
+                      onGenerateBatch={handleGenerateBatch}
+                      isAdmin={user?.role === 'admin'}
+                    />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/gallery"
+                element={
+                  <ErrorBoundary boundaryName="Gallery Tab">
+                    <GalleryTab
+                      batches={batches}
+                      images={images}
+                      onRefreshImages={fetchImages}
+                      onRefreshBatches={fetchBatches}
+                      loadingImages={loadingImages}
+                      loadingBatches={loadingBatches}
+                    />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/albums"
+                element={
+                  <ErrorBoundary boundaryName="Albums Tab">
+                    <AlbumsTab isAdmin={user?.role === 'admin'} />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/scraping"
+                element={
+                  <ErrorBoundary boundaryName="Scraping Tab">
+                    <ScrapingTab isAdmin={user?.role === 'admin'} />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/training"
+                element={
+                  <ErrorBoundary boundaryName="Training Tab">
+                    <TrainingTab isAdmin={user?.role === 'admin'} />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/queue"
+                element={
+                  <ErrorBoundary boundaryName="Queue Tab">
+                    <QueueTab />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/loras"
+                element={
+                  <ErrorBoundary boundaryName="LoRAs Tab">
+                    <LorasTab />
+                  </ErrorBoundary>
+                }
+              />
+            </Routes>
           </Suspense>
         </main>
       </div>
@@ -341,9 +364,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </BrowserRouter>
   )
 }
 

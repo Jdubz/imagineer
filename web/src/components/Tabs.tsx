@@ -1,25 +1,25 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import type { Tab } from '../types/models'
 import '../styles/Tabs.css'
 
 interface TabsProps {
   tabs: Tab[]
   activeTab: string
-  onTabChange: (tabId: string) => void
 }
 
-const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
+const Tabs: React.FC<TabsProps> = ({ tabs, activeTab }) => {
   return (
     <div className="tabs">
       {tabs.map((tab) => (
-        <button
+        <Link
           key={tab.id}
+          to={`/${tab.id}`}
           className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-          onClick={() => onTabChange(tab.id)}
         >
           {tab.icon && <span className="tab-icon">{tab.icon}</span>}
           <span className="tab-label">{tab.label}</span>
-        </button>
+        </Link>
       ))}
     </div>
   )
