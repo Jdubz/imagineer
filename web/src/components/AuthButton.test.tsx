@@ -180,7 +180,12 @@ describe('AuthButton', () => {
     )
     globalThis.fetch = fetchMock
 
-    const popupRef = { closed: false } as unknown as WindowProxy
+    let closedState = false
+    const popupRef = {
+      get closed() {
+        return closedState
+      }
+    } as unknown as WindowProxy
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(popupRef)
 
     render(<AuthButton />)
@@ -192,7 +197,7 @@ describe('AuthButton', () => {
     vi.useFakeTimers()
     try {
       fireEvent.click(screen.getByRole('button', { name: /viewer/i }))
-      popupRef.closed = true
+      closedState = true
       vi.runOnlyPendingTimers()
 
       expect(openSpy).toHaveBeenCalledTimes(1)
