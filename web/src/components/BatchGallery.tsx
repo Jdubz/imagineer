@@ -68,7 +68,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
   if (loading) {
     return (
       <div className="batch-gallery">
-        <div className="loading-indicator">
+        <div className="loading-indicator" role="status" aria-live="polite" aria-atomic="true">
           <div className="spinner"></div>
           <p>Loading batch...</p>
         </div>

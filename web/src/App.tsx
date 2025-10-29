@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import './styles/App.css'
+import SkipNav from './components/SkipNav'
 import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
 import GenerateTab from './components/GenerateTab'
@@ -242,6 +243,7 @@ const App: React.FC = () => {
 
   return (
     <div className="App">
+      <SkipNav />
       <header className="header">
         <div className="header-content">
           <div className="header-title">
@@ -253,9 +255,11 @@ const App: React.FC = () => {
       </header>
 
       <div className="container">
-        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <nav id="tabs-navigation" aria-label="Main navigation">
+          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        </nav>
 
-        <div className="main-content">
+        <main id="main-content" className="main-content">
           {activeTab === 'generate' && (
             <ErrorBoundary boundaryName="Generate Tab">
               <GenerateTab
@@ -310,7 +314,7 @@ const App: React.FC = () => {
               <LorasTab />
             </ErrorBoundary>
           )}
-        </div>
+        </main>
       </div>
     </div>
   )

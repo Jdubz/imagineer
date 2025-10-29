@@ -23,7 +23,7 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
   return (
     <div className="generate-tab">
       {loading && (
-        <div className="loading-indicator">
+        <div className="loading-indicator" role="status" aria-live="polite" aria-atomic="true">
           <div className="spinner"></div>
           <p>
             Generating image...

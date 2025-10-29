@@ -631,8 +631,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Album Name:</label>
+            <label htmlFor="album-name">Album Name:</label>
             <input
+              id="album-name"
               type="text"
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
@@ -642,8 +643,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
           </div>
 
           <div className="form-group">
-            <label>Description:</label>
+            <label htmlFor="album-description">Description:</label>
             <textarea
+              id="album-description"
               value={description}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
               placeholder="Enter album description (optional)"
@@ -652,8 +654,8 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
           </div>
 
           <div className="form-group">
-            <label>Album Type:</label>
-            <select value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
+            <label htmlFor="album-type">Album Type:</label>
+            <select id="album-type" value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
               <option value="manual">Manual Collection</option>
               <option value="batch">Generated Batch</option>
               <option value="set">CSV Set</option>
