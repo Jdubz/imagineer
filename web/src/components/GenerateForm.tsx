@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useToast } from '../hooks/useToast'
@@ -36,14 +36,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
   const [submittingBatch, setSubmittingBatch] = useState<boolean>(false)
   const [batchValidationErrors, setBatchValidationErrors] = useState<Record<string, string>>({})
 
-  // Load templates on mount
-  useEffect(() => {
-    if (isAdmin) {
-      fetchTemplates()
-    }
-  }, [isAdmin])
-
-  const fetchTemplates = async (): Promise<void> => {
+  const fetchTemplates = useCallback(async (): Promise<void> => {
     setLoadingTemplates(true)
     try {
       const albums = await api.albums.getAll()
@@ -55,7 +48,14 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, loading, config
     } finally {
       setLoadingTemplates(false)
     }
-  }
+  }, [toast])
+
+  // Load templates on mount
+  useEffect(() => {
+    if (isAdmin) {
+      fetchTemplates()
+    }
+  }, [isAdmin, fetchTemplates])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
