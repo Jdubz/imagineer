@@ -241,7 +241,7 @@ describe('ErrorBoundary', () => {
       expect(locationMock.href).toBe('/')
 
       // Clean up the mock
-      vi.unstubAllGlobals()
+      vi.unstubGlobal('location')
     })
   })
 
