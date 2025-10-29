@@ -875,21 +875,41 @@ interface CreateAlbumDialogProps {
   onCreate: (name: string, description: string, albumType: string) => void
 }
 
-const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate }) => {
+const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onCreate }) => {
   const [name, setName] = useState<string>('')
   const [description, setDescription] = useState<string>('')
   const [albumType, setAlbumType] = useState<string>('manual')
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value)
+  }, [])
+
+  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescription(e.target.value)
+  }, [])
+
+  const handleAlbumTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAlbumType(e.target.value)
+  }, [])
+
+  const handleOverlayClick = useCallback(() => {
+    onClose()
+  }, [onClose])
+
+  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+  }, [])
+
+  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (!name.trim()) return
 
     onCreate(name.trim(), description.trim(), albumType)
-  }
+  }, [name, description, albumType, onCreate])
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
+    <div className="dialog-overlay" onClick={handleOverlayClick}>
+      <div className="dialog" onClick={handleDialogClick}>
         <h2>Create Album</h2>
 
         <form onSubmit={handleSubmit}>
@@ -899,7 +919,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
               id="album-name"
               type="text"
               value={name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              onChange={handleNameChange}
               placeholder="Enter album name"
               required
             />
@@ -910,7 +930,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
             <textarea
               id="album-description"
               value={description}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
+              onChange={handleDescriptionChange}
               placeholder="Enter album description (optional)"
               rows={3}
             />
@@ -918,7 +938,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
 
           <div className="form-group">
             <label htmlFor="album-type">Album Type:</label>
-            <select id="album-type" value={albumType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAlbumType(e.target.value)}>
+            <select id="album-type" value={albumType} onChange={handleAlbumTypeChange}>
               <option value="manual">Manual Collection</option>
               <option value="batch">Generated Batch</option>
               <option value="set">CSV Set</option>
@@ -933,6 +953,8 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = ({ onClose, onCreate
       </div>
     </div>
   )
-}
+})
+
+CreateAlbumDialog.displayName = 'CreateAlbumDialog'
 
 export default AlbumsTab
