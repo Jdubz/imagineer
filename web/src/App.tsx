@@ -9,6 +9,7 @@ import ScrapingTab from './components/ScrapingTab'
 import TrainingTab from './components/TrainingTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
+import ErrorBoundary from './components/ErrorBoundary'
 import { logger } from './lib/logger'
 import type { AuthStatus } from './types/shared'
 import type {
@@ -241,40 +242,58 @@ const App: React.FC = () => {
 
         <div className="main-content">
           {activeTab === 'generate' && (
-            <GenerateTab
-              config={config}
-              loading={loading}
-              queuePosition={queuePosition}
-              currentJob={currentJob}
-              onGenerate={handleGenerate}
-              onGenerateBatch={handleGenerateBatch}
-            />
+            <ErrorBoundary boundaryName="Generate Tab">
+              <GenerateTab
+                config={config}
+                loading={loading}
+                queuePosition={queuePosition}
+                currentJob={currentJob}
+                onGenerate={handleGenerate}
+                onGenerateBatch={handleGenerateBatch}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'gallery' && (
-            <GalleryTab
-              batches={batches}
-              images={images}
-              onRefreshImages={fetchImages}
-              onRefreshBatches={fetchBatches}
-            />
+            <ErrorBoundary boundaryName="Gallery Tab">
+              <GalleryTab
+                batches={batches}
+                images={images}
+                onRefreshImages={fetchImages}
+                onRefreshBatches={fetchBatches}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'albums' && (
-            <AlbumsTab isAdmin={user?.role === 'admin'} />
+            <ErrorBoundary boundaryName="Albums Tab">
+              <AlbumsTab isAdmin={user?.role === 'admin'} />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'scraping' && (
-            <ScrapingTab isAdmin={user?.role === 'admin'} />
+            <ErrorBoundary boundaryName="Scraping Tab">
+              <ScrapingTab isAdmin={user?.role === 'admin'} />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'training' && (
-            <TrainingTab isAdmin={user?.role === 'admin'} />
+            <ErrorBoundary boundaryName="Training Tab">
+              <TrainingTab isAdmin={user?.role === 'admin'} />
+            </ErrorBoundary>
           )}
 
-          {activeTab === 'queue' && <QueueTab />}
+          {activeTab === 'queue' && (
+            <ErrorBoundary boundaryName="Queue Tab">
+              <QueueTab />
+            </ErrorBoundary>
+          )}
 
-          {activeTab === 'loras' && <LorasTab />}
+          {activeTab === 'loras' && (
+            <ErrorBoundary boundaryName="LoRAs Tab">
+              <LorasTab />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     </div>
