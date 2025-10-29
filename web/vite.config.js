@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     // Bundle analyzer - generates stats.html after build
     mode === 'production' && visualizer({
-      filename: './dist/stats.html',
+      filename: '../public/stats.html',
       open: false,
       gzipSize: true,
       brotliSize: true,
