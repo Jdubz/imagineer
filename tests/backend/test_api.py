@@ -265,6 +265,7 @@ class TestJobsEndpoints:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "current" in data
+        assert "queue" in data
         assert "queued" in data
         assert "history" in data
 

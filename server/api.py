@@ -1432,7 +1432,12 @@ def get_jobs():
     queue_list = list(job_queue.queue)
 
     return jsonify(
-        {"current": current_job, "queued": queue_list, "history": job_history[-50:]}  # Last 50 jobs
+        {
+            "current": current_job,
+            "queue": queue_list,
+            "queued": queue_list,  # Backward compatibility for legacy clients
+            "history": job_history[-50:],  # Last 50 jobs
+        }
     )
 
 
