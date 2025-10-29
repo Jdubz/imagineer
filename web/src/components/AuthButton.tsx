@@ -6,6 +6,26 @@ interface AuthButtonProps {
   onAuthChange?: (user: AuthStatus | null) => void
 }
 
+export const buildLoginState = (
+  location: Pick<Location, 'pathname' | 'search' | 'hash' | 'origin'>,
+): string => {
+  const pathPart = location.pathname.startsWith('/')
+    ? location.pathname
+    : `/${location.pathname}`
+  const rawState = `${pathPart}${location.search}${location.hash}` || '/'
+
+  try {
+    const parsed = new URL(rawState, location.origin)
+    if (parsed.origin === location.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/'
+    }
+  } catch {
+    // Ignore parsing errors and fall back to root
+  }
+
+  return '/'
+}
+
 const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   const [user, setUser] = useState<AuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -85,8 +105,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   }
 
   const handleLogin = (): void => {
-    const currentLocation = window.location.pathname + window.location.search + window.location.hash
-    const nextParam = encodeURIComponent(currentLocation || '/')
+    const sanitizedState = buildLoginState(window.location)
 
     // Force HTTPS in production, use current origin in development
     let origin = window.location.origin
@@ -95,7 +114,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     }
 
     const loginUrl = new URL('/api/auth/login', origin)
-    loginUrl.searchParams.set('state', nextParam)
+    loginUrl.searchParams.set('state', sanitizedState)
 
     const popup = window.open(loginUrl.toString(), 'oauth', 'width=500,height=700')
 
