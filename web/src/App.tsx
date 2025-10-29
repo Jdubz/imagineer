@@ -1,17 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
 import AuthButton from './components/AuthButton'
 import Tabs from './components/Tabs'
-import GenerateTab from './components/GenerateTab'
-import GalleryTab from './components/GalleryTab'
-import AlbumsTab from './components/AlbumsTab'
-import ScrapingTab from './components/ScrapingTab'
-import TrainingTab from './components/TrainingTab'
-import LorasTab from './components/LorasTab'
-import QueueTab from './components/QueueTab'
 import ErrorBoundary from './components/ErrorBoundary'
 import ToastContainer from './components/Toast'
+import Spinner from './components/Spinner'
 import { ToastProvider } from './contexts/ToastContext'
 import { useToast } from './hooks/useToast'
 import { logger } from './lib/logger'
@@ -27,6 +21,15 @@ import type {
   BatchGenerateParams,
   Tab,
 } from './types/models'
+
+// Lazy load tab components for code splitting
+const GenerateTab = lazy(() => import('./components/GenerateTab'))
+const GalleryTab = lazy(() => import('./components/GalleryTab'))
+const AlbumsTab = lazy(() => import('./components/AlbumsTab'))
+const ScrapingTab = lazy(() => import('./components/ScrapingTab'))
+const TrainingTab = lazy(() => import('./components/TrainingTab'))
+const LorasTab = lazy(() => import('./components/LorasTab'))
+const QueueTab = lazy(() => import('./components/QueueTab'))
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
@@ -272,62 +275,64 @@ const AppContent: React.FC = () => {
         </nav>
 
         <main id="main-content" className="main-content">
-          {activeTab === 'generate' && (
-            <ErrorBoundary boundaryName="Generate Tab">
-              <GenerateTab
-                config={config}
-                loading={loading}
-                queuePosition={queuePosition}
-                currentJob={currentJob}
-                onGenerate={handleGenerate}
-                onGenerateBatch={handleGenerateBatch}
-                isAdmin={user?.role === 'admin'}
-              />
-            </ErrorBoundary>
-          )}
+          <Suspense fallback={<Spinner size="large" message="Loading..." />}>
+            {activeTab === 'generate' && (
+              <ErrorBoundary boundaryName="Generate Tab">
+                <GenerateTab
+                  config={config}
+                  loading={loading}
+                  queuePosition={queuePosition}
+                  currentJob={currentJob}
+                  onGenerate={handleGenerate}
+                  onGenerateBatch={handleGenerateBatch}
+                  isAdmin={user?.role === 'admin'}
+                />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'gallery' && (
-            <ErrorBoundary boundaryName="Gallery Tab">
-              <GalleryTab
-                batches={batches}
-                images={images}
-                onRefreshImages={fetchImages}
-                onRefreshBatches={fetchBatches}
-                loadingImages={loadingImages}
-                loadingBatches={loadingBatches}
-              />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'gallery' && (
+              <ErrorBoundary boundaryName="Gallery Tab">
+                <GalleryTab
+                  batches={batches}
+                  images={images}
+                  onRefreshImages={fetchImages}
+                  onRefreshBatches={fetchBatches}
+                  loadingImages={loadingImages}
+                  loadingBatches={loadingBatches}
+                />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'albums' && (
-            <ErrorBoundary boundaryName="Albums Tab">
-              <AlbumsTab isAdmin={user?.role === 'admin'} />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'albums' && (
+              <ErrorBoundary boundaryName="Albums Tab">
+                <AlbumsTab isAdmin={user?.role === 'admin'} />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'scraping' && (
-            <ErrorBoundary boundaryName="Scraping Tab">
-              <ScrapingTab isAdmin={user?.role === 'admin'} />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'scraping' && (
+              <ErrorBoundary boundaryName="Scraping Tab">
+                <ScrapingTab isAdmin={user?.role === 'admin'} />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'training' && (
-            <ErrorBoundary boundaryName="Training Tab">
-              <TrainingTab isAdmin={user?.role === 'admin'} />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'training' && (
+              <ErrorBoundary boundaryName="Training Tab">
+                <TrainingTab isAdmin={user?.role === 'admin'} />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'queue' && (
-            <ErrorBoundary boundaryName="Queue Tab">
-              <QueueTab />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'queue' && (
+              <ErrorBoundary boundaryName="Queue Tab">
+                <QueueTab />
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'loras' && (
-            <ErrorBoundary boundaryName="LoRAs Tab">
-              <LorasTab />
-            </ErrorBoundary>
-          )}
+            {activeTab === 'loras' && (
+              <ErrorBoundary boundaryName="LoRAs Tab">
+                <LorasTab />
+              </ErrorBoundary>
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
