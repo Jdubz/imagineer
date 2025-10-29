@@ -1,0 +1,109 @@
+.bug-report-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+
+.bug-report-modal {
+  background: #131316;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+  max-width: 620px;
+  width: 100%;
+  color: #f7f7f9;
+}
+
+.bug-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 32px;
+}
+
+.bug-report-header h2 {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+}
+
+.bug-report-header p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.bug-report-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.bug-report-textarea {
+  min-height: 160px;
+  resize: vertical;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(19, 19, 23, 0.85);
+  color: #f7f7f9;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.bug-report-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.bug-report-error {
+  color: #ff8b8b;
+  font-size: 0.85rem;
+  margin: -8px 0 0;
+}
+
+.bug-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.bug-report-button {
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, background 0.2s ease, border 0.2s ease;
+}
+
+.bug-report-button--primary {
+  background: linear-gradient(135deg, #5b7dff, #7a5bff);
+  color: #0a0a0d;
+  border-color: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+
+.bug-report-button--primary:hover {
+  transform: translateY(-1px);
+}
+
+.bug-report-button--primary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.bug-report-button--secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bug-report-button--secondary:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+}

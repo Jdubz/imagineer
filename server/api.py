@@ -71,7 +71,13 @@ if os.environ.get("FLASK_ENV") == "production":
 # Configure database
 # Use absolute path to ensure consistency
 db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "instance", "imagineer.db"))
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
+database_url = os.environ.get("DATABASE_URL")
+if os.environ.get("FLASK_ENV") == "production" and not database_url:
+    raise RuntimeError(
+        "DATABASE_URL must be configured in production. "
+        "Point it at a persistent PostgreSQL or MySQL instance for SD 1.5 training metadata."
+    )
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Configure CORS with environment-based origins
@@ -321,16 +327,25 @@ def auth_callback():
         security_logger = logging.getLogger("security")
         security_logger.info(
             f"Successful login: {user.email}",
-            extra={"event": "authentication_success", "user_email": user.email, "role": user.role},
+            extra={
+                "event": "authentication_success",
+                "user_email": user.email,
+                "role": user.role,
+            },
         )
 
-        # Close the OAuth popup window (frontend will detect and refresh)
-        # The frontend polls for window.closed and then calls checkAuth()
+        # Close the OAuth popup window and notify the opener
         return """
         <html>
             <head><title>Login Successful</title></head>
             <body>
                 <script>
+                    if (window.opener && typeof window.opener.postMessage === 'function') {
+                        window.opener.postMessage(
+                            { type: 'imagineer-auth-success' },
+                            window.location.origin
+                        );
+                    }
                     // Close the popup window
                     window.close();
                     // Fallback if window.close() is blocked

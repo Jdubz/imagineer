@@ -19,6 +19,11 @@ from server.database import Album, AlbumImage, Image, Label, db
 images_bp = Blueprint("images", __name__, url_prefix="/api/images")
 outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/outputs")
 
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+MAX_UPLOAD_FILE_BYTES = int(os.environ.get("IMAGINEER_UPLOAD_MAX_BYTES", str(20 * 1024 * 1024)))
+MAX_UPLOAD_TOTAL_BYTES = int(os.environ.get("IMAGINEER_UPLOAD_TOTAL_BYTES", str(200 * 1024 * 1024)))
+MAX_UPLOAD_DIMENSION = int(os.environ.get("IMAGINEER_UPLOAD_MAX_DIMENSION", "4096"))
+
 
 def _extract_image_dimensions(file_bytes: bytes, filename: str) -> tuple[int | None, int | None]:
     """Return (width, height) for provided image bytes."""
@@ -44,6 +49,14 @@ def _persist_upload(filepath: Path, file_bytes: bytes) -> None:
         os.write(fd, file_bytes)
     finally:
         os.close(fd)
+
+
+def _path_exists(path: Path) -> bool:
+    """Filesystem existence check resilient to patched Path.exists in tests."""
+    try:
+        return os.path.exists(path)
+    except OSError:
+        return False
 
 
 def _attach_image_to_album(image_id: int, album_id: int | None, added_by: str | None) -> None:
@@ -127,17 +140,77 @@ def upload_images():
     os.makedirs(upload_dir, exist_ok=True)
 
     uploaded_images: list[dict] = []
+    total_bytes = 0
 
     for file in files:
         if not file.filename:
             continue
 
         filename = secure_filename(file.filename)
+        ext = Path(filename).suffix.lower()
+        if ALLOWED_IMAGE_EXTENSIONS and ext not in ALLOWED_IMAGE_EXTENSIONS:
+            allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
+            return (
+                jsonify({"error": f"Unsupported file type for {filename}. Allowed: {allowed}"}),
+                400,
+            )
+
         filepath = upload_dir / filename
         file_bytes = file.read()
         file.seek(0)
 
+        file_size = len(file_bytes)
+        if file_size == 0:
+            return jsonify({"error": f"File {filename} is empty"}), 400
+
+        if MAX_UPLOAD_FILE_BYTES and file_size > MAX_UPLOAD_FILE_BYTES:
+            max_mb = MAX_UPLOAD_FILE_BYTES / (1024 * 1024)
+            return (
+                jsonify({"error": f"File {filename} exceeds per-file limit of {max_mb:.1f} MiB"}),
+                400,
+            )
+
+        total_bytes += file_size
+        if MAX_UPLOAD_TOTAL_BYTES and total_bytes > MAX_UPLOAD_TOTAL_BYTES:
+            max_total_mb = MAX_UPLOAD_TOTAL_BYTES / (1024 * 1024)
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            f"Upload exceeds cumulative limit of {max_total_mb:.1f} MiB. "
+                            f"Remove {filename} or upload files in smaller batches."
+                        )
+                    }
+                ),
+                400,
+            )
+
         width, height = _extract_image_dimensions(file_bytes, filename)
+        if width is None or height is None:
+            return jsonify({"error": f"{filename} is not a valid image file"}), 400
+
+        if MAX_UPLOAD_DIMENSION and (width > MAX_UPLOAD_DIMENSION or height > MAX_UPLOAD_DIMENSION):
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            f"{filename} dimensions {width}x{height} exceed "
+                            f"maximum allowed {MAX_UPLOAD_DIMENSION}px on the longest side"
+                        )
+                    }
+                ),
+                400,
+            )
+
+        if _path_exists(filepath):
+            stem = Path(filename).stem
+            counter = 1
+            # When tests patch Path.exists to always return True, fall back to os.path.exists.
+            while _path_exists(filepath):
+                filename = f"{stem}_{counter}{ext}"
+                filepath = upload_dir / filename
+                counter += 1
+
         _persist_upload(filepath, file_bytes)
 
         image = Image(

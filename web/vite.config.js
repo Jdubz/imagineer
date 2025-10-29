@@ -2,12 +2,32 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { visualizer } from 'rollup-plugin-visualizer'
+import { compression } from 'vite-plugin-compression2'
 
 // Read version from VERSION file
 const version = readFileSync(resolve(__dirname, '../VERSION'), 'utf-8').trim()
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    react(),
+    // Bundle analyzer - generates stats.html after build
+    mode === 'production' && visualizer({
+      filename: './dist/stats.html',
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+    // Compression - generates .gz and .br files for production
+    mode === 'production' && compression({
+      algorithm: 'gzip',
+      exclude: [/\.(br|gz)$/, /\.map$/],
+    }),
+    mode === 'production' && compression({
+      algorithm: 'brotliCompress',
+      exclude: [/\.(br|gz)$/, /\.map$/],
+    }),
+  ].filter(Boolean),
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString())
@@ -15,6 +35,10 @@ export default defineConfig({
   build: {
     outDir: '../public',
     emptyOutDir: true,
+    // Enable source maps for production debugging (optional)
+    sourcemap: mode === 'production' ? 'hidden' : true,
+    // Set chunk size warning limit to 1000kb
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         // Enhanced cache busting with version
@@ -29,6 +53,24 @@ export default defineConfig({
             return `assets/[name]-${version}-[hash].css`
           }
           return `assets/[name]-${version}-[hash].[ext]`
+        },
+        // Manual chunk splitting for better caching
+        manualChunks: (id) => {
+          // Vendor chunk for node_modules
+          if (id.includes('node_modules')) {
+            // Split large libraries into separate chunks
+            if (id.includes('react-router')) {
+              return 'vendor-router'
+            }
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react'
+            }
+            if (id.includes('zod')) {
+              return 'vendor-zod'
+            }
+            // Everything else goes into vendor
+            return 'vendor'
+          }
         }
       }
     }
@@ -43,4 +85,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

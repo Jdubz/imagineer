@@ -25,6 +25,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<BatchImage | null>(null)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
 
   const fetchBatch = useCallback(async () => {
     setLoading(true)
@@ -49,6 +50,10 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
 
   const closeModal = (): void => {
     setSelectedImage(null)
+  }
+
+  const handleImageLoad = (filename: string): void => {
+    setLoadedImages((prev) => new Set(prev).add(filename))
   }
 
   // Add Escape key handler for modal
@@ -105,6 +110,8 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
                 src={`/api/outputs/${image.relative_path}`}
                 alt={image.metadata?.prompt || 'Generated image'}
                 loading="lazy"
+                className={loadedImages.has(image.relative_path) ? 'loaded' : 'loading'}
+                onLoad={() => handleImageLoad(image.relative_path)}
               />
               <div className="image-info">
                 <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
@@ -131,6 +138,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
             <img
               src={`/api/outputs/${selectedImage.relative_path}`}
               alt={selectedImage.metadata?.prompt || 'Generated image'}
+              loading="eager"
             />
 
             <div className="modal-info">

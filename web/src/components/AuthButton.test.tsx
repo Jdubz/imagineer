@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AuthButton, { buildLoginState } from './AuthButton'
 
@@ -182,6 +182,10 @@ describe('AuthButton', () => {
 
     let closedState = false
     const popupRef = {
+      close: vi.fn(() => {
+        closedState = true
+      }),
+      focus: vi.fn(),
       get closed() {
         return closedState
       }
@@ -208,6 +212,70 @@ describe('AuthButton', () => {
       openSpy.mockRestore()
       vi.useRealTimers()
     }
+  })
+
+  it('closes the OAuth popup when authentication succeeds without manual window close', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        createResponse({
+          authenticated: false,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        createResponse({
+          authenticated: true,
+          role: 'admin',
+        }),
+      )
+
+    globalThis.fetch = fetchMock
+
+    let closedState = false
+    const popupClose = vi.fn(() => {
+      closedState = true
+    })
+    const popupRef = {
+      close: popupClose,
+      focus: vi.fn(),
+      get closed() {
+        return closedState
+      }
+    } as unknown as WindowProxy
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(popupRef)
+
+    render(<AuthButton />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /viewer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: window.location.origin,
+          data: { type: 'imagineer-auth-success' },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    await waitFor(() => {
+      expect(popupClose).toHaveBeenCalled()
+    })
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    openSpy.mockRestore()
   })
 
   it('falls back to root state when location resolves outside origin', () => {
