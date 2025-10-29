@@ -5,7 +5,6 @@ import type {
   GeneratedImage,
   BatchSummary,
   Job,
-  SetInfo,
   Album,
   LabelAnalytics,
 } from '../types/models'

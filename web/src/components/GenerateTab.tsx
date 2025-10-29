@@ -1,6 +1,6 @@
 import React from 'react'
 import GenerateForm from './GenerateForm'
-import type { Config, GenerateParams, BatchGenerateParams, Job } from '../types/models'
+import type { Config, GenerateParams, Job } from '../types/models'
 
 interface GenerateTabProps {
   config: Config | null
@@ -8,7 +8,6 @@ interface GenerateTabProps {
   queuePosition: number | null
   currentJob: Job | null
   onGenerate: (params: GenerateParams) => Promise<void>
-  onGenerateBatch: (params: BatchGenerateParams) => Promise<void>
   isAdmin: boolean
 }
 
@@ -17,7 +16,6 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
   loading,
   queuePosition,
   onGenerate,
-  onGenerateBatch,
   isAdmin,
 }) => {
   return (
@@ -37,7 +35,6 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
       {!loading && (
         <GenerateForm
           onGenerate={onGenerate}
-          onGenerateBatch={onGenerateBatch}
           loading={loading}
           config={config}
           isAdmin={isAdmin}

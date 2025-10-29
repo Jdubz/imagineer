@@ -7,7 +7,6 @@ import type { Config } from '../types/models'
 
 describe('GenerateForm', () => {
   const mockOnGenerate = vi.fn()
-  const mockOnGenerateBatch = vi.fn()
   const mockConfig: Partial<Config> = {
     generation: {
       steps: 30,
@@ -20,7 +19,6 @@ describe('GenerateForm', () => {
       <ToastProvider>
         <GenerateForm
           onGenerate={mockOnGenerate}
-          onGenerateBatch={mockOnGenerateBatch}
           loading={false}
           config={(mockConfig as Config) ?? null}
           isAdmin={true}
@@ -31,7 +29,6 @@ describe('GenerateForm', () => {
 
   beforeEach(() => {
     mockOnGenerate.mockReset()
-    mockOnGenerateBatch.mockReset()
   })
 
   it('renders the form with all inputs', () => {

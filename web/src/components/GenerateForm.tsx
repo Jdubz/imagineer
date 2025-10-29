@@ -11,7 +11,6 @@ import {
 
 interface GenerateFormProps {
   onGenerate: (params: GenerateParams) => void
-  onGenerateBatch?: () => void
   loading: boolean
   config: Config | null
   isAdmin: boolean
