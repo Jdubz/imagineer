@@ -77,33 +77,52 @@ class TestConfigEndpoints:
 class TestGenerateEndpoint:
     """Tests for /api/generate endpoint"""
 
-    def test_generate_missing_prompt(self, client):
-        """Test POST /api/generate without prompt returns 400"""
+    @staticmethod
+    def _reset_rate_history():
+        from server import api as api_module
+
+        with api_module._generation_rate_lock:
+            api_module._generation_request_times.clear()
+
+    def test_generate_requires_admin(self, client, sample_job_data):
+        """Unauthenticated requests should be rejected."""
+        self._reset_rate_history()
         response = client.post(
+            "/api/generate", data=json.dumps(sample_job_data), content_type="application/json"
+        )
+        assert response.status_code == 401
+
+    def test_generate_missing_prompt(self, admin_client):
+        """Test POST /api/generate without prompt returns 400"""
+        self._reset_rate_history()
+        response = admin_client.post(
             "/api/generate", data=json.dumps({}), content_type="application/json"
         )
         assert response.status_code == 400
 
-    def test_generate_empty_prompt(self, client):
+    def test_generate_empty_prompt(self, admin_client):
         """Test POST /api/generate with empty prompt returns 400"""
-        response = client.post(
+        self._reset_rate_history()
+        response = admin_client.post(
             "/api/generate", data=json.dumps({"prompt": "   "}), content_type="application/json"
         )
         assert response.status_code == 400
 
-    def test_generate_prompt_too_long(self, client):
+    def test_generate_prompt_too_long(self, admin_client):
         """Test POST /api/generate with overly long prompt returns 400"""
+        self._reset_rate_history()
         long_prompt = "a" * 2001  # Max is 2000
-        response = client.post(
+        response = admin_client.post(
             "/api/generate",
             data=json.dumps({"prompt": long_prompt}),
             content_type="application/json",
         )
         assert response.status_code == 400
 
-    def test_generate_valid_prompt(self, client, sample_job_data):
+    def test_generate_valid_prompt(self, admin_client, sample_job_data):
         """Test POST /api/generate with valid data returns 201 Created"""
-        response = client.post(
+        self._reset_rate_history()
+        response = admin_client.post(
             "/api/generate", data=json.dumps(sample_job_data), content_type="application/json"
         )
         assert response.status_code == 201
@@ -115,34 +134,37 @@ class TestGenerateEndpoint:
         assert "Location" in response.headers
         assert f"/api/jobs/{data['id']}" in response.headers["Location"]
 
-    def test_generate_invalid_seed(self, client):
+    def test_generate_invalid_seed(self, admin_client):
         """Test POST /api/generate with invalid seed returns 400"""
+        self._reset_rate_history()
         test_cases = [
             {"prompt": "test", "seed": -1},  # Negative
             {"prompt": "test", "seed": 2147483648},  # Too large
             {"prompt": "test", "seed": "invalid"},  # String
         ]
         for data in test_cases:
-            response = client.post(
+            response = admin_client.post(
                 "/api/generate", data=json.dumps(data), content_type="application/json"
             )
             assert response.status_code == 400
 
-    def test_generate_invalid_steps(self, client):
+    def test_generate_invalid_steps(self, admin_client):
         """Test POST /api/generate with invalid steps returns 400"""
+        self._reset_rate_history()
         test_cases = [
             {"prompt": "test", "steps": 0},  # Too low
             {"prompt": "test", "steps": 151},  # Too high
             {"prompt": "test", "steps": "invalid"},  # String
         ]
         for data in test_cases:
-            response = client.post(
+            response = admin_client.post(
                 "/api/generate", data=json.dumps(data), content_type="application/json"
             )
             assert response.status_code == 400
 
-    def test_generate_invalid_dimensions(self, client):
+    def test_generate_invalid_dimensions(self, admin_client):
         """Test POST /api/generate with invalid width/height returns 400"""
+        self._reset_rate_history()
         test_cases = [
             {"prompt": "test", "width": 63},  # Too small
             {"prompt": "test", "width": 2049},  # Too large
@@ -152,23 +174,44 @@ class TestGenerateEndpoint:
             {"prompt": "test", "height": 511},  # Not divisible by 8
         ]
         for data in test_cases:
-            response = client.post(
+            response = admin_client.post(
                 "/api/generate", data=json.dumps(data), content_type="application/json"
             )
             assert response.status_code == 400
 
-    def test_generate_invalid_guidance_scale(self, client):
+    def test_generate_invalid_guidance_scale(self, admin_client):
         """Test POST /api/generate with invalid guidance_scale returns 400"""
+        self._reset_rate_history()
         test_cases = [
             {"prompt": "test", "guidance_scale": -1},  # Negative
             {"prompt": "test", "guidance_scale": 31},  # Too high
             {"prompt": "test", "guidance_scale": "invalid"},  # String
         ]
         for data in test_cases:
-            response = client.post(
+            response = admin_client.post(
                 "/api/generate", data=json.dumps(data), content_type="application/json"
             )
             assert response.status_code == 400
+
+    def test_generate_rate_limit(self, admin_client, monkeypatch):
+        """Ensure rate limiting returns 429 once the threshold is exceeded."""
+        from server import api as api_module
+
+        monkeypatch.setattr(api_module, "GENERATION_RATE_LIMIT", 1)
+        monkeypatch.setattr(api_module, "GENERATION_RATE_WINDOW_SECONDS", 60)
+        self._reset_rate_history()
+
+        payload = {"prompt": "rate limit test"}
+
+        first_response = admin_client.post(
+            "/api/generate", data=json.dumps(payload), content_type="application/json"
+        )
+        assert first_response.status_code != 429
+
+        second_response = admin_client.post(
+            "/api/generate", data=json.dumps(payload), content_type="application/json"
+        )
+        assert second_response.status_code == 429
 
 
 class TestJobsEndpoints:

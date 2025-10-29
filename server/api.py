@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -139,6 +140,54 @@ app.register_blueprint(images_bp)
 app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
+
+# ============================================================================
+# Generation Endpoint Safeguards
+# ============================================================================
+
+GENERATION_RATE_LIMIT = int(os.environ.get("IMAGINEER_GENERATE_LIMIT", "10"))
+GENERATION_RATE_WINDOW_SECONDS = int(os.environ.get("IMAGINEER_GENERATE_WINDOW_SECONDS", "60"))
+
+_generation_rate_lock = threading.Lock()
+_generation_request_times: defaultdict[str, deque[float]] = defaultdict(deque)
+
+
+def _check_generation_rate_limit():
+    """Apply a simple per-user rate limit for generation endpoints."""
+    if GENERATION_RATE_LIMIT <= 0 or GENERATION_RATE_WINDOW_SECONDS <= 0:
+        return None
+
+    identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
+    now = time.monotonic()
+
+    with _generation_rate_lock:
+        history = _generation_request_times[identifier]
+        while history and now - history[0] > GENERATION_RATE_WINDOW_SECONDS:
+            history.popleft()
+
+        if len(history) >= GENERATION_RATE_LIMIT:
+            retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - history[0])))
+            logger.warning(
+                "Generation rate limit exceeded",
+                extra={
+                    "operation": "generate_rate_limit",
+                    "identifier": identifier,
+                    "limit": GENERATION_RATE_LIMIT,
+                    "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
+                },
+            )
+            response = jsonify(
+                {
+                    "success": False,
+                    "error": "Rate limit exceeded. Please wait before submitting another job.",
+                }
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response, 429
+
+        history.append(now)
+
+    return None
 
 
 # Add request timing and performance logging
@@ -871,6 +920,7 @@ def update_generation_config():
 
 
 @app.route("/api/generate", methods=["POST"])
+@require_admin
 def generate():  # noqa: C901
     """Submit a new image generation job"""
     try:
@@ -1001,6 +1051,10 @@ def generate():  # noqa: C901
             "submitted_at": datetime.now().isoformat(),
         }
 
+        rate_limit_response = _check_generation_rate_limit()
+        if rate_limit_response:
+            return rate_limit_response
+
         job_queue.put(job)
 
         # Return 201 Created with Location header pointing to job status
@@ -1085,6 +1139,7 @@ def get_random_theme():
 
 
 @app.route("/api/generate/batch", methods=["POST"])
+@require_admin
 def generate_batch():  # noqa: C901
     """Submit batch generation from CSV set
 
@@ -1206,6 +1261,10 @@ def generate_batch():  # noqa: C901
             negative_prompt = f"{negative_prompt}, {set_negative_prompt}"
         elif set_negative_prompt:
             negative_prompt = set_negative_prompt
+
+        rate_limit_response = _check_generation_rate_limit()
+        if rate_limit_response:
+            return rate_limit_response
 
         # Create jobs for each item in the set
         job_ids = []

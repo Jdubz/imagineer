@@ -215,6 +215,27 @@ def client(app):
 
 
 @pytest.fixture
+def admin_client(client):
+    """Return a test client with an authenticated admin session."""
+    from server import api as api_module
+
+    with client.session_transaction() as session:
+        session["_user_id"] = "admin@example.com"
+        session["_fresh"] = True
+        session["user"] = {
+            "email": "admin@example.com",
+            "name": "Test Admin",
+            "picture": "",
+            "role": "admin",
+        }
+
+    with api_module._generation_rate_lock:
+        api_module._generation_request_times.clear()
+
+    return client
+
+
+@pytest.fixture
 def runner(app):
     """A test runner for the app's Click commands"""
     return app.test_cli_runner()
