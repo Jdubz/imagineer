@@ -1857,7 +1857,7 @@ def scrape_site_task(self, scrape_job_id):
         logger.info(f"Starting scrape job {scrape_job_id}: {job.url}")
 
         # Create output directory
-        output_dir = Path(f'/mnt/speedy/imagineer/outputs/scraped/job_{scrape_job_id}')
+        output_dir = Path(f'/mnt/storage/imagineer/scraped/job_{scrape_job_id}')
         output_dir.mkdir(parents=True, exist_ok=True)
 
         try:

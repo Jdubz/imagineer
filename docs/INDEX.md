@@ -45,13 +45,16 @@ docs/
 │   ├── LORA_ORGANIZATION.md
 │   └── LORA_PREVIEW_GENERATION.md
 │
-└── guides/                         (Development guides)
-    ├── SETUP.md
-    ├── TESTING.md
-    ├── LINTING.md
-    ├── CONTRIBUTING.md
-    ├── MAKEFILE_REFERENCE.md
-    └── NEXT_STEPS.md
+├── guides/                         (Development guides)
+│   ├── SETUP.md
+│   ├── TESTING.md
+│   ├── LINTING.md
+│   ├── CONTRIBUTING.md
+│   ├── MAKEFILE_REFERENCE.md
+│   └── NEXT_STEPS.md
+│
+└── plans/                          (Planning & audit documents)
+    └── FRONTEND_CODE_AUDIT.md
 ```
 
 ---
@@ -180,6 +183,18 @@ docs/
 
 ---
 
+## 📋 Planning & Audits
+
+### [plans/FRONTEND_CODE_AUDIT.md](plans/FRONTEND_CODE_AUDIT.md)
+**Comprehensive frontend code audit (2025-10-28)**
+- 30 prioritized issues (P0-P3)
+- Code quality, performance, accessibility analysis
+- Memory leaks, error handling, security issues
+- Test coverage gaps and recommendations
+- Immediate actions and long-term roadmap
+
+---
+
 ## 🎯 Documentation by Task
 
 ### I want to...
@@ -211,6 +226,11 @@ docs/
 1. [ARCHITECTURE.md](ARCHITECTURE.md)
 2. [../CLAUDE.md](../CLAUDE.md) (Claude Code instructions)
 
+**...improve frontend code quality**
+1. [plans/FRONTEND_CODE_AUDIT.md](plans/FRONTEND_CODE_AUDIT.md)
+2. [guides/TESTING.md](guides/TESTING.md)
+3. [guides/LINTING.md](guides/LINTING.md)
+
 **...troubleshoot issues**
 - Deployment: [deployment/DEPLOYMENT_ORCHESTRATION.md](deployment/DEPLOYMENT_ORCHESTRATION.md#troubleshooting)
 - Credentials: [deployment/REQUIRED_CREDENTIALS.md](deployment/REQUIRED_CREDENTIALS.md#troubleshooting-authentication-issues)
@@ -220,10 +240,11 @@ docs/
 
 ## 📊 Documentation Statistics
 
-- **Total documentation files**: 27
+- **Total documentation files**: 28
 - **Deployment docs**: 18 files (~40,000 words)
 - **LoRA docs**: 3 files (~3,000 words)
 - **Development guides**: 6 files (~5,000 words)
+- **Planning & audits**: 1 file (~9,000 words)
 - **Core docs**: 2 files (~7,000 words)
 
 ---

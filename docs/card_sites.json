@@ -79,7 +79,7 @@
   "recommended_workflow": {
     "step_1": "Use smart_discovery.py to find galleries and images",
     "step_2": "Use card_config.yaml presets appropriate for tarot vs playing card decks",
-    "step_3": "Review dataset in /mnt/speedy/imagineer/outputs/scraped before importing to albums",
+    "step_3": "Review dataset in /mnt/storage/imagineer/scraped before importing to albums",
     "notes": [
       "Prioritize high_priority sites during telemetry verification",
       "Track progress metrics (discovered/downloaded) to benchmark new telemetry UI"

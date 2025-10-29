@@ -1,8 +1,12 @@
-"""
-Simplified Tests for Phase 4: Web Scraping (Unit Tests Only)
-"""
+"""Simplified tests for Phase 4: Web Scraping."""
 
+from pathlib import Path
+from types import SimpleNamespace
+
+import server.api
+import server.routes.scraping as scraping_routes
 from server.database import ScrapeJob, db
+from server.tasks import scraping
 
 
 class TestScrapeJobModel:
@@ -171,7 +175,7 @@ class TestScrapingAPI:
         # In a real scenario, we would mock the Celery task properly
         pass
 
-    def test_get_scraping_stats(self, client):
+    def test_get_scraping_stats(self, client, monkeypatch, tmp_path):
         """Test getting scraping statistics"""
         with client.application.app_context():
             # Create test jobs with different statuses
@@ -181,6 +185,18 @@ class TestScrapingAPI:
             db.session.add_all([job1, job2, job3])
             db.session.commit()
 
+        storage_root = tmp_path / "scraped"
+        storage_root.mkdir()
+        monkeypatch.setattr(scraping_routes, "get_scraped_output_path", lambda: storage_root)
+        total_bytes = 1024**4  # 1 TiB
+        used_bytes = 400 * 1024**3
+        free_bytes = total_bytes - used_bytes
+        monkeypatch.setattr(
+            scraping_routes.shutil,
+            "disk_usage",
+            lambda path: SimpleNamespace(total=total_bytes, used=used_bytes, free=free_bytes),
+        )
+
         response = client.get("/api/scraping/stats")
         assert response.status_code == 200
         result = response.get_json()
@@ -189,3 +205,60 @@ class TestScrapingAPI:
         assert "completed" in result["status_breakdown"]
         assert "running" in result["status_breakdown"]
         assert "failed" in result["status_breakdown"]
+        storage = result.get("storage")
+        assert storage
+        assert storage["path"] == str(storage_root)
+        assert storage["total_gb"] == round(total_bytes / (1024**3), 2)
+        assert storage["used_gb"] == round(used_bytes / (1024**3), 2)
+        assert storage["free_gb"] == round(free_bytes / (1024**3), 2)
+        assert storage["free_percent"] == round((free_bytes / total_bytes) * 100, 2)
+
+
+class TestScrapingOutputPath:
+    """Ensure scrape output directories resolve predictably."""
+
+    def test_get_scraped_output_path_uses_configured_dir(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
+
+        configured = tmp_path / "configured"
+
+        def fake_load_config():
+            return {"outputs": {"scraped_dir": str(configured)}}
+
+        monkeypatch.setattr(server.api, "load_config", fake_load_config)
+
+        resolved = scraping.get_scraped_output_path()
+
+        assert resolved == configured
+        assert resolved.exists()
+
+    def test_get_scraped_output_path_falls_back_when_unwritable(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
+
+        bad_path = Path("/root/unwritable/scraped")
+        fallback_base = tmp_path / "fallback"
+        fallback_expected = fallback_base / "scraped"
+
+        def fake_load_config():
+            return {
+                "outputs": {
+                    "scraped_dir": str(bad_path),
+                    "base_dir": str(fallback_base),
+                }
+            }
+
+        monkeypatch.setattr(server.api, "load_config", fake_load_config)
+
+        original_mkdir = Path.mkdir
+
+        def guarded_mkdir(self, *args, **kwargs):
+            if self == bad_path:
+                raise PermissionError("denied")
+            return original_mkdir(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
+
+        resolved = scraping.get_scraped_output_path()
+
+        assert resolved == fallback_expected
+        assert resolved.exists()

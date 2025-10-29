@@ -75,12 +75,24 @@ def get_scraped_output_path() -> Path:
         config = load_config()
         outputs_config = config.get("outputs", {}) if isinstance(config, dict) else {}
 
+        base_dir = outputs_config.get("base_dir", "/tmp/imagineer/outputs")
+        fallback_path = Path(base_dir) / "scraped"
+
         configured_path = outputs_config.get("scraped_dir")
-        if configured_path:
-            SCRAPED_OUTPUT_PATH = Path(configured_path)
-        else:
-            base_dir = outputs_config.get("base_dir", "/tmp/imagineer/outputs")
-            SCRAPED_OUTPUT_PATH = Path(base_dir) / "scraped"
+        candidate_path = Path(configured_path) if configured_path else fallback_path
+
+        try:
+            candidate_path.mkdir(parents=True, exist_ok=True)
+            SCRAPED_OUTPUT_PATH = candidate_path
+        except OSError as exc:
+            logger.warning(
+                "Unable to initialize scraped output directory %s: %s. Falling back to %s",
+                candidate_path,
+                exc,
+                fallback_path,
+            )
+            fallback_path.mkdir(parents=True, exist_ok=True)
+            SCRAPED_OUTPUT_PATH = fallback_path
 
     return SCRAPED_OUTPUT_PATH
 

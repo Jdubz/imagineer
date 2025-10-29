@@ -452,7 +452,8 @@ Use this playbook when validating the new scraping telemetry and admin UI polish
 - **Sampling targets:** The curated priority list in `docs/card_sites.json` covers museums and archives with known deck volumes. Work through the `priority_sites` array first so we exercise larger crawls.
 - **Launch:** From the admin UI, create scrape jobs with the recommended `config` in the JSON entry (`card_config.yaml` for tarot/playing cards, `default_config.yaml` otherwise). Record the job IDs.
 - **Telemetry verification:** While the job runs, confirm the Scraping tab shows stage transitions (`initializing → discovering → downloading`) and that discovered/downloaded counters track with the scraper logs.
-- **Output audit:** After completion, inspect `/tmp/imagineer/outputs/scraped/job_<id>` (or your configured `SCRAPED_OUTPUT_PATH`) to ensure files landed alongside `manifest.json`.
+- **Output audit:** After completion, inspect `/mnt/storage/imagineer/scraped/job_<id>` (or your configured `SCRAPED_OUTPUT_PATH`) to ensure files landed alongside `manifest.json`.
+- **Storage monitor:** Validate the Scraping dashboard reports HDD free space and cross-check with `df -h /mnt/storage` so capacity alarms stay trustworthy.
 - **Import sanity check:** Before importing into albums, spot-check a handful of images for duplicates, corrupt files, or mislabelled card backs. Note any anomalies in the admin logbook.
 
 Document findings (success/failure, notable deck coverage) back in `docs/card_sites.json` by updating each site's `status` field.

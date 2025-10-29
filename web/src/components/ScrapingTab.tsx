@@ -7,10 +7,31 @@ const clampProgress = (value: number | null | undefined): number | undefined => 
   return typeof value === 'number' ? Math.min(100, Math.max(0, value)) : undefined
 }
 
+const formatGigabytes = (value?: number | null): string => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'N/A'
+  }
+  const fractionDigits = value < 10 ? 1 : 0
+  return `${value.toLocaleString(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: 1,
+  })} GB`
+}
+
+interface StorageStats {
+  path: string
+  total_gb?: number
+  used_gb?: number
+  free_gb?: number
+  free_percent?: number | null
+  error?: string
+}
+
 interface ScrapingStats {
   total_jobs: number
   total_images_scraped: number
   recent_jobs: number
+  storage?: StorageStats
 }
 
 interface ScrapingJobsResponse {
@@ -220,6 +241,27 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
             <h3>Recent Jobs (7 days)</h3>
             <span className="stat-number">{stats.recent_jobs}</span>
           </div>
+          {stats.storage && (
+            <div className="stat-card storage-card">
+              <h3>Storage Free</h3>
+              <span className="stat-number">{formatGigabytes(stats.storage.free_gb)}</span>
+              {stats.storage.error ? (
+                <div className="storage-error">{stats.storage.error}</div>
+              ) : (
+                <>
+                  <div className="storage-details">
+                    {formatGigabytes(stats.storage.used_gb)} used · {formatGigabytes(stats.storage.total_gb)} total
+                  </div>
+                  {typeof stats.storage.free_percent === 'number' && (
+                    <div className="storage-details">
+                      {stats.storage.free_percent.toFixed(1)}% free
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="storage-path">{stats.storage.path}</div>
+            </div>
+          )}
         </div>
       )}
 

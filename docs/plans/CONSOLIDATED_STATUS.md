@@ -144,6 +144,8 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 3. **Admin Controls**
    - Admin-only scraping endpoints
    - Job history tracking
+   - Default scrape output root moved to `/mnt/storage/imagineer/scraped` to reserve NVMe capacity for active jobs
+   - Dashboard surfaces HDD capacity (total/used/free) so operators can watch free space without shell access
 
 ### ⚠️ Outstanding Issues
 
@@ -211,6 +213,12 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 **Status:** Not implemented
 
 **Action:** Consider Sentry or similar for production error tracking (future enhancement)
+
+### 5. Database Placement (LOW PRIORITY)
+
+**Status:** SQLite database remains in `instance/imagineer.db`; write permissions were relaxed on Oct 29 to unblock scraping inserts.
+
+**Action:** Move the database to a shared writable mount (e.g., `/mnt/storage/imagineer/db/imagineer.db`) and restore restrictive perms, or run the production API under a user with ownership of the existing path.
 
 ---
 
