@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { logger } from './logger'
 import type {
   Config,
@@ -9,15 +10,16 @@ import type {
   LabelAnalytics,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
+import * as schemas from './schemas'
 
 /**
- * Typed API Client with improved type safety
+ * Typed API Client with runtime validation
  *
  * Features:
- * - Type-safe API calls using existing type definitions
+ * - Type-safe API calls with Zod runtime validation
  * - AbortSignal support for cancellation
  * - Consistent error handling
- * - Eliminates unsafe type assertions
+ * - Validates API responses against schemas
  */
 
 export class ApiError extends Error {
@@ -31,6 +33,16 @@ export class ApiError extends Error {
   }
 }
 
+export class ValidationError extends Error {
+  constructor(
+    message: string,
+    public zodError: z.ZodError
+  ) {
+    super(message)
+    this.name = 'ValidationError'
+  }
+}
+
 /**
  * Type guard to check if value is a record
  */
@@ -39,9 +51,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Makes a typed API request
+ * Makes a typed API request with Zod validation
  */
-async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
+async function apiRequest<T>(
+  url: string,
+  schema: z.ZodType<T>,
+  options?: RequestInit
+): Promise<T> {
   try {
     const response = await fetch(url, options)
 
@@ -61,9 +77,21 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
     }
 
     const data = await response.json()
-    return data as T
+
+    // Validate response with Zod schema
+    const validationResult = schema.safeParse(data)
+
+    if (!validationResult.success) {
+      logger.error('API response validation failed:', validationResult.error)
+      throw new ValidationError(
+        'API response does not match expected schema',
+        validationResult.error
+      )
+    }
+
+    return validationResult.data
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError || error instanceof ValidationError) {
       throw error
     }
 
@@ -82,6 +110,7 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   }
 }
 
+
 /**
  * API Client
  */
@@ -95,7 +124,7 @@ export const api = {
      * Check current authentication status
      */
     async checkAuth(signal?: AbortSignal): Promise<AuthStatus> {
-      return apiRequest<AuthStatus>('/api/auth/me', {
+      return apiRequest('/api/auth/me', schemas.AuthStatusSchema, {
         credentials: 'include',
         signal,
       })
@@ -111,7 +140,7 @@ export const api = {
    */
   async getConfig(signal?: AbortSignal): Promise<Config | null> {
     try {
-      return await apiRequest<Config>('/api/config', {
+      return await apiRequest('/api/config', schemas.ConfigSchema, {
         credentials: 'include',
         signal,
       })
@@ -134,7 +163,7 @@ export const api = {
      * Fetch all generated images
      */
     async getAll(signal?: AbortSignal): Promise<GeneratedImage[]> {
-      const response = await apiRequest<{ images: GeneratedImage[] }>('/api/outputs', { signal })
+      const response = await apiRequest('/api/outputs', schemas.ImagesResponseSchema, { signal })
       return response.images || []
     },
   },
@@ -148,7 +177,7 @@ export const api = {
      * Fetch all batch summaries
      */
     async getAll(signal?: AbortSignal): Promise<BatchSummary[]> {
-      const response = await apiRequest<{ batches: BatchSummary[] }>('/api/batches', { signal })
+      const response = await apiRequest('/api/batches', schemas.BatchesResponseSchema, { signal })
       return response.batches || []
     },
 
@@ -156,7 +185,7 @@ export const api = {
      * Fetch batch details by ID
      */
     async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string; image_count: number; images?: Array<{ filename: string; relative_path: string; created: string; metadata?: unknown }> }> {
-      return apiRequest(`/api/batches/${batchId}`, { signal })
+      return apiRequest(`/api/batches/${batchId}`, schemas.BatchDetailSchema, { signal })
     },
   },
 
@@ -170,7 +199,7 @@ export const api = {
      * Requires admin authentication
      */
     async getById(jobId: string, signal?: AbortSignal): Promise<Job> {
-      return apiRequest<Job>(`/api/jobs/${jobId}`, {
+      return apiRequest(`/api/jobs/${jobId}`, schemas.JobSchema, {
         credentials: 'include',
         signal,
       })
@@ -181,7 +210,7 @@ export const api = {
      * Requires admin authentication
      */
     async getAll(signal?: AbortSignal): Promise<{ current: Job | null; queue: Job[]; history: Job[] }> {
-      return apiRequest(`/api/jobs`, {
+      return apiRequest(`/api/jobs`, schemas.JobsResponseSchema, {
         credentials: 'include',
         signal,
       })
@@ -197,7 +226,7 @@ export const api = {
      * Fetch all available sets
      */
     async getAll(signal?: AbortSignal): Promise<Array<{ id: string; name: string }>> {
-      const response = await apiRequest<{ sets: Array<{ id: string; name: string }> }>('/api/sets', { signal })
+      const response = await apiRequest('/api/sets', schemas.SetsResponseSchema, { signal })
       return response.sets || []
     },
 
@@ -205,15 +234,16 @@ export const api = {
      * Fetch set information
      */
     async getInfo(setName: string, signal?: AbortSignal): Promise<SetInfo> {
-      return apiRequest<SetInfo>(`/api/sets/${setName}/info`, { signal })
+      return apiRequest(`/api/sets/${setName}/info`, schemas.SetInfoSchema, { signal })
     },
 
     /**
      * Fetch set LoRA configuration
      */
     async getLoras(setName: string, signal?: AbortSignal): Promise<Array<{ folder: string; weight: number }>> {
-      const response = await apiRequest<{ loras: Array<{ folder: string; weight: number }> }>(
+      const response = await apiRequest(
         `/api/sets/${setName}/loras`,
+        schemas.SetLorasResponseSchema,
         { signal }
       )
       return response.loras || []
@@ -278,7 +308,7 @@ export const api = {
      * Fetch all available LoRAs
      */
     async getAll(signal?: AbortSignal): Promise<Array<{ folder: string; filename: string }>> {
-      const response = await apiRequest<{ loras: Array<{ folder: string; filename: string }> }>('/api/loras', { signal })
+      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, { signal })
       return response.loras || []
     },
   },
@@ -292,7 +322,7 @@ export const api = {
      * Fetch a random theme
      */
     async getRandom(signal?: AbortSignal): Promise<string> {
-      const response = await apiRequest<{ theme: string }>('/api/themes/random', { signal })
+      const response = await apiRequest('/api/themes/random', schemas.ThemeResponseSchema, { signal })
       return response.theme || ''
     },
   },
@@ -306,7 +336,7 @@ export const api = {
      * Fetch all albums
      */
     async getAll(signal?: AbortSignal): Promise<Album[]> {
-      const response = await apiRequest<{ albums: Album[] } | Album[]>('/api/albums', { signal })
+      const response = await apiRequest('/api/albums', schemas.AlbumsResponseSchema, { signal })
 
       if (Array.isArray(response)) {
         return response
@@ -328,7 +358,7 @@ export const api = {
       signal?: AbortSignal
     ): Promise<Album> {
       const includeParam = includeLabels ? '?include_labels=1' : ''
-      return apiRequest<Album>(`/api/albums/${albumId}${includeParam}`, {
+      return apiRequest(`/api/albums/${albumId}${includeParam}`, schemas.AlbumSchema, {
         credentials: 'include',
         signal,
       })
@@ -414,7 +444,7 @@ export const api = {
      * Fetch album analytics
      */
     async getAnalytics(albumId: string, signal?: AbortSignal): Promise<LabelAnalytics> {
-      return apiRequest<LabelAnalytics>(`/api/albums/${albumId}/labeling/analytics`, {
+      return apiRequest(`/api/albums/${albumId}/labeling/analytics`, schemas.LabelAnalyticsSchema, {
         credentials: 'include',
         signal,
       })

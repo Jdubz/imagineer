@@ -16,6 +16,7 @@ import { ToastProvider } from './contexts/ToastContext'
 import { useToast } from './hooks/useToast'
 import { logger } from './lib/logger'
 import { api } from './lib/api'
+import { JobSchema } from './lib/schemas'
 import type { AuthStatus } from './types/shared'
 import type {
   Config,
@@ -146,15 +147,20 @@ const AppContent: React.FC = () => {
       })
 
       if (response.status === 201) {
-        const payload = await response.json() as unknown
-        if (!isRecord(payload)) {
-          throw new Error('Invalid job response')
-        }
-        const result = payload as unknown as Job
-        setCurrentJob(result)
-        setQueuePosition(result.queue_position ?? null)
+        const payload = await response.json()
 
-        pollJobStatus(result.id)
+        // Validate response with Zod schema
+        const validationResult = JobSchema.safeParse(payload)
+        if (!validationResult.success) {
+          logger.error('Invalid job response', validationResult.error)
+          throw new Error('Invalid job response from API')
+        }
+
+        const job = validationResult.data
+        setCurrentJob(job)
+        setQueuePosition(job.queue_position ?? null)
+
+        pollJobStatus(job.id)
       } else {
         const payload = (await response.json()) as unknown
         const errorMessage =
