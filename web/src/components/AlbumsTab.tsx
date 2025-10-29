@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
+import { useToast } from '../hooks/useToast'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Label, LabelAnalytics } from '../types/models'
 
@@ -60,6 +61,7 @@ interface RawAlbum {
 }
 
 const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
+  const toast = useToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
@@ -201,15 +203,16 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       })
 
       if (response.ok) {
+        toast.success('Album created successfully!')
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
         const error = (await response.json()) as { error?: string }
-        alert('Failed to create album: ' + (error.error ?? 'Unknown error'))
+        toast.error('Failed to create album: ' + (error.error ?? 'Unknown error'))
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
-      alert('Error creating album')
+      toast.error('Error creating album')
     }
   }
 
@@ -225,6 +228,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       })
 
       if (response.ok) {
+        toast.success('Album deleted successfully')
         fetchAlbums()
         if (selectedAlbum?.id === albumId) {
           setSelectedAlbum(null)
@@ -232,11 +236,11 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         }
       } else {
         const error = await response.json()
-        alert('Failed to delete album: ' + error.error)
+        toast.error('Failed to delete album: ' + error.error)
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      alert('Error deleting album')
+      toast.error('Error deleting album')
     }
   }
 

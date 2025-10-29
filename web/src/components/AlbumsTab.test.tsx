@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AlbumsTab from './AlbumsTab'
+import { ToastProvider } from '../contexts/ToastContext'
 
 describe('AlbumsTab admin labeling integration', () => {
   const originalFetch = globalThis.fetch
@@ -113,7 +114,11 @@ describe('AlbumsTab admin labeling integration', () => {
     })
 
     const user = userEvent.setup()
-    render(<AlbumsTab isAdmin />)
+    render(
+      <ToastProvider>
+        <AlbumsTab isAdmin />
+      </ToastProvider>
+    )
 
     const albumCard = await screen.findByText(/sample album/i)
     await user.click(albumCard)
@@ -134,7 +139,11 @@ describe('AlbumsTab admin labeling integration', () => {
       json: () => Promise.resolve(mockAlbumListResponse),
     })
 
-    render(<AlbumsTab isAdmin={false} />)
+    render(
+      <ToastProvider>
+        <AlbumsTab isAdmin={false} />
+      </ToastProvider>
+    )
 
     expect(await screen.findByText(/sample album/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /start labeling/i })).not.toBeInTheDocument()

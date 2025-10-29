@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { logger } from '../lib/logger'
+import { useToast } from '../hooks/useToast'
 import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
 import {
   validateForm,
@@ -38,6 +39,7 @@ interface GenerateFormProps {
 }
 
 const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch, loading, config, isAdmin }) => {
+  const toast = useToast()
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
   const [guidanceScale, setGuidanceScale] = useState<number>(config?.generation?.guidance_scale || 7.5)
@@ -138,7 +140,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
       // Handle auth failures
       if (response.status === 401 || response.status === 403) {
-        alert('Admin authentication required to update LoRA configuration. Please log in as admin.')
+        toast.error('Admin authentication required to update LoRA configuration. Please log in as admin.')
         logger.warn('LoRA update requires admin authentication')
         return
       }
@@ -146,20 +148,21 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       if (!response.ok) {
         const data = await response.json()
         logger.error('Failed to update LoRAs:', data.error)
-        alert(`Error: ${data.error || 'Failed to update LoRA configuration'}`)
+        toast.error(`Error: ${data.error || 'Failed to update LoRA configuration'}`)
         return
       }
 
       const data = await response.json()
       if (data.success) {
+        toast.success('LoRA configuration updated successfully')
         fetchSetLoras(setName)  // Refresh the list
       } else {
         logger.error('Failed to update LoRAs:', data.error)
-        alert(`Error: ${data.error}`)
+        toast.error(`Error: ${data.error}`)
       }
     } catch (error) {
       logger.error('Failed to update set LoRAs:', error)
-      alert('Failed to update LoRA configuration')
+      toast.error('Failed to update LoRA configuration')
     }
   }
 
@@ -168,7 +171,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
 
     // Check if already in set
     if (setLoras.some(l => l.folder === loraFolder)) {
-      alert('This LoRA is already in the set')
+      toast.warning('This LoRA is already in the set')
       return
     }
 

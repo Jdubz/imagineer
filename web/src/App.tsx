@@ -11,6 +11,9 @@ import TrainingTab from './components/TrainingTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
 import ErrorBoundary from './components/ErrorBoundary'
+import ToastContainer from './components/Toast'
+import { ToastProvider } from './contexts/ToastContext'
+import { useToast } from './hooks/useToast'
 import { logger } from './lib/logger'
 import type { AuthStatus } from './types/shared'
 import type {
@@ -25,7 +28,8 @@ import type {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const toast = useToast()
   const [config, setConfig] = useState<Config | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -157,12 +161,12 @@ const App: React.FC = () => {
           isRecord(payload) && typeof payload.error === 'string'
             ? payload.error
             : 'Unknown error'
-        alert(`Failed to submit job: ${errorMessage}`)
+        toast.error(`Failed to submit job: ${errorMessage}`)
         setLoading(false)
       }
     } catch (error) {
       logger.error('Failed to generate', error as Error)
-      alert('Error submitting job')
+      toast.error('Error submitting job')
       setLoading(false)
     }
   }
@@ -179,9 +183,9 @@ const App: React.FC = () => {
       if (response.status === 201) {
         const payload = (await response.json()) as unknown
         if (isRecord(payload) && typeof payload.total_jobs === 'number') {
-          alert(`Batch generation started!\n${payload.total_jobs} jobs queued for ${String(payload.set_name ?? 'unknown set')}`)
+          toast.success(`Batch generation started! ${payload.total_jobs} jobs queued for ${String(payload.set_name ?? 'unknown set')}`)
         } else {
-          alert('Batch generation started!')
+          toast.success('Batch generation started!')
         }
         fetchBatches().catch((error) => logger.error('Failed to refresh batches', error as Error))
         setActiveTab('gallery')
@@ -191,11 +195,11 @@ const App: React.FC = () => {
           isRecord(payload) && typeof payload.error === 'string'
             ? payload.error
             : 'Unknown error'
-        alert(`Failed to submit batch: ${errorMessage}`)
+        toast.error(`Failed to submit batch: ${errorMessage}`)
       }
     } catch (error: unknown) {
       logger.error('Failed to generate batch', error as Error)
-      alert('Error submitting batch')
+      toast.error('Error submitting batch')
     } finally {
       setLoading(false)
     }
@@ -215,18 +219,19 @@ const App: React.FC = () => {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
+          toast.success('Image generated successfully!')
           fetchImages().catch((err) => logger.error('Failed to refresh images', err as Error))
           fetchBatches().catch((err) => logger.error('Failed to refresh batches', err as Error))
         } else if (job.status === 'failed') {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
-          alert(`Generation failed: ${job.error ?? 'Unknown error'}`)
+          toast.error(`Generation failed: ${job.error ?? 'Unknown error'}`)
         } else if (job.status === 'cancelled') {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
-          alert('Job was cancelled')
+          toast.warning('Job was cancelled')
         } else {
           setTimeout(checkStatus, 2000)
         }
@@ -244,6 +249,7 @@ const App: React.FC = () => {
   return (
     <div className="App">
       <SkipNav />
+      <ToastContainer />
       <header className="header">
         <div className="header-content">
           <div className="header-title">
@@ -317,6 +323,14 @@ const App: React.FC = () => {
         </main>
       </div>
     </div>
+  )
+}
+
+const App: React.FC = () => {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   )
 }
 
