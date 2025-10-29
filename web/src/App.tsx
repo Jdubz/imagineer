@@ -21,6 +21,8 @@ import type {
   GenerateParams,
   Tab,
 } from './types/models'
+import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
+import BugReportButton from './components/BugReportButton'
 
 // Lazy load tab components for code splitting
 const GenerateTab = lazy(() => import('./components/GenerateTab'))
@@ -45,6 +47,7 @@ const AppContent: React.FC = () => {
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [batches, setBatches] = useState<BatchSummary[]>([])
   const [user, setUser] = useState<AuthStatus | null>(null)
+  const { registerCollector } = useBugReporter()
 
   // Tab configuration
   const tabs: Tab[] = [
@@ -141,6 +144,74 @@ const AppContent: React.FC = () => {
     return () => abortController.abort()
   }, [fetchConfig, fetchImages, fetchBatches, checkAuth])
 
+  useEffect(() => {
+    const unregister = registerCollector('application_state', () => {
+      const imagePreview = images.slice(0, 5).map(({ filename, created, metadata }) => ({
+        filename,
+        created,
+        model: metadata?.model,
+        seed: metadata?.seed,
+      }))
+
+      const batchPreview = batches.slice(0, 5).map(({ batch_id, image_count, created }) => ({
+        batch_id,
+        image_count,
+        created,
+      }))
+
+      const jobSnapshot = currentJob
+        ? {
+            id: currentJob.id,
+            status: currentJob.status,
+            queue_position: currentJob.queue_position,
+            submitted_at: currentJob.submitted_at ?? currentJob.created ?? null,
+            error: currentJob.error ?? null,
+          }
+        : null
+
+      return {
+        route: {
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+        },
+        activeTab,
+        loading: {
+          generate: loading,
+          images: loadingImages,
+          batches: loadingBatches,
+        },
+        queuePosition,
+        counts: {
+          batches: batches.length,
+          images: images.length,
+        },
+        currentJob: jobSnapshot,
+        config,
+        user,
+        imagePreview,
+        batchPreview,
+      }
+    })
+
+    return unregister
+  }, [
+    activeTab,
+    batches,
+    config,
+    currentJob,
+    images,
+    loading,
+    loadingBatches,
+    loadingImages,
+    location.hash,
+    location.pathname,
+    location.search,
+    queuePosition,
+    registerCollector,
+    user,
+  ])
+
   const handleGenerate = async (params: GenerateParams): Promise<void> => {
     setLoading(true)
     setQueuePosition(null)
@@ -233,7 +304,10 @@ const AppContent: React.FC = () => {
             <h1>✨ Imagineer</h1>
             <p>AI Image Generation Toolkit</p>
           </div>
-          <AuthButton onAuthChange={setUser} />
+          <div className="header-actions">
+            <BugReportButton />
+            <AuthButton onAuthChange={setUser} />
+          </div>
         </div>
       </header>
 
@@ -328,7 +402,9 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <AppContent />
+        <BugReportProvider>
+          <AppContent />
+        </BugReportProvider>
       </ToastProvider>
     </BrowserRouter>
   )

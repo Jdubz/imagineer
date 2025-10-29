@@ -79,14 +79,16 @@ def is_rate_limit_exceeded(
         return False
 
     now = time.time()
+    now_ns = time.time_ns()
     redis_client = _get_redis_client()
 
     if redis_client:
         key = f"rate:{namespace}:{identifier}"
         now_ms = int(now * 1000)
+        member = f"{now_ns}"
         try:
             with redis_client.pipeline() as pipe:
-                pipe.zadd(key, {str(now_ms): now_ms})
+                pipe.zadd(key, {member: now_ms})
                 pipe.zremrangebyscore(key, 0, now_ms - window_seconds * 1000)
                 pipe.zcard(key)
                 pipe.expire(key, window_seconds)

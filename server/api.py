@@ -10,6 +10,7 @@ import os
 import queue
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -320,7 +321,11 @@ def auth_callback():
         security_logger = logging.getLogger("security")
         security_logger.info(
             f"Successful login: {user.email}",
-            extra={"event": "authentication_success", "user_email": user.email, "role": user.role},
+            extra={
+                "event": "authentication_success",
+                "user_email": user.email,
+                "role": user.role,
+            },
         )
 
         # Close the OAuth popup window and notify the opener
@@ -330,7 +335,10 @@ def auth_callback():
             <body>
                 <script>
                     if (window.opener && typeof window.opener.postMessage === 'function') {
-                        window.opener.postMessage({ type: 'imagineer-auth-success' }, window.location.origin);
+                        window.opener.postMessage(
+                            { type: 'imagineer-auth-success' },
+                            window.location.origin
+                        );
                     }
                     // Close the popup window
                     window.close();

@@ -9,6 +9,7 @@ import type {
   LabelAnalytics,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
+import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
 import * as schemas from './schemas'
 
 /**
@@ -25,7 +26,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status?: number,
-    public response?: unknown
+    public response?: unknown,
+    public traceId?: string
   ) {
     super(message)
     this.name = 'ApiError'
@@ -125,6 +127,7 @@ async function apiRequest<T>(
 ): Promise<T> {
   try {
     const response = await fetch(url, options)
+    const traceId = response.headers?.get?.('X-Trace-Id') ?? undefined
 
     if (!response.ok) {
       // Try to get error message from response
@@ -138,7 +141,7 @@ async function apiRequest<T>(
         // Couldn't parse error response, use status text
       }
 
-      throw new ApiError(errorMessage, response.status)
+      throw new ApiError(errorMessage, response.status, undefined, traceId)
     }
 
     const data = await response.json()
@@ -520,6 +523,19 @@ export const api = {
           error: 'Error generating batch',
         }
       }
+    },
+  },
+
+  bugReports: {
+    async submit(payload: BugReportOptions): Promise<BugReportSubmissionResponse> {
+      return apiRequest('/api/bug-reports', schemas.BugReportResponseSchema, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
     },
   },
 }

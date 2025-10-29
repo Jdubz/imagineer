@@ -5,6 +5,15 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+export interface LogEntry {
+  level: LogLevel;
+  message: string;
+  args: unknown[];
+  timestamp: string;
+}
+
+type LogListener = (entry: LogEntry) => void;
+
 interface LoggerConfig {
   enabledLevels: Set<LogLevel>;
   enableConsole: boolean;
@@ -13,6 +22,7 @@ interface LoggerConfig {
 
 class Logger {
   private config: LoggerConfig;
+  private listeners: Set<LogListener> = new Set();
 
   constructor() {
     // Configure based on environment
@@ -41,12 +51,23 @@ class Logger {
   }
 
   /**
+   * Subscribe to log events (used by diagnostics collectors).
+   */
+  addListener(listener: LogListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
    * Debug logging - for detailed diagnostic information
    * Only visible in development
    */
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
       console.log(`[DEBUG] ${message}`, ...args);
+      this.emit('debug', message, args);
     }
   }
 
@@ -57,6 +78,7 @@ class Logger {
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
       console.info(`[INFO] ${message}`, ...args);
+      this.emit('info', message, args);
     }
   }
 
@@ -67,6 +89,7 @@ class Logger {
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
       console.warn(`[WARN] ${message}`, ...args);
+      this.emit('warn', message, args);
     }
   }
 
@@ -91,6 +114,8 @@ class Logger {
           ...context,
         });
       }
+
+      this.emit('error', sanitizedMessage, [error, context]);
     }
   }
 
@@ -116,6 +141,29 @@ class Logger {
         .replace(/password["\s:=]+[\w!@#$%^&*()]+/gi, 'password=[REDACTED]'); // Passwords
     }
     return message;
+  }
+
+  private emit(level: LogLevel, message: string, args: unknown[]): void {
+    if (this.listeners.size === 0) {
+      return;
+    }
+
+    const entry: LogEntry = {
+      level,
+      message,
+      args,
+      timestamp: new Date().toISOString(),
+    };
+
+    for (const listener of this.listeners) {
+      try {
+        listener(entry);
+      } catch (err) {
+        if (this.config.enableConsole) {
+          console.error('[ERROR] Logger listener failed', err);
+        }
+      }
+    }
   }
 }
 

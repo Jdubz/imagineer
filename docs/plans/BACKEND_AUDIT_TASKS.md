@@ -10,30 +10,16 @@ Owner: Backend Platform · Status: Draft
 - **P3 – Low**: Nice-to-haves or follow-up hygiene.
 
 ## P0 Tasks
-1. **Lock down image generation endpoints**  
-   - Files: `server/api.py:873`, `server/api.py:1087`  
-   - Problem: `/api/generate` and `/api/generate/batch` accept unauthenticated traffic and only rely on client-side gating. This exposes GPU capacity to anonymous abuse and allows quota bypass.  
-   - Fix: Require `@require_admin` (or comparable auth), add CSRF/session checks for embedded UI, and enforce basic rate limiting/server-side quotas.
-
-2. **Externalize training/scraping paths**  
-   - Files: `server/tasks/scraping.py:17-27`, `server/tasks/training.py:14-33`  
-   - Problem: Hard-coded paths (`/home/jdubz/Development/...` and `/tmp/...`) break outside the original workstation and silently fall back to insecure temp dirs.  
-   - Fix: Drive all paths through `config.yaml` + environment overrides, validate existence on startup, and fail fast if misconfigured.
-
-3. **Add execution guards around long-running subprocesses**  
-   - Files: `server/tasks/scraping.py:126-214`, `server/tasks/training.py:82-170`  
-   - Problem: Celery tasks spawn `python ...` without timeouts, stdout back-pressure handling, or kill-on-failure. Hung processes tie up workers indefinitely.  
-   - Fix: Wrap `subprocess.Popen` with explicit timeouts, propagate non-zero exits, and ensure `process.terminate()`/`kill()` executes during cancellation or worker shutdown.
-
-4. **Harden image uploads**  
-   - File: `server/routes/images.py:308-361`  
-   - Problem: Admin upload accepts arbitrary files with no size cap, mime/extension validation, or content scanning and writes them directly to disk. This is a DoS & storage risk.  
-   - Fix: Enforce per-file and aggregate size limits, validate MIME via Pillow before persisting, guard against duplicate filenames, and ensure cleanup on partial failures.
-
-5. **Require production-grade database configuration**  
-   - File: `server/api.py:40-52`  
-   - Problem: Production silently falls back to SQLite if `DATABASE_URL` is missing. This yields data loss risk and masks misconfiguration.  
-   - Fix: On `FLASK_ENV=production`, refuse to boot without an explicit DB URL and document migration path in deployment automation.
+- [x] **Lock down image generation endpoints** *(Oct 29, 2025)*  
+  Redis-backed limiter now supplements existing admin gating; responses include  hints. (, )
+- [x] **Externalize training/scraping paths** *(Oct 28, 2025)*  
+  Paths hydrate from /env vars with production safeguards. (, )
+- [x] **Add execution guards around long-running subprocesses** *(Oct 29, 2025)*  
+  Training and scraping tasks stream output on background threads/selectors, enforce wall/idle timeouts, and terminate hung child processes. (, )
+- [x] **Harden image uploads** *(Oct 29, 2025)*  
+  Upload API enforces allow-listed extensions, dimensional/byte ceilings, and duplicate-safe filenames. ()
+- [x] **Require production-grade database configuration** *(Oct 29, 2025)*  
+  Production boot aborts without , eliminating silent SQLite fallbacks. ()
 
 ## Recently Completed
 - **(Oct 29, 2025)** Rescued mis-encoded Google OAuth callbacks that previously produced `/api/auth/google/%2F…` 404 loops.  
