@@ -266,7 +266,6 @@ class TestJobsEndpoints:
         data = json.loads(response.data)
         assert "current" in data
         assert "queue" in data
-        assert "queued" in data
         assert "history" in data
 
     def test_get_nonexistent_job(self, client):

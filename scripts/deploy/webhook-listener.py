@@ -146,7 +146,7 @@ def manual_deploy():
 
 
 if __name__ == "__main__":
-    logger.info(f"Starting webhook listener on port 9000")
+    logger.info("Starting webhook listener on port 9000")
     logger.info(f"Watching repository: {GITHUB_REPO}")
     logger.info(f"Watching branch: {BRANCH}")
 

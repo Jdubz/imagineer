@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
-import { api } from '../lib/api'
+import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
@@ -393,9 +393,10 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         <BatchGenerateDialog
           album={showBatchDialog}
           onClose={() => setShowBatchDialog(null)}
-          onSuccess={() => {
+          onSuccess={(result) => {
             setShowBatchDialog(null)
-            toast.success('Batch generation started!')
+            const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
+            toast.success(`${result.message}${suffix}`)
           }}
         />
       )}
@@ -684,7 +685,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
 interface BatchGenerateDialogProps {
   album: Album
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (result: GenerateBatchSuccess) => void
 }
 
 const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClose, onSuccess }) => {
@@ -704,11 +705,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
     setIsSubmitting(true)
 
     try {
-      const params: {
-        user_theme: string
-        steps?: number
-        seed?: number
-      } = {
+      const params: GenerateBatchParams = {
         user_theme: userTheme.trim(),
       }
 
@@ -725,10 +722,9 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = ({ album, onClos
       const result = await api.albums.generateBatch(album.id, params)
 
       if (result.success) {
-        toast.success(`Batch generation started! ${album.template_item_count || 0} jobs queued.`)
-        onSuccess()
+        onSuccess(result)
       } else {
-        toast.error(result.error || 'Failed to start batch generation')
+        toast.error(result.error)
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)

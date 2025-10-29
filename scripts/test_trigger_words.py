@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Import from organize_loras
 sys.path.insert(0, str(Path(__file__).parent))
-from organize_loras import BLUE, GREEN, RESET, YELLOW, extract_trigger_words
+from organize_loras import BLUE, GREEN, RESET, YELLOW, extract_trigger_words  # noqa: E402
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     index_path = lora_base_dir / "index.json"
 
     if not index_path.exists():
-        print(f"Error: index.json not found")
+        print("Error: index.json not found")
         return 1
 
     # Load index

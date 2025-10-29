@@ -17,16 +17,22 @@ import re
 import shutil
 import subprocess
 import sys
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
 import yaml
-from safetensors import safe_open
 
 # Import compatibility checker from clean_loras
 sys.path.insert(0, str(Path(__file__).parent))
-from clean_loras import BLUE, GREEN, RED, RESET, YELLOW, check_lora_compatibility, format_size
+from clean_loras import (  # noqa: E402
+    BLUE,
+    GREEN,
+    RED,
+    RESET,
+    YELLOW,
+    check_lora_compatibility,
+    format_size,
+)
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent

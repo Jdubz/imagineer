@@ -9,14 +9,11 @@ Can run locally (synchronous) or queue jobs via API server (async).
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
-
-import yaml
 
 # Import from organize_loras
 sys.path.insert(0, str(Path(__file__).parent))
-from organize_loras import (
+from organize_loras import (  # noqa: E402
     BLUE,
     GREEN,
     RED,

@@ -49,6 +49,72 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isNaN(parsed) ? undefined : parsed
+  }
+
+  return undefined
+}
+
+function getErrorMessageFromBody(body: unknown, fallback: string): string {
+  if (typeof body === 'string') {
+    const trimmed = body.trim()
+    if (trimmed.length > 0) {
+      return trimmed
+    }
+  }
+
+  if (isRecord(body)) {
+    const candidateKeys = ['error', 'message', 'detail'] as const
+    for (const key of candidateKeys) {
+      const value = body[key]
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (trimmed.length > 0) {
+          return trimmed
+        }
+      }
+    }
+  }
+
+  return fallback
+}
+
+export interface GenerateBatchParams {
+  user_theme: string
+  steps?: number
+  seed?: number
+  width?: number
+  height?: number
+  guidance_scale?: number
+  negative_prompt?: string
+}
+
+export type GenerateBatchSuccess = {
+  success: true
+  message: string
+  jobIds: number[]
+  queuedCount: number
+  batchId?: string
+  albumId?: number
+  albumName?: string
+  outputDir?: string
+}
+
+export type GenerateBatchError = {
+  success: false
+  error: string
+  status?: number
+}
+
+export type GenerateBatchResult = GenerateBatchSuccess | GenerateBatchError
+
 /**
  * Makes a typed API request with Zod validation
  */
@@ -372,17 +438,9 @@ export const api = {
      */
     async generateBatch(
       albumId: string,
-      params: {
-        user_theme: string
-        steps?: number
-        seed?: number
-        width?: number
-        height?: number
-        guidance_scale?: number
-        negative_prompt?: string
-      },
+      params: GenerateBatchParams,
       signal?: AbortSignal
-    ): Promise<{ success: boolean; error?: string }> {
+    ): Promise<GenerateBatchResult> {
       try {
         const response = await fetch(`/api/albums/${albumId}/generate/batch`, {
           method: 'POST',
@@ -392,15 +450,66 @@ export const api = {
           signal,
         })
 
+        const body = await response
+          .json()
+          .catch((error: unknown) => {
+            logger.debug('Failed to parse batch generation response body', error)
+            return undefined
+          })
+
         if (!response.ok) {
-          const data = await response.json()
+          const fallbackError =
+            response.status === 401 || response.status === 403
+              ? 'Admin access required to generate batches'
+              : 'Failed to generate batch'
+
+          const errorMessage = getErrorMessageFromBody(body, fallbackError)
+
           return {
             success: false,
-            error: isRecord(data) && typeof data.error === 'string' ? data.error : 'Failed to generate batch',
+            error: errorMessage,
+            status: response.status,
           }
         }
 
-        return { success: true }
+        const bodyRecord = isRecord(body) ? body : undefined
+        const jobIds = Array.isArray(bodyRecord?.job_ids)
+          ? bodyRecord.job_ids
+              .map((value) => toFiniteNumber(value))
+              .filter((id): id is number => typeof id === 'number')
+          : []
+
+        const message =
+          typeof bodyRecord?.message === 'string' && bodyRecord.message.trim().length > 0
+            ? bodyRecord.message.trim()
+            : jobIds.length > 0
+            ? `Queued ${jobIds.length} generation ${jobIds.length === 1 ? 'job' : 'jobs'}`
+            : 'Batch generation started'
+
+        const batchId =
+          typeof bodyRecord?.batch_id === 'string' && bodyRecord.batch_id.trim().length > 0
+            ? bodyRecord.batch_id
+            : undefined
+        const albumIdValue = toFiniteNumber(bodyRecord?.album_id)
+        const albumName =
+          typeof bodyRecord?.album_name === 'string' && bodyRecord.album_name.trim().length > 0
+            ? bodyRecord.album_name
+            : undefined
+        const outputDir =
+          typeof bodyRecord?.output_dir === 'string' && bodyRecord.output_dir.trim().length > 0
+            ? bodyRecord.output_dir
+            : undefined
+
+        return {
+          success: true,
+          message,
+          jobIds,
+          queuedCount: jobIds.length,
+          batchId,
+          albumId: albumIdValue,
+          albumName,
+          outputDir,
+        }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           throw error
