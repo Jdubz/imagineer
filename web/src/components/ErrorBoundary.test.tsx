@@ -239,9 +239,6 @@ describe('ErrorBoundary', () => {
       await user.click(goHomeButton)
 
       expect(locationMock.href).toBe('/')
-
-      // Clean up the mock
-      vi.unstubGlobal('location')
     })
   })
 
