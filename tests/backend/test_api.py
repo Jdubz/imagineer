@@ -74,6 +74,48 @@ class TestConfigEndpoints:
         assert response.status_code == 400
 
 
+class TestAuthRoutes:
+    """Tests for authentication-related endpoints."""
+
+    def test_oauth_callback_recovers_from_anomalous_path(self, client, monkeypatch):
+        """Ensure we process callbacks that arrive on double-encoded paths."""
+        from server import api as api_module
+
+        fake_token = {
+            "userinfo": {
+                "email": "user@example.com",
+                "name": "Example User",
+                "picture": "https://example.com/avatar.png",
+            }
+        }
+        monkeypatch.setattr(api_module.google, "authorize_access_token", lambda: fake_token)
+
+        response = client.get(
+            "/api/auth/google/%2Fhttps://imagineer.joshwentworth.com/api/auth/google/%2F",
+            query_string={"code": "dummy", "state": "%2F"},
+        )
+
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert "Login successful" in body
+
+        with client.session_transaction() as session:
+            user_session = session.get("user")
+            assert user_session
+            assert user_session["email"] == "user@example.com"
+
+    def test_oauth_callback_anomalous_path_without_code_returns_400(self, client):
+        """Unexpected paths without OAuth code should not be processed."""
+        response = client.get(
+            "/api/auth/google/%2Fhttps://imagineer.joshwentworth.com/api/auth/google/%2F",
+            query_string={"state": "%2F"},
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert payload["error"] == "Invalid OAuth callback"
+
+
 class TestGenerateEndpoint:
     """Tests for /api/generate endpoint"""
 

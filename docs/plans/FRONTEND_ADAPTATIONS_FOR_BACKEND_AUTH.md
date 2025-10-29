@@ -39,6 +39,9 @@ These routes previously accepted anonymous calls. The frontend must account for 
 - Update frontend mocks (`web/src/App.test.tsx`) to expect 401 responses when the test harness simulates unauthenticated access to the secured routes.  
 - Add Cypress/Playwright (or RTL) coverage to verify that non-admin sessions see appropriate messaging and that admin sessions can still load/update configuration and LoRA sets.
 
+## Additional Notes
+- October 29, 2025 — Backend now tolerates Google OAuth callbacks that arrive on double-encoded paths (e.g., `/api/auth/google/%2Fhttps://...`). No frontend change is required, but please avoid adding ad-hoc rewrites in the SPA; keep relying on `AuthButton`’s sanitized state handling so we can surface regressions if they reappear.
+
 ## Open Questions
 - Do we want a dedicated “Admin Console” route instead of auto-fetching `/api/config` on app load?  
 - Should the app proactively refresh admin sessions (e.g., on visibility change) to avoid silent 401s mid-workflow?

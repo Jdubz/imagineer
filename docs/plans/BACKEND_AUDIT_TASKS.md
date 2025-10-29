@@ -35,6 +35,11 @@ Owner: Backend Platform · Status: Draft
    - Problem: Production silently falls back to SQLite if `DATABASE_URL` is missing. This yields data loss risk and masks misconfiguration.  
    - Fix: On `FLASK_ENV=production`, refuse to boot without an explicit DB URL and document migration path in deployment automation.
 
+## Recently Completed
+- **(Oct 29, 2025)** Rescued mis-encoded Google OAuth callbacks that previously produced `/api/auth/google/%2F…` 404 loops.  
+  - Files: `server/api.py`, `tests/backend/test_api.py`  
+  - Outcome: Backend now detects the anomalous path, processes the callback, and keeps the popup workflow intact. Added regression test coverage to ensure behaviour remains stable.
+
 ## P1 Tasks
 1. **Rate-limit expensive admin operations**  
    - Files: `server/routes/training.py:95-205`, `server/routes/images.py:110-161`  
@@ -80,4 +85,3 @@ Owner: Backend Platform · Status: Draft
 2. **Document Celery worker expectations**  
     - Problem: Worker concurrency/memory requirements are implicit. New environments guess at queue definitions.  
     - Fix: Add deployment docs (or Helm values) specifying queue names, prefetch limits, and memory guardrails.
-

@@ -72,7 +72,7 @@ def get_training_run(run_id):
 
 @training_bp.route("", methods=["POST"])
 @require_admin
-def create_training_run():
+def create_training_run():  # noqa: C901
     """Create new training run (admin only)"""
     data = request.json
 
@@ -96,7 +96,7 @@ def create_training_run():
     # Load config
     from server.api import load_config
 
-    config = load_config()
+    load_config()
 
     # Merge config overrides and persist album selections
     config_overrides = data.get("config", {}) or {}
@@ -133,11 +133,12 @@ def create_training_run():
                 f"Unable to create dataset directory at {dataset_path}: {exc}"
             ) from exc
         logger.warning(
-            "Unable to create dataset directory %s (%s); falling back to /tmp for development",
+            "Unable to create dataset directory %s (%s); falling back to %s for development",
             dataset_path,
             exc,
+            fallback_dataset,
         )
-        dataset_path = Path(f"/tmp/imagineer/training/run_{run.id}")
+        dataset_path = fallback_dataset
         dataset_path.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -148,11 +149,12 @@ def create_training_run():
                 f"Unable to create output directory at {output_path}: {exc}"
             ) from exc
         logger.warning(
-            "Unable to create output directory %s (%s); falling back to /tmp for development",
+            "Unable to create output directory %s (%s); falling back to %s for development",
             output_path,
             exc,
+            fallback_output,
         )
-        output_path = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
+        output_path = fallback_output
         output_path.mkdir(parents=True, exist_ok=True)
 
     run.dataset_path = str(dataset_path)

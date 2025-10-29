@@ -354,6 +354,58 @@ def auth_callback():
         return jsonify({"error": "Authentication failed"}), 500
 
 
+@app.route("/api/auth/google/<path:anomalous_path>")
+def auth_callback_path_anomaly(anomalous_path, *, allow_callback: bool = False):
+    """Handle OAuth callbacks that arrive on mis-encoded paths.
+
+    Some reverse proxy deployments have reported Google returning to
+    ``/api/auth/google/%2F<redirect>`` (double-encoded slash plus redirect URI),
+    which the canonical callback route does not match and would therefore
+    log a 404. When the request still contains an OAuth ``code`` parameter,
+    treat it as a legitimate callback and process it normally.
+    """
+
+    normalized = anomalous_path.lstrip("/").rstrip("/")
+
+    # Allow the canonical callback handler to process the standard routes.
+    if normalized in {"callback", ""} and not allow_callback:
+        abort(404)
+
+    if "code" not in request.args:
+        logger.warning(
+            "Discarding unexpected Google OAuth path without code parameter",
+            extra={
+                "operation": "oauth_path_anomaly",
+                "path": request.path,
+                "query": request.query_string.decode("utf-8", errors="ignore"),
+            },
+        )
+        return jsonify({"error": "Invalid OAuth callback"}), 400
+
+    logger.warning(
+        "Recovered Google OAuth callback from unexpected path",
+        extra={
+            "operation": "oauth_path_anomaly_recovered",
+            "path": request.path,
+            "normalized": normalized,
+            "query": request.query_string.decode("utf-8", errors="ignore"),
+        },
+    )
+    return auth_callback()
+
+
+@app.before_request
+def reroute_google_oauth_path_anomalies():
+    """Intercept double-slashed Google OAuth callbacks before routing resolves."""
+
+    path = request.path
+    anomaly_prefix = "/api/auth/google//"
+
+    if path.startswith(anomaly_prefix):
+        anomalous_path = path[len("/api/auth/google/") :]  # Preserve leading slash for logging
+        return auth_callback_path_anomaly(anomalous_path, allow_callback=True)
+
+
 @app.route("/api/auth/logout")
 @app.route("/auth/logout")
 def auth_logout():
