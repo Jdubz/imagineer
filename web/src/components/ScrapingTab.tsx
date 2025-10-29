@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
+import { usePolling } from '../hooks/usePolling'
 import '../styles/ScrapingTab.css'
 import type { ScrapingJob } from '../types/models'
 
@@ -87,22 +88,27 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
     }
   }, [isAdmin])
 
+  // Initial fetch on mount
   useEffect(() => {
-    if (!isAdmin) {
-      return
-    }
+    if (!isAdmin) return
 
     fetchJobs().catch((err) => logger.error('Error refreshing jobs:', err))
     fetchStats().catch((err) => logger.error('Error refreshing stats:', err))
-
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(() => {
-      fetchJobs().catch((err) => logger.error('Error refreshing jobs:', err))
-      fetchStats().catch((err) => logger.error('Error refreshing stats:', err))
-    }, 5000)
-
-    return () => clearInterval(interval)
   }, [fetchJobs, fetchStats, isAdmin])
+
+  // Polling with proper cleanup and memory leak prevention
+  const refreshData = useCallback(async () => {
+    await Promise.all([
+      fetchJobs().catch((err) => logger.error('Error refreshing jobs:', err)),
+      fetchStats().catch((err) => logger.error('Error refreshing stats:', err)),
+    ])
+  }, [fetchJobs, fetchStats])
+
+  usePolling(refreshData, {
+    interval: 5000,
+    enabled: isAdmin,
+    pauseWhenHidden: true,
+  })
 
   const startScrape = async (url: string, name: string, description: string, depth: number, maxImages: number): Promise<void> => {
     if (!isAdmin) return

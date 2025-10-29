@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
+import { usePolling } from '../hooks/usePolling'
 import '../styles/QueueTab.css'
 
 interface QueueJob {
@@ -37,16 +38,17 @@ const QueueTab: React.FC = () => {
     }
   }, [])
 
+  // Initial fetch on mount
   useEffect(() => {
     void fetchQueueData()
+  }, [fetchQueueData])
 
-    // Auto-refresh every 2 seconds if enabled
-    if (autoRefresh) {
-      const interval = setInterval(() => void fetchQueueData(), 2000)
-      return () => clearInterval(interval)
-    }
-    return undefined
-  }, [autoRefresh, fetchQueueData])
+  // Polling with proper cleanup and memory leak prevention
+  usePolling(fetchQueueData, {
+    interval: 2000,
+    enabled: autoRefresh,
+    pauseWhenHidden: true,
+  })
 
   const formatDate = (dateString?: string): string => {
     if (!dateString) return '-'

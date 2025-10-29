@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { logger } from '../lib/logger'
+import { usePolling } from '../hooks/usePolling'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
@@ -109,7 +110,6 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     loading: false,
     error: null,
   })
-  const logPollRef = useRef<number | null>(null)
   const copyTimeoutRef = useRef<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
 
@@ -156,6 +156,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     }
   }, [isAdmin])
 
+  // Initial fetch on mount
   useEffect(() => {
     if (!isAdmin) {
       setLoading(false)
@@ -164,13 +165,6 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     fetchTrainingRuns().catch((err) => logger.error('Error refreshing runs:', err))
     fetchAlbums().catch((err) => logger.error('Error refreshing albums:', err))
   }, [fetchAlbums, fetchTrainingRuns, isAdmin])
-
-  const clearLogInterval = useCallback(() => {
-    if (logPollRef.current !== null) {
-      window.clearInterval(logPollRef.current)
-      logPollRef.current = null
-    }
-  }, [])
 
   const fetchTrainingLogs = useCallback(async (runId: string | number): Promise<void> => {
     const runIdStr = String(runId)
@@ -196,20 +190,19 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         error: null,
       }))
 
+      // Stop polling if training is complete
       if (!['running', 'queued'].includes(data.status)) {
-        clearLogInterval()
+        setLogState((prev) => ({ ...prev, runId: null }))
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load logs'
       setLogState((prev) => ({ ...prev, loading: false, error: message }))
-      clearLogInterval()
     }
-  }, [clearLogInterval])
+  }, [])
 
   const openLogViewer = useCallback(
     (runId: string | number) => {
       const runIdStr = String(runId)
-      clearLogInterval()
       setLogState({
         runId: runIdStr,
         content: '',
@@ -223,18 +216,25 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         const message = err instanceof Error ? err.message : 'Failed to load logs'
         setLogState((prev) => ({ ...prev, loading: false, error: message }))
       })
-
-      logPollRef.current = window.setInterval(() => {
-        fetchTrainingLogs(runIdStr).catch((err) => {
-          const message = err instanceof Error ? err.message : 'Failed to load logs'
-          setLogState((prev) => ({ ...prev, loading: false, error: message }))
-        })
-      }, 5000)
     },
-    [clearLogInterval, fetchTrainingLogs],
+    [fetchTrainingLogs],
   )
 
-  useEffect(() => () => clearLogInterval(), [clearLogInterval])
+  // Polling for training logs with proper cleanup
+  const pollLogs = useCallback(async () => {
+    if (logState.runId) {
+      await fetchTrainingLogs(logState.runId).catch((err) => {
+        const message = err instanceof Error ? err.message : 'Failed to load logs'
+        setLogState((prev) => ({ ...prev, loading: false, error: message }))
+      })
+    }
+  }, [logState.runId, fetchTrainingLogs])
+
+  usePolling(pollLogs, {
+    interval: 5000,
+    enabled: logState.runId !== null,
+    pauseWhenHidden: true,
+  })
   useEffect(
     () => () => {
       if (copyTimeoutRef.current) {
@@ -245,7 +245,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   )
 
   const closeLogViewer = useCallback(() => {
-    clearLogInterval()
+    // Setting runId to null will automatically stop the polling
     setLogState({
       runId: null,
       content: '',
@@ -255,7 +255,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       loading: false,
       error: null,
     })
-  }, [clearLogInterval])
+  }, [])
 
   const handleCopy = useCallback(
     (value: string, runId: number | string, field: CopyField) => {
