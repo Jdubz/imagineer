@@ -52,6 +52,7 @@ from server.database import (  # noqa: E402
 )
 from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
+
 app = Flask(__name__, static_folder="../public", static_url_path="")
 
 # Configure ProxyFix to trust proxy headers (for HTTPS detection behind reverse proxy)
