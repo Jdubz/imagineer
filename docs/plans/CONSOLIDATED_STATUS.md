@@ -214,6 +214,12 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 **Action:** Consider Sentry or similar for production error tracking (future enhancement)
 
+### 5. Database Placement (LOW PRIORITY)
+
+**Status:** SQLite database remains in `instance/imagineer.db`; write permissions were relaxed on Oct 29 to unblock scraping inserts.
+
+**Action:** Move the database to a shared writable mount (e.g., `/mnt/storage/imagineer/db/imagineer.db`) and restore restrictive perms, or run the production API under a user with ownership of the existing path.
+
 ---
 
 ## Planning Documents Status
