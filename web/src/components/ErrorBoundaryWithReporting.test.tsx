@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { ErrorInfo } from 'react'
 import ErrorBoundaryWithReporting from './ErrorBoundaryWithReporting'
-import { AuthProvider } from '../contexts/AuthContext'
-import { BugReportProvider } from '../contexts/BugReportContext'
+import * as AuthContext from '../contexts/AuthContext'
 
 // Mock child component that can throw errors
 const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
@@ -15,15 +13,14 @@ const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
 }
 
 // Mock AuthContext
+const mockUseAuth = vi.fn()
 vi.mock('../contexts/AuthContext', () => ({
-  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-  useAuth: vi.fn(),
+  useAuth: () => mockUseAuth(),
 }))
 
 // Mock BugReportContext
 const mockOpenBugReport = vi.fn()
 vi.mock('../contexts/BugReportContext', () => ({
-  BugReportProvider: ({ children }: { children: React.ReactNode }) => children,
   useBugReporter: () => ({
     openBugReport: mockOpenBugReport,
     registerCollector: vi.fn(() => vi.fn()),
@@ -39,8 +36,7 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Normal Rendering', () => {
     it('renders children when no error occurs', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -55,8 +51,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('does not show error UI when no error', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -73,8 +69,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Error Handling', () => {
     it('catches errors and displays error UI', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -89,8 +85,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('displays boundary name in error message', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -107,8 +103,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Admin User - Bug Report Button', () => {
     it('shows report bug button for admin users when error occurs', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -123,8 +119,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('calls openBugReport with pre-filled description when report bug is clicked', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -150,8 +146,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('includes error stack trace in pre-filled description', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -172,8 +168,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Viewer User - Bug Report Button', () => {
     it('does not show report bug button for viewer users', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'viewer@example.com', role: 'viewer' },
         loading: false,
       })
@@ -188,8 +184,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('does not show report bug button when user is null', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: null,
         loading: false,
       })
@@ -204,8 +200,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('does not show report bug button when auth is loading', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: null,
         loading: true,
       })
@@ -222,8 +218,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Component Stack Integration', () => {
     it('includes component stack in pre-filled description when available', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -245,8 +241,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Error Recovery Actions', () => {
     it('displays try again button', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -261,8 +257,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('displays reload page button', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -277,8 +273,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('displays go home button', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -295,8 +291,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Multiple Errors', () => {
     it('handles subsequent errors after recovery attempt', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -327,8 +323,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Boundary Name Variations', () => {
     it('handles missing boundary name gracefully', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -344,8 +340,8 @@ describe('ErrorBoundaryWithReporting', () => {
     })
 
     it('includes boundary name in pre-filled bug report', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })
@@ -366,8 +362,8 @@ describe('ErrorBoundaryWithReporting', () => {
 
   describe('Integration with BugReportProvider', () => {
     it('uses bugReporter context correctly', () => {
-      const { useAuth } = require('../contexts/AuthContext')
-      useAuth.mockReturnValue({
+      // Mock setup
+      mockUseAuth.mockReturnValue({
         user: { email: 'admin@example.com', role: 'admin' },
         loading: false,
       })

@@ -63,7 +63,7 @@ ${errorInfo?.componentStack ? `**Component Stack:**\n\`\`\`\n${errorInfo.compone
 
 `
 
-    openBugReport(description)
+    openBugReport({ description })
   }
 
   return (

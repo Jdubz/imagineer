@@ -1,14 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useBugReporter } from '../contexts/BugReportContext'
+import type { AuthStatus } from '../types/shared'
 import '../styles/SettingsMenu.css'
 
-interface User {
-  email: string
-  role: string
-}
-
 interface SettingsMenuProps {
-  user: User | null
+  user: AuthStatus | null
   onLogout: () => void
   onNsfwToggle?: (enabled: boolean) => void
   nsfwEnabled?: boolean

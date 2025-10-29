@@ -16,10 +16,11 @@ vi.mock('../lib/logger', () => ({
 describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    global.fetch = vi.fn()
+    vi.stubGlobal('fetch', vi.fn())
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -40,7 +41,7 @@ describe('AuthContext', () => {
         return <div>{loading ? 'Loading' : 'Not Loading'}</div>
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -57,7 +58,7 @@ describe('AuthContext', () => {
       const mockFetch = vi.fn().mockResolvedValue({
         status: 204,
       })
-      global.fetch = mockFetch
+      vi.stubGlobal('fetch', mockFetch)
 
       render(
         <AuthProvider>
@@ -76,7 +77,7 @@ describe('AuthContext', () => {
     })
 
     it('sets loading to false after checkAuth completes', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -99,7 +100,7 @@ describe('AuthContext', () => {
 
   describe('useAuth hook', () => {
     it('returns context value when used inside provider', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -138,7 +139,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -159,7 +160,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null on 204 No Content', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -175,7 +176,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null on 401 Unauthorized', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 401,
       })
 
@@ -191,7 +192,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null on 403 Forbidden', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 403,
       })
 
@@ -207,7 +208,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null when response is not JSON', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -227,7 +228,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null when content-type header is missing', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -247,7 +248,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null when authenticated is false', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -268,7 +269,7 @@ describe('AuthContext', () => {
     })
 
     it('sets user to null when response is not ok', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: false,
         status: 500,
         headers: {
@@ -290,7 +291,7 @@ describe('AuthContext', () => {
 
     it('handles network errors gracefully', async () => {
       const mockError = new Error('Network error')
-      global.fetch = vi.fn().mockRejectedValue(mockError)
+      vi.stubGlobal('fetch', vi.fn()).mockRejectedValue(mockError)
 
       const { logger } = await import('../lib/logger')
 
@@ -307,7 +308,7 @@ describe('AuthContext', () => {
     })
 
     it('handles JSON parsing errors gracefully', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -334,7 +335,7 @@ describe('AuthContext', () => {
 
     it('can be called manually after mount', async () => {
       let callCount = 0
-      global.fetch = vi.fn().mockImplementation(() => {
+      vi.stubGlobal('fetch', vi.fn()).mockImplementation(() => {
         callCount++
         return Promise.resolve({ status: 204 })
       })
@@ -365,7 +366,7 @@ describe('AuthContext', () => {
       }
 
       // First call for checkAuth (on mount)
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: {
@@ -383,7 +384,7 @@ describe('AuthContext', () => {
       })
 
       // Mock logout call
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         ok: true,
         status: 200,
       })
@@ -391,7 +392,7 @@ describe('AuthContext', () => {
       await result.current.logout()
 
       expect(result.current.user).toBeNull()
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', {
+      expect(fetch).toHaveBeenCalledWith('/api/auth/logout', {
         credentials: 'include',
         headers: {
           Accept: 'application/json',
@@ -400,7 +401,7 @@ describe('AuthContext', () => {
     })
 
     it('throws error on failed logout', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         status: 204,
       })
 
@@ -413,7 +414,7 @@ describe('AuthContext', () => {
       })
 
       // Mock failed logout
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         ok: false,
         status: 500,
         text: async () => 'Internal Server Error',
@@ -423,7 +424,7 @@ describe('AuthContext', () => {
     })
 
     it('logs error on logout failure', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         status: 204,
       })
 
@@ -438,14 +439,14 @@ describe('AuthContext', () => {
       })
 
       const logoutError = new Error('Logout failed')
-      global.fetch = vi.fn().mockRejectedValueOnce(logoutError)
+      vi.stubGlobal('fetch', vi.fn()).mockRejectedValueOnce(logoutError)
 
       await expect(result.current.logout()).rejects.toThrow('Logout failed')
       expect(logger.error).toHaveBeenCalledWith('Failed to logout', logoutError)
     })
 
     it('handles logout response without text method', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         status: 204,
       })
 
@@ -458,7 +459,7 @@ describe('AuthContext', () => {
       })
 
       // Mock logout with response that has no text method
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValueOnce({
         ok: false,
         status: 500,
         text: undefined,
@@ -470,7 +471,7 @@ describe('AuthContext', () => {
 
   describe('setUser', () => {
     it('directly updates user state', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -504,7 +505,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -536,7 +537,7 @@ describe('AuthContext', () => {
         resolveAuth = resolve
       })
 
-      global.fetch = vi.fn().mockReturnValue(authPromise)
+      vi.stubGlobal('fetch', vi.fn()).mockReturnValue(authPromise)
 
       const loadingStates: boolean[] = []
 
@@ -564,7 +565,7 @@ describe('AuthContext', () => {
     })
 
     it('sets loading to false even when checkAuth fails', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+      vi.stubGlobal('fetch', vi.fn()).mockRejectedValue(new Error('Network error'))
 
       const { result } = renderHook(() => useAuth(), {
         wrapper: AuthProvider,
@@ -584,7 +585,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -609,7 +610,7 @@ describe('AuthContext', () => {
         role: 'viewer',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -631,7 +632,7 @@ describe('AuthContext', () => {
   describe('Edge Cases', () => {
     it('handles rapid checkAuth calls', async () => {
       let fetchCount = 0
-      global.fetch = vi.fn().mockImplementation(() => {
+      vi.stubGlobal('fetch', vi.fn()).mockImplementation(() => {
         fetchCount++
         return Promise.resolve({ status: 204 })
       })
@@ -665,7 +666,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -704,7 +705,7 @@ describe('AuthContext', () => {
     })
 
     it('preserves callback references with useCallback', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         status: 204,
       })
 
@@ -736,7 +737,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -768,7 +769,7 @@ describe('AuthContext', () => {
         role: 'admin',
       }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      vi.stubGlobal('fetch', vi.fn()).mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
