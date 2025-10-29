@@ -218,7 +218,15 @@ describe('ErrorBoundary', () => {
       const user = userEvent.setup()
 
       // Mock window.location.href using vi.stubGlobal
-      const locationMock = { href: '' }
+      const locationMock = {
+        href: '',
+        pathname: '/',
+        search: '',
+        origin: 'http://localhost',
+        assign: vi.fn(),
+        replace: vi.fn(),
+        reload: vi.fn(),
+      }
       vi.stubGlobal('location', locationMock)
 
       render(
