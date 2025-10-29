@@ -6,6 +6,7 @@ model:
   cache_dir: /mnt/speedy/imagineer/models
 outputs:
   base_dir: /mnt/speedy/imagineer/outputs
+  scraped_dir: /mnt/storage/imagineer/scraped
 generation:
   width: 512
   height: 512

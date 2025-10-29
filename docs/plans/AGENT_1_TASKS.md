@@ -132,7 +132,7 @@ grep -A 5 "scraped\|scraping" config.yaml
 # In config.yaml, add under outputs section:
 outputs:
   base_dir: /mnt/speedy/imagineer/outputs
-  scraped_dir: /mnt/speedy/imagineer/outputs/scraped  # ← Add this
+  scraped_dir: /mnt/storage/imagineer/scraped  # ← Add this
 ```
 
 2. **Load configuration in scraping task module:**
@@ -145,7 +145,7 @@ from pathlib import Path
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-SCRAPED_OUTPUT_PATH = Path(config['outputs'].get('scraped_dir', '/mnt/speedy/imagineer/outputs/scraped'))
+SCRAPED_OUTPUT_PATH = Path(config['outputs'].get('scraped_dir', '/mnt/storage/imagineer/scraped'))
 
 # Ensure directory exists
 SCRAPED_OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
@@ -156,7 +156,7 @@ SCRAPED_OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 # If you prefer environment-based config
 SCRAPED_OUTPUT_PATH = Path(os.environ.get(
     'SCRAPED_OUTPUT_PATH',
-    '/mnt/speedy/imagineer/outputs/scraped'
+    '/mnt/storage/imagineer/scraped'
 ))
 SCRAPED_OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 ```

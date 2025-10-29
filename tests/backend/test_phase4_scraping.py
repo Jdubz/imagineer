@@ -1,8 +1,10 @@
-"""
-Simplified Tests for Phase 4: Web Scraping (Unit Tests Only)
-"""
+"""Simplified tests for Phase 4: Web Scraping."""
 
+from pathlib import Path
+
+import server.api
 from server.database import ScrapeJob, db
+from server.tasks import scraping
 
 
 class TestScrapeJobModel:
@@ -189,3 +191,53 @@ class TestScrapingAPI:
         assert "completed" in result["status_breakdown"]
         assert "running" in result["status_breakdown"]
         assert "failed" in result["status_breakdown"]
+
+
+class TestScrapingOutputPath:
+    """Ensure scrape output directories resolve predictably."""
+
+    def test_get_scraped_output_path_uses_configured_dir(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
+
+        configured = tmp_path / "configured"
+
+        def fake_load_config():
+            return {"outputs": {"scraped_dir": str(configured)}}
+
+        monkeypatch.setattr(server.api, "load_config", fake_load_config)
+
+        resolved = scraping.get_scraped_output_path()
+
+        assert resolved == configured
+        assert resolved.exists()
+
+    def test_get_scraped_output_path_falls_back_when_unwritable(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
+
+        bad_path = Path("/root/unwritable/scraped")
+        fallback_base = tmp_path / "fallback"
+        fallback_expected = fallback_base / "scraped"
+
+        def fake_load_config():
+            return {
+                "outputs": {
+                    "scraped_dir": str(bad_path),
+                    "base_dir": str(fallback_base),
+                }
+            }
+
+        monkeypatch.setattr(server.api, "load_config", fake_load_config)
+
+        original_mkdir = Path.mkdir
+
+        def guarded_mkdir(self, *args, **kwargs):
+            if self == bad_path:
+                raise PermissionError("denied")
+            return original_mkdir(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
+
+        resolved = scraping.get_scraped_output_path()
+
+        assert resolved == fallback_expected
+        assert resolved.exists()
