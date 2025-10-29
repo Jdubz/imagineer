@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { logger } from '../lib/logger'
 import { useToast } from '../hooks/useToast'
+import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
 import {
   validateForm,
@@ -61,68 +62,83 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   // Load available sets and LoRAs on mount
-  useEffect(() => {
-    fetchAvailableSets()
-    fetchAvailableLoras()
+  useAbortableEffect((signal) => {
+    void fetchAvailableSets(signal)
+    void fetchAvailableLoras(signal)
   }, [])
 
-  const fetchAvailableSets = async (): Promise<void> => {
+  const fetchAvailableSets = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/sets')
+      const response = await fetch('/api/sets', { signal })
       const data = await response.json()
       setAvailableSets(data.sets || [])
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch sets:', error)
     }
   }
 
-  const fetchAvailableLoras = async (): Promise<void> => {
+  const fetchAvailableLoras = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/loras')
+      const response = await fetch('/api/loras', { signal })
       const data = await response.json()
       setAvailableLoras(data.loras || [])
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch LoRAs:', error)
     }
   }
 
-  const fetchRandomTheme = async (): Promise<void> => {
+  const fetchRandomTheme = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/themes/random')
+      const response = await fetch('/api/themes/random', { signal })
       const data = await response.json()
       setUserTheme(data.theme || '')
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch random theme:', error)
     }
   }
 
   // When set selection changes, load set info and LoRAs
-  useEffect(() => {
+  useAbortableEffect((signal) => {
     if (selectedSet) {
-      fetchSetInfo(selectedSet)
-      fetchSetLoras(selectedSet)
+      void fetchSetInfo(selectedSet, signal)
+      void fetchSetLoras(selectedSet, signal)
     } else {
       setSelectedSetInfo(null)
       setSetLoras([])
     }
   }, [selectedSet])
 
-  const fetchSetInfo = async (setName: string): Promise<void> => {
+  const fetchSetInfo = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/info`)
+      const response = await fetch(`/api/sets/${setName}/info`, { signal })
       const data = await response.json()
       setSelectedSetInfo(data)
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch set info:', error)
     }
   }
 
-  const fetchSetLoras = async (setName: string): Promise<void> => {
+  const fetchSetLoras = async (setName: string, signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch(`/api/sets/${setName}/loras`)
+      const response = await fetch(`/api/sets/${setName}/loras`, { signal })
       const data = await response.json()
       setSetLoras(data.loras || [])
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch set LoRAs:', error)
     }
   }
@@ -155,7 +171,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       if (data.success) {
         toast.success('LoRA configuration updated successfully')
-        fetchSetLoras(setName)  // Refresh the list
+        void fetchSetLoras(setName)  // Refresh the list
       } else {
         logger.error('Failed to update LoRAs:', data.error)
         toast.error(`Error: ${data.error}`)

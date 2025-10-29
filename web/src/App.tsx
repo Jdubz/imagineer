@@ -52,16 +52,22 @@ const AppContent: React.FC = () => {
 
   // Load config on mount
   useEffect(() => {
-    void fetchConfig()
-    void fetchImages()
-    void fetchBatches()
-    void checkAuth()
+    const abortController = new AbortController()
+    const { signal } = abortController
+
+    void fetchConfig(signal)
+    void fetchImages(signal)
+    void fetchBatches(signal)
+    void checkAuth(signal)
+
+    return () => abortController.abort()
   }, [])
 
-  const checkAuth = async (): Promise<void> => {
+  const checkAuth = async (signal?: AbortSignal): Promise<void> => {
     try {
       const response = await fetch('/api/auth/me', {
-        credentials: 'include'
+        credentials: 'include',
+        signal
       })
       const data: AuthStatus = await response.json()
 
@@ -71,15 +77,20 @@ const AppContent: React.FC = () => {
         setUser(null)
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Request was cancelled - this is expected behavior
+        return
+      }
       logger.error('Failed to check auth', error as Error)
       setUser(null)
     }
   }
 
-  const fetchConfig = async (): Promise<void> => {
+  const fetchConfig = async (signal?: AbortSignal): Promise<void> => {
     try {
       const response = await fetch('/api/config', {
         credentials: 'include', // Include cookies for admin auth
+        signal
       })
 
       // Handle auth failures - config endpoint now requires admin auth
@@ -96,14 +107,17 @@ const AppContent: React.FC = () => {
       const payload = (await response.json()) as unknown
       setConfig(isRecord(payload) ? (payload as Config) : null)
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch config', error as Error)
       setConfig(null)
     }
   }
 
-  const fetchImages = async (): Promise<void> => {
+  const fetchImages = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/outputs')
+      const response = await fetch('/api/outputs', { signal })
       const payload = (await response.json()) as unknown
       let images: GeneratedImage[] = []
       if (isRecord(payload)) {
@@ -114,13 +128,16 @@ const AppContent: React.FC = () => {
       }
       setImages(images)
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch images', error as Error)
     }
   }
 
-  const fetchBatches = async (): Promise<void> => {
+  const fetchBatches = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/batches')
+      const response = await fetch('/api/batches', { signal })
       const payload = (await response.json()) as unknown
       let batches: BatchSummary[] = []
       if (isRecord(payload)) {
@@ -131,6 +148,9 @@ const AppContent: React.FC = () => {
       }
       setBatches(batches)
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch batches', error as Error)
     }
   }

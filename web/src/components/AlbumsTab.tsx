@@ -3,6 +3,7 @@ import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
 import { useToast } from '../hooks/useToast'
+import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Label, LabelAnalytics } from '../types/models'
 
@@ -67,13 +68,13 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
 
-  useEffect(() => {
-    fetchAlbums()
+  useAbortableEffect((signal) => {
+    void fetchAlbums(signal)
   }, [])
 
-  const fetchAlbums = async (): Promise<void> => {
+  const fetchAlbums = async (signal?: AbortSignal): Promise<void> => {
     try {
-      const response = await fetch('/api/albums')
+      const response = await fetch('/api/albums', { signal })
       const data = await response.json()
       const rawAlbums = data.albums || data
       const normalizedAlbums = Array.isArray(rawAlbums)
@@ -84,16 +85,20 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         : []
       setAlbums(normalizedAlbums)
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
       logger.error('Failed to fetch albums:', error)
     }
   }
 
-  const fetchAlbumAnalytics = async (albumId: string): Promise<LabelAnalytics | null> => {
+  const fetchAlbumAnalytics = async (albumId: string, signal?: AbortSignal): Promise<LabelAnalytics | null> => {
     if (!isAdmin) return null
 
     try {
       const response = await fetch(`/api/albums/${albumId}/labeling/analytics`, {
         credentials: 'include',
+        signal
       })
 
       if (!response.ok) {
@@ -104,17 +109,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       setAlbumAnalytics(analytics)
       return analytics
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null
+      }
       logger.error('Failed to fetch album analytics:', error)
       setAlbumAnalytics(null)
       return null
     }
   }
 
-  const loadAlbum = async (albumId: string): Promise<Album | null> => {
+  const loadAlbum = async (albumId: string, signal?: AbortSignal): Promise<Album | null> => {
     try {
       const includeParam = isAdmin ? '?include_labels=1' : ''
       const response = await fetch(`/api/albums/${albumId}${includeParam}`, {
         credentials: 'include',
+        signal
       })
 
       if (!response.ok) {
@@ -176,6 +185,9 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
       return normalizedAlbum
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null
+      }
       logger.error('Failed to fetch album details:', error)
       setAlbumAnalytics(null)
       return null
