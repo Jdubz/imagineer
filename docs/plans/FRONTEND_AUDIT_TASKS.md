@@ -303,7 +303,7 @@ Application fails WCAG 2.1 AA standards. No focus management, minimal keyboard n
 **Effort:** L
 **Status:** ✅ Complete
 **Completed:** 2025-10-29
-**Commit:** TBD
+**Commit:** 82f5f69
 
 **Files:**
 - ✅ `web/src/hooks/useToast.ts` - Created custom hook for toast access
