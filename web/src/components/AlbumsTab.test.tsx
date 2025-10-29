@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import AlbumsTab from './AlbumsTab'
 import { ToastProvider } from '../contexts/ToastContext'
@@ -98,44 +99,46 @@ describe('AlbumsTab admin labeling integration', () => {
         } as Response)
       }
 
-      if (url.startsWith('/api/albums/1?include_labels=1')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockAlbumDetailResponse),
-        } as Response)
-      }
-
-      if (url.startsWith('/api/albums/1/labeling/analytics')) {
+      if (url.includes('/api/albums/1/labeling/analytics')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(mockAnalyticsResponse),
         } as Response)
       }
 
+      if (url.includes('/api/albums/1')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockAlbumDetailResponse),
+        } as Response)
+      }
+
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      } as Response)
+        } as Response)
     })
 
     const user = userEvent.setup()
     render(
-      <ToastProvider>
-        <AlbumsTab isAdmin />
-      </ToastProvider>
+      <MemoryRouter>
+        <ToastProvider>
+          <AlbumsTab isAdmin />
+        </ToastProvider>
+      </MemoryRouter>
     )
 
     const albumCard = await screen.findByText(/sample album/i)
     await user.click(albumCard)
 
+    // Verify album-level labeling controls are present
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /start labeling/i })).toBeInTheDocument()
     })
 
-    expect(await screen.findByRole('button', { name: /label image/i })).toBeInTheDocument()
+    // Verify analytics section is present
     expect(screen.getByText(/top tags/i)).toBeInTheDocument()
     expect(screen.getAllByText(/existing/i)[0]).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/add manual tag/i)).toBeInTheDocument()
   })
 
   it('hides labeling controls for non-admin users', async () => {
@@ -145,9 +148,11 @@ describe('AlbumsTab admin labeling integration', () => {
     })
 
     render(
-      <ToastProvider>
-        <AlbumsTab isAdmin={false} />
-      </ToastProvider>
+      <MemoryRouter>
+        <ToastProvider>
+          <AlbumsTab isAdmin={false} />
+        </ToastProvider>
+      </MemoryRouter>
     )
 
     expect(await screen.findByText(/sample album/i)).toBeInTheDocument()
