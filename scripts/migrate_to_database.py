@@ -59,10 +59,12 @@ def migrate_images():
         # Create tables if they don't exist
         db.create_all()
 
-        existing_marker = MigrationHistory.query.filter_by(name=MIGRATION_MARKER_NAME).first()
-        if existing_marker:
+        if MigrationHistory.has_run(MIGRATION_MARKER_NAME):
+            existing_marker = MigrationHistory.query.filter_by(name=MIGRATION_MARKER_NAME).first()
             applied = (
-                existing_marker.applied_at.isoformat() if existing_marker.applied_at else "unknown"
+                existing_marker.applied_at.isoformat()
+                if existing_marker and existing_marker.applied_at
+                else "unknown"
             )
             print(
                 f"Migration '{MIGRATION_MARKER_NAME}' has already been recorded "

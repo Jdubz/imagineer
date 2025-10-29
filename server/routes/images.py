@@ -188,12 +188,21 @@ def add_label(image_id: int):
     image = Image.query.get_or_404(image_id)
     data = request.json or {}
 
+    label_text = (data.get("text") or "").strip()
+    if not label_text:
+        return jsonify({"error": "Label text is required"}), 400
+
+    raw_confidence = data.get("confidence")
+    confidence_value = None
+    if isinstance(raw_confidence, (int, float)):
+        confidence_value = float(raw_confidence)
+
     label = Label(
         image_id=image.id,
-        label_text=data.get("text", ""),
-        confidence=data.get("confidence"),
-        label_type=data.get("type", "tag"),
-        source_model=data.get("source_model"),
+        label_text=label_text,
+        confidence=confidence_value,
+        label_type=(data.get("type") or "manual").strip(),
+        source_model=data.get("source_model") or "manual",
         created_by=current_user.email,
     )
 
@@ -201,6 +210,85 @@ def add_label(image_id: int):
     db.session.commit()
 
     return jsonify(label.to_dict()), 201
+
+
+def _coerce_label_type(value: object) -> tuple[bool, str | None]:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            return True, cleaned
+    return False, None
+
+
+def _coerce_confidence(value: object) -> tuple[bool, float | None]:
+    if value is None:
+        return True, None
+    if isinstance(value, (int, float)):
+        return True, float(value)
+    return False, None
+
+
+def _coerce_optional_string(value: object) -> tuple[bool, str | None]:
+    if value is None:
+        return True, None
+    if isinstance(value, str):
+        return True, value
+    return False, None
+
+
+def _prepare_label_updates(payload: dict[str, object]) -> tuple[dict[str, object], str | None]:
+    """Normalize incoming payload into ORM-friendly updates."""
+    updates: dict[str, object] = {}
+
+    text_value = payload.get("text")
+    if text_value is not None:
+        if not isinstance(text_value, str) or not text_value.strip():
+            return {}, "Label text is required"
+        updates["label_text"] = text_value.strip()
+
+    processors = (
+        ("type", "label_type", _coerce_label_type),
+        ("confidence", "confidence", _coerce_confidence),
+        ("source_model", "source_model", _coerce_optional_string),
+        ("source_prompt", "source_prompt", _coerce_optional_string),
+    )
+
+    for payload_key, attr_name, processor in processors:
+        if payload_key in payload:
+            should_update, value = processor(payload.get(payload_key))
+            if should_update:
+                updates[attr_name] = value
+
+    return updates, None
+
+
+@images_bp.route("/<int:image_id>/labels", methods=["GET"])
+@require_admin
+def list_labels(image_id: int):
+    """List labels for an image (admin only)."""
+    image = Image.query.get_or_404(image_id)
+    return jsonify({"image_id": image.id, "labels": [label.to_dict() for label in image.labels]})
+
+
+@images_bp.route("/<int:image_id>/labels/<int:label_id>", methods=["PATCH"])
+@require_admin
+def update_label(image_id: int, label_id: int):
+    """Update an existing label (admin only)."""
+    label = Label.query.filter_by(id=label_id, image_id=image_id).first_or_404()
+    payload = request.json or {}
+
+    updates, error_message = _prepare_label_updates(payload)
+    if error_message:
+        return jsonify({"error": error_message}), 400
+
+    if updates:
+        for attr, value in updates.items():
+            setattr(label, attr, value)
+        if not label.created_by:
+            label.created_by = current_user.email
+        db.session.commit()
+
+    return jsonify(label.to_dict())
 
 
 @outputs_bp.route("", methods=["GET"])

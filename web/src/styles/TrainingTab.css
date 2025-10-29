@@ -175,6 +175,73 @@
   border-bottom: none;
 }
 
+.asset-section {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.asset-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asset-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #2c3e50;
+}
+
+.asset-item code {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.copy-button {
+  background: transparent;
+  border: 1px solid #3498db;
+  color: #3498db;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: #3498db;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.copy-feedback {
+  font-size: 0.75rem;
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+.config-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: #555;
+}
+
 .progress-bar {
   width: 100%;
   height: 8px;

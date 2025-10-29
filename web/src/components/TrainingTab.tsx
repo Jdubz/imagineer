@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
+// Helper function to clamp progress values between 0 and 100
+const clampProgress = (value: number | null | undefined): number => {
+  if (typeof value !== 'number') return 0
+  return Math.min(100, Math.max(0, value))
+}
+
 interface TrainingAlbum {
   id: string
   name: string
@@ -54,6 +60,39 @@ interface TrainingLogState {
   error: string | null
 }
 
+type TrainingConfigDetails = Partial<TrainingConfig> & {
+  album_ids?: Array<string | number>
+  [key: string]: unknown
+}
+
+type CopyField = 'dataset' | 'output' | 'checkpoint'
+
+type CopyFeedback = {
+  runId: string
+  field: CopyField
+} | null
+
+const parseTrainingConfig = (
+  config: TrainingJob['training_config'],
+): TrainingConfigDetails | undefined => {
+  if (!config) return undefined
+
+  if (typeof config === 'string') {
+    try {
+      const parsed = JSON.parse(config)
+      return parsed && typeof parsed === 'object' ? (parsed as TrainingConfigDetails) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  if (typeof config === 'object') {
+    return config as TrainingConfigDetails
+  }
+
+  return undefined
+}
+
 const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const [trainingRuns, setTrainingRuns] = useState<TrainingJob[]>([])
   const [albums, setAlbums] = useState<TrainingAlbum[]>([])
@@ -70,6 +109,8 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     error: null,
   })
   const logPollRef = useRef<number | null>(null)
+  const copyTimeoutRef = useRef<number | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
 
   // Form state for creating training runs
   const [formData, setFormData] = useState<TrainingFormData>({
@@ -130,10 +171,11 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     }
   }, [])
 
-  const fetchTrainingLogs = useCallback(async (runId: string): Promise<void> => {
+  const fetchTrainingLogs = useCallback(async (runId: string | number): Promise<void> => {
+    const runIdStr = String(runId)
     setLogState((prev) => ({ ...prev, loading: true, error: null }))
     try {
-      const response = await fetch(`/api/training/${runId}/logs?tail=500`, {
+      const response = await fetch(`/api/training/${runIdStr}/logs?tail=500`, {
         credentials: 'include',
       })
 
@@ -144,7 +186,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       const data: TrainingLogResponse = await response.json()
       setLogState((prev) => ({
         ...prev,
-        runId,
+        runId: runIdStr,
         loading: false,
         content: data.logs ?? '',
         status: data.status,
@@ -164,10 +206,11 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   }, [clearLogInterval])
 
   const openLogViewer = useCallback(
-    (runId: string) => {
+    (runId: string | number) => {
+      const runIdStr = String(runId)
       clearLogInterval()
       setLogState({
-        runId,
+        runId: runIdStr,
         content: '',
         status: null,
         logAvailable: false,
@@ -175,13 +218,13 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         loading: true,
         error: null,
       })
-      fetchTrainingLogs(runId).catch((err) => {
+      fetchTrainingLogs(runIdStr).catch((err) => {
         const message = err instanceof Error ? err.message : 'Failed to load logs'
         setLogState((prev) => ({ ...prev, loading: false, error: message }))
       })
 
       logPollRef.current = window.setInterval(() => {
-        fetchTrainingLogs(runId).catch((err) => {
+        fetchTrainingLogs(runIdStr).catch((err) => {
           const message = err instanceof Error ? err.message : 'Failed to load logs'
           setLogState((prev) => ({ ...prev, loading: false, error: message }))
         })
@@ -191,6 +234,14 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   )
 
   useEffect(() => () => clearLogInterval(), [clearLogInterval])
+  useEffect(
+    () => () => {
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current)
+      }
+    },
+    [],
+  )
 
   const closeLogViewer = useCallback(() => {
     clearLogInterval()
@@ -204,6 +255,43 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       error: null,
     })
   }, [clearLogInterval])
+
+  const handleCopy = useCallback(
+    (value: string, runId: number | string, field: CopyField) => {
+      if (!value) return
+      const runIdStr = String(runId)
+      const fallbackCopy = () => {
+        const textarea = document.createElement('textarea')
+        textarea.value = value
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        try {
+          document.execCommand('copy')
+        } finally {
+          document.body.removeChild(textarea)
+        }
+      }
+
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(value).catch(fallbackCopy)
+      } else {
+        fallbackCopy()
+      }
+
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current)
+      }
+
+      setCopyFeedback({ runId: runIdStr, field })
+      copyTimeoutRef.current = window.setTimeout(() => {
+        setCopyFeedback(null)
+        copyTimeoutRef.current = null
+      }, 2000)
+    },
+    [],
+  )
 
   const handleCreateTraining = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -243,10 +331,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     }
   }
 
-  const handleStartTraining = async (runId: string): Promise<void> => {
+  const handleStartTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${runId}/start`, {
+      const response = await fetch(`/api/training/${String(runId)}/start`, {
         method: 'POST',
         credentials: 'include',
       })
@@ -263,10 +351,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     }
   }
 
-  const handleCancelTraining = async (runId: string): Promise<void> => {
+  const handleCancelTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${runId}/cancel`, {
+      const response = await fetch(`/api/training/${String(runId)}/cancel`, {
         method: 'POST',
         credentials: 'include',
       })
@@ -283,10 +371,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     }
   }
 
-  const handleCleanupTraining = async (runId: string): Promise<void> => {
+  const handleCleanupTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${runId}/cleanup`, {
+      const response = await fetch(`/api/training/${String(runId)}/cleanup`, {
         method: 'POST',
         credentials: 'include',
       })
@@ -365,90 +453,178 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
             <p>No training runs found. {isAdmin && 'Create your first training run to get started!'}</p>
           </div>
         ) : (
-          trainingRuns.map((run) => (
-            <div key={run.id} className="training-run-card">
-              <div className="run-header">
-                <h3>{run.output_name}</h3>
-                <span
-                  className="status-badge"
-                  style={{ backgroundColor: getStatusColor(run.status) }}
-                >
-                  {run.status.toUpperCase()}
-                </span>
-              </div>
+          trainingRuns.map((run) => {
+            const config = parseTrainingConfig(run.training_config)
+            const maybeAlbumIds = Array.isArray(config?.album_ids) ? config?.album_ids : undefined
+            const runIdStr = String(run.id)
+            const errorMessage = run.error_message ?? run.error ?? null
+            const progressPercent = clampProgress(run.progress)
 
-              <div className="run-details">
-                <div className="detail-item">
-                  <strong>Progress:</strong> {run.progress || 0}%
-                </div>
-                <div className="detail-item">
-                  <strong>Created:</strong> {formatDate(run.created_at)}
-                </div>
-                {run.started_at && (
-                  <div className="detail-item">
-                    <strong>Started:</strong> {formatDate(run.started_at)}
-                  </div>
-                )}
-                {run.completed_at && (
-                  <div className="detail-item">
-                    <strong>Completed:</strong> {formatDate(run.completed_at)}
-                  </div>
-                )}
-              </div>
-
-              {run.status === 'running' && run.progress !== undefined && (
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${run.progress}%` }}
-                  ></div>
-                </div>
-              )}
-
-              {run.error && (
-                <div className="error-details">
-                  <strong>Error:</strong> {run.error}
-                </div>
-              )}
-
-              {isAdmin && (
-                <div className="run-actions">
-                  {(run.status === 'queued') && (
-                    <button
-                      className="action-button start"
-                      onClick={() => handleStartTraining(run.id)}
-                    >
-                      Start Training
-                    </button>
-                  )}
-
-                  {(run.status === 'queued' || run.status === 'running') && (
-                    <button
-                      className="action-button cancel"
-                      onClick={() => handleCancelTraining(run.id)}
-                    >
-                      Cancel
-                    </button>
-                  )}
-
-                  {(run.status === 'completed' || run.status === 'failed') && (
-                    <button
-                      className="action-button cleanup"
-                      onClick={() => handleCleanupTraining(run.id)}
-                    >
-                      Cleanup
-                    </button>
-                  )}
-                  <button
-                    className="action-button logs"
-                    onClick={() => openLogViewer(run.id)}
+            return (
+              <div key={run.id} className="training-run-card">
+                <div className="run-header">
+                  <h3>{run.name || `Training run ${runIdStr}`}</h3>
+                  <span
+                    className="status-badge"
+                    style={{ backgroundColor: getStatusColor(run.status) }}
                   >
-                    View Logs
-                  </button>
+                    {run.status.toUpperCase()}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))
+
+                {run.description && (
+                  <p className="run-description">{run.description}</p>
+                )}
+
+                <div className="run-details">
+                  <div className="detail-item">
+                    <strong>Progress:</strong> {progressPercent}%
+                  </div>
+                  <div className="detail-item">
+                    <strong>Created:</strong> {formatDate(run.created_at)}
+                  </div>
+                  {run.started_at && (
+                    <div className="detail-item">
+                      <strong>Started:</strong> {formatDate(run.started_at)}
+                    </div>
+                  )}
+                  {run.completed_at && (
+                    <div className="detail-item">
+                      <strong>Completed:</strong> {formatDate(run.completed_at)}
+                    </div>
+                  )}
+                </div>
+
+                {run.status === 'running' && typeof run.progress === 'number' && (
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${progressPercent}%` }}
+                    ></div>
+                  </div>
+                )}
+
+                <div className="asset-section">
+                  <div className="asset-item">
+                    <div className="asset-header">
+                      <strong>Dataset directory</strong>
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() => handleCopy(run.dataset_path ?? '', run.id, 'dataset')}
+                      >
+                        Copy
+                      </button>
+                      {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'dataset' && (
+                        <span className="copy-feedback">Copied!</span>
+                      )}
+                    </div>
+                    <code>{run.dataset_path || 'Unavailable'}</code>
+                  </div>
+
+                  <div className="asset-item">
+                    <div className="asset-header">
+                      <strong>Output directory</strong>
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() => handleCopy(run.output_path ?? '', run.id, 'output')}
+                      >
+                        Copy
+                      </button>
+                      {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'output' && (
+                        <span className="copy-feedback">Copied!</span>
+                      )}
+                    </div>
+                    <code>{run.output_path || 'Unavailable'}</code>
+                  </div>
+
+                  <div className="asset-item">
+                    <div className="asset-header">
+                      <strong>Final checkpoint</strong>
+                      {run.final_checkpoint && (
+                        <>
+                          <button
+                            type="button"
+                            className="copy-button"
+                            onClick={() => handleCopy(run.final_checkpoint || '', run.id, 'checkpoint')}
+                          >
+                            Copy
+                          </button>
+                          {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'checkpoint' && (
+                            <span className="copy-feedback">Copied!</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <code>{run.final_checkpoint ?? 'Generated after completion'}</code>
+                  </div>
+
+                  {config && (
+                    <div className="asset-item">
+                      <div className="asset-header">
+                        <strong>Training configuration</strong>
+                      </div>
+                      <div className="config-summary">
+                        {typeof config.steps === 'number' && <span>Steps: {config.steps}</span>}
+                        {typeof config.rank === 'number' && <span>Rank: {config.rank}</span>}
+                        {typeof config.learning_rate === 'number' && (
+                          <span>Learning rate: {config.learning_rate}</span>
+                        )}
+                        {typeof config.batch_size === 'number' && <span>Batch size: {config.batch_size}</span>}
+                        {maybeAlbumIds && maybeAlbumIds.length > 0 && (
+                          <span>Albums: {maybeAlbumIds.join(', ')}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {errorMessage && (
+                  <div className="error-details">
+                    <strong>Error:</strong> {errorMessage}
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="run-actions">
+                    {run.status === 'queued' && (
+                      <button
+                        className="action-button start"
+                        onClick={() => handleStartTraining(run.id)}
+                      >
+                        Start Training
+                      </button>
+                    )}
+
+                    {(run.status === 'queued' || run.status === 'running') && (
+                      <button
+                        className="action-button cancel"
+                        onClick={() => handleCancelTraining(run.id)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+
+                    {(run.status === 'completed' || run.status === 'failed') && (
+                      <button
+                        className="action-button cleanup"
+                        onClick={() => handleCleanupTraining(run.id)}
+                      >
+                        Cleanup
+                      </button>
+                    )}
+                    <button
+                      className="action-button logs"
+                      onClick={() => openLogViewer(run.id)}
+                    >
+                      View Logs
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
 

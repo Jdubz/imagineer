@@ -153,6 +153,12 @@ docs/
 - Auto-fixing issues
 - Pre-commit hooks
 
+### [guides/TRAINING_OPERATIONS.md](guides/TRAINING_OPERATIONS.md)
+**Manage LoRA training runs**
+- Asset locations surfaced in the UI
+- Accessing and downloading training logs
+- Cleanup / retention workflow
+
 ### [guides/CONTRIBUTING.md](guides/CONTRIBUTING.md)
 **Contributing to Imagineer**
 - Development workflow

@@ -1,6 +1,6 @@
 # Imagineer - Consolidated Implementation Status
 
-**Last Updated:** 2025-10-28
+**Last Updated:** 2025-10-29
 **Purpose:** Single source of truth for what's been implemented and what remains
 
 ---
@@ -147,10 +147,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### ⚠️ Outstanding Issues
 
-1. **Progress Reporting Minimal (LOW)**
-   - Plan mentioned detailed scrape progress exposed to UI
-   - Current implementation is basic
-   - **Action:** Enhance if needed based on usage
+1. **Progress Telemetry Enhancements (LOW)**
+   - Scrape jobs now expose stage, discovered, and downloaded counts in the UI
+   - Consider adding historical stats (average throughput, error buckets) if additional insight is needed
 
 ---
 
@@ -174,15 +173,16 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - examples/train_lora.py already exists
    - Supports dataset loading and LoRA fine-tuning
 
+4. **Training Asset Surfacing & Docs (Oct 29, 2025)**
+   - TrainingTab now surfaces dataset/output directories and final checkpoint paths with copy controls
+   - Log viewer exposes log file paths to streamline debugging
+   - Admin playbook updated in `docs/guides/TRAINING_OPERATIONS.md` with retention guidance
+
 ### ⚠️ Outstanding Issues
 
-1. **Training UX Enhancements (MEDIUM)**
-   - Logs and dataset exports are available but lack documentation in the UI
-   - **Action:** Surface links/tooltips so admins know where to download assets
-
-2. **Training Directory Housekeeping (LOW)**
-   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention policy is TBD
-   - **Action:** Document retention expectations or add configurable policy if needed
+1. **Training Directory Housekeeping (LOW)**
+   - Temporary artifacts are removed after jobs, but scheduled cleanup/retention automation is TBD
+   - **Action:** Automate pruning of stale checkpoints/datasets or wire into existing scheduler once policy is finalized
 
 ---
 
@@ -196,7 +196,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 **Coverage Status:**
 - Backend: ~70% coverage (good)
-- Frontend: Vitest tests now cover the labeling flow; ScrapingTab and TrainingTab admin dashboards still lack coverage
+- Frontend: Vitest tests cover labeling, scraping, and training admin flows; end-to-end coverage remains on the roadmap
 
 **Action:** Add integration tests for admin workflows
 
@@ -239,27 +239,19 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟡 High (Stabilization & Reliability)
 
-1. **Add Admin UI Vitest Coverage**
-   - Files: `web/src/components/ScrapingTab.tsx`, `web/src/components/TrainingTab.tsx`, supporting hooks.
-   - Impact: Prevents regressions in scraping/training dashboards that currently lack automated coverage.
-
-2. **Enrich Scraping Progress Telemetry**
-   - Files: `server/tasks/scraping.py`, `web/src/components/ScrapingTab.tsx`.
-   - Impact: Provide granular progress (per-stage metrics, error surfacing) to match roadmap expectations.
+1. **Automate Training Data Retention**
+   - Files: `server/tasks/training.py`, scheduler tooling, infra docs.
+   - Impact: Manual workflow documented in `docs/guides/TRAINING_OPERATIONS.md`; consider cron/automation to prune old checkpoints.
 
 ### 🟢 Medium (Polish & UX)
 
-1. **Add Label Analytics & Manual Tag Editing**
-   - Files: extend labeling endpoints in `server/api.py` (or new blueprint) plus matching frontend surfaces.
-   - Impact: Enables dataset curation and manual corrections promised in earlier plans.
+1. ✅ **Add Label Analytics & Manual Tag Editing**
+   - Files: `server/routes/albums.py`, `server/routes/images.py`, `web/src/components/AlbumsTab.tsx`, associated styles/tests.
+   - Impact: Admins now see coverage dashboards per album and can add, edit, or remove tags directly from the UI.
 
-2. **Surface Training Assets & Documentation in UI**
-   - Files: `web/src/components/TrainingTab.tsx`, admin docs.
-   - Impact: Link to logs/checkpoints and explain download workflows so admins know where artifacts live.
-
-3. **Formalize Training Data Retention Policy**
-   - Files: `server/tasks/training.py`, operations docs.
-   - Impact: Decide whether to automate cleanup or document manual expectations for `/tmp` artifacts.
+2. **Broaden Scrape QA & Import Validation**
+   - Files: `server/tasks/scraping.py`, `server/routes/scraping.py`, dataset QA scripts.
+   - Impact: Leverage new telemetry to flag failed downloads/duplicates before import.
 
 ### 🔵 Low (Future Enhancements)
 
@@ -279,13 +271,13 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### Frontend Testing
 - ✅ Component tests for Generate/Gallery
-- ⚠️ Admin UI tests exist for labeling but are still missing for scraping/training
+- ✅ Admin UI tests exercise labeling, scraping, and training dashboards
 - ❌ Integration tests with backend missing
 
 ### Recommended Additions
 1. E2E tests for full training workflow (album → label → train → use LoRA)
 2. E2E tests for scraping workflow (scrape → label → organize)
-3. Extend Vitest coverage to ScrapingTab/TrainingTab admin flows
+3. Extend Vitest coverage to ScrapingTab/TrainingTab admin flows  _(✅ completed 2025-10-28; keep E2E focus next)_
 
 ---
 
@@ -296,6 +288,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 - ARCHITECTURE.md - System overview, recently updated
 - API.md - API endpoint reference
 - CLAUDE.md - Claude Code instructions
+- guides/TRAINING_OPERATIONS.md - Day-to-day training management (assets, logs, retention)
 
 ### ⚠️ Needs Update
 - NEXT_STEPS.md - Some sections complete (OAuth), others still relevant

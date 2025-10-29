@@ -3,6 +3,7 @@ Database models for Imagineer
 SQLAlchemy models for image management, albums, and training data
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -227,16 +228,33 @@ class ScrapeJob(db.Model):
     completed_at = db.Column(db.DateTime)
 
     def to_dict(self):
+        config_data = {}
+        runtime_data = {}
+        if self.scrape_config:
+            try:
+                loaded = json.loads(self.scrape_config)
+                config_data = loaded if isinstance(loaded, dict) else {}
+                runtime_candidate = config_data.get("runtime", {})
+                runtime_data = runtime_candidate if isinstance(runtime_candidate, dict) else {}
+            except (ValueError, TypeError):
+                config_data = {}
+                runtime_data = {}
+
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "source_url": self.source_url,
+            "url": self.source_url,
             "scrape_config": self.scrape_config,
+            "config": config_data,
+            "runtime": runtime_data,
             "status": self.status,
             "progress": self.progress,
+            "progress_message": self.description,
             "images_scraped": self.images_scraped,
             "output_directory": self.output_directory,
+            "output_dir": self.output_directory,
             "error_message": self.error_message,
             "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -335,7 +353,7 @@ class MigrationHistory(db.Model):
         if entry:
             if refresh_timestamp:
                 entry.last_run_at = utcnow()
-            if details and entry.details != details:
+            if details is not None and entry.details != details:
                 entry.details = details
             return entry
 

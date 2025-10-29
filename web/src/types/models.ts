@@ -135,6 +135,37 @@ export interface Album {
   updated_at: string
 }
 
+export interface Label {
+  id: number
+  image_id: number
+  label_text: string
+  confidence?: number | null
+  label_type?: string | null
+  source_model?: string | null
+  source_prompt?: string | null
+  created_by?: string | null
+  created_at?: string | null
+}
+
+export interface LabelAnalytics {
+  album_id: number
+  image_count: number
+  labels_total: number
+  labels_by_type: Record<string, number>
+  images_with_labels: number
+  images_with_manual_labels: number
+  images_with_captions: number
+  unlabeled_images: number
+  average_labels_per_image: number
+  coverage: {
+    labels_percent: number
+    manual_percent: number
+    caption_percent: number
+  }
+  top_tags: Array<{ label_text: string; count: number }>
+  last_labeled_at?: string | null
+}
+
 export interface TrainingDataset {
   name: string
   path: string
@@ -142,29 +173,51 @@ export interface TrainingDataset {
 }
 
 export interface TrainingJob {
-  id: string
+  id: number
+  name: string
+  description?: string | null
   status: JobStatus
-  dataset: string
-  output_name: string
-  steps: number
-  rank: number
-  learning_rate: number
+  dataset_path?: string | null
+  output_path?: string | null
+  training_config?: string | Record<string, unknown> | null
   created_at: string
-  started_at?: string
-  completed_at?: string
-  error?: string
+  started_at?: string | null
+  completed_at?: string | null
+  error_message?: string | null
+  error?: string | null
+  progress?: number | null
+  final_checkpoint?: string | null
+  training_loss?: number | null
+  validation_loss?: number | null
+  last_error_at?: string | null
+}
+
+export interface ScrapingJobRuntime {
+  stage?: string
+  discovered?: number
+  downloaded?: number
   progress?: number
+  last_message?: string
+  updated_at?: string
 }
 
 export interface ScrapingJob {
   id: string
   status: JobStatus
-  url: string
-  output_dir: string
+  url?: string
+  name?: string
+  source_url?: string
+  output_dir?: string
+  output_directory?: string
+  progress?: number
+  progress_message?: string
+  description?: string
+  runtime?: ScrapingJobRuntime
   created_at: string
   completed_at?: string
   error?: string
   images_scraped?: number
+  config?: Record<string, unknown>
 }
 
 export type { AuthStatus } from './shared'

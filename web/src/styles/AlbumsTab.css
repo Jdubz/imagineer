@@ -270,6 +270,208 @@
   color: #666;
 }
 
+.label-error {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  background: #fdecea;
+  color: #a94442;
+  border: 1px solid #f5c6cb;
+}
+
+.album-analytics {
+  margin-bottom: 1.5rem;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.analytics-card {
+  background: white;
+  border: 1px solid #e3e6eb;
+  border-radius: 6px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.analytics-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+}
+
+.analytics-card strong {
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.analytics-card small {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.analytics-top-tags h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.analytics-top-tags ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.analytics-top-tags li {
+  background: white;
+  border: 1px solid #e3e6eb;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #34495e;
+}
+
+.analytics-top-tags .tag-count {
+  background: #eef2f6;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  color: #4a5568;
+}
+
+.label-editor {
+  margin-top: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #34495e;
+  font-size: 0.8rem;
+  border: 1px solid transparent;
+}
+
+.label-chip.editing {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  background: #fff6e6;
+  border-color: #f3c46f;
+}
+
+.label-chip input {
+  border: 1px solid #ccd4dd;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.label-chip-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.label-chip-actions button {
+  background: transparent;
+  border: 1px solid #ccd4dd;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: #495057;
+}
+
+.label-chip-actions button:hover:not(:disabled) {
+  border-color: #868e96;
+  color: #212529;
+}
+
+.label-chip.label-type-manual {
+  background: #e8f7f0;
+  color: #2f855a;
+}
+
+.label-chip.label-type-tag {
+  background: #eef2ff;
+  color: #3c366b;
+}
+
+.label-chip.label-type-caption {
+  background: #fff5f5;
+  color: #97266d;
+}
+
+.label-add-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.label-add-form input {
+  flex: 1;
+  border: 1px solid #ccd4dd;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.label-add-form button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.label-add-form button:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+.label-empty {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+
 /* Dialog Styles */
 .dialog-overlay {
   position: fixed;
