@@ -5,14 +5,16 @@ Allows admin users to submit detailed bug reports with automatic context capture
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
 from server.auth import require_admin
-from server.logging_config import logger
 from server.utils.error_handler import APIError, format_error_response
+
+logger = logging.getLogger(__name__)
 
 bug_reports_bp = Blueprint("bug_reports", __name__)
 
