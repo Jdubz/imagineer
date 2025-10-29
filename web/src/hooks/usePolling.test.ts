@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { usePolling } from './usePolling';
 
 describe('usePolling', () => {
@@ -12,7 +12,7 @@ describe('usePolling', () => {
     vi.useRealTimers();
   });
 
-  it('should call callback at specified interval', async () => {
+  it('should call callback at specified interval', () => {
     const callback = vi.fn();
     const interval = 1000;
 
@@ -107,7 +107,7 @@ describe('usePolling', () => {
 
   it('should cleanup interval on unmount', () => {
     const callback = vi.fn();
-    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
     const { unmount } = renderHook(() =>
       usePolling(callback, { interval: 1000 })
@@ -119,9 +119,8 @@ describe('usePolling', () => {
   });
 
   it('should handle callback updates without creating memory leaks', () => {
-    let callCount = 0;
-    const callback1 = vi.fn(() => callCount++);
-    const callback2 = vi.fn(() => callCount++);
+    const callback1 = vi.fn(() => undefined)
+    const callback2 = vi.fn(() => undefined)
 
     const { rerender } = renderHook(
       ({ cb }) => usePolling(cb, { interval: 1000 }),
@@ -166,9 +165,8 @@ describe('usePolling', () => {
   });
 
   it('should handle async callbacks without errors', async () => {
-    const asyncCallback = vi.fn(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return 'done';
+    const asyncCallback = vi.fn(async (): Promise<void> => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
     });
 
     renderHook(() => usePolling(asyncCallback, { interval: 1000 }));
@@ -198,12 +196,12 @@ describe('usePolling', () => {
       });
 
       // Mock addEventListener for visibilitychange
-      const originalAddEventListener = document.addEventListener;
+      const originalAddEventListener = document.addEventListener.bind(document);
       vi.spyOn(document, 'addEventListener').mockImplementation((event, handler) => {
         if (event === 'visibilitychange' && typeof handler === 'function') {
           visibilityListeners.push(handler as () => void);
         }
-        return originalAddEventListener.call(document, event, handler as EventListener);
+        return originalAddEventListener(event, handler as EventListener);
       });
     });
 

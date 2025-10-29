@@ -74,7 +74,9 @@ describe('ErrorBoundary', () => {
         </ErrorBoundary>
       )
 
-      expect(logger.error).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const loggerErrorSpy = vi.mocked(logger).error
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         'React Error Boundary caught an error',
         expect.any(Error),
         expect.objectContaining({
@@ -90,7 +92,9 @@ describe('ErrorBoundary', () => {
         </ErrorBoundary>
       )
 
-      expect(logger.error).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const loggerErrorSpy = vi.mocked(logger).error
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         'React Error Boundary caught an error',
         expect.any(Error),
         expect.objectContaining({
@@ -214,8 +218,12 @@ describe('ErrorBoundary', () => {
       const user = userEvent.setup()
 
       // Mock window.location.href
+      const locationMock = { href: '' } as Location
       delete (window as { location?: unknown }).location
-      window.location = { href: '' } as Location
+      Object.defineProperty(window, 'location', {
+        value: locationMock,
+        writable: true,
+      })
 
       render(
         <ErrorBoundary>
@@ -226,7 +234,7 @@ describe('ErrorBoundary', () => {
       const goHomeButton = screen.getByRole('button', { name: /go home/i })
       await user.click(goHomeButton)
 
-      expect(window.location.href).toBe('/')
+      expect(locationMock.href).toBe('/')
     })
   })
 

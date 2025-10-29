@@ -61,13 +61,34 @@ export function usePolling(
 
   // Store callback in ref to avoid recreating interval on every callback change
   const savedCallback = useRef(callback);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isVisibleRef = useRef(true);
 
   // Update saved callback on each render
   useEffect(() => {
     savedCallback.current = callback;
   }, [callback]);
+
+  // Start polling function
+  const startPolling = useCallback((): void => {
+    // Clear any existing interval
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+    }
+
+    // Only start if enabled and (not checking visibility OR page is visible)
+    if (!enabled || (pauseWhenHidden && !isVisibleRef.current)) {
+      return;
+    }
+
+    // Set up the interval
+    intervalRef.current = setInterval(() => {
+      // Double-check visibility before executing
+      if (!pauseWhenHidden || isVisibleRef.current) {
+        void savedCallback.current();
+      }
+    }, interval);
+  }, [enabled, interval, pauseWhenHidden]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -93,28 +114,7 @@ export function usePolling(
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [pauseWhenHidden, enabled, interval]);
-
-  // Start polling function
-  const startPolling = useCallback((): void => {
-    // Clear any existing interval
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-    }
-
-    // Only start if enabled and (not checking visibility OR page is visible)
-    if (!enabled || (pauseWhenHidden && !isVisibleRef.current)) {
-      return;
-    }
-
-    // Set up the interval
-    intervalRef.current = setInterval(() => {
-      // Double-check visibility before executing
-      if (!pauseWhenHidden || isVisibleRef.current) {
-        void savedCallback.current();
-      }
-    }, interval);
-  }, [enabled, interval, pauseWhenHidden]);
+  }, [pauseWhenHidden, enabled, interval, startPolling]);
 
   // Main polling effect
   useEffect(() => {
