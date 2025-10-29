@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
+// Helper function to clamp progress values between 0 and 100
+const clampProgress = (value: number | null | undefined): number => {
+  if (typeof value !== 'number') return 0
+  return Math.min(100, Math.max(0, value))
+}
+
 interface TrainingAlbum {
   id: string
   name: string
@@ -449,11 +455,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         ) : (
           trainingRuns.map((run) => {
             const config = parseTrainingConfig(run.training_config)
-            const albumIds = Array.isArray(config?.album_ids) ? config?.album_ids : undefined
+            const maybeAlbumIds = Array.isArray(config?.album_ids) ? config?.album_ids : undefined
             const runIdStr = String(run.id)
             const errorMessage = run.error_message ?? run.error ?? null
-            const progressValue = typeof run.progress === 'number' ? run.progress : 0
-            const clampedProgress = Math.max(0, Math.min(100, progressValue))
+            const progressPercent = clampProgress(run.progress)
 
             return (
               <div key={run.id} className="training-run-card">
@@ -473,7 +478,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
 
                 <div className="run-details">
                   <div className="detail-item">
-                    <strong>Progress:</strong> {progressValue}%
+                    <strong>Progress:</strong> {progressPercent}%
                   </div>
                   <div className="detail-item">
                     <strong>Created:</strong> {formatDate(run.created_at)}
@@ -494,7 +499,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{ width: `${clampedProgress}%` }}
+                      style={{ width: `${progressPercent}%` }}
                     ></div>
                   </div>
                 )}
@@ -567,8 +572,8 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                           <span>Learning rate: {config.learning_rate}</span>
                         )}
                         {typeof config.batch_size === 'number' && <span>Batch size: {config.batch_size}</span>}
-                        {albumIds && albumIds.length > 0 && (
-                          <span>Albums: {albumIds.join(', ')}</span>
+                        {maybeAlbumIds && maybeAlbumIds.length > 0 && (
+                          <span>Albums: {maybeAlbumIds.join(', ')}</span>
                         )}
                       </div>
                     </div>

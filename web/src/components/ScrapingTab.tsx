@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react'
 import '../styles/ScrapingTab.css'
 import type { ScrapingJob } from '../types/models'
 
+// Helper function to clamp progress values between 0 and 100
+const clampProgress = (value: number | null | undefined): number | undefined => {
+  return typeof value === 'number' ? Math.min(100, Math.max(0, value)) : undefined
+}
+
 interface ScrapingStats {
   total_jobs: number
   total_images_scraped: number
@@ -226,14 +231,9 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         ) : (
           scrapeJobs.map(job => {
             const runtime = job.runtime ?? {}
-            const jobUrl = job.url ?? job.source_url ?? job.name ?? 'Unknown URL'
+            const jobUrl = job.url ?? job.source_url ?? 'Unknown URL'
             const outputDir = job.output_dir ?? job.output_directory
-            const progressPercent =
-              typeof job.progress === 'number'
-                ? Math.min(100, Math.max(0, job.progress))
-                : typeof runtime.progress === 'number'
-                  ? Math.min(100, Math.max(0, runtime.progress))
-                  : undefined
+            const progressPercent = clampProgress(job.progress) ?? clampProgress(runtime.progress)
             const progressMessage = job.progress_message ?? runtime.last_message ?? ''
 
             return (

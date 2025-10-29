@@ -171,10 +171,8 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             # Stream output and update progress
             discovered_count = 0
             downloaded_count = 0
-
             stage = "running"
-            discovered_count = job.images_scraped or 0
-            downloaded_count = job.images_scraped or 0
+
             for line in process.stdout:
                 line = line.strip()
                 if line:

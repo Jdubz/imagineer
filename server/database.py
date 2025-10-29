@@ -232,7 +232,8 @@ class ScrapeJob(db.Model):
         runtime_data = {}
         if self.scrape_config:
             try:
-                config_data = json.loads(self.scrape_config) or {}
+                loaded = json.loads(self.scrape_config)
+                config_data = loaded if isinstance(loaded, dict) else {}
                 runtime_candidate = config_data.get("runtime", {})
                 runtime_data = runtime_candidate if isinstance(runtime_candidate, dict) else {}
             except (ValueError, TypeError):
