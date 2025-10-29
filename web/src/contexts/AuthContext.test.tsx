@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method, @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, waitFor, renderHook } from '@testing-library/react'
 import '@testing-library/jest-dom'
@@ -413,12 +414,11 @@ describe('AuthContext', () => {
       })
 
       // Mock logout call
-      const mockFetch = vi.fn()
-      vi.stubGlobal('fetch', mockFetch)
-      mockFetch.mockResolvedValueOnce({
+      const mockLogoutFetch1 = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
       })
+      vi.stubGlobal('fetch', mockLogoutFetch1)
 
       await result.current.logout()
 
@@ -447,13 +447,12 @@ describe('AuthContext', () => {
       })
 
       // Mock failed logout
-      const mockFetch = vi.fn()
-      vi.stubGlobal('fetch', mockFetch)
-      mockFetch.mockResolvedValueOnce({
+      const mockLogoutFetch2 = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 500,
         text: async () => 'Internal Server Error',
       })
+      vi.stubGlobal('fetch', mockLogoutFetch2)
 
       await expect(result.current.logout()).rejects.toThrow('Internal Server Error')
     })
@@ -476,9 +475,8 @@ describe('AuthContext', () => {
       })
 
       const logoutError = new Error('Logout failed')
-      const mockFetch = vi.fn()
-      vi.stubGlobal('fetch', mockFetch)
-      mockFetch.mockRejectedValueOnce(logoutError)
+      const mockLogoutFetch4 = vi.fn().mockRejectedValueOnce(logoutError)
+      vi.stubGlobal('fetch', mockLogoutFetch4)
 
       await expect(result.current.logout()).rejects.toThrow('Logout failed')
       expect(logger.error).toHaveBeenCalledWith('Failed to logout', logoutError)
@@ -500,13 +498,12 @@ describe('AuthContext', () => {
       })
 
       // Mock logout with response that has no text method
-      const mockFetch = vi.fn()
-      vi.stubGlobal('fetch', mockFetch)
-      mockFetch.mockResolvedValueOnce({
+      const mockLogoutFetch3 = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 500,
         text: undefined,
       })
+      vi.stubGlobal('fetch', mockLogoutFetch3)
 
       await expect(result.current.logout()).rejects.toThrow('Unexpected logout response')
     })
