@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { logger } from '../lib/logger'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
 
@@ -96,7 +97,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
         setError(null)
       }
     } catch (err) {
-      console.error('Failed to check auth:', err)
+      logger.error('Failed to check auth:', err)
       setUser(null)
       setError('Unable to verify authentication status. Please try again.')
     } finally {
@@ -147,7 +148,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
       setUser(null)
       setError(null)
     } catch (err) {
-      console.error('Failed to logout:', err)
+      logger.error('Failed to logout:', err)
       setError('Failed to log out. Please retry.')
     }
   }

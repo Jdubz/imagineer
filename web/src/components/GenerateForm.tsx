@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { logger } from '../lib/logger'
 import type { Config, GenerateParams, BatchGenerateParams } from '../types/models'
 
 interface SetLoraConfig {
@@ -60,7 +61,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       setAvailableSets(data.sets || [])
     } catch (error) {
-      console.error('Failed to fetch sets:', error)
+      logger.error('Failed to fetch sets:', error)
     }
   }
 
@@ -70,7 +71,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       setAvailableLoras(data.loras || [])
     } catch (error) {
-      console.error('Failed to fetch LoRAs:', error)
+      logger.error('Failed to fetch LoRAs:', error)
     }
   }
 
@@ -80,7 +81,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       setUserTheme(data.theme || '')
     } catch (error) {
-      console.error('Failed to fetch random theme:', error)
+      logger.error('Failed to fetch random theme:', error)
     }
   }
 
@@ -101,7 +102,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       setSelectedSetInfo(data)
     } catch (error) {
-      console.error('Failed to fetch set info:', error)
+      logger.error('Failed to fetch set info:', error)
     }
   }
 
@@ -111,7 +112,7 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       const data = await response.json()
       setSetLoras(data.loras || [])
     } catch (error) {
-      console.error('Failed to fetch set LoRAs:', error)
+      logger.error('Failed to fetch set LoRAs:', error)
     }
   }
 
@@ -128,11 +129,11 @@ const GenerateForm: React.FC<GenerateFormProps> = ({ onGenerate, onGenerateBatch
       if (data.success) {
         fetchSetLoras(setName)  // Refresh the list
       } else {
-        console.error('Failed to update LoRAs:', data.error)
+        logger.error('Failed to update LoRAs:', data.error)
         alert(`Error: ${data.error}`)
       }
     } catch (error) {
-      console.error('Failed to update set LoRAs:', error)
+      logger.error('Failed to update set LoRAs:', error)
       alert('Failed to update LoRA configuration')
     }
   }

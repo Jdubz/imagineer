@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { logger } from '../lib/logger'
 import type { ImageMetadata } from '../types/models'
 
 interface BatchImage {
@@ -31,7 +32,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
       const data = await response.json()
       setBatch(data)
     } catch (error) {
-      console.error('Failed to fetch batch:', error)
+      logger.error('Failed to fetch batch:', error)
     } finally {
       setLoading(false)
     }

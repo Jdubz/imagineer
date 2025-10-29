@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { logger } from '../lib/logger'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
 
@@ -136,7 +137,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       setTrainingRuns(data.training_runs || [])
     } catch (err) {
       setError('Failed to fetch training runs')
-      console.error('Error fetching training runs:', err)
+      logger.error('Error fetching training runs:', err)
     } finally {
       setLoading(false)
     }
@@ -151,7 +152,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       const data: AlbumsResponse = await response.json()
       setAlbums(data.albums || [])
     } catch (err) {
-      console.error('Error fetching albums:', err)
+      logger.error('Error fetching albums:', err)
     }
   }, [isAdmin])
 
@@ -160,8 +161,8 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       setLoading(false)
       return
     }
-    fetchTrainingRuns().catch((err) => console.error('Error refreshing runs:', err))
-    fetchAlbums().catch((err) => console.error('Error refreshing albums:', err))
+    fetchTrainingRuns().catch((err) => logger.error('Error refreshing runs:', err))
+    fetchAlbums().catch((err) => logger.error('Error refreshing albums:', err))
   }, [fetchAlbums, fetchTrainingRuns, isAdmin])
 
   const clearLogInterval = useCallback(() => {
@@ -327,7 +328,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to create training run')
-      console.error('Error creating training run:', err)
+      logger.error('Error creating training run:', err)
     }
   }
 
@@ -347,7 +348,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to start training')
-      console.error('Error starting training:', err)
+      logger.error('Error starting training:', err)
     }
   }
 
@@ -367,7 +368,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to cancel training')
-      console.error('Error cancelling training:', err)
+      logger.error('Error cancelling training:', err)
     }
   }
 
@@ -387,7 +388,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Failed to cleanup training')
-      console.error('Error cleaning up training:', err)
+      logger.error('Error cleaning up training:', err)
     }
   }
 

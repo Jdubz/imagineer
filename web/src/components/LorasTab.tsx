@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { logger } from '../lib/logger'
 import '../styles/LorasTab.css'
 
 interface LoraModel {
@@ -35,7 +36,7 @@ const LorasTab: React.FC = () => {
       const data: LorasResponse = await response.json()
       setLoras(data.loras || [])
     } catch (err) {
-      console.error('Failed to fetch LoRAs:', err)
+      logger.error('Failed to fetch LoRAs:', err)
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)

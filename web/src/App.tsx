@@ -9,6 +9,7 @@ import ScrapingTab from './components/ScrapingTab'
 import TrainingTab from './components/TrainingTab'
 import LorasTab from './components/LorasTab'
 import QueueTab from './components/QueueTab'
+import { logger } from './lib/logger'
 import type { AuthStatus } from './types/shared'
 import type {
   Config,
@@ -64,7 +65,7 @@ const App: React.FC = () => {
         setUser(null)
       }
     } catch (error) {
-      console.error('Failed to check auth:', error)
+      logger.error('Failed to check auth', error as Error)
       setUser(null)
     }
   }
@@ -75,7 +76,7 @@ const App: React.FC = () => {
       const payload = (await response.json()) as unknown
       setConfig(isRecord(payload) ? (payload as Config) : null)
     } catch (error) {
-      console.error('Failed to fetch config:', error)
+      logger.error('Failed to fetch config', error as Error)
     }
   }
 
@@ -92,7 +93,7 @@ const App: React.FC = () => {
       }
       setImages(images)
     } catch (error) {
-      console.error('Failed to fetch images:', error)
+      logger.error('Failed to fetch images', error as Error)
     }
   }
 
@@ -109,7 +110,7 @@ const App: React.FC = () => {
       }
       setBatches(batches)
     } catch (error) {
-      console.error('Failed to fetch batches:', error)
+      logger.error('Failed to fetch batches', error as Error)
     }
   }
 
@@ -143,7 +144,7 @@ const App: React.FC = () => {
         setLoading(false)
       }
     } catch (error) {
-      console.error('Failed to generate:', error)
+      logger.error('Failed to generate', error as Error)
       alert('Error submitting job')
       setLoading(false)
     }
@@ -165,7 +166,7 @@ const App: React.FC = () => {
         } else {
           alert('Batch generation started!')
         }
-        fetchBatches().catch((error) => console.error('Failed to refresh batches:', error))
+        fetchBatches().catch((error) => logger.error('Failed to refresh batches', error as Error))
         setActiveTab('gallery')
       } else {
         const payload = (await response.json()) as unknown
@@ -176,7 +177,7 @@ const App: React.FC = () => {
         alert(`Failed to submit batch: ${errorMessage}`)
       }
     } catch (error: unknown) {
-      console.error('Failed to generate batch:', error)
+      logger.error('Failed to generate batch', error as Error)
       alert('Error submitting batch')
     } finally {
       setLoading(false)
@@ -197,8 +198,8 @@ const App: React.FC = () => {
           setLoading(false)
           setCurrentJob(null)
           setQueuePosition(null)
-          fetchImages().catch((err) => console.error('Failed to refresh images:', err))
-          fetchBatches().catch((err) => console.error('Failed to refresh batches:', err))
+          fetchImages().catch((err) => logger.error('Failed to refresh images', err as Error))
+          fetchBatches().catch((err) => logger.error('Failed to refresh batches', err as Error))
         } else if (job.status === 'failed') {
           setLoading(false)
           setCurrentJob(null)
@@ -213,7 +214,7 @@ const App: React.FC = () => {
           setTimeout(checkStatus, 2000)
         }
       } catch (error: unknown) {
-        console.error('Error checking job status:', error)
+        logger.error('Error checking job status', error as Error)
         setLoading(false)
         setCurrentJob(null)
         setQueuePosition(null)

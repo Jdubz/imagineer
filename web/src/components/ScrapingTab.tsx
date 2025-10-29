@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { logger } from '../lib/logger'
 import '../styles/ScrapingTab.css'
 import type { ScrapingJob } from '../types/models'
 
@@ -67,7 +68,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Error fetching scrape jobs')
-      console.error('Error fetching jobs:', err)
+      logger.error('Error fetching jobs:', err)
     }
   }, [isAdmin])
 
@@ -82,7 +83,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         setStats(data)
       }
     } catch (err) {
-      console.error('Error fetching stats:', err)
+      logger.error('Error fetching stats:', err)
     }
   }, [isAdmin])
 
@@ -91,13 +92,13 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       return
     }
 
-    fetchJobs().catch((err) => console.error('Error refreshing jobs:', err))
-    fetchStats().catch((err) => console.error('Error refreshing stats:', err))
+    fetchJobs().catch((err) => logger.error('Error refreshing jobs:', err))
+    fetchStats().catch((err) => logger.error('Error refreshing stats:', err))
 
     // Auto-refresh every 5 seconds
     const interval = setInterval(() => {
-      fetchJobs().catch((err) => console.error('Error refreshing jobs:', err))
-      fetchStats().catch((err) => console.error('Error refreshing stats:', err))
+      fetchJobs().catch((err) => logger.error('Error refreshing jobs:', err))
+      fetchStats().catch((err) => logger.error('Error refreshing stats:', err))
     }, 5000)
 
     return () => clearInterval(interval)
@@ -134,7 +135,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Error starting scrape job')
-      console.error('Error starting scrape:', err)
+      logger.error('Error starting scrape:', err)
     } finally {
       setLoading(false)
     }
@@ -155,7 +156,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Error cancelling job')
-      console.error('Error cancelling job:', err)
+      logger.error('Error cancelling job:', err)
     }
   }
 
@@ -174,7 +175,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       }
     } catch (err) {
       setError('Error cleaning up job')
-      console.error('Error cleaning up job:', err)
+      logger.error('Error cleaning up job:', err)
     }
   }
 

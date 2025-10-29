@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { logger } from '../lib/logger'
 import '../styles/QueueTab.css'
 
 interface QueueJob {
@@ -32,7 +33,7 @@ const QueueTab: React.FC = () => {
       const data = await response.json()
       setQueueData(data)
     } catch (error) {
-      console.error('Failed to fetch queue data:', error)
+      logger.error('Failed to fetch queue data:', error)
     }
   }, [])
 

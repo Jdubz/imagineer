@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
+import { logger } from '../lib/logger'
 import type { Label, LabelAnalytics } from '../types/models'
 
 interface AlbumImage {
@@ -80,7 +81,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         : []
       setAlbums(normalizedAlbums)
     } catch (error) {
-      console.error('Failed to fetch albums:', error)
+      logger.error('Failed to fetch albums:', error)
     }
   }
 
@@ -100,7 +101,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
       setAlbumAnalytics(analytics)
       return analytics
     } catch (error) {
-      console.error('Failed to fetch album analytics:', error)
+      logger.error('Failed to fetch album analytics:', error)
       setAlbumAnalytics(null)
       return null
     }
@@ -172,7 +173,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
 
       return normalizedAlbum
     } catch (error) {
-      console.error('Failed to fetch album details:', error)
+      logger.error('Failed to fetch album details:', error)
       setAlbumAnalytics(null)
       return null
     }
@@ -206,7 +207,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         alert('Failed to create album: ' + (error.error ?? 'Unknown error'))
       }
     } catch (error) {
-      console.error('Failed to create album:', error)
+      logger.error('Failed to create album:', error)
       alert('Error creating album')
     }
   }
@@ -233,7 +234,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = ({ isAdmin }) => {
         alert('Failed to delete album: ' + error.error)
       }
     } catch (error) {
-      console.error('Failed to delete album:', error)
+      logger.error('Failed to delete album:', error)
       alert('Error deleting album')
     }
   }
@@ -386,7 +387,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
           credentials: 'include',
         })
       } catch (error) {
-        console.error(`Failed to remove image ${imageId}:`, error)
+        logger.error(`Failed to remove image ${imageId}`, error as Error)
       }
     }
 
@@ -424,7 +425,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
       setLabelInputs((prev) => ({ ...prev, [imageId]: '' }))
       await refreshAlbumData()
     } catch (error) {
-      console.error('Failed to add label:', error)
+      logger.error('Failed to add label:', error)
       setLabelError(error instanceof Error ? error.message : 'Failed to add label')
     } finally {
       setIsUpdatingLabels(false)
@@ -450,7 +451,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
 
       await refreshAlbumData()
     } catch (error) {
-      console.error('Failed to remove label:', error)
+      logger.error('Failed to remove label:', error)
       setLabelError(error instanceof Error ? error.message : 'Failed to remove label')
     } finally {
       setIsUpdatingLabels(false)
@@ -496,7 +497,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = ({
       setEditingLabel(null)
       await refreshAlbumData()
     } catch (error) {
-      console.error('Failed to update label:', error)
+      logger.error('Failed to update label:', error)
       setLabelError(error instanceof Error ? error.message : 'Failed to update label')
     } finally {
       setIsUpdatingLabels(false)
