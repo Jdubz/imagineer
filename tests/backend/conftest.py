@@ -14,6 +14,10 @@ import yaml
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Configure unique database path per worker for pytest-xdist
+worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+os.environ["DATABASE_URL"] = f"sqlite:////tmp/imagineer_test_{worker_id}.db"
+
 from server.api import app as flask_app  # noqa: E402
 
 
