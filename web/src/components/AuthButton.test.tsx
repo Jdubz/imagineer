@@ -256,7 +256,7 @@ describe('AuthButton', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
-    await act(async () => {
+    act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
           origin: window.location.origin,

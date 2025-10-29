@@ -9,7 +9,7 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { logger, type LogEntry } from '../lib/logger'
-import { useToast } from './ToastContext'
+import { useToast } from '../hooks/useToast'
 import type {
   BugReportEnvironmentSnapshot,
   BugReportOptions,
@@ -21,14 +21,25 @@ import type {
 import { api } from '../lib/api'
 import '../styles/BugReport.css'
 
+type CollectorResult =
+  | Record<string, unknown>
+  | Array<unknown>
+  | string
+  | number
+  | boolean
+  | null
+  | void
+
+type BugReportCollectorFn = () => CollectorResult | Promise<CollectorResult>
+
 interface BugReportCollector {
   name: string
-  collect: () => unknown | Promise<unknown>
+  collect: () => Promise<CollectorResult>
 }
 
 interface BugReportContextValue {
   openBugReport: (options?: { description?: string }) => void
-  registerCollector: (name: string, collector: () => unknown | Promise<unknown>) => () => void
+  registerCollector: (name: string, collector: BugReportCollectorFn) => () => void
 }
 
 const BugReportContext = createContext<BugReportContextValue | undefined>(undefined)
@@ -141,11 +152,11 @@ const toSerializable = (
     )
   }
 
-  if (typeof value === 'object') {
-    if (seen.has(value as object)) {
+  if (value && typeof value === 'object') {
+    if (seen.has(value)) {
       return '[Circular]'
     }
-    seen.add(value as object)
+    seen.add(value)
     const entries = Object.entries(value as Record<string, unknown>).slice(
       0,
       MAX_SERIALIZATION_PROPS,
@@ -275,9 +286,12 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
   }, [pushNetworkEvent])
 
   const registerCollector = useCallback(
-    (name: string, collector: () => unknown | Promise<unknown>) => {
+    (name: string, collector: BugReportCollectorFn) => {
       const key = `${name}:${generateId()}`
-      collectorsRef.current.set(key, { name, collect: collector })
+      collectorsRef.current.set(key, {
+        name,
+        collect: () => Promise.resolve(collector()),
+      })
 
       return () => {
         collectorsRef.current.delete(key)

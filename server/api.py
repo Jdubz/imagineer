@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -51,8 +52,6 @@ from server.database import (  # noqa: E402
 )
 from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
-from server.utils.rate_limiter import is_rate_limit_exceeded  # noqa: E402
-
 app = Flask(__name__, static_folder="../public", static_url_path="")
 
 # Configure ProxyFix to trust proxy headers (for HTTPS detection behind reverse proxy)
@@ -153,6 +152,9 @@ app.register_blueprint(training_bp)
 GENERATION_RATE_LIMIT = int(os.environ.get("IMAGINEER_GENERATE_LIMIT", "10"))
 GENERATION_RATE_WINDOW_SECONDS = int(os.environ.get("IMAGINEER_GENERATE_WINDOW_SECONDS", "60"))
 
+_generation_rate_lock = threading.Lock()
+_generation_request_times: defaultdict[str, deque[float]] = defaultdict(deque)
+
 
 def _check_generation_rate_limit():
     """Apply a simple per-user rate limit for generation endpoints."""
@@ -160,31 +162,34 @@ def _check_generation_rate_limit():
         return None
 
     identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
-    exceeded = is_rate_limit_exceeded(
-        "generate",
-        identifier,
-        GENERATION_RATE_LIMIT,
-        GENERATION_RATE_WINDOW_SECONDS,
-    )
+    now = time.monotonic()
 
-    if exceeded:
-        logger.warning(
-            "Generation rate limit exceeded",
-            extra={
-                "operation": "generate_rate_limit",
-                "identifier": identifier,
-                "limit": GENERATION_RATE_LIMIT,
-                "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
-            },
-        )
-        response = jsonify(
-            {
-                "success": False,
-                "error": "Rate limit exceeded. Please wait before submitting another job.",
-            }
-        )
-        response.headers["Retry-After"] = str(GENERATION_RATE_WINDOW_SECONDS)
-        return response, 429
+    with _generation_rate_lock:
+        history = _generation_request_times[identifier]
+        while history and now - history[0] > GENERATION_RATE_WINDOW_SECONDS:
+            history.popleft()
+
+        if len(history) >= GENERATION_RATE_LIMIT:
+            retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - history[0])))
+            logger.warning(
+                "Generation rate limit exceeded",
+                extra={
+                    "operation": "generate_rate_limit",
+                    "identifier": identifier,
+                    "limit": GENERATION_RATE_LIMIT,
+                    "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
+                },
+            )
+            response = jsonify(
+                {
+                    "success": False,
+                    "error": "Rate limit exceeded. Please wait before submitting another job.",
+                }
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response, 429
+
+        history.append(now)
 
     return None
 

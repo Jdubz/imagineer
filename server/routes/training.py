@@ -26,6 +26,53 @@ logger = logging.getLogger(__name__)
 training_bp = Blueprint("training", __name__, url_prefix="/api/training")
 
 
+class TrainingValidationError(ValueError):
+    """Raised when the training payload fails validation."""
+
+
+def _parse_album_ids(album_ids_raw: object) -> list[int]:
+    if not album_ids_raw:
+        raise TrainingValidationError("At least one album must be specified")
+    try:
+        album_ids = [int(album_id) for album_id in album_ids_raw]
+    except (TypeError, ValueError) as exc:
+        raise TrainingValidationError("album_ids must be a list of integers") from exc
+
+    albums = Album.query.filter(Album.id.in_(album_ids)).all()
+    if len(albums) != len(album_ids):
+        raise TrainingValidationError("One or more albums not found")
+    return album_ids
+
+
+def _prepare_training_payload(data: dict) -> tuple[str, str, dict]:
+    if not data.get("name"):
+        raise TrainingValidationError("Name is required")
+
+    album_ids = _parse_album_ids(data.get("album_ids"))
+    config_overrides = data.get("config", {}) or {}
+    training_config = {**config_overrides, "album_ids": album_ids}
+    description = data.get("description", "")
+    return data["name"], description, training_config
+
+
+def _ensure_directory(preferred: Path, fallback: Path, *, kind: str) -> Path:
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        return preferred
+    except OSError as exc:  # pragma: no cover - depends on host FS
+        if os.environ.get("FLASK_ENV") == "production":
+            raise RuntimeError(f"Unable to create {kind} directory at {preferred}: {exc}") from exc
+        logger.warning(
+            "Unable to create %s directory %s (%s); falling back to %s for development",
+            kind,
+            preferred,
+            exc,
+            fallback,
+        )
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
 def get_training_run_or_404(run_id: int) -> TrainingRun:
     run = db.session.get(TrainingRun, run_id)
     if run is None:
@@ -75,33 +122,17 @@ def get_training_run(run_id):
 @require_admin
 def create_training_run():  # noqa: C901
     """Create new training run (admin only)"""
-    data = request.json
+    data = request.json or {}
 
-    # Validate required fields
-    if not data.get("name"):
-        return jsonify({"error": "Name is required"}), 400
-
-    if not data.get("album_ids"):
-        return jsonify({"error": "At least one album must be specified"}), 400
-
-    # Validate albums exist
     try:
-        album_ids = [int(album_id) for album_id in data["album_ids"]]
-    except (TypeError, ValueError):
-        return jsonify({"error": "album_ids must be a list of integers"}), 400
-
-    albums = Album.query.filter(Album.id.in_(album_ids)).all()
-    if len(albums) != len(album_ids):
-        return jsonify({"error": "One or more albums not found"}), 400
-
-    # Merge config overrides and persist album selections
-    config_overrides = data.get("config", {}) or {}
-    training_config = {**config_overrides, "album_ids": album_ids}
+        name, description, training_config = _prepare_training_payload(data)
+    except TrainingValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # Create training run
     run = TrainingRun(
-        name=data["name"],
-        description=data.get("description", ""),
+        name=name,
+        description=description,
         dataset_path="",
         output_path="",
         training_config=json.dumps(training_config),
@@ -116,42 +147,16 @@ def create_training_run():  # noqa: C901
     dataset_root = get_training_dataset_root()
     output_root = get_model_cache_dir() / "lora"
 
-    dataset_path = dataset_root / f"training_run_{run.id}"
-    output_path = output_root / f"trained_{run.id}"
-
-    try:
-        dataset_path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:  # pragma: no cover - depends on host FS
-        if os.environ.get("FLASK_ENV") == "production":
-            raise RuntimeError(
-                f"Unable to create dataset directory at {dataset_path}: {exc}"
-            ) from exc
-        fallback_dataset = Path(f"/tmp/imagineer/training/run_{run.id}")
-        logger.warning(
-            "Unable to create dataset directory %s (%s); falling back to %s for development",
-            dataset_path,
-            exc,
-            fallback_dataset,
-        )
-        dataset_path = fallback_dataset
-        dataset_path.mkdir(parents=True, exist_ok=True)
-
-    try:
-        output_path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:  # pragma: no cover - depends on host FS
-        if os.environ.get("FLASK_ENV") == "production":
-            raise RuntimeError(
-                f"Unable to create output directory at {output_path}: {exc}"
-            ) from exc
-        fallback_output = Path(f"/tmp/imagineer/models/lora/trained_{run.id}")
-        logger.warning(
-            "Unable to create output directory %s (%s); falling back to %s for development",
-            output_path,
-            exc,
-            fallback_output,
-        )
-        output_path = fallback_output
-        output_path.mkdir(parents=True, exist_ok=True)
+    dataset_path = _ensure_directory(
+        dataset_root / f"training_run_{run.id}",
+        Path(f"/tmp/imagineer/training/run_{run.id}"),
+        kind="dataset",
+    )
+    output_path = _ensure_directory(
+        output_root / f"trained_{run.id}",
+        Path(f"/tmp/imagineer/models/lora/trained_{run.id}"),
+        kind="output",
+    )
 
     run.dataset_path = str(dataset_path)
     run.output_path = str(output_path)

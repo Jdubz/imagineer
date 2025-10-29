@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { Mock } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
@@ -26,6 +27,7 @@ type Handler = (options?: RequestInit) => Promise<MockResponse>
 type Handlers = Record<string, Handler>
 
 let handlers: Handlers
+let fetchMock: Mock
 
 const defaultHandlers = (): Handlers => ({
   '/api/config': () => Promise.resolve(createResponse({
@@ -46,7 +48,7 @@ const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
   handlers = defaultHandlers()
   Object.assign(handlers, overrides)
 
-  globalThis.fetch = vi.fn(async (url: RequestInfo | URL, options?: RequestInit): Promise<MockResponse> => {
+  fetchMock = vi.fn(async (url: RequestInfo | URL, options?: RequestInit): Promise<MockResponse> => {
     let requestUrl = ''
     if (typeof url === 'string') {
       requestUrl = url
@@ -70,7 +72,9 @@ const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
     }
 
     return Promise.resolve(createResponse({}))
-  }) as unknown as typeof fetch
+  })
+
+  globalThis.fetch = fetchMock as unknown as typeof fetch
 }
 
 describe('App', () => {
@@ -120,8 +124,8 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /generate image/i }))
 
     await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/generate',
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/generate$/),
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ 'Content-Type': 'application/json' }),

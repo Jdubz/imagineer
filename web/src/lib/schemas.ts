@@ -243,6 +243,17 @@ export const JobsResponseSchema = z.object({
 })
 
 // ============================================
+// Bug Reports
+// ============================================
+
+export const BugReportResponseSchema = z.object({
+  success: z.boolean(),
+  report_id: z.string(),
+  trace_id: z.string(),
+  stored_at: z.string().optional(),
+})
+
+// ============================================
 // Type exports (inferred from schemas)
 // ============================================
 
