@@ -296,7 +296,10 @@ export const api = {
      * Fetch all available LoRAs
      */
     async getAll(signal?: AbortSignal): Promise<Array<{ folder: string; filename: string }>> {
-      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, { signal })
+      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, {
+        signal,
+        credentials: 'include',
+      })
       return response.loras || []
     },
   },

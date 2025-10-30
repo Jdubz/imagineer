@@ -263,7 +263,7 @@ export const BugReportResponseSchema = z.object({
   success: z.boolean(),
   report_id: z.string(),
   trace_id: z.string(),
-  stored_at: z.string().optional(),
+  stored_at: z.string().nullable().optional(),
 })
 
 // ============================================

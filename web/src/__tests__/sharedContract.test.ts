@@ -6,6 +6,8 @@ import type { ZodTypeAny } from 'zod';
 
 import type {
   AuthStatus,
+  BugReportSubmissionRequest as SharedBugReportSubmissionRequest,
+  BugReportSubmissionResponse as SharedBugReportSubmissionResponse,
   ImageMetadata as SharedImageMetadata,
   Job as SharedJob,
   JobsResponse as SharedJobsResponse,
@@ -14,7 +16,16 @@ import authStatusSchemaRaw from '../../../shared/schema/auth_status.json';
 import imageMetadataSchemaRaw from '../../../shared/schema/image_metadata.json';
 import jobSchemaRaw from '../../../shared/schema/job.json';
 import jobsResponseSchemaRaw from '../../../shared/schema/jobs_response.json';
-import { AuthStatusSchema, ImageMetadataSchema, JobSchema, JobsResponseSchema } from '../lib/schemas';
+import bugReportSubmissionRequestSchemaRaw from '../../../shared/schema/bug_report_submission_request.json';
+import bugReportSubmissionResponseSchemaRaw from '../../../shared/schema/bug_report_submission_response.json';
+import {
+  AuthStatusSchema,
+  ImageMetadataSchema,
+  JobSchema,
+  JobsResponseSchema,
+  BugReportResponseSchema,
+} from '../lib/schemas';
+import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport';
 
 type PropertySchema = {
   type?: string | string[];
@@ -41,6 +52,8 @@ const authStatusSchema = authStatusSchemaRaw as JsonSchema;
 const imageMetadataSchema = imageMetadataSchemaRaw as JsonSchema;
 const jobSchema = jobSchemaRaw as JsonSchema;
 const jobsResponseSchema = jobsResponseSchemaRaw as JsonSchema;
+const bugReportRequestSchema = bugReportSubmissionRequestSchemaRaw as JsonSchema;
+const bugReportResponseSchema = bugReportSubmissionResponseSchemaRaw as JsonSchema;
 
 const sharedTypesPath = path.resolve(__dirname, '../types/shared.ts');
 
@@ -60,6 +73,7 @@ const schemaRegistry = new Map<string, JsonSchema>([
   [imageMetadataSchema.name, imageMetadataSchema],
   [jobSchema.name, jobSchema],
   [jobsResponseSchema.name, jobsResponseSchema],
+  [bugReportResponseSchema.name, bugReportResponseSchema],
 ]);
 
 const schemaCases: readonly SchemaCase[] = [
@@ -121,6 +135,14 @@ const schemaCases: readonly SchemaCase[] = [
         queue: SharedJob[];
         history: SharedJob[];
       }>();
+    },
+  },
+  {
+    name: 'BugReportSubmissionResponse',
+    schema: bugReportResponseSchema,
+    zod: BugReportResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<BugReportSubmissionResponse>().toMatchTypeOf<SharedBugReportSubmissionResponse>();
     },
   },
 ];
@@ -265,6 +287,24 @@ describe('shared API contract', () => {
 
       typeAssertion();
     });
+  });
+
+  it('keeps the bug report submission request contract aligned with the JSON schema', () => {
+    const interfaceSource = fs.readFileSync(sharedTypesPath, 'utf-8');
+    const parsed = parseInterfaceBody(interfaceSource, 'BugReportSubmissionRequest');
+    const expected = buildExpectedEntries(bugReportRequestSchema);
+
+    expect(Array.from(parsed.keys()).sort()).toEqual(Array.from(expected.keys()).sort());
+    expected.forEach((expectedEntry, key) => {
+      const actual = parsed.get(key);
+      expect(actual).toBeDefined();
+      expect(actual?.optional).toBe(expectedEntry.optional);
+      expect(actual?.type).toBe(expectedEntry.type);
+    });
+  });
+
+  it('aliases BugReportOptions to the shared bug report submission request type', () => {
+    expectTypeOf<BugReportOptions>().toEqualTypeOf<SharedBugReportSubmissionRequest>();
   });
 
   it('keeps the Zod schemas aligned with the JSON schemas', () => {

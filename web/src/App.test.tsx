@@ -9,19 +9,40 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 interface ResponseInit {
   ok?: boolean
   status?: number
+  headers?: Record<string, string>
+}
+
+interface MockHeaders {
+  get: (name: string) => string | null
 }
 
 interface MockResponse {
   ok: boolean
   status: number
   json: () => Promise<unknown>
+  headers: MockHeaders
 }
 
-const createResponse = (data: unknown, init: ResponseInit = {}): MockResponse => ({
-  ok: init.ok ?? true,
-  status: init.status ?? 200,
-  json: () => Promise.resolve(data)
-})
+const createResponse = (data: unknown, init: ResponseInit = {}): MockResponse => {
+  const headerLookup = init.headers
+    ? Object.fromEntries(Object.entries(init.headers).map(([key, value]) => [key.toLowerCase(), value]))
+    : {}
+
+  return {
+    ok: init.ok ?? true,
+    status: init.status ?? 200,
+    json: () => Promise.resolve(data),
+    headers: {
+      get: (name: string) => {
+        const normalized = name.toLowerCase()
+        if (normalized === 'content-type') {
+          return headerLookup[normalized] ?? 'application/json'
+        }
+        return headerLookup[normalized] ?? null
+      },
+    },
+  }
+}
 
 type Handler = (options?: RequestInit) => Promise<MockResponse>
 type Handlers = Record<string, Handler>
@@ -215,5 +236,41 @@ describe('App', () => {
     })
 
     consoleWarnSpy.mockRestore()
+  })
+
+  it('allows admin users to open the bug report modal via the header button', async () => {
+    const user = userEvent.setup()
+    const bugReportHandler = vi.fn(() =>
+      Promise.resolve(
+        createResponse({
+          success: true,
+          report_id: 'bug_20251030_abcdef01',
+          trace_id: 'abcdef01-2345-6789-abcd-ef0123456789',
+          stored_at: '/tmp/bug.json'
+        })
+      )
+    )
+
+    handlers['/api/auth/me'] = () =>
+      Promise.resolve(
+        createResponse({
+          authenticated: true,
+          email: 'admin@example.com',
+          role: 'admin',
+          is_admin: true
+        })
+      )
+    handlers['/api/bug-reports'] = bugReportHandler
+
+    render(<App />)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument())
+
+    const profileBugButton = screen.getByRole('button', { name: /report a bug/i })
+    await user.click(profileBugButton)
+
+    const modal = await screen.findByRole('dialog', { name: /report a bug/i })
+    expect(modal).toBeInTheDocument()
+    expect(bugReportHandler).not.toHaveBeenCalled()
   })
 })
