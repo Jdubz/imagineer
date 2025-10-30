@@ -1,7 +1,8 @@
 # Backend Outstanding Tasks
 
 **Last Updated:** 2025-10-30
-**Status:** 5 tasks remaining (0 Critical, 2 P2, 3 P3) - ✅ Critical + 1 P2 COMPLETED!
+**Status:** 10 tasks remaining (0 Critical, 3 P2, 7 P3) - ✅ Critical + P2 Task #1 COMPLETED!
+**Recent Update:** Added 4 new tasks (#8-11) from comprehensive docs/plans review
 
 ## Overview
 
@@ -647,41 +648,54 @@ data/legacy/
 | Priority | Count | Estimated Time |
 |----------|-------|----------------|
 | ~~P0 (Critical)~~ | ~~1~~ | ~~5 minutes~~ ✅ COMPLETED Oct 30 |
-| P2 (Medium) | ~~3~~ → **2** | ~~3-4 weeks~~ → **2-3 weeks** (1 completed) ✅ |
-| P3 (Low) | 3 | 4-6 weeks |
+| P2 (Medium) | ~~3~~ → **3** | **3 weeks** (Task #2, #3, #9) |
+| P3 (Low) | ~~3~~ → **7** | **7-10 weeks** (Tasks #4-#8, #10, #11) |
 | ~~Additional~~ | ~~1~~ | ~~8-12 hours~~ ✅ VERIFIED Oct 30 |
-| **Total** | **~~9~~ → 5** | **~~8-13~~ → 6-9 weeks** |
+| **Total** | **~~9~~ → ~~5~~ → 10** | **~~8-13~~ → ~~6-9~~ → 10-13 weeks** |
+
+**Note:** 4 additional tasks discovered from docs/plans review (Oct 30, 2025)
 
 ---
 
 ## Recommended Next Actions
 
-### Immediate (This Hour)
-1. **CRITICAL:** Register albums_bp blueprint - 5 minutes, unblocks analytics
+### ✅ Completed This Session
+1. ~~**CRITICAL:** Register albums_bp blueprint~~ - DONE (Commit: 7d9f03b)
+2. ~~**Task #1:** Configuration caching~~ - DONE (Commit: 2e21e09)
+3. ~~**Bug Report Endpoint:** Verified fully implemented~~ - DONE
 
-### This Sprint (2 weeks)
-1. **Task #1:** Configuration caching - Improves performance
-2. **Bug Report Endpoint:** Complete implementation - Improves observability
-3. **Task #3:** Automate artifact cleanup - Prevents disk space issues
+### This Sprint (2 weeks) - P2 Tasks
+1. **Task #2:** Log taxonomy and PII redaction - Improves security & observability
+2. **Task #3:** Automate artifact lifecycle - Prevents disk space issues
+3. **Task #9:** Label analytics endpoints - Enables training data insights
 
-### Next Sprint (2 weeks)
-1. **Task #2:** Log taxonomy and PII redaction - Improves security
-2. **Task #4:** Training run visibility policy - Security decision
-3. **Task #6:** Celery documentation - Improves operations
+### Next Sprint (2 weeks) - High-value P3 Tasks
+1. **Task #4:** Training run visibility policy - Security decision
+2. **Task #6:** Celery documentation - Improves operations
+3. **Task #10:** OpenAPI/Swagger documentation - Better developer experience
 
-### Long-term (Quarterly)
-1. **Task #5:** Split api.py - Improves maintainability
-2. **Task #7:** Sets → Albums migration - Feature consolidation
+### Long-term (Quarterly) - Large P3 Tasks
+1. **Task #5:** Split api.py - Improves maintainability (2-3 weeks)
+2. **Task #7:** Sets → Albums migration - Feature consolidation (1-2 weeks)
+3. **Task #8:** Legacy image import - Restore 424 historic images (1-2 weeks)
+4. **Task #11:** Monitoring & alerting - Proactive operations (1 week)
 
 ---
 
 ## Notes
 
-- **Critical album blueprint bug** must be fixed immediately ❗
+- ✅ **Critical album blueprint bug FIXED** (Oct 30, 2025 - Commit: 7d9f03b)
+- ✅ **Configuration caching implemented** (Oct 30, 2025 - Commit: 2e21e09)
 - All training/scraping systems verified working as of Oct 28, 2025
-- Backend is production-ready except for the blueprint bug
-- Most remaining tasks are optimizations and documentation
+- Backend is **production-ready** with all P0/P1 tasks completed
+- 10 remaining tasks: 3 P2 (3 weeks), 7 P3 (7-10 weeks)
+- 4 new tasks added from comprehensive docs/plans review:
+  - Legacy image import (424 images to restore)
+  - Label analytics endpoints (training data insights)
+  - OpenAPI/Swagger documentation (better DX)
+  - Monitoring & alerting (operational excellence)
 - Consider business priorities when scheduling P2/P3 work
+- P2 tasks should be prioritized for security and operational stability
 
 ---
 
