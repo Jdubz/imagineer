@@ -91,11 +91,11 @@ describe('App', () => {
   it('submits generation request', async () => {
     const user = userEvent.setup()
     const mockJobResponse = {
-      id: '1',
+      id: 1,
       status: 'queued' as const,
       queue_position: 1,
       prompt: 'test prompt',
-      params: {},
+      submitted_at: new Date().toISOString(),
       created_at: new Date().toISOString()
     }
 

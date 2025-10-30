@@ -1,4 +1,8 @@
-import type { ImageMetadata as SharedImageMetadata } from './shared'
+import type {
+  ImageMetadata as SharedImageMetadata,
+  Job as JobContract,
+  JobsResponse as JobsResponseContract,
+} from './shared'
 
 export interface Config {
   model?: {
@@ -41,28 +45,11 @@ export interface BatchSummary {
   created: string
 }
 
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type JobStatus = JobContract['status']
 
-export interface Job {
-  id: string
-  status: JobStatus
-  prompt: string
-  params?: GenerateParams
-  queue_position?: number | null
-  created?: string
-  created_at?: string
-  started_at?: string | null
-  submitted_at?: string | null
-  completed_at?: string | null
-  output_path?: string | null  // Full path to generated image
-  output_filename?: string  // Backend sanitized filename
-  output_directory?: string  // Backend sanitized directory
-  lora_paths?: string[]  // Backend returns shortened paths
-  width?: number
-  height?: number
-  steps?: number
-  error?: string | null
-}
+export type Job = JobContract
+
+export type JobsResponse = JobsResponseContract
 
 export interface GenerateParams {
   prompt: string

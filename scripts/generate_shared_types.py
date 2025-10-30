@@ -70,6 +70,13 @@ def ts_type(prop: dict[str, Any]) -> str:
     if "enum" in prop:
         return _enum_union(prop["enum"], lambda value: json.dumps(value))
 
+    ref = prop.get("$ref")
+    if isinstance(ref, str):
+        schema_type = prop.get("type")
+        if isinstance(schema_type, list) and "null" in schema_type:
+            return f"{ref} | null"
+        return ref
+
     schema_type = prop.get("type")
 
     if isinstance(schema_type, list):
@@ -133,6 +140,16 @@ def py_type(
         return f"Literal[{', '.join(_format_literal(value) for value in prop['enum'])}]"
 
     schema_type = prop.get("type")
+
+    ref = prop.get("$ref")
+    if isinstance(ref, str):
+        py_ref = f"{ref}TypedDict"
+        includes_null = False
+        if isinstance(schema_type, list):
+            includes_null = "null" in schema_type
+        elif schema_type == "null":
+            includes_null = True
+        return f"{py_ref} | None" if includes_null else py_ref
 
     if isinstance(schema_type, list):
         includes_null = "null" in schema_type

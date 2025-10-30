@@ -244,7 +244,7 @@ const AppContent: React.FC = () => {
     }
   }
 
-  const pollJobStatus = (jobId: string): void => {
+  const pollJobStatus = (jobId: number | string): void => {
     const checkStatus = async (): Promise<void> => {
       try {
         const job = await api.jobs.getById(jobId)

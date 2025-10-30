@@ -4,18 +4,12 @@ import { api } from '../lib/api'
 import { ApiError } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { usePolling } from '../hooks/usePolling'
-import type { Job } from '../types/models'
+import type { JobsResponse } from '../types/models'
 import '../styles/QueueTab.css'
-
-interface QueueData {
-  current: Job | null
-  queue: Job[]
-  history: Job[]
-}
 
 const QueueTab: React.FC = () => {
   const toast = useToast()
-  const [queueData, setQueueData] = useState<QueueData | null>(null)
+  const [queueData, setQueueData] = useState<JobsResponse | null>(null)
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
   const [authError, setAuthError] = useState<boolean>(false)
 

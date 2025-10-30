@@ -1,0 +1,51 @@
+{
+  "name": "Job",
+  "description": "Job state returned by image generation endpoints.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "integer" },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "running", "completed", "failed", "cancelled"]
+    },
+    "prompt": { "type": "string" },
+    "queue_position": { "type": ["integer", "null"] },
+    "submitted_at": { "type": "string" },
+    "started_at": { "type": ["string", "null"] },
+    "completed_at": { "type": ["string", "null"] },
+    "cancelled_at": { "type": ["string", "null"] },
+    "created_at": { "type": "string" },
+    "created": { "type": "string" },
+    "output_path": { "type": ["string", "null"] },
+    "output_filename": { "type": "string" },
+    "output_directory": { "type": "string" },
+    "output_dir": { "type": "string" },
+    "output": { "type": "string" },
+    "lora_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lora_weights": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+    "width": { "type": "integer" },
+    "height": { "type": "integer" },
+    "steps": { "type": "integer" },
+    "seed": { "type": "integer" },
+    "guidance_scale": { "type": "number" },
+    "negative_prompt": { "type": "string" },
+    "error": { "type": ["string", "null"] },
+    "duration_seconds": { "type": "number" },
+    "estimated_time_remaining": { "type": ["number", "null"] },
+    "album_id": { "type": "integer" },
+    "batch_id": { "type": "string" },
+    "batch_item_name": { "type": "string" },
+    "batch_item_data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": ["id", "status", "prompt", "submitted_at"],
+  "additionalProperties": false
+}
