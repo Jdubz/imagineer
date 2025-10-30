@@ -8,6 +8,7 @@ import type {
   JobsResponse,
   Album,
   LabelAnalytics,
+  ImageMetadata,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
@@ -87,6 +88,96 @@ function getErrorMessageFromBody(body: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+type GeneratedImageContract = z.infer<typeof schemas.GeneratedImageSchema>
+
+function toAbsoluteApiPath(path?: string | null): string | undefined {
+  if (!path) {
+    return undefined
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path
+  }
+
+  if (path.startsWith('/')) {
+    return path
+  }
+
+  return `/api/${path.replace(/^\/+/, '')}`
+}
+
+function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | undefined {
+  if (image.metadata) {
+    return image.metadata
+  }
+
+  const metadata: Partial<ImageMetadata> = {}
+
+  if (typeof image.prompt === 'string' && image.prompt.trim().length > 0) {
+    metadata.prompt = image.prompt
+  }
+  if (typeof image.negative_prompt === 'string' && image.negative_prompt.trim().length > 0) {
+    metadata.negative_prompt = image.negative_prompt
+  }
+  type NumericMetadataKey = 'seed' | 'steps' | 'guidance_scale' | 'width' | 'height'
+  const numericFields: Array<[NumericMetadataKey, number | undefined]> = [
+    ['seed', image.seed ?? undefined],
+    ['steps', image.steps ?? undefined],
+    ['guidance_scale', image.guidance_scale ?? undefined],
+    ['width', image.width ?? undefined],
+    ['height', image.height ?? undefined],
+  ]
+  for (const [key, value] of numericFields) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      metadata[key] = value
+    }
+  }
+
+  if (Object.keys(metadata).length === 0) {
+    return undefined
+  }
+
+  return metadata as ImageMetadata
+}
+
+function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage {
+  const downloadUrl =
+    toAbsoluteApiPath(image.download_url) ??
+    toAbsoluteApiPath(image.path) ??
+    (image.relative_path ? `/api/outputs/${image.relative_path}` : undefined) ??
+    (image.filename ? `/api/outputs/${image.filename}` : undefined)
+
+  const thumbnailUrl = toAbsoluteApiPath(image.thumbnail_url) ?? downloadUrl
+
+  const created = image.created ?? image.created_at ?? undefined
+
+  return {
+    id: image.id,
+    filename: image.filename,
+    path: image.path,
+    relative_path: image.relative_path,
+    storage_name: image.storage_name ?? undefined,
+    download_url: downloadUrl,
+    thumbnail_url: thumbnailUrl,
+    size: typeof image.size === 'number' ? image.size : undefined,
+    created,
+    created_at: image.created_at ?? (created ?? undefined),
+    prompt: typeof image.prompt === 'string' ? image.prompt : null,
+    negative_prompt: typeof image.negative_prompt === 'string' ? image.negative_prompt : null,
+    seed: typeof image.seed === 'number' ? image.seed : image.seed ?? null,
+    steps: typeof image.steps === 'number' ? image.steps : image.steps ?? null,
+    guidance_scale:
+      typeof image.guidance_scale === 'number'
+        ? image.guidance_scale
+        : image.guidance_scale ?? null,
+    width: typeof image.width === 'number' ? image.width : image.width ?? null,
+    height: typeof image.height === 'number' ? image.height : image.height ?? null,
+    is_nsfw: image.is_nsfw,
+    is_public: image.is_public,
+    metadata: buildMetadataFromImage(image),
+  }
 }
 
 export interface GenerateBatchParams {
@@ -231,9 +322,26 @@ export const api = {
     /**
      * Fetch all generated images
      */
-    async getAll(signal?: AbortSignal): Promise<GeneratedImage[]> {
-      const response = await apiRequest('/api/outputs', schemas.ImagesResponseSchema, { signal })
-      return response.images || []
+    async getAll(options: { signal?: AbortSignal; page?: number; perPage?: number } = {}): Promise<GeneratedImage[]> {
+      const { signal, page = 1, perPage = 60 } = options
+      const params = new URLSearchParams({
+        visibility: 'public',
+        page: String(page),
+        per_page: String(perPage),
+      })
+
+      try {
+        const response = await apiRequest(
+          `/api/images?${params.toString()}`,
+          schemas.PaginatedImagesResponseSchema,
+          { signal }
+        )
+        return response.images.map(normalizeGeneratedImage)
+      } catch (error) {
+        logger.warn('Falling back to legacy outputs API for images list', error as Error)
+        const legacyResponse = await apiRequest('/api/outputs', schemas.ImagesResponseSchema, { signal })
+        return legacyResponse.images.map(normalizeGeneratedImage)
+      }
     },
   },
 

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import FocusLock from 'react-focus-lock'
 import { SkeletonImageCard } from './Skeleton'
 import type { GeneratedImage } from '../types/models'
+import { resolveImageSources, preloadImage } from '../lib/imageSources'
 
 interface ImageGridProps {
   images: GeneratedImage[]
@@ -13,6 +14,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+  const selectedImageSources = useMemo(
+    () => (selectedImage ? resolveImageSources(selectedImage) : null),
+    [selectedImage]
+  )
 
   const handleRefresh = async (): Promise<void> => {
     setIsRefreshing(true)
@@ -34,6 +39,12 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
   const handleImageLoad = (filename: string): void => {
     setLoadedImages((prev) => new Set(prev).add(filename))
   }
+
+  useEffect(() => {
+    if (selectedImageSources?.full) {
+      preloadImage(selectedImageSources.full)
+    }
+  }, [selectedImageSources?.full])
 
   // Add Escape key handler for modal
   useEffect(() => {
@@ -75,32 +86,47 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
         </div>
       ) : (
         <div className="image-grid">
-          {images.map((image) => (
-            <div
-              key={image.filename}
-              className="image-card"
-              onClick={() => openModal(image)}
-            >
-              <img
-                src={`/api/outputs/${image.filename}`}
-                alt={image.metadata?.prompt || 'Generated image'}
-                loading="lazy"
-                className={loadedImages.has(image.filename) ? 'loaded' : 'loading'}
-                onLoad={() => handleImageLoad(image.filename)}
-              />
-              <div className="image-overlay">
-                <p className="image-prompt">
-                  {image.metadata?.prompt?.substring(0, 60)}
-                  {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
-                </p>
-                {image.created && (
-                  <p className="image-date">
-                    {new Date(image.created).toLocaleDateString()}
+          {images.map((image) => {
+            const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
+            const imageKey = image.filename ?? (image.id ? `image-${image.id}` : thumbnail)
+
+            return (
+              <div
+                key={imageKey}
+                className="image-card"
+                onClick={() => openModal(image)}
+                onMouseEnter={() => preloadImage(full)}
+                onFocus={() => preloadImage(full)}
+              >
+                <picture className="image-picture">
+                  {thumbnail.endsWith('.webp') && (
+                    <source srcSet={srcSet} type="image/webp" />
+                  )}
+                  <img
+                    src={thumbnail}
+                    srcSet={srcSet}
+                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
+                    alt={alt || 'Generated image'}
+                    loading="lazy"
+                    decoding="async"
+                    className={`preview-image ${loadedImages.has(imageKey) ? 'loaded' : 'loading'}`}
+                    onLoad={() => handleImageLoad(imageKey)}
+                  />
+                </picture>
+                <div className="image-overlay">
+                  <p className="image-prompt">
+                    {image.metadata?.prompt?.substring(0, 60)}
+                    {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
                   </p>
-                )}
+                  {image.created && (
+                    <p className="image-date">
+                      {new Date(image.created).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -110,11 +136,16 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
-            <img
-              src={`/api/outputs/${selectedImage.filename}`}
-              alt={selectedImage.metadata?.prompt || 'Generated image'}
-              loading="eager"
-            />
+            {selectedImageSources && (
+              <img
+                src={selectedImageSources.full}
+                srcSet={selectedImageSources.srcSet}
+                sizes="100vw"
+                alt={selectedImageSources.alt || 'Generated image'}
+                loading="eager"
+                decoding="async"
+              />
+            )}
 
             <div className="modal-info">
               <h3>Image Details</h3>
