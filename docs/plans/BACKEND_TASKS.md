@@ -287,6 +287,237 @@ Recent completions (Oct 29, 2025):
 
 ---
 
+### Task #8: Legacy Image Import System
+**Priority:** P3
+**Estimated Time:** 1-2 weeks
+**Files:**
+- New: `scripts/import_legacy_media.py`
+- `server/database.py` - May need manifest table
+- `server/routes/albums.py` - Existing album endpoints
+
+**Problem:**
+- 181 legacy images in `/mnt/speedy/imagineer/outputs` not in database
+- 243 images in `/mnt/speedy/image packs/` reference datasets
+- Images not visible in UI, not linked to albums
+- Historic generated art and training datasets are orphaned
+
+**Solution:**
+1. Build unit-testable import pipeline with collectors/stagers
+2. Create manifest system for tracking legacy assets (YAML-based)
+3. Implement `scripts/import_legacy_media.py` CLI with stages:
+   - Collectors: Scan source folders, emit `LegacyImage` dataclass
+   - Stagers: Copy/symlink to `data/legacy/` with deterministic naming
+   - Album Resolver: Map to albums (create if missing)
+   - Ingest Command: Write DB rows, attach metadata, enqueue thumbnails
+4. Map legacy images to albums with metadata preservation
+5. Import prompts, LoRA configs, and labels from JSON sidecars
+
+**Target Organization:**
+```
+data/legacy/
+  ├─ singles/           # 55 single-shot generations
+  ├─ decks/<slug>/      # Card/tarot deck batches (65 images)
+  ├─ zodiac/<slug>/     # Zodiac themed sets (20 images)
+  ├─ lora-experiments/  # LoRA test renders (6 images)
+  └─ reference-packs/   # Training datasets (243 images)
+```
+
+**Album Taxonomy:**
+- `Legacy Singles/<YYYY-MM>` - Ad-hoc generations
+- `Decks/<deck_slug>` - Card & tarot sets
+- `Zodiac/<set_slug>` - Zodiac collections
+- `LoRA Experiments/<experiment_slug>` - Test results
+- `Reference Packs/<pack_slug>` - Training datasets
+
+**Benefits:**
+- Restore historic image visibility in UI
+- Enable training on legacy datasets
+- Proper album organization for old content
+- Preserve generation metadata and provenance
+- 424 total images restored to database
+
+**Testing:**
+- Unit tests for collectors/stagers/resolvers (no DB I/O)
+- Integration tests with test database
+- Manifest validation (no orphaned files)
+- Duplicate detection via hash or prompt+timestamp
+
+**Status:** Not Started (plan documented)
+**Reference:** LEGACY_IMAGE_IMPORT_PLAN.md
+
+---
+
+### Task #9: Label Analytics Endpoints
+**Priority:** P2-P3
+**Estimated Time:** 1 week
+**Files:**
+- `server/routes/labels.py` - New file
+- `server/database.py` - May need query optimizations
+
+**Problem:**
+- No endpoints for label statistics
+- No tag cloud visualization data
+- Missing label frequency analysis
+- Unable to assess training data quality via UI
+- No visibility into label distribution across albums
+
+**Solution:**
+1. Create `server/routes/labels.py` blueprint with endpoints:
+   - `GET /api/labels/stats` - Overall label statistics
+   - `GET /api/labels/top-tags` - Most frequent tags (for tag cloud)
+   - `GET /api/labels/distribution` - Label breakdown by album/image
+2. Support filtering by `label_type` (manual, caption, tag)
+3. Add query parameters for pagination and limits
+4. Include aggregations:
+   - Total label count
+   - Unique label count
+   - Labels per image (avg/min/max)
+   - Top N tags with frequencies
+   - Label coverage percentage
+
+**Response Format:**
+```json
+{
+  "total_labels": 1234,
+  "unique_labels": 456,
+  "avg_labels_per_image": 3.2,
+  "top_tags": [
+    {"tag": "portrait", "count": 89, "percentage": 7.2},
+    {"tag": "landscape", "count": 67, "percentage": 5.4}
+  ],
+  "by_type": {
+    "manual": 456,
+    "caption": 678,
+    "tag": 100
+  }
+}
+```
+
+**Benefits:**
+- Better insights for training data quality
+- Tag cloud visualizations for frontend
+- Label coverage metrics for dataset completeness
+- Identify under-labeled or over-labeled images
+- Support data-driven labeling workflows
+
+**Status:** Not Started
+**Reference:** CONSOLIDATED_STATUS.md Phase 3
+
+---
+
+### Task #10: OpenAPI/Swagger Documentation
+**Priority:** P3
+**Estimated Time:** 2-3 days
+**Files:**
+- `server/api.py` - Add swagger decorator
+- New: `docs/api/openapi.yaml` - Generated spec
+- `requirements.txt` - Add flask-swagger-ui or flasgger
+
+**Problem:**
+- No OpenAPI spec for 55+ API endpoints
+- Manual API discovery required by developers
+- Difficult for frontend developers to explore endpoints
+- No interactive API testing interface
+- Schema definitions scattered across code
+
+**Solution:**
+1. Add `flask-swagger-ui` or `flasgger` dependency
+2. Annotate existing routes with OpenAPI decorators:
+   ```python
+   @app.route("/api/albums", methods=["GET"])
+   @swag_from({
+       'responses': {
+           200: {
+               'description': 'List of albums',
+               'schema': {'type': 'array', 'items': AlbumSchema}
+           }
+       }
+   })
+   def get_albums():
+       ...
+   ```
+3. Generate OpenAPI 3.0 spec from route decorators
+4. Host Swagger UI at `/api/docs` endpoint
+5. Document request/response schemas using marshmallow or pydantic
+6. Include authentication requirements in spec
+
+**Deliverables:**
+- Interactive API documentation at `/api/docs`
+- OpenAPI 3.0 spec file (`docs/api/openapi.yaml`)
+- Schema definitions for all request/response types
+- Authentication flow documentation
+- Example requests for all endpoints
+
+**Benefits:**
+- Interactive API documentation and testing
+- Auto-generated client code possible (typescript, python)
+- Better developer experience for API consumers
+- Reduced onboarding time for new developers
+- Single source of truth for API contracts
+
+**Status:** Not Started
+**Reference:** CONSOLIDATED_STATUS.md Section 6.3
+
+---
+
+### Task #11: Monitoring & Alerting Integration
+**Priority:** P3
+**Estimated Time:** 1 week
+**Files:**
+- New: `server/routes/metrics.py`
+- New: `server/monitoring/__init__.py`
+- `server/tasks/cleanup.py` - Add disk monitoring
+- `requirements.txt` - Add prometheus_client
+
+**Problem:**
+- No disk utilization alerts (risk of filling storage)
+- No Celery queue depth monitoring (risk of backlog)
+- No performance metrics collection
+- No proactive alerting before failures occur
+- Limited visibility into system health
+
+**Solution:**
+1. Add `/api/admin/metrics` endpoint with:
+   - Disk usage by mount point
+   - Celery queue depths (default, training, scraping, labeling)
+   - Active/completed job counts
+   - Average job duration by type
+   - Memory usage stats
+2. Integrate Prometheus metrics export:
+   ```python
+   from prometheus_client import Counter, Gauge, Histogram
+
+   disk_usage_gauge = Gauge('disk_usage_bytes', 'Disk usage', ['mount'])
+   queue_depth_gauge = Gauge('celery_queue_depth', 'Queue size', ['queue'])
+   job_duration_histogram = Histogram('job_duration_seconds', 'Job time', ['type'])
+   ```
+3. Add disk usage alerts (email/webhook) when:
+   - `/mnt/speedy` > 85% full
+   - `/mnt/storage` > 85% full
+4. Monitor Celery queue depths and alert when:
+   - Any queue > 50 pending jobs
+   - Jobs older than 1 hour in queue
+5. Add performance regression detection:
+   - Track generation time per image
+   - Alert if average time increases by >30%
+
+**Alerting Channels:**
+- Email notifications (configurable recipients)
+- Webhook integration (Slack, Discord, custom)
+- Admin dashboard widget (frontend integration)
+
+**Benefits:**
+- Proactive alerting before disk fills up
+- Queue backlog visibility and capacity planning
+- Performance regression detection
+- Reduced downtime and faster incident response
+- Better operational awareness
+
+**Status:** Not Started
+**Reference:** CONSOLIDATED_STATUS.md Section 6.4
+
+---
+
 ## Additional Backend Tasks (From Other Documents)
 
 ### ✅ Bug Report Endpoint Implementation (COMPLETED)
