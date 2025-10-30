@@ -3,6 +3,8 @@ import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
 import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus } from '../types/models'
+import { Button } from '@/components/ui/button'
+import { Plus, X, Play, StopCircle, Trash2, FileText, Copy } from 'lucide-react'
 
 // Helper function to clamp progress values between 0 and 100
 const clampProgress = (value: number | null | undefined): number => {
@@ -432,19 +434,21 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       <div className="training-header">
         <h2>LoRA Training Pipeline</h2>
         {isAdmin && (
-          <button
-            className="create-button"
+          <Button
             onClick={() => setShowCreateDialog(true)}
           >
+            <Plus className="h-4 w-4 mr-2" />
             Create Training Run
-          </button>
+          </Button>
         )}
       </div>
 
       {error && (
         <div className="error-message">
           {error}
-          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
+          <Button onClick={() => setError(null)} aria-label="Dismiss error" variant="ghost" size="icon">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
@@ -509,13 +513,15 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                   <div className="asset-item">
                     <div className="asset-header">
                       <strong>Dataset directory</strong>
-                      <button
+                      <Button
                         type="button"
-                        className="copy-button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleCopy(run.dataset_path ?? '', run.id, 'dataset')}
                       >
+                        <Copy className="h-3 w-3 mr-1" />
                         Copy
-                      </button>
+                      </Button>
                       {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'dataset' && (
                         <span className="copy-feedback">Copied!</span>
                       )}
@@ -526,13 +532,15 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                   <div className="asset-item">
                     <div className="asset-header">
                       <strong>Output directory</strong>
-                      <button
+                      <Button
                         type="button"
-                        className="copy-button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleCopy(run.output_path ?? '', run.id, 'output')}
                       >
+                        <Copy className="h-3 w-3 mr-1" />
                         Copy
-                      </button>
+                      </Button>
                       {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'output' && (
                         <span className="copy-feedback">Copied!</span>
                       )}
@@ -545,13 +553,15 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                       <strong>Final checkpoint</strong>
                       {run.final_checkpoint && (
                         <>
-                          <button
+                          <Button
                             type="button"
-                            className="copy-button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleCopy(run.final_checkpoint || '', run.id, 'checkpoint')}
                           >
+                            <Copy className="h-3 w-3 mr-1" />
                             Copy
-                          </button>
+                          </Button>
                           {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'checkpoint' && (
                             <span className="copy-feedback">Copied!</span>
                           )}
@@ -590,37 +600,41 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                 {isAdmin && (
                   <div className="run-actions">
                     {run.status === 'queued' && (
-                      <button
-                        className="action-button start"
+                      <Button
+                        variant="default"
                         onClick={() => handleStartTraining(run.id)}
                       >
+                        <Play className="h-4 w-4 mr-2" />
                         Start Training
-                      </button>
+                      </Button>
                     )}
 
                     {(run.status === 'queued' || run.status === 'running') && (
-                      <button
-                        className="action-button cancel"
+                      <Button
+                        variant="destructive"
                         onClick={() => handleCancelTraining(run.id)}
                       >
+                        <StopCircle className="h-4 w-4 mr-2" />
                         Cancel
-                      </button>
+                      </Button>
                     )}
 
                     {(run.status === 'completed' || run.status === 'failed') && (
-                      <button
-                        className="action-button cleanup"
+                      <Button
+                        variant="outline"
                         onClick={() => handleCleanupTraining(run.id)}
                       >
+                        <Trash2 className="h-4 w-4 mr-2" />
                         Cleanup
-                      </button>
+                      </Button>
                     )}
-                    <button
-                      className="action-button logs"
+                    <Button
+                      variant="outline"
                       onClick={() => openLogViewer(run.id)}
                     >
+                      <FileText className="h-4 w-4 mr-2" />
                       View Logs
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -635,12 +649,13 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
           <div className="dialog">
             <div className="dialog-header">
               <h3>Create Training Run</h3>
-              <button
-                className="close-button"
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowCreateDialog(false)}
               >
-                ×
-              </button>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
             <form onSubmit={handleCreateTraining} className="training-form">
@@ -755,12 +770,14 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
               </div>
 
               <div className="form-actions">
-                <button type="button" onClick={() => setShowCreateDialog(false)}>
+                <Button type="button" onClick={() => setShowCreateDialog(false)} variant="outline">
+                  <X className="h-4 w-4 mr-2" />
                   Cancel
-                </button>
-                <button type="submit" disabled={formData.album_ids.length === 0}>
+                </Button>
+                <Button type="submit" disabled={formData.album_ids.length === 0}>
+                  <Plus className="h-4 w-4 mr-2" />
                   Create Training Run
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -772,9 +789,9 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
           <div className="dialog log-dialog">
             <div className="dialog-header">
               <h3>Training Logs</h3>
-              <button className="close-button" onClick={closeLogViewer} aria-label="Close logs">
-                ×
-              </button>
+              <Button variant="ghost" size="icon" onClick={closeLogViewer} aria-label="Close logs">
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
             <div className="log-meta">

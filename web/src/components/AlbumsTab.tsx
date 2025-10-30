@@ -7,6 +7,8 @@ import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Album as SharedAlbum, Label, LabelAnalytics } from '../types/models'
+import { Button } from '@/components/ui/button'
+import { Plus, Trash2, Zap, ArrowLeft, Check, X, Edit2 } from 'lucide-react'
 
 interface AlbumImage {
   id: number
@@ -303,32 +305,32 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
         <h2>Albums</h2>
         <div className="albums-header-actions">
           <div className="album-filter-buttons">
-            <button
-              className={`filter-btn ${albumFilter === 'all' ? 'active' : ''}`}
+            <Button
+              variant={albumFilter === 'all' ? 'default' : 'outline'}
               onClick={handleFilterAll}
             >
               All Albums
-            </button>
-            <button
-              className={`filter-btn ${albumFilter === 'sets' ? 'active' : ''}`}
+            </Button>
+            <Button
+              variant={albumFilter === 'sets' ? 'default' : 'outline'}
               onClick={handleFilterSets}
             >
               Set Templates
-            </button>
-            <button
-              className={`filter-btn ${albumFilter === 'regular' ? 'active' : ''}`}
+            </Button>
+            <Button
+              variant={albumFilter === 'regular' ? 'default' : 'outline'}
               onClick={handleFilterRegular}
             >
               Regular Albums
-            </button>
+            </Button>
           </div>
           {isAdmin && (
-            <button
-              className="create-album-btn"
+            <Button
               onClick={handleShowCreateDialog}
             >
+              <Plus className="h-4 w-4 mr-2" />
               Create Album
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -379,19 +381,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
               {isAdmin && (
                 <div className="album-actions">
                   {album.is_set_template && (
-                    <button
-                      className="generate-batch-btn"
+                    <Button
+                      variant="secondary"
                       onClick={handleBatchClick}
                     >
+                      <Zap className="h-4 w-4 mr-2" />
                       Generate Batch
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    className="delete-album-btn"
+                  <Button
+                    variant="destructive"
                     onClick={handleDeleteAlbum}
                   >
+                    <Trash2 className="h-4 w-4 mr-2" />
                     Delete
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -481,9 +485,10 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
   return (
     <div className="album-detail">
       <div className="album-detail-header">
-        <button className="back-btn" onClick={onBack}>
-          ← Back
-        </button>
+        <Button variant="outline" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
         <h2>{album.name}</h2>
 
         <div className="nsfw-filter">
@@ -499,9 +504,10 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
         </div>
 
         {isAdmin && selectedImages.size > 0 && (
-          <button className="remove-images-btn" onClick={actions.removeSelectedImages}>
+          <Button variant="destructive" onClick={actions.removeSelectedImages}>
+            <Trash2 className="h-4 w-4 mr-2" />
             Remove {selectedImages.size} images
-          </button>
+          </Button>
         )}
       </div>
 
@@ -652,20 +658,26 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                                   disabled={state.loadingStates.editingLabel}
                                 />
                                 <div className="label-chip-actions">
-                                  <button
+                                  <Button
                                     type="button"
                                     onClick={actions.saveEditedLabel}
                                     disabled={state.loadingStates.editingLabel || !(activeEdit?.value ?? '').trim()}
+                                    size="sm"
+                                    variant="default"
                                   >
+                                    <Check className="h-3 w-3 mr-1" />
                                     {state.loadingStates.editingLabel ? 'Saving...' : 'Save'}
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     type="button"
                                     onClick={actions.cancelEditingLabel}
                                     disabled={state.loadingStates.editingLabel}
+                                    size="sm"
+                                    variant="outline"
                                   >
+                                    <X className="h-3 w-3 mr-1" />
                                     Cancel
-                                  </button>
+                                  </Button>
                                 </div>
                               </>
                             ) : (
@@ -673,21 +685,27 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                                 <span>{label.label_text}</span>
                                 <div className="label-chip-actions">
                                   {!isCaption && (
-                                    <button
+                                    <Button
                                       type="button"
                                       onClick={handleStartEdit}
                                       disabled={state.loadingStates.editingLabel}
+                                      size="sm"
+                                      variant="ghost"
                                     >
+                                      <Edit2 className="h-3 w-3 mr-1" />
                                       Edit
-                                    </button>
+                                    </Button>
                                   )}
-                                  <button
+                                  <Button
                                     type="button"
                                     onClick={handleDeleteLabel}
                                     disabled={isDeletingThisLabel}
+                                    size="sm"
+                                    variant="ghost"
                                   >
+                                    <X className="h-3 w-3 mr-1" />
                                     {isDeletingThisLabel ? 'Removing...' : 'Remove'}
-                                  </button>
+                                  </Button>
                                 </div>
                               </>
                             )}
@@ -707,12 +725,14 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         onChange={handleUpdateLabelInput}
                         disabled={isLoading.addingLabel(image.id)}
                       />
-                      <button
+                      <Button
                         type="submit"
                         disabled={isLoading.addingLabel(image.id) || !inputValue.trim()}
+                        size="sm"
                       >
+                        <Plus className="h-3 w-3 mr-1" />
                         {isLoading.addingLabel(image.id) ? 'Adding...' : 'Add'}
-                      </button>
+                      </Button>
                     </form>
                   </div>
                 </>
@@ -859,12 +879,14 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
           </div>
 
           <div className="dialog-actions">
-            <button type="submit" disabled={isSubmitting || !userTheme.trim()}>
+            <Button type="submit" disabled={isSubmitting || !userTheme.trim()}>
+              <Zap className="h-4 w-4 mr-2" />
               {isSubmitting ? 'Starting...' : 'Start Generation'}
-            </button>
-            <button type="button" onClick={onClose} disabled={isSubmitting}>
+            </Button>
+            <Button type="button" onClick={onClose} disabled={isSubmitting} variant="outline">
+              <X className="h-4 w-4 mr-2" />
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -950,8 +972,14 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
           </div>
 
           <div className="dialog-actions">
-            <button type="submit">Create Album</button>
-            <button type="button" onClick={onClose}>Cancel</button>
+            <Button type="submit">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Album
+            </Button>
+            <Button type="button" onClick={onClose} variant="outline">
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
           </div>
         </form>
       </div>
