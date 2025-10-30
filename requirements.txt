@@ -33,6 +33,7 @@ redis>=5.0.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.12.0
+jsonschema>=4.21.1
 
 # Linting
 black>=25.0.0

@@ -4,8 +4,19 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from server.routes import bug_reports
+
+SCHEMA_DIR = Path(__file__).resolve().parents[2] / "shared" / "schema"
+with (SCHEMA_DIR / "bug_report_submission_request.json").open("r", encoding="utf-8") as fh:
+    BUG_REPORT_REQUEST_SCHEMA = json.load(fh)
+with (SCHEMA_DIR / "bug_report_submission_response.json").open("r", encoding="utf-8") as fh:
+    BUG_REPORT_RESPONSE_SCHEMA = json.load(fh)
+
+BUG_REPORT_REQUEST_VALIDATOR = Draft202012Validator(BUG_REPORT_REQUEST_SCHEMA)
+BUG_REPORT_RESPONSE_VALIDATOR = Draft202012Validator(BUG_REPORT_RESPONSE_SCHEMA)
+BUG_REPORT_REQUEST_KEYS = tuple(BUG_REPORT_REQUEST_SCHEMA["properties"].keys())
 
 
 def _build_payload(**overrides: Any) -> Dict[str, Any]:
@@ -15,9 +26,24 @@ def _build_payload(**overrides: Any) -> Dict[str, Any]:
         "clientMeta": {"locationHref": "http://localhost/generate", "userAgent": "TestUA"},
         "appState": {"route": {"pathname": "/generate"}},
         "recentLogs": [
-            {"level": "error", "message": "Boom", "args": [], "timestamp": "2025-10-30T00:00:00Z"}
+            {
+                "level": "error",
+                "message": "Boom",
+                "args": [],
+                "timestamp": "2025-10-30T00:00:00Z",
+                "serializedArgs": [],
+            }
         ],
-        "networkEvents": [{"id": "req-1", "method": "GET", "url": "/api/test"}],
+        "networkEvents": [
+            {
+                "id": "req-1",
+                "method": "GET",
+                "url": "/api/test",
+                "started_at": "2025-10-30T00:00:00Z",
+                "requestHeaders": [{"name": "Accept", "value": "application/json"}],
+                "responseHeaders": [{"name": "Content-Type", "value": "application/json"}],
+            }
+        ],
     }
     payload.update(overrides)
     return payload
@@ -82,12 +108,15 @@ def test_submit_bug_report_success(admin_client, monkeypatch, tmp_path):
     body = response.get_json()
     assert body["success"] is True
     assert body["trace_id"] == headers["X-Trace-Id"]
+    BUG_REPORT_RESPONSE_VALIDATOR.validate(body)
 
     stored_path = Path(body["stored_at"])
     assert stored_path.parent == storage_dir
     assert stored_path.exists()
 
     saved_report = json.loads(stored_path.read_text())
+    request_section = {key: saved_report[key] for key in BUG_REPORT_REQUEST_KEYS}
+    BUG_REPORT_REQUEST_VALIDATOR.validate(request_section)
     assert saved_report["description"] == payload["description"]
     assert saved_report["environment"] == payload["environment"]
     assert saved_report["clientMeta"] == payload["clientMeta"]
