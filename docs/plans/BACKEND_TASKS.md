@@ -1,8 +1,8 @@
 # Backend Outstanding Tasks
 
 **Last Updated:** 2025-10-30
-**Status:** 10 tasks remaining (0 Critical, 3 P2, 7 P3) - ✅ Critical + P2 Task #1 COMPLETED!
-**Recent Update:** Added 4 new tasks (#8-11) from comprehensive docs/plans review
+**Status:** 9 tasks remaining (0 Critical, 3 P2, 6 P3) - ✅ Critical + P2 Task #1 COMPLETED!
+**Recent Update:** Added 3 new tasks (#8-10) from comprehensive docs/plans review; removed OpenAPI/Swagger and complex monitoring (not needed)
 
 ## Overview
 
@@ -406,116 +406,74 @@ data/legacy/
 
 ---
 
-### Task #10: OpenAPI/Swagger Documentation
+### Task #10: Local Disk Usage Statistics
 **Priority:** P3
 **Estimated Time:** 2-3 days
 **Files:**
-- `server/api.py` - Add swagger decorator
-- New: `docs/api/openapi.yaml` - Generated spec
-- `requirements.txt` - Add flask-swagger-ui or flasgger
+- `server/api.py` - Add disk stats endpoint
+- `server/utils/disk_stats.py` - New utility module
 
 **Problem:**
-- No OpenAPI spec for 55+ API endpoints
-- Manual API discovery required by developers
-- Difficult for frontend developers to explore endpoints
-- No interactive API testing interface
-- Schema definitions scattered across code
+- No visibility into disk usage for mounted volumes
+- Risk of filling storage without warning
+- Unable to track artifact growth over time
+- No way to identify which directories consume most space
 
 **Solution:**
-1. Add `flask-swagger-ui` or `flasgger` dependency
-2. Annotate existing routes with OpenAPI decorators:
+1. Add `/api/admin/disk-stats` endpoint (admin only) that returns:
+   - Total/used/free space for each mount point
+   - Percentage used
+   - Breakdown by subdirectory (outputs, models, checkpoints, scraped)
+2. Create `server/utils/disk_stats.py` with helper functions:
    ```python
-   @app.route("/api/albums", methods=["GET"])
-   @swag_from({
-       'responses': {
-           200: {
-               'description': 'List of albums',
-               'schema': {'type': 'array', 'items': AlbumSchema}
-           }
+   def get_disk_usage(path: str) -> dict:
+       """Get disk usage statistics for a path."""
+       stat = os.statvfs(path)
+       total = stat.f_blocks * stat.f_frsize
+       free = stat.f_bfree * stat.f_frsize
+       used = total - free
+       return {
+           'total_bytes': total,
+           'used_bytes': used,
+           'free_bytes': free,
+           'percent_used': (used / total) * 100
        }
-   })
-   def get_albums():
-       ...
-   ```
-3. Generate OpenAPI 3.0 spec from route decorators
-4. Host Swagger UI at `/api/docs` endpoint
-5. Document request/response schemas using marshmallow or pydantic
-6. Include authentication requirements in spec
 
-**Deliverables:**
-- Interactive API documentation at `/api/docs`
-- OpenAPI 3.0 spec file (`docs/api/openapi.yaml`)
-- Schema definitions for all request/response types
-- Authentication flow documentation
-- Example requests for all endpoints
+   def get_directory_sizes(base_path: str, subdirs: list) -> dict:
+       """Get sizes of subdirectories."""
+       # Use du command or os.walk to calculate sizes
+   ```
+3. Monitor key paths:
+   - `/mnt/speedy/imagineer/` (models, outputs, sets, checkpoints)
+   - `/mnt/storage/imagineer/` (scraped data, bug reports)
+
+**Response Format:**
+```json
+{
+  "mounts": {
+    "/mnt/speedy": {
+      "total_bytes": 1000000000000,
+      "used_bytes": 500000000000,
+      "free_bytes": 500000000000,
+      "percent_used": 50.0
+    }
+  },
+  "directories": {
+    "outputs": {"size_bytes": 50000000000, "percent_of_mount": 10.0},
+    "models": {"size_bytes": 25000000000, "percent_of_mount": 5.0},
+    "checkpoints": {"size_bytes": 100000000000, "percent_of_mount": 20.0}
+  }
+}
+```
 
 **Benefits:**
-- Interactive API documentation and testing
-- Auto-generated client code possible (typescript, python)
-- Better developer experience for API consumers
-- Reduced onboarding time for new developers
-- Single source of truth for API contracts
+- Visibility into disk usage trends
+- Identify space-consuming directories
+- Inform cleanup decisions
+- Simple, local-only solution (no external dependencies)
 
 **Status:** Not Started
-**Reference:** CONSOLIDATED_STATUS.md Section 6.3
-
----
-
-### Task #11: Monitoring & Alerting Integration
-**Priority:** P3
-**Estimated Time:** 1 week
-**Files:**
-- New: `server/routes/metrics.py`
-- New: `server/monitoring/__init__.py`
-- `server/tasks/cleanup.py` - Add disk monitoring
-- `requirements.txt` - Add prometheus_client
-
-**Problem:**
-- No disk utilization alerts (risk of filling storage)
-- No Celery queue depth monitoring (risk of backlog)
-- No performance metrics collection
-- No proactive alerting before failures occur
-- Limited visibility into system health
-
-**Solution:**
-1. Add `/api/admin/metrics` endpoint with:
-   - Disk usage by mount point
-   - Celery queue depths (default, training, scraping, labeling)
-   - Active/completed job counts
-   - Average job duration by type
-   - Memory usage stats
-2. Integrate Prometheus metrics export:
-   ```python
-   from prometheus_client import Counter, Gauge, Histogram
-
-   disk_usage_gauge = Gauge('disk_usage_bytes', 'Disk usage', ['mount'])
-   queue_depth_gauge = Gauge('celery_queue_depth', 'Queue size', ['queue'])
-   job_duration_histogram = Histogram('job_duration_seconds', 'Job time', ['type'])
-   ```
-3. Add disk usage alerts (email/webhook) when:
-   - `/mnt/speedy` > 85% full
-   - `/mnt/storage` > 85% full
-4. Monitor Celery queue depths and alert when:
-   - Any queue > 50 pending jobs
-   - Jobs older than 1 hour in queue
-5. Add performance regression detection:
-   - Track generation time per image
-   - Alert if average time increases by >30%
-
-**Alerting Channels:**
-- Email notifications (configurable recipients)
-- Webhook integration (Slack, Discord, custom)
-- Admin dashboard widget (frontend integration)
-
-**Benefits:**
-- Proactive alerting before disk fills up
-- Queue backlog visibility and capacity planning
-- Performance regression detection
-- Reduced downtime and faster incident response
-- Better operational awareness
-
-**Status:** Not Started
-**Reference:** CONSOLIDATED_STATUS.md Section 6.4
+**Reference:** CONSOLIDATED_STATUS.md Section 6.4 (simplified)
 
 ---
 
@@ -649,11 +607,11 @@ data/legacy/
 |----------|-------|----------------|
 | ~~P0 (Critical)~~ | ~~1~~ | ~~5 minutes~~ ✅ COMPLETED Oct 30 |
 | P2 (Medium) | ~~3~~ → **3** | **3 weeks** (Task #2, #3, #9) |
-| P3 (Low) | ~~3~~ → **7** | **7-10 weeks** (Tasks #4-#8, #10, #11) |
+| P3 (Low) | ~~3~~ → **6** | **6-9 weeks** (Tasks #4-#8, #10) |
 | ~~Additional~~ | ~~1~~ | ~~8-12 hours~~ ✅ VERIFIED Oct 30 |
-| **Total** | **~~9~~ → ~~5~~ → 10** | **~~8-13~~ → ~~6-9~~ → 10-13 weeks** |
+| **Total** | **~~9~~ → ~~5~~ → 9** | **~~8-13~~ → ~~6-9~~ → 9-12 weeks** |
 
-**Note:** 4 additional tasks discovered from docs/plans review (Oct 30, 2025)
+**Note:** 3 additional tasks discovered from docs/plans review (Oct 30, 2025). OpenAPI/Swagger and complex monitoring removed per requirements.
 
 ---
 
@@ -672,13 +630,12 @@ data/legacy/
 ### Next Sprint (2 weeks) - High-value P3 Tasks
 1. **Task #4:** Training run visibility policy - Security decision
 2. **Task #6:** Celery documentation - Improves operations
-3. **Task #10:** OpenAPI/Swagger documentation - Better developer experience
+3. **Task #10:** Local disk usage statistics - Operational visibility (2-3 days)
 
 ### Long-term (Quarterly) - Large P3 Tasks
 1. **Task #5:** Split api.py - Improves maintainability (2-3 weeks)
 2. **Task #7:** Sets → Albums migration - Feature consolidation (1-2 weeks)
 3. **Task #8:** Legacy image import - Restore 424 historic images (1-2 weeks)
-4. **Task #11:** Monitoring & alerting - Proactive operations (1 week)
 
 ---
 
@@ -688,12 +645,14 @@ data/legacy/
 - ✅ **Configuration caching implemented** (Oct 30, 2025 - Commit: 2e21e09)
 - All training/scraping systems verified working as of Oct 28, 2025
 - Backend is **production-ready** with all P0/P1 tasks completed
-- 10 remaining tasks: 3 P2 (3 weeks), 7 P3 (7-10 weeks)
-- 4 new tasks added from comprehensive docs/plans review:
+- 9 remaining tasks: 3 P2 (3 weeks), 6 P3 (6-9 weeks)
+- 3 new tasks added from comprehensive docs/plans review:
   - Legacy image import (424 images to restore)
   - Label analytics endpoints (training data insights)
-  - OpenAPI/Swagger documentation (better DX)
-  - Monitoring & alerting (operational excellence)
+  - Local disk usage statistics (simple operational visibility)
+- Removed unnecessary tasks:
+  - OpenAPI/Swagger documentation (not needed)
+  - Complex monitoring/alerting (replaced with simple disk stats)
 - Consider business priorities when scheduling P2/P3 work
 - P2 tasks should be prioritized for security and operational stability
 
