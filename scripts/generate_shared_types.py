@@ -124,7 +124,7 @@ def ts_type(prop: dict[str, Any]) -> str:
 
 def _format_literal(value: Any) -> str:
     if isinstance(value, str):
-        return repr(value)
+        return json.dumps(value)
     if value is None:
         return "None"
     return repr(value)
