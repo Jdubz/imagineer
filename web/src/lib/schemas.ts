@@ -106,12 +106,28 @@ export const ImageMetadataSchema = z.object({
 })
 
 export const GeneratedImageSchema = z.object({
+  id: z.number().optional(),
   filename: z.string(),
-  path: z.string(),
-  size: z.number(),
-  created: z.string(),
+  path: z.string().optional(),
+  relative_path: z.string().optional(),
+  storage_name: z.string().nullish(),
+  download_url: z.string().optional(),
+  thumbnail_url: z.string().optional(),
+  size: z.number().optional(),
+  created: z.string().optional(),
+  created_at: z.string().optional(),
+  prompt: z.string().nullish(),
+  negative_prompt: z.string().nullish(),
+  seed: z.number().nullish(),
+  steps: z.number().nullish(),
+  guidance_scale: z.number().nullish(),
+  width: z.number().nullish(),
+  height: z.number().nullish(),
+  lora_config: z.string().nullish(),
+  is_nsfw: z.boolean().optional(),
+  is_public: z.boolean().optional(),
   metadata: ImageMetadataSchema.optional(),
-})
+}).catchall(z.unknown())
 
 // ============================================
 // Batches
@@ -225,6 +241,14 @@ export const LabelAnalyticsSchema = z.object({
 
 export const ImagesResponseSchema = z.object({
   images: z.array(GeneratedImageSchema),
+})
+
+export const PaginatedImagesResponseSchema = z.object({
+  images: z.array(GeneratedImageSchema),
+  total: z.number(),
+  page: z.number(),
+  per_page: z.number(),
+  pages: z.number(),
 })
 
 export const BatchesResponseSchema = z.object({

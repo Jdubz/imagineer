@@ -1,7 +1,7 @@
 # Bug Report Tool - Implementation Plan
 
 **Created:** 2025-10-29
-**Status:** Ready for Implementation
+**Status:** Backend delivered; frontend integration pending
 **Priority:** Medium
 **Estimated Time:** 8-12 hours
 
@@ -26,23 +26,20 @@ Complete the bug report capture tool that allows admin users to submit detailed 
 - `ErrorBoundary` component (without bug report integration)
 
 ### ❌ Missing Components
-- Backend `/api/bug-reports` endpoint
-- Trace ID middleware and propagation
-- Structured error responses
-- Settings menu with bug report access
+- Settings menu entry to surface the bug report modal
 - Keyboard shortcut (Ctrl+Shift+B)
-- Admin-only restrictions
-- ErrorBoundary integration
+- ErrorBoundary integration hook
 - Error toast with bug report button
+- Frontend display of the server-provided trace ID
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Backend Infrastructure (3-4 hours)
+### Phase 1: Backend Infrastructure (3-4 hours) ✅ Completed Oct 30, 2025
 
 #### 1.1 Trace ID Middleware
-**File:** `server/middleware/trace_id.py` (new)
+**File:** `server/middleware/trace_id.py`
 
 ```python
 import uuid
@@ -68,12 +65,10 @@ def trace_id_middleware(app):
         return response
 ```
 
-**File:** `server/api.py`
-- Import and register trace_id_middleware
-- Add to all error handlers
+**Implementation status:** Registered in `server/api.py`; trace IDs propagate through error handlers.
 
 #### 1.2 Structured Error Responses
-**File:** `server/utils/error_handler.py` (new)
+**File:** `server/utils/error_handler.py`
 
 ```python
 from datetime import datetime
@@ -98,10 +93,10 @@ def format_error_response(error, trace_id=None):
     }
 ```
 
-**Update:** All error handlers in `server/api.py` and route files to use structured format
+**Implementation status:** Structured responses active across Flask error handlers and propagated to clients.
 
 #### 1.3 Bug Report Storage
-**File:** `server/routes/bug_reports.py` (new)
+**File:** `server/routes/bug_reports.py`
 
 ```python
 import os
@@ -177,8 +172,7 @@ def submit_bug_report():
         }), 500
 ```
 
-**File:** `server/api.py`
-- Import and register `bug_reports_bp`
+**Implementation status:** Blueprint registered in `server/api.py`; endpoint requires admin auth.
 
 #### 1.4 Configuration
 **File:** `config.yaml`
@@ -190,11 +184,15 @@ bug_reports:
   retention_days: 30  # For future automation
 ```
 
-**File:** `.env.example` (add)
+**Implementation status:** `config.yaml` entry merged with defaults on Oct 30, 2025.
+
+**File:** `.env.example`
 ```bash
 # Bug Reports (optional override)
 BUG_REPORTS_PATH=/mnt/storage/imagineer/bug_reports
 ```
+
+**Implementation status:** Environment override documented for operators.
 
 ---
 

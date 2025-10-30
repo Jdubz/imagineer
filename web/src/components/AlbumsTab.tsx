@@ -2,11 +2,12 @@ import React, { useState, useCallback, useMemo, memo } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
+import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import type { Album as SharedAlbum, Label, LabelAnalytics } from '../types/models'
+import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 
 interface AlbumImage {
   id: number
@@ -341,6 +342,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             deleteAlbum(album.id)
           }
           const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)
+          const coverImage = album.images && album.images.length > 0 ? album.images[0] : null
+          const coverGenerated: GeneratedImage | null = coverImage
+            ? {
+                id: coverImage.id,
+                filename: coverImage.filename,
+                thumbnail_url: `/api/images/${coverImage.id}/thumbnail`,
+                download_url: `/api/images/${coverImage.id}/file`,
+              }
+            : null
+          const coverSources = coverGenerated
+            ? resolveImageSources(coverGenerated, { fallbackAlt: album.name })
+            : null
 
           return (
             <div
@@ -348,12 +361,26 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
               className="album-card"
               onClick={handleSelectAlbum}
             >
-            <div className="album-cover">
-              {album.images && album.images.length > 0 ? (
-                <img
-                  src={`/api/images/${album.images[0].id}/thumbnail`}
-                  alt={album.name}
-                />
+            <div
+              className="album-cover"
+              onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
+              onFocus={() => coverSources && preloadImage(coverSources.full)}
+            >
+              {coverSources ? (
+                <picture>
+                  {coverSources.thumbnail.endsWith('.webp') && (
+                    <source srcSet={coverSources.srcSet} type="image/webp" />
+                  )}
+                  <img
+                    src={coverSources.thumbnail}
+                    srcSet={coverSources.srcSet}
+                    sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 100vw"
+                    alt={coverSources.alt || album.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="album-cover-image blur-up"
+                  />
+                </picture>
               ) : (
                 <div className="album-placeholder">
                   {album.image_count || 0} images
@@ -588,12 +615,24 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const handleUpdateLabelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
             actions.updateLabelInput(image.id, e.target.value)
           }
+          const generatedImage: GeneratedImage = {
+            id: image.id,
+            filename: image.filename,
+            thumbnail_url: `/api/images/${image.id}/thumbnail`,
+            download_url: `/api/images/${image.id}/file`,
+            is_nsfw: image.is_nsfw,
+          }
+          const { thumbnail, full, alt, srcSet } = resolveImageSources(generatedImage, {
+            fallbackAlt: image.filename,
+          })
 
           return (
             <div
               key={image.id}
               className={`image-card ${image.is_nsfw ? 'nsfw' : ''} ${nsfwSetting}`}
               onClick={handleImageClick}
+              onMouseEnter={() => preloadImage(full)}
+              onFocus={() => preloadImage(full)}
             >
               {isAdmin && (
                 <input
@@ -604,13 +643,21 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                 />
               )}
 
-              <img
-                src={`/api/images/${image.id}/thumbnail`}
-                alt={image.filename}
-                className={`${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
-                loading="lazy"
-                onLoad={handleImageLoaded}
-              />
+              <picture className="image-picture">
+                {thumbnail.endsWith('.webp') && (
+                  <source srcSet={srcSet} type="image/webp" />
+                )}
+                <img
+                  src={thumbnail}
+                  srcSet={srcSet}
+                  sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
+                  alt={alt || image.filename}
+                  loading="lazy"
+                  decoding="async"
+                  className={`preview-image ${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
+                  onLoad={handleImageLoaded}
+                />
+              </picture>
 
               {image.is_nsfw && <div className="nsfw-badge">18+</div>}
 

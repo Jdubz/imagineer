@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import FocusLock from 'react-focus-lock'
 import { logger } from '../lib/logger'
-import type { ImageMetadata } from '../types/models'
+import type { GeneratedImage, ImageMetadata } from '../types/models'
+import { resolveImageSources, preloadImage } from '../lib/imageSources'
 
 interface BatchImage {
   filename: string
@@ -26,6 +27,35 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<BatchImage | null>(null)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+
+  const selectedGeneratedImage = useMemo<GeneratedImage | null>(() => {
+    if (!selectedImage) {
+      return null
+    }
+
+    return {
+      filename: selectedImage.filename,
+      relative_path: selectedImage.relative_path,
+      metadata: selectedImage.metadata,
+      download_url: `/api/outputs/${selectedImage.relative_path}`,
+    }
+  }, [selectedImage])
+
+  const selectedAlt = selectedImage?.metadata?.prompt || 'Generated image'
+
+  const selectedImageSources = useMemo(
+    () =>
+      selectedGeneratedImage
+        ? resolveImageSources(selectedGeneratedImage, { fallbackAlt: selectedAlt })
+        : null,
+    [selectedGeneratedImage, selectedAlt]
+  )
+
+  useEffect(() => {
+    if (selectedImageSources?.full) {
+      preloadImage(selectedImageSources.full)
+    }
+  }, [selectedImageSources?.full])
 
   const fetchBatch = useCallback(async () => {
     setLoading(true)
@@ -100,30 +130,52 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
 
       <div className="image-grid">
         {batch.images && batch.images.length > 0 ? (
-          batch.images.map((image, index) => (
-            <div
-              key={index}
-              className="image-card"
-              onClick={() => openModal(image)}
-            >
-              <img
-                src={`/api/outputs/${image.relative_path}`}
-                alt={image.metadata?.prompt || 'Generated image'}
-                loading="lazy"
-                className={loadedImages.has(image.relative_path) ? 'loaded' : 'loading'}
-                onLoad={() => handleImageLoad(image.relative_path)}
-              />
-              <div className="image-info">
-                <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
-                {image.metadata && (
-                  <div className="image-metadata">
-                    <span>Steps: {image.metadata.steps}</span>
-                    {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
-                  </div>
-                )}
+          batch.images.map((image, index) => {
+            const generatedImage: GeneratedImage = {
+              filename: image.filename,
+              relative_path: image.relative_path,
+              metadata: image.metadata,
+              download_url: `/api/outputs/${image.relative_path}`,
+            }
+            const { thumbnail, full, alt, srcSet } = resolveImageSources(generatedImage, {
+              fallbackAlt: image.metadata?.prompt || 'Generated image',
+            })
+
+            return (
+              <div
+                key={index}
+                className="image-card"
+                onClick={() => openModal(image)}
+                onMouseEnter={() => preloadImage(full)}
+                onFocus={() => preloadImage(full)}
+              >
+                <picture className="image-picture">
+                  {thumbnail.endsWith('.webp') && (
+                    <source srcSet={srcSet} type="image/webp" />
+                  )}
+                  <img
+                    src={thumbnail}
+                    srcSet={srcSet}
+                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
+                    alt={alt}
+                    loading="lazy"
+                    decoding="async"
+                    className={`preview-image ${loadedImages.has(image.relative_path) ? 'loaded' : 'loading'}`}
+                    onLoad={() => handleImageLoad(image.relative_path)}
+                  />
+                </picture>
+                <div className="image-info">
+                  <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
+                  {image.metadata && (
+                    <div className="image-metadata">
+                      <span>Steps: {image.metadata.steps}</span>
+                      {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         ) : (
           <p>No images in this batch yet</p>
         )}
@@ -135,11 +187,16 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
 
-            <img
-              src={`/api/outputs/${selectedImage.relative_path}`}
-              alt={selectedImage.metadata?.prompt || 'Generated image'}
-              loading="eager"
-            />
+            {selectedImageSources && (
+              <img
+                src={selectedImageSources.full}
+                srcSet={selectedImageSources.srcSet}
+                sizes="90vw"
+                alt={selectedImageSources.alt}
+                loading="eager"
+                decoding="async"
+              />
+            )}
 
             <div className="modal-info">
               <h3>Image Details</h3>

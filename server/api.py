@@ -3,21 +3,16 @@ Imagineer API Server
 Flask-based REST API for managing image generation
 """
 
-import json
 import logging
 import mimetypes
 import os
-import queue
 import subprocess
 import sys
-import threading
 import time
-from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-import yaml
 from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
@@ -31,23 +26,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 mimetypes.init()
 
 # Import auth module
-from server.auth import (  # noqa: E402
-    ROLE_ADMIN,
-    User,
-    get_user_role,
-    init_auth,
-    load_users,
-    require_admin,
-    save_users,
-)
-from server.config_loader import (  # noqa: E402
-    CONFIG_PATH,
-    PROJECT_ROOT,
-    clear_config_cache,
-    get_cache_stats,
-    load_config,
-    save_config,
-)
+from server.auth import User, get_user_role, init_auth, require_admin  # noqa: E402
+from server.config_loader import CONFIG_PATH as _CONFIG_PATH  # noqa: E402
+from server.config_loader import load_config, save_config  # noqa: E402
 from server.database import (  # noqa: E402
     Album,
     AlbumImage,
@@ -111,6 +92,9 @@ CORS(
     methods=["GET", "POST", "PUT", "DELETE"],
 )
 
+# Configure logging early so subsequent imports can rely on it
+logger = configure_logging(app)
+
 # Configure security headers
 if os.environ.get("FLASK_ENV") == "production":
     Talisman(
@@ -133,9 +117,6 @@ if os.environ.get("FLASK_ENV") == "production":
 # Initialize authentication
 oauth, google = init_auth(app)
 
-# Configure logging
-logger = configure_logging(app)
-
 # Initialize database
 init_database(app)
 
@@ -150,9 +131,12 @@ from server.celery_app import make_celery  # noqa: E402
 celery = make_celery(app)
 
 # Register blueprints
+from server.routes.admin import admin_bp  # noqa: E402
 from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
+from server.routes.generation import generation_bp, get_generation_health  # noqa: E402
 from server.routes.images import images_bp, outputs_bp  # noqa: E402
+from server.routes.labels import labels_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
@@ -162,54 +146,35 @@ app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)
+app.register_blueprint(labels_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(generation_bp)
 
 # ============================================================================
-# Generation Endpoint Safeguards
+# Build / Version Metadata
 # ============================================================================
 
-GENERATION_RATE_LIMIT = int(os.environ.get("IMAGINEER_GENERATE_LIMIT", "10"))
-GENERATION_RATE_WINDOW_SECONDS = int(os.environ.get("IMAGINEER_GENERATE_WINDOW_SECONDS", "60"))
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
-_generation_rate_lock = threading.Lock()
-_generation_request_times: defaultdict[str, deque[float]] = defaultdict(deque)
+try:
+    APP_VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+except FileNotFoundError:
+    APP_VERSION = "0.0.0"
 
+try:
+    GIT_COMMIT = (
+        subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=REPO_ROOT,
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
+except Exception:  # pragma: no cover - git metadata optional in production
+    GIT_COMMIT = None
 
-def _check_generation_rate_limit():
-    """Apply a simple per-user rate limit for generation endpoints."""
-    if GENERATION_RATE_LIMIT <= 0 or GENERATION_RATE_WINDOW_SECONDS <= 0:
-        return None
-
-    identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
-    now = time.monotonic()
-
-    with _generation_rate_lock:
-        history = _generation_request_times[identifier]
-        while history and now - history[0] > GENERATION_RATE_WINDOW_SECONDS:
-            history.popleft()
-
-        if len(history) >= GENERATION_RATE_LIMIT:
-            retry_after = max(1, int(GENERATION_RATE_WINDOW_SECONDS - (now - history[0])))
-            logger.warning(
-                "Generation rate limit exceeded",
-                extra={
-                    "operation": "generate_rate_limit",
-                    "identifier": identifier,
-                    "limit": GENERATION_RATE_LIMIT,
-                    "window_seconds": GENERATION_RATE_WINDOW_SECONDS,
-                },
-            )
-            response = jsonify(
-                {
-                    "success": False,
-                    "error": "Rate limit exceeded. Please wait before submitting another job.",
-                }
-            )
-            response.headers["Retry-After"] = str(retry_after)
-            return response, 429
-
-        history.append(now)
-
-    return None
+SERVER_START_TIME = datetime.now(timezone.utc).isoformat()
 
 
 # Add request timing and performance logging
@@ -219,6 +184,12 @@ def before_request():
     from flask import g
 
     g.start_time = time.time()
+    g.request_id = getattr(g, "trace_id", None)
+
+    if current_user.is_authenticated:
+        g.user_email = current_user.email
+    else:
+        g.user_email = None
 
 
 @app.after_request
@@ -226,7 +197,7 @@ def after_request(response):
     """Log request completion with timing and status"""
     import time
 
-    from flask import g, request
+    from flask import g
 
     # Calculate request duration
     duration_ms = 0
@@ -235,12 +206,7 @@ def after_request(response):
 
     # Log request completion
     logger.info(
-        f"Request completed: {request.method} {request.path}",
-        extra={
-            "operation": "request_completed",
-            "status_code": response.status_code,
-            "duration_ms": duration_ms,
-        },
+        "request.completed", extra={"status_code": response.status_code, "duration_ms": duration_ms}
     )
 
     return response
@@ -251,7 +217,7 @@ def after_request(response):
 def handle_404(e):
     """Handle 404 errors"""
     logger.warning(
-        f"404 Not Found: {request.method} {request.url}",
+        "error.404",
         extra={
             "operation": "error_404",
             "path": request.path,
@@ -265,11 +231,7 @@ def handle_404(e):
 @app.errorhandler(500)
 def handle_500(e):
     """Handle 500 errors"""
-    logger.error(
-        f"Internal server error: {e}",
-        exc_info=True,
-        extra={"operation": "error_500"},
-    )
+    logger.error("error.500", exc_info=True, extra={"operation": "error_500", "error": str(e)})
     return jsonify({"error": "Internal server error"}), 500
 
 
@@ -346,7 +308,6 @@ def auth_callback():
             f"Successful login: {user.email}",
             extra={
                 "event": "authentication_success",
-                "user_email": user.email,
                 "role": user.role,
             },
         )
@@ -483,240 +444,6 @@ def auth_me():
 # Configuration
 # ============================================================================
 
-VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
-GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
-
-# Job queue
-job_queue = queue.Queue()
-job_history = []
-current_job = None
-
-
-def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):
-    """Construct the final prompt from components
-
-    Order: [Base] [User Theme] [CSV Data via Template] [Style Suffix]
-    This order follows Stable Diffusion best practices where front words have strongest influence.
-
-    Args:
-        base_prompt: Base description (e.g., "A single playing card")
-        user_theme: User's art style theme (e.g., "barnyard animals under a full moon")
-        csv_data: Dict of CSV row data
-        prompt_template: Template string with {column} placeholders
-        style_suffix: Technical/style refinement terms
-
-    Returns:
-        Complete prompt string
-    """
-    # Replace placeholders in template with CSV data
-    csv_text = prompt_template
-    for key, value in csv_data.items():
-        csv_text = csv_text.replace(f"{{{key}}}", value)
-
-    # Construct final prompt with optimal ordering
-    parts = []
-    if base_prompt:
-        parts.append(base_prompt)
-    if user_theme:
-        parts.append(f"Art style: {user_theme}")
-    if csv_text:
-        parts.append(csv_text)
-    if style_suffix:
-        parts.append(style_suffix)
-
-    return ". ".join(parts)
-
-
-def generate_random_theme():
-    """Generate a random art style theme for inspiration
-
-    Returns:
-        A random theme string
-    """
-    import random
-
-    # Art styles
-    styles = [
-        "watercolor",
-        "oil painting",
-        "digital art",
-        "pencil sketch",
-        "ink drawing",
-        "pastel",
-        "acrylic",
-        "charcoal",
-        "mixed media",
-        "gouache",
-        "airbrush",
-        "impressionist",
-        "art nouveau",
-        "art deco",
-        "baroque",
-        "renaissance",
-        "surrealist",
-        "abstract",
-        "minimalist",
-        "pop art",
-        "cyberpunk",
-        "steampunk",
-        "vaporwave",
-        "synthwave",
-        "retro",
-        "vintage",
-        "modern",
-        "contemporary",
-    ]
-
-    # Settings/environments
-    environments = [
-        "mystical forest",
-        "cosmic nebula",
-        "underwater world",
-        "desert landscape",
-        "mountain peaks",
-        "ancient ruins",
-        "futuristic city",
-        "enchanted garden",
-        "stormy ocean",
-        "peaceful meadow",
-        "dark cavern",
-        "floating islands",
-        "crystal palace",
-        "volcanic terrain",
-        "frozen tundra",
-        "tropical paradise",
-        "haunted mansion",
-        "steampunk workshop",
-        "neon-lit streets",
-        "starlit sky",
-    ]
-
-    # Lighting/mood
-    moods = [
-        "ethereal glowing light",
-        "dramatic shadows",
-        "soft diffused lighting",
-        "golden hour glow",
-        "moonlit atmosphere",
-        "harsh sunlight",
-        "bioluminescent glow",
-        "candlelit ambiance",
-        "aurora borealis",
-        "sunset colors",
-        "dawn light",
-        "neon glow",
-        "firelight",
-        "lightning flashes",
-        "rainbow light",
-        "foggy mist",
-    ]
-
-    # Color palettes
-    colors = [
-        "deep purples and blues",
-        "warm oranges and reds",
-        "cool greens and teals",
-        "monochromatic grayscale",
-        "vibrant rainbow",
-        "pastel pinks and lavenders",
-        "earth tones",
-        "metallic gold and silver",
-        "black and gold",
-        "navy and cream",
-        "emerald and sapphire",
-        "crimson and gold",
-        "turquoise and coral",
-    ]
-
-    # Construct random theme
-    style = random.choice(styles)
-    environment = random.choice(environments)
-    mood = random.choice(moods)
-    color = random.choice(colors)
-
-    # Randomly choose 2-3 components
-    components = random.sample([f"{style} style", environment, mood, color], k=random.randint(2, 3))
-
-    return ", ".join(components)
-
-
-def process_jobs():  # noqa: C901
-    """Background worker to process generation jobs"""
-    global current_job
-
-    while True:
-        job = job_queue.get()
-        if job is None:
-            break
-
-        current_job = job
-        job["status"] = "running"
-        job["started_at"] = datetime.now().isoformat()
-
-        try:
-            # Build command
-            cmd = [str(VENV_PYTHON), str(GENERATE_SCRIPT), "--prompt", job["prompt"]]
-
-            # Add optional parameters
-            if job.get("seed"):
-                cmd.extend(["--seed", str(job["seed"])])
-            if job.get("steps"):
-                cmd.extend(["--steps", str(job["steps"])])
-            if job.get("width"):
-                cmd.extend(["--width", str(job["width"])])
-            if job.get("height"):
-                cmd.extend(["--height", str(job["height"])])
-            if job.get("guidance_scale"):
-                cmd.extend(["--guidance-scale", str(job["guidance_scale"])])
-            if job.get("negative_prompt"):
-                cmd.extend(["--negative-prompt", job["negative_prompt"]])
-            # Handle LoRAs
-            if job.get("lora_paths") and job.get("lora_weights"):
-                cmd.extend(["--lora-paths"] + job["lora_paths"])
-                cmd.extend(["--lora-weights"] + [str(w) for w in job["lora_weights"]])
-
-            # Handle output path
-            if job.get("output"):
-                # Direct output path specified (e.g., for preview generation)
-                cmd.extend(["--output", job["output"]])
-            elif job.get("output_dir") and job.get("batch_item_name"):
-                # For batch jobs, specify output directory
-                safe_name = "".join(
-                    c for c in job["batch_item_name"] if c.isalnum() or c in (" ", "_", "-")
-                ).strip()
-                safe_name = safe_name.replace(" ", "_")
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_path = Path(job["output_dir"]) / f"{timestamp}_{safe_name}.png"
-                cmd.extend(["--output", str(output_path)])
-
-            # Run generation
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
-
-            if result.returncode == 0:
-                job["status"] = "completed"
-                job["output"] = result.stdout
-                # Extract output path from stdout
-                for line in result.stdout.split("\n"):
-                    if "Image saved to:" in line:
-                        job["output_path"] = line.split("Image saved to:")[1].strip()
-            else:
-                job["status"] = "failed"
-                job["error"] = result.stderr
-
-        except Exception as e:
-            job["status"] = "failed"
-            job["error"] = str(e)
-
-        job["completed_at"] = datetime.now().isoformat()
-        job_history.append(job)
-        current_job = None
-        job_queue.task_done()
-
-
-# Start background worker
-worker_thread = threading.Thread(target=process_jobs, daemon=True)
-worker_thread.start()
-
 
 @app.route("/")
 def index():
@@ -790,681 +517,21 @@ def update_generation_config():
         return jsonify({"success": False, "error": "Failed to update generation config"}), 400
 
 
-@app.route("/api/admin/config/cache", methods=["GET"])
-@require_admin
-def get_config_cache_stats():
-    """
-    Get configuration cache statistics (admin only).
-
-    Returns information about the current cache state including whether
-    config is cached, modification times, and cache staleness.
-    """
-    try:
-        stats = get_cache_stats()
-        return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Error getting cache stats: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get cache statistics"}), 500
-
-
-@app.route("/api/admin/config/reload", methods=["POST"])
-@require_admin
-def reload_config_cache():
-    """
-    Force configuration reload from disk (admin only).
-
-    Clears the cache and immediately reloads the configuration from disk.
-    Useful when config.yaml has been edited externally and you want to
-    ensure the application uses the latest version.
-    """
-    try:
-        clear_config_cache()
-        load_config(force_reload=True)  # Reload to populate cache
-
-        logger.info(
-            "Configuration reloaded by admin",
-            extra={
-                "operation": "config_reload",
-                "user": current_user.email if current_user.is_authenticated else "unknown",
-            },
-        )
-
-        return jsonify(
-            {
-                "success": True,
-                "message": "Configuration reloaded from disk",
-                "cache_stats": get_cache_stats(),
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error reloading config: {e}", exc_info=True)
-        return jsonify({"error": "Failed to reload configuration"}), 500
-
-
-@app.route("/api/generate", methods=["POST"])
-@require_admin
-def generate():  # noqa: C901
-    """Submit a new image generation job"""
-    try:
-        data = request.json
-
-        if not data or not data.get("prompt"):
-            return jsonify({"success": False, "error": "Prompt is required"}), 400
-
-        # Validate prompt length
-        prompt = str(data["prompt"]).strip()
-        if not prompt:
-            return jsonify({"success": False, "error": "Prompt is required"}), 400
-        if len(prompt) > 2000:
-            return jsonify({"success": False, "error": "Prompt too long (max 2000 chars)"}), 400
-
-        # Validate and sanitize integer parameters
-        seed = data.get("seed")
-        if seed is not None:
-            try:
-                seed = int(seed)
-                if seed < 0 or seed > 2147483647:
-                    return (
-                        jsonify(
-                            {"success": False, "error": "Seed must be between 0 and 2147483647"}
-                        ),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"success": False, "error": "Invalid seed value"}), 400
-
-        steps = data.get("steps")
-        if steps is not None:
-            try:
-                steps = int(steps)
-                if steps < 1 or steps > 150:
-                    return (
-                        jsonify({"success": False, "error": "Steps must be between 1 and 150"}),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"success": False, "error": "Invalid steps value"}), 400
-
-        width = data.get("width")
-        if width is not None:
-            try:
-                width = int(width)
-                if width < 64 or width > 2048 or width % 8 != 0:
-                    return (
-                        jsonify(
-                            {
-                                "success": False,
-                                "error": "Width must be between 64-2048 and divisible by 8",
-                            }
-                        ),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"success": False, "error": "Invalid width value"}), 400
-
-        height = data.get("height")
-        if height is not None:
-            try:
-                height = int(height)
-                if height < 64 or height > 2048 or height % 8 != 0:
-                    return (
-                        jsonify(
-                            {
-                                "success": False,
-                                "error": "Height must be between 64-2048 and divisible by 8",
-                            }
-                        ),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"success": False, "error": "Invalid height value"}), 400
-
-        guidance_scale = data.get("guidance_scale")
-        if guidance_scale is not None:
-            try:
-                guidance_scale = float(guidance_scale)
-                if guidance_scale < 0 or guidance_scale > 30:
-                    return (
-                        jsonify(
-                            {"success": False, "error": "Guidance scale must be between 0 and 30"}
-                        ),
-                        400,
-                    )
-            except (ValueError, TypeError):
-                return jsonify({"success": False, "error": "Invalid guidance scale value"}), 400
-
-        negative_prompt = data.get("negative_prompt")
-        if negative_prompt is not None:
-            negative_prompt = str(negative_prompt).strip()
-            if len(negative_prompt) > 2000:
-                return (
-                    jsonify(
-                        {"success": False, "error": "Negative prompt too long (max 2000 chars)"}
-                    ),
-                    400,
-                )
-
-        # Handle output path
-        output = data.get("output")
-        if output is not None:
-            output = str(output).strip()
-            # Security: Validate output path doesn't escape allowed directories
-            if ".." in output or output.startswith("/"):
-                if not Path(output).is_absolute():
-                    return jsonify({"success": False, "error": "Invalid output path"}), 400
-
-        # Handle LoRA paths and weights
-        lora_paths = data.get("lora_paths")
-        lora_weights = data.get("lora_weights")
-
-        job = {
-            "id": len(job_history) + job_queue.qsize() + 1,
-            "prompt": prompt,
-            "seed": seed,
-            "steps": steps,
-            "width": width,
-            "height": height,
-            "guidance_scale": guidance_scale,
-            "negative_prompt": negative_prompt,
-            "output": output,
-            "lora_paths": lora_paths,
-            "lora_weights": lora_weights,
-            "status": "queued",
-            "submitted_at": datetime.now().isoformat(),
-        }
-
-        rate_limit_response = _check_generation_rate_limit()
-        if rate_limit_response:
-            return rate_limit_response
-
-        job_queue.put(job)
-
-        # Return 201 Created with Location header pointing to job status
-        response = jsonify(
-            {
-                "id": job["id"],
-                "status": job["status"],
-                "submitted_at": job["submitted_at"],
-                "queue_position": job_queue.qsize(),
-                "prompt": job["prompt"],
-            }
-        )
-        response.status_code = 201
-        response.headers["Location"] = f"/api/jobs/{job['id']}"
-
-        return response
-
-    except Exception:
-        return jsonify({"error": "Invalid request"}), 400
-
-
-@app.route("/api/themes/random", methods=["GET"])
-def get_random_theme():
-    """Generate a random art style theme for inspiration"""
-    try:
-        theme = generate_random_theme()
-        return jsonify({"theme": theme})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/albums/<int:album_id>/generate/batch", methods=["POST"])
-@require_admin
-def generate_batch_from_album(album_id):
-    """Generate all items from a set template album
-
-    Request JSON:
-        user_theme: User's art style theme (required)
-        seed: Random seed (optional)
-        steps: Number of steps (optional)
-        width: Image width (optional, defaults to album config)
-        height: Image height (optional, defaults to album config)
-        guidance_scale: Guidance scale (optional)
-        negative_prompt: Negative prompt (optional, appended to album's)
-
-    Returns:
-        JSON with queued job IDs and batch info
-    """
-    # Get album
-    album = db.session.get(Album, album_id)
-    if not album:
-        return jsonify({"error": "Album not found"}), 404
-
-    if not album.is_set_template:
-        return jsonify({"error": "Album is not a set template"}), 400
-
-    # Validate user_theme
-    data = request.json or {}
-    if "user_theme" not in data:
-        return jsonify({"error": "user_theme is required"}), 400
-
-    user_theme = str(data["user_theme"]).strip()
-    if not user_theme:
-        return jsonify({"error": "user_theme cannot be empty"}), 400
-    if len(user_theme) > 500:
-        return jsonify({"error": "user_theme too long (max 500 chars)"}), 400
-
-    # Parse template items
-    template_items = json.loads(album.csv_data or "[]")
-    if not template_items:
-        return jsonify({"error": "No template items in album"}), 400
-
-    # Parse album configuration
-    gen_config = json.loads(album.generation_config or "{}")
-    loras = json.loads(album.lora_config or "[]")
-
-    # Get optional parameters
-    seed = data.get("seed")
-    if seed is not None:
-        try:
-            seed = int(seed)
-            if seed < 0 or seed > 2147483647:
-                return jsonify({"error": "Seed must be between 0 and 2147483647"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "Invalid seed value"}), 400
-
-    steps = data.get("steps")
-    if steps is not None:
-        try:
-            steps = int(steps)
-            if steps < 1 or steps > 150:
-                return jsonify({"error": "Steps must be between 1 and 150"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "Invalid steps value"}), 400
-
-    width = data.get("width")
-    if width is None:
-        width = gen_config.get("width", 512)
-    else:
-        try:
-            width = int(width)
-            if width < 64 or width > 2048 or width % 8 != 0:
-                return jsonify({"error": "Width must be between 64-2048 and divisible by 8"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "Invalid width value"}), 400
-
-    height = data.get("height")
-    if height is None:
-        height = gen_config.get("height", 512)
-    else:
-        try:
-            height = int(height)
-            if height < 64 or height > 2048 or height % 8 != 0:
-                return jsonify({"error": "Height must be between 64-2048 and divisible by 8"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "Invalid height value"}), 400
-
-    guidance_scale = data.get("guidance_scale")
-    if guidance_scale is not None:
-        try:
-            guidance_scale = float(guidance_scale)
-            if guidance_scale < 0 or guidance_scale > 30:
-                return jsonify({"error": "Guidance scale must be between 0 and 30"}), 400
-        except (ValueError, TypeError):
-            return jsonify({"error": "Invalid guidance scale value"}), 400
-
-    negative_prompt = data.get("negative_prompt")
-    album_negative = gen_config.get("negative_prompt", "")
-    if negative_prompt and album_negative:
-        negative_prompt = f"{negative_prompt}, {album_negative}"
-    elif album_negative:
-        negative_prompt = album_negative
-    if negative_prompt and len(negative_prompt) > 2000:
-        return jsonify({"error": "Negative prompt too long (max 2000 chars)"}), 400
-
-    # Create batch ID and output subfolder
-    batch_id = f"{album.name.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    config = load_config()
-    batch_output_dir = Path(config["output"]["directory"]) / batch_id
-    batch_output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Check rate limit
-    rate_limit_response = _check_generation_rate_limit()
-    if rate_limit_response:
-        return rate_limit_response
-
-    # Queue generation jobs
-    job_ids = []
-    for item in template_items:
-        # Build prompt from template
-        prompt = construct_prompt(
-            base_prompt=album.base_prompt or "",
-            user_theme=user_theme,
-            csv_data=item,
-            prompt_template=album.prompt_template or "",
-            style_suffix=album.style_suffix or "",
-        )
-
-        # Create item name from CSV data
-        if "value" in item and "suit" in item:
-            item_name = f"{item['value']}_of_{item['suit']}"
-        elif "name" in item:
-            item_name = item["name"]
-        else:
-            item_name = next(iter(item.values())) if item else "item"
-
-        job_id = len(job_history) + job_queue.qsize() + 1
-
-        job = {
-            "id": job_id,
-            "prompt": prompt,
-            "seed": seed,
-            "steps": steps,
-            "width": width,
-            "height": height,
-            "guidance_scale": guidance_scale,
-            "negative_prompt": negative_prompt,
-            "status": "queued",
-            "submitted_at": datetime.now().isoformat(),
-            "batch_id": batch_id,
-            "batch_item_name": item_name,
-            "batch_item_data": item,
-            "output_dir": str(batch_output_dir),
-            "album_id": album.id,  # Link to source album
-        }
-
-        # Add LoRA configuration
-        if loras:
-            job["lora_paths"] = [lora["path"] for lora in loras]
-            job["lora_weights"] = [lora["weight"] for lora in loras]
-
-        job_queue.put(job)
-        job_ids.append(job_id)
-
-    return (
-        jsonify(
-            {
-                "message": f"Queued {len(job_ids)} generation jobs",
-                "album_id": album.id,
-                "album_name": album.name,
-                "batch_id": batch_id,
-                "job_ids": job_ids,
-                "output_dir": str(batch_output_dir),
-            }
-        ),
-        201,
-    )
-
-
-@app.route("/api/jobs", methods=["GET"])
-def get_jobs():
-    """Get job history and current queue"""
-    queue_list = list(job_queue.queue)
-
-    return jsonify(
-        {
-            "current": current_job,
-            "queue": queue_list,
-            "history": job_history[-50:],  # Last 50 jobs
-        }
-    )
-
-
-@app.route("/api/jobs/<int:job_id>", methods=["GET"])
-def get_job(job_id):
-    """Get specific job details"""
-    # Check current job
-    if current_job and current_job["id"] == job_id:
-        job_response = {
-            **current_job,
-            "queue_position": 0,  # Currently running
-            "estimated_time_remaining": None,  # Could calculate based on steps
-        }
-        return jsonify(job_response)
-
-    # Check queue
-    position = 1
-    for job in list(job_queue.queue):
-        if job["id"] == job_id:
-            job_response = {
-                **job,
-                "queue_position": position,
-                "estimated_time_remaining": None,  # Could estimate based on position
-            }
-            return jsonify(job_response)
-        position += 1
-
-    # Check history
-    for job in job_history:
-        if job["id"] == job_id:
-            # Add duration if completed
-            if job.get("started_at") and job.get("completed_at"):
-                start = datetime.fromisoformat(job["started_at"])
-                end = datetime.fromisoformat(job["completed_at"])
-                job["duration_seconds"] = (end - start).total_seconds()
-            return jsonify(job)
-
-    return jsonify({"error": "Job not found"}), 404
-
-
-@app.route("/api/jobs/<int:job_id>", methods=["DELETE"])
-def cancel_job(job_id):
-    """Cancel a queued job"""
-    global job_queue
-
-    # Cannot cancel currently running job
-    if current_job and current_job["id"] == job_id:
-        return jsonify({"error": "Cannot cancel job that is currently running"}), 409
-
-    # Cannot cancel completed job
-    for job in job_history:
-        if job["id"] == job_id:
-            return jsonify({"error": "Cannot cancel completed job"}), 410
-
-    # Try to remove from queue
-    queue_list = list(job_queue.queue)
-    found = False
-    for job in queue_list:
-        if job["id"] == job_id:
-            job["status"] = "cancelled"
-            job["cancelled_at"] = datetime.now().isoformat()
-            job_history.append(job)
-            found = True
-            break
-
-    if found:
-        # Rebuild queue without cancelled job
-        new_queue = queue.Queue()
-        for job in queue_list:
-            if job["id"] != job_id:
-                new_queue.put(job)
-
-        # Replace the queue
-        job_queue = new_queue
-
-        return jsonify({"message": "Job cancelled successfully"}), 200
-
-    return jsonify({"error": "Job not found"}), 404
-
-
-@app.route("/api/batches", methods=["GET"])
-def list_batches():
-    """List all batch output directories"""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"])
-
-        batches = []
-        if output_dir.exists():
-            # Find all subdirectories (batches)
-            for batch_dir in sorted(output_dir.iterdir(), key=os.path.getmtime, reverse=True):
-                if batch_dir.is_dir():
-                    # Count images in batch
-                    image_count = len(list(batch_dir.glob("*.png")))
-
-                    batches.append(
-                        {
-                            "batch_id": batch_dir.name,
-                            "path": str(batch_dir),
-                            "image_count": image_count,
-                            "created": datetime.fromtimestamp(
-                                batch_dir.stat().st_mtime
-                            ).isoformat(),
-                        }
-                    )
-
-        return jsonify({"batches": batches})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/batches/<batch_id>", methods=["GET"])
-def get_batch(batch_id):
-    """Get images from a specific batch"""
-    try:
-        # Security: Validate batch_id to prevent path traversal
-        if ".." in batch_id or "/" in batch_id or "\\" in batch_id:
-            return jsonify({"error": "Invalid batch ID"}), 400
-
-        config = load_config()
-        batch_dir = Path(config["output"]["directory"]) / batch_id
-
-        if not batch_dir.exists() or not batch_dir.is_dir():
-            return jsonify({"error": "Batch not found"}), 404
-
-        images = []
-        for img_file in sorted(batch_dir.glob("*.png"), key=os.path.getmtime):
-            metadata_file = img_file.with_suffix(".json")
-            metadata = {}
-
-            if metadata_file.exists():
-                with open(metadata_file, "r") as f:
-                    metadata = json.load(f)
-
-            images.append(
-                {
-                    "filename": img_file.name,
-                    "relative_path": f"{batch_id}/{img_file.name}",
-                    "download_url": f"/api/outputs/{batch_id}/{img_file.name}",
-                    "size": img_file.stat().st_size,
-                    "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
-                    "metadata": metadata,
-                }
-            )
-
-        return jsonify({"batch_id": batch_id, "image_count": len(images), "images": images})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/health", methods=["GET"])
 def health():
-    """Health check endpoint"""
+    """Health check endpoint."""
+    snapshot = get_generation_health()
     return jsonify(
         {
             "status": "ok",
-            "queue_size": job_queue.qsize(),
-            "current_job": current_job is not None,
-            "total_completed": len(job_history),
+            **snapshot,
+            "version": APP_VERSION,
+            "git_commit": GIT_COMMIT,
+            "started_at": SERVER_START_TIME,
         }
     )
 
 
-@app.route("/api/loras", methods=["GET"])
-def list_loras():
-    """List all organized LoRAs from index"""
-    try:
-        config = load_config()
-        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-        index_path = lora_base_dir / "index.json"
-
-        if not index_path.exists():
-            return jsonify({"loras": []})
-
-        with open(index_path, "r") as f:
-            index = json.load(f)
-
-        loras = []
-        for folder_name, entry in index.items():
-            lora_folder = lora_base_dir / folder_name
-            preview_path = lora_folder / "preview.png"
-
-            # Check for actual preview file existence instead of trusting the index
-            has_preview = preview_path.exists()
-
-            loras.append(
-                {
-                    "folder": folder_name,
-                    "filename": entry.get("filename"),
-                    "format": entry.get("format", "sd15"),
-                    "compatible": entry.get("compatible", True),
-                    "has_preview": has_preview,  # Use actual file existence
-                    "has_config": entry.get("has_config", False),
-                    "organized_at": entry.get("organized_at"),
-                    "default_weight": entry.get("default_weight"),
-                }
-            )
-
-        # Sort by most recently organized
-        loras.sort(key=lambda x: x.get("organized_at", ""), reverse=True)
-
-        return jsonify({"loras": loras})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/loras/<folder>/preview", methods=["GET"])
-def serve_lora_preview(folder):
-    """Serve LoRA preview image"""
-    try:
-        # Security: Validate folder name to prevent path traversal
-        if ".." in folder or "/" in folder or "\\" in folder:
-            return jsonify({"error": "Invalid folder name"}), 400
-
-        config = load_config()
-        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-        preview_path = lora_base_dir / folder / "preview.png"
-
-        if not preview_path.exists():
-            return jsonify({"error": "Preview not found"}), 404
-
-        return send_from_directory(preview_path.parent, preview_path.name)
-
-    except Exception:
-        return jsonify({"error": "Invalid request"}), 400
-
-
-@app.route("/api/loras/<folder>", methods=["GET"])
-def get_lora_details(folder):
-    """Get detailed information about a specific LoRA"""
-    try:
-        # Security: Validate folder name
-        if ".." in folder or "/" in folder or "\\" in folder:
-            return jsonify({"error": "Invalid folder name"}), 400
-
-        config = load_config()
-        lora_base_dir = Path(config["model"].get("cache_dir", "/tmp/imagineer/models")) / "lora"
-        lora_folder = lora_base_dir / folder
-        config_path = lora_folder / "config.yaml"
-
-        if not lora_folder.exists():
-            return jsonify({"error": "LoRA not found"}), 404
-
-        details = {}
-
-        # Load config if it exists
-        if config_path.exists():
-            with open(config_path, "r") as f:
-                details = yaml.safe_load(f) or {}
-
-        # Add index info
-        index_path = lora_base_dir / "index.json"
-        if index_path.exists():
-            with open(index_path, "r") as f:
-                index = json.load(f)
-                if folder in index:
-                    details.update(index[folder])
-
-        return jsonify(details)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ============================================================================
 @app.route("/api/labeling/image/<int:image_id>", methods=["POST"])
 @require_admin
 def label_image(image_id):
@@ -1567,145 +634,4 @@ def get_database_stats():
         return jsonify({"error": "Failed to get database stats"}), 500
 
 
-# ============================================================================
-# Admin-Only API Endpoints
-# ============================================================================
-
-
-@app.route("/api/admin/users", methods=["GET"])
-@require_admin
-def get_admin_users():
-    """Get all users (admin only)"""
-    try:
-        logger.info(
-            "Admin accessing user list",
-            extra={
-                "operation": "admin_get_users",
-                "user_id": current_user.email if current_user.is_authenticated else "unknown",
-            },
-        )
-        users = load_users()
-
-        user_count = len([u for u in users.values() if isinstance(u, dict)])
-        logger.info(
-            f"Retrieved {user_count} users for admin",
-            extra={"operation": "admin_get_users", "user_count": user_count},
-        )
-
-        return jsonify(users)
-    except Exception as e:
-        logger.error(
-            f"Error getting users: {e}",
-            exc_info=True,
-            extra={"operation": "admin_get_users", "error_type": type(e).__name__},
-        )
-        return jsonify({"error": "Failed to get users"}), 500
-
-
-@app.route("/api/admin/users/<email>", methods=["PUT"])
-@require_admin
-def update_user_role(email):
-    """Update user role (admin only)"""
-    try:
-        data = request.json
-        if not data or "role" not in data:
-            return jsonify({"error": "role field is required"}), 400
-
-        role = data["role"]
-        if role not in [None, ROLE_ADMIN]:
-            return jsonify({"error": "Invalid role. Must be null (public) or 'admin'"}), 400
-
-        users = load_users()
-        if email not in users:
-            users[email] = {}
-
-        users[email]["role"] = role
-        save_users(users)
-
-        return jsonify(
-            {"success": True, "message": f"Updated user {email} role to {role or 'public'}"}
-        )
-    except Exception as e:
-        logger.error(f"Error updating user role: {e}", exc_info=True)
-        return jsonify({"error": "Failed to update user role"}), 500
-
-
-@app.route("/api/admin/images", methods=["GET"])
-@require_admin
-def get_admin_images():
-    """Get all images including private ones (admin only)"""
-    try:
-        page = request.args.get("page", 1, type=int)
-        per_page = request.args.get("per_page", 20, type=int)
-
-        images = Image.query.order_by(Image.created_at.desc()).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
-
-        return jsonify(
-            {
-                "images": [image.to_dict() for image in images.items],
-                "total": images.total,
-                "pages": images.pages,
-                "current_page": page,
-                "per_page": per_page,
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error getting admin images: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get images"}), 500
-
-
-@app.route("/api/admin/images/<int:image_id>/visibility", methods=["PUT"])
-@require_admin
-def update_image_visibility(image_id):
-    """Update image visibility (admin only)"""
-    try:
-        data = request.json
-        if not data or "is_public" not in data:
-            return jsonify({"error": "is_public field is required"}), 400
-
-        image = Image.query.get_or_404(image_id)
-        image.is_public = bool(data["is_public"])
-        db.session.commit()
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Updated image visibility to "
-                f"{'public' if image.is_public else 'private'}",
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error updating image visibility: {e}", exc_info=True)
-        return jsonify({"error": "Failed to update image visibility"}), 500
-
-
-@app.route("/api/admin/albums", methods=["GET"])
-@require_admin
-def get_admin_albums():
-    """Get all albums including private ones (admin only)"""
-    try:
-        albums = Album.query.order_by(Album.created_at.desc()).all()
-        return jsonify([album.to_dict() for album in albums])
-    except Exception as e:
-        logger.error(f"Error getting admin albums: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get albums"}), 500
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_RUN_PORT", 10050))
-
-    logger.info("=" * 50)
-    logger.info("Imagineer API Server")
-    logger.info("=" * 50)
-    logger.info(f"Config: {CONFIG_PATH}")
-    logger.info(f"Output: {load_config()['output']['directory']}")
-    logger.info("")
-    logger.info(f"Starting server on http://0.0.0.0:{port}")
-    logger.info("Access from any device on your network!")
-    logger.info("=" * 50)
-
-    # Only enable debug mode in development
-    debug_mode = os.environ.get("FLASK_ENV") == "development"
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)
+CONFIG_PATH = _CONFIG_PATH

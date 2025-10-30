@@ -31,10 +31,26 @@ export interface Config {
 export type ImageMetadata = SharedImageMetadata
 
 export interface GeneratedImage {
+  id?: number
   filename: string
-  path: string
-  size: number
-  created: string
+  path?: string
+  relative_path?: string
+  storage_name?: string | null
+  download_url?: string
+  thumbnail_url?: string
+  size?: number
+  created?: string
+  created_at?: string | null
+  prompt?: string | null
+  negative_prompt?: string | null
+  seed?: number | null
+  steps?: number | null
+  guidance_scale?: number | null
+  width?: number | null
+  height?: number | null
+  lora_config?: string | null
+  is_nsfw?: boolean
+  is_public?: boolean
   metadata?: ImageMetadata
 }
 

@@ -131,6 +131,8 @@ make prod-logs
 
 # Verify
 make prod-status
+# Confirm deployed version & commit
+curl -s https://imagineer.joshwentworth.com/api/health | jq '{status,version,git_commit,started_at}'
 ```
 
 ---

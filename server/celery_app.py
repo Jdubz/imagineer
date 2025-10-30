@@ -5,6 +5,7 @@ Celery configuration for async task processing
 import os
 
 from celery import Celery
+from celery.schedules import crontab
 
 
 def make_celery(app=None):
@@ -32,6 +33,7 @@ def make_celery(app=None):
             "server.tasks.labeling",
             "server.tasks.scraping",
             "server.tasks.training",
+            "server.tasks.maintenance",
         ),
     )
 
@@ -40,6 +42,31 @@ def make_celery(app=None):
         "server.tasks.scraping.*": {"queue": "scraping"},
         "server.tasks.training.*": {"queue": "training"},
         "server.tasks.labeling.*": {"queue": "labeling"},
+        "server.tasks.maintenance.*": {
+            "queue": os.environ.get("IMAGINEER_MAINTENANCE_QUEUE", "default")
+        },
+    }
+
+    purge_training_hour = int(os.environ.get("IMAGINEER_PURGE_TRAINING_HOUR", "3"))
+    purge_scrape_hour = int(os.environ.get("IMAGINEER_PURGE_SCRAPE_HOUR", "4"))
+    disk_interval_hours = max(1, int(os.environ.get("IMAGINEER_DISK_SAMPLE_HOURS", "6")))
+
+    celery.conf.beat_schedule = {
+        "purge-stale-training-artifacts": {
+            "task": "server.tasks.training.purge_stale_training_artifacts",
+            "schedule": crontab(hour=purge_training_hour, minute=15),
+            "options": {"queue": "training"},
+        },
+        "purge-stale-scrape-artifacts": {
+            "task": "server.tasks.scraping.purge_stale_scrape_artifacts",
+            "schedule": crontab(hour=purge_scrape_hour, minute=45),
+            "options": {"queue": "scraping"},
+        },
+        "record-disk-usage": {
+            "task": "server.tasks.maintenance.record_disk_usage",
+            "schedule": crontab(hour=f"*/{disk_interval_hours}", minute=0),
+            "options": {"queue": os.environ.get("IMAGINEER_MAINTENANCE_QUEUE", "default")},
+        },
     }
 
     class ContextTask(celery.Task):

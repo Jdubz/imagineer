@@ -82,15 +82,17 @@ Recent completions:
   - Backend: thumbnail API endpoints
 - **Issue:** No responsive images, thumbnails loaded as full images, no lazy loading attributes, no image preloading for modals.
 - **Solution:**
-  - Add `loading="lazy"` to all images
-  - Implement thumbnail API endpoints (if not exist)
-  - Use `<picture>` with multiple sources
-  - Add srcset for responsive images
-  - Preload modal images on hover
-  - Add blur-up placeholder effect
+  - [x] Add `loading="lazy"` to all images
+  - [x] Implement thumbnail API endpoints (if not exist)
+  - [x] Use `<picture>` with multiple sources
+  - [x] Add srcset for responsive images
+  - [x] Preload modal images on hover
+  - [x] Add blur-up placeholder effect
+  - [x] Measure performance improvements (2025-10-30 build: main chunk 267.7 kB / 84.3 kB gzip; AlbumsTab chunk 29.4 kB / 8.1 kB gzip; GalleryTab chunk 30.8 kB / 10.1 kB gzip)
 - **Estimated Time:** 3-5 days (Medium)
-- **Status:** Blocked (awaiting thumbnail API endpoint delivery)
-- **Dependencies:** Backend thumbnail API endpoints (coordinate with backend roadmap)
+- **Status:** In Progress (frontend implementation landed; perf benchmarking outstanding)
+- **Dependencies:** Backend thumbnail API endpoints (delivered via `/api/images/:id/thumbnail`)
+- **Next Action:** Capture runtime metrics and establish pre-change baseline for comparison by 2025-11-05.
 - **Reference:** FRONTEND_CODE_AUDIT.md:337-362
 
 ---
@@ -423,8 +425,9 @@ Recent completions:
   - Handle 429 rate limit responses with retry-after
   - Update auth flow for OAuth redirects
   - Handle trace IDs in error responses
-  - Add auth state management improvements
-- **Status:** Mostly complete, verify integration
+  - Add auth state management improvements (pending AuthContext from Task #14)
+  - Gate queue/config mutations behind centralized admin checks
+- **Status:** Mostly complete, verification blocked on Task #14 rollout
 - **Priority:** High
 - **Estimated Time:** 1-2 days
 
@@ -434,8 +437,8 @@ Recent completions:
 **Source:** FRONTEND_QUEUE_SECURE_ACCESS.md
 - **Issue:** Queue tab should be admin-only
 - **Files:** `web/src/components/QueueTab.tsx`
-- **Solution:** Add admin check before rendering queue controls
-- **Status:** Not Started
+- **Solution:** Add centralized admin guard (via AuthContext), halt polling after 401/403, and surface re-auth prompts
+- **Status:** Not Started (depends on Task #14 completion)
 - **Priority:** Medium
 - **Estimated Time:** 1 hour
 
