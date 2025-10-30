@@ -29,8 +29,13 @@ find -L <root> -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o
 | ├─ Tarot deck | `outputs/tarot_deck_20251014_224018` | Complete set with art + JSON. | 22 |
 | ├─ Zodiac sets | `outputs/zodiac_20251013_204136` | Contains themed PNGs + JSON. | 8 |
 | ├─ Zodiac sets | `outputs/zodiac_20251013_210029` | Additional zodiac batch. | 12 |
-| ├─ LoRA tests | `outputs/lora_tests/` | LoRA experiment renders (6 PNGs). | 6 |
+| ├─ LoRA tests | `outputs/lora_tests/` | LoRA experiment renders. | 6 |
 | ├─ Uploads, thumbnails, scraped | Various | Currently empty or JSON-only; keep reserved for future ingestion. | 0 |
+| **Legacy packs (mounted)** | `/mnt/speedy/image packs/1987399_training_data` | Curated dataset likely used for early training. | 77 |
+| ├─ | `/mnt/speedy/image packs/marytcusack` | Artist-specific reference set. | 32 |
+| ├─ | `/mnt/speedy/image packs/Playing Cards` | Source art for card decks. | 67 |
+| ├─ | `/mnt/speedy/image packs/PNG-cards-1.3` | Additional card PNG bundle. | 67 |
+| **Mounted storage** | `/mnt/storage/imagineer/scraped` | Currently image-empty, but reserved for long-term scraped archives. | 0 |
 | **Coverage & tooling artifacts** | `web/coverage/`, `web/node_modules/**`, `venv/**` | Static assets from tooling; explicitly **excluded** from import. | n/a |
 
 ## 3. Target Organisation
@@ -42,12 +47,13 @@ find -L <root> -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o
      ├─ decks/<deck_slug>/
      ├─ zodiac/<set_slug>/
      ├─ lora-experiments/<experiment_slug>/
+     ├─ reference-packs/<pack_slug>/  # from /mnt/speedy/image packs/*
      └─ uploads/<yyyy-mm>/ (future user uploads)
    ```
 2. **Mirror JSON metadata** alongside each image by copying (or symlinking) the paired `.json`.
 3. Store a manifest (`manifest.yaml`) per subfolder capturing:
    - Relative image path
-   - Prompt text
+   - Prompt text (or source description for reference packs)
    - Timestamp (from filename or JSON)
    - Target album name & visibility flags
    - Any LoRA/model metadata
@@ -57,7 +63,7 @@ find -L <root> -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o
 | Stage | Description | Owner |
 | --- | --- | --- |
 | **Collectors** | Write small collectors (one per source folder) that scan the original directories (`outputs/…`) and emit a normalized `LegacyImage` dataclass + manifest entry. Pure functions = easy unit tests. | Backend |
-| **Stagers** | Copy or symlink assets into `data/legacy` according to manifest, ensuring deterministic filenames (e.g., `<timestamp>-<slug>.png`). Unit tests verify idempotency & path rules. | Backend |
+| **Stagers** | Copy or symlink assets into `data/legacy` according to manifest, ensuring deterministic filenames (e.g., `<timestamp>-<slug>.png` for generated art, `<pack>/<original_name>` for reference packs). Unit tests verify idempotency & path rules. | Backend |
 | **Album Resolver** | Map each record to an album ID (create if missing). Implement as a service layer function with dependency-injected repositories so we can unit test without DB I/O. | Backend |
 | **Ingest Command** | Build a CLI `scripts/import_legacy_media.py` which reads manifests, writes DB rows, and enqueues thumbnails. Cover logic with unit tests using in-memory stubs; integration with real DB can be optional/manual. | Backend |
 | **Verification Suite** | Add tests that validate manifest completeness (no orphaned JSON/PNG), and ensure the importer skips duplicates based on hash or prompt+timestamp. | QA |
@@ -66,7 +72,7 @@ CI Impact: collectors/stagers/importer should expose pure Python modules with co
 
 ## 5. Operational Checklist
 
-1. **Snapshot current outputs volume** (`/mnt/speedy/imagineer/outputs`) before moving files.
+1. **Snapshot mounted volumes** (`/mnt/speedy/imagineer/outputs`, `/mnt/speedy/image packs`, optional `/mnt/storage/imagineer`) before moving files.
 2. Run collectors to generate manifests; review YAML diffs for accuracy.
 3. Execute stager script to populate `data/legacy`.
 4. Dry-run importer in staging (use feature flag to disable thumbnail writes during test).
@@ -86,4 +92,3 @@ CI Impact: collectors/stagers/importer should expose pure Python modules with co
 2. Implement manifest generators + unit tests.
 3. Schedule a maintenance window to run the import pipeline and verify in production/staging.
 4. Update the runbook with lessons learned and mark legacy ingestion as complete.
-
