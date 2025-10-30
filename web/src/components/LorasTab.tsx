@@ -8,7 +8,7 @@ interface LoraModel {
   filename: string
   format?: string
   default_weight?: number
-  has_preview: boolean
+  has_preview?: boolean
   organized_at?: string
 }
 

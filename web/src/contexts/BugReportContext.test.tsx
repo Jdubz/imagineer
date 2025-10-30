@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { MockInstance, SpyInstance } from 'vitest'
+import type { SpyInstance } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -8,16 +8,10 @@ import { BugReportProvider, useBugReporter } from './BugReportContext'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
 import { logger } from '../lib/logger'
 
-type ToastFn = (message: string) => void
-
-type SuccessMock = MockInstance<[string], void>
-type ErrorMock = MockInstance<[string], void>
-type SubmitMock = MockInstance<[BugReportOptions], Promise<BugReportSubmissionResponse>>
-
 const mocks = vi.hoisted(() => ({
-  success: vi.fn<ToastFn>() as SuccessMock,
-  error: vi.fn<ToastFn>() as ErrorMock,
-  submit: vi.fn<(payload: BugReportOptions) => Promise<BugReportSubmissionResponse>>() as SubmitMock,
+  success: vi.fn<[string], void>(),
+  error: vi.fn<[string], void>(),
+  submit: vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>(),
 }))
 
 vi.mock('../hooks/useToast', () => ({
