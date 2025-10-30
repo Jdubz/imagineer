@@ -8,9 +8,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 
-from server.auth import require_admin
+from server.auth import current_user, require_admin
 from server.database import Album, TrainingRun, db
 from server.tasks.training import (
     cleanup_training_data,
@@ -20,6 +20,7 @@ from server.tasks.training import (
     train_lora_task,
     training_log_path,
 )
+from server.utils.rate_limiter import enforce_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,26 @@ def _prepare_training_payload(data: dict) -> tuple[str, str, dict]:
     training_config = {**config_overrides, "album_ids": album_ids}
     description = data.get("description", "")
     return data["name"], description, training_config
+
+
+def _training_rate_settings() -> tuple[int, int, int]:
+    """Return (limit, window_seconds, max_concurrent_runs) for training starts."""
+    limit_default = int(os.environ.get("IMAGINEER_TRAINING_RATE_LIMIT", "4"))
+    window_default = int(os.environ.get("IMAGINEER_TRAINING_RATE_WINDOW_SECONDS", "3600"))
+    max_concurrent_default = int(os.environ.get("IMAGINEER_TRAINING_MAX_CONCURRENT", "1"))
+
+    config = getattr(current_app, "config", {})
+    limit = int(config.get("TRAINING_RATE_LIMIT", limit_default))
+    window = int(config.get("TRAINING_RATE_WINDOW_SECONDS", window_default))
+    max_concurrent = int(config.get("TRAINING_MAX_CONCURRENT_RUNS", max_concurrent_default))
+    return limit, window, max_concurrent
+
+
+def _is_admin_user() -> bool:
+    try:
+        return bool(current_user.is_authenticated and current_user.is_admin())
+    except Exception:  # pragma: no cover
+        return False
 
 
 def _ensure_directory(preferred: Path, fallback: Path, *, kind: str) -> Path:
@@ -96,9 +117,13 @@ def list_training_runs():
         page=page, per_page=per_page, error_out=False
     )
 
+    include_sensitive = _is_admin_user()
+
     return jsonify(
         {
-            "training_runs": [run.to_dict() for run in training_runs.items],
+            "training_runs": [
+                run.to_dict(include_sensitive=include_sensitive) for run in training_runs.items
+            ],
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -115,7 +140,7 @@ def list_training_runs():
 def get_training_run(run_id):
     """Get training run details (public)"""
     run = get_training_run_or_404(run_id)
-    return jsonify(run.to_dict())
+    return jsonify(run.to_dict(include_sensitive=_is_admin_user()))
 
 
 @training_bp.route("", methods=["POST"])
@@ -163,7 +188,7 @@ def create_training_run():  # noqa: C901
     db.session.commit()
 
     logger.info(f"Created training run {run.id}: {run.name}")
-    return jsonify(run.to_dict()), 201
+    return jsonify(run.to_dict(include_sensitive=True)), 201
 
 
 @training_bp.route("/<int:run_id>/start", methods=["POST"])
@@ -174,6 +199,49 @@ def start_training(run_id):
 
     if run.status not in ["pending", "failed"]:
         return jsonify({"error": "Training run cannot be started"}), 400
+
+    limit, window_seconds, max_concurrent = _training_rate_settings()
+    rate_identifier = getattr(current_user, "email", None) or request.remote_addr or "anonymous"
+    rate_limit_response = enforce_rate_limit(
+        namespace="training:start",
+        limit=limit,
+        window_seconds=window_seconds,
+        identifier=rate_identifier,
+        message=(
+            "Too many training jobs have been queued recently. "
+            "Please wait before starting another run."
+        ),
+        logger=logger,
+    )
+    if rate_limit_response:
+        return rate_limit_response
+
+    if max_concurrent > 0:
+        active_runs = TrainingRun.query.filter(
+            TrainingRun.status.in_(("queued", "running"))
+        ).count()
+        if active_runs >= max_concurrent:
+            logger.warning(
+                "Training concurrency limit reached",
+                extra={
+                    "operation": "training:start",
+                    "active_runs": active_runs,
+                    "max_concurrent": max_concurrent,
+                },
+            )
+            response = jsonify(
+                {
+                    "success": False,
+                    "error": (
+                        "Training is already running. Please wait for current jobs "
+                        "to finish before starting another."
+                    ),
+                    "active_runs": active_runs,
+                    "limit": max_concurrent,
+                }
+            )
+            response.headers["Retry-After"] = str(max(1, window_seconds))
+            return response, 429
 
     # Start training task
     task = train_lora_task.delay(run_id)
@@ -187,7 +255,7 @@ def start_training(run_id):
         {
             "message": "Training started",
             "task_id": task.id,
-            "training_run": run.to_dict(),
+            "training_run": run.to_dict(include_sensitive=True),
         }
     )
 
@@ -208,7 +276,9 @@ def cancel_training(run_id):
     db.session.commit()
 
     logger.info(f"Cancelled training run {run_id}: {run.name}")
-    return jsonify({"message": "Training cancelled", "training_run": run.to_dict()})
+    return jsonify(
+        {"message": "Training cancelled", "training_run": run.to_dict(include_sensitive=True)}
+    )
 
 
 @training_bp.route("/<int:run_id>/cleanup", methods=["POST"])

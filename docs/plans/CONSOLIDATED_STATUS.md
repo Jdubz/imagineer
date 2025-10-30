@@ -73,6 +73,7 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - Public image listing with pagination
    - NSFW filtering (is_nsfw flag, is_public flag)
    - Thumbnail generation (300px WebP format)
+   - Public API payloads now emit stable download URLs and omit absolute filesystem paths; admin sessions retain full storage details for operations.
 
 3. **Frontend UI**
    - AlbumsTab.tsx (366 lines) - Album browser and manager
@@ -181,6 +182,8 @@ The Imagineer project has made **substantial progress** on the core vision of a 
    - TrainingTab now surfaces dataset/output directories and final checkpoint paths with copy controls
    - Log viewer exposes log file paths to streamline debugging
    - Admin playbook updated in `docs/guides/TRAINING_OPERATIONS.md` with retention guidance
+5. **Admin Safeguards (Oct 29, 2025)**
+   - Centralized rate limiter enforces per-admin windows and global concurrency on training starts, preventing GPU floods.
 
 ### ⚠️ Outstanding Issues
 

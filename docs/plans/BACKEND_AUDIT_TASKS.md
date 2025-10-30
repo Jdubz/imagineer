@@ -27,19 +27,17 @@ Owner: Backend Platform · Status: Draft
   - Outcome: Backend now detects the anomalous path, processes the callback, and keeps the popup workflow intact. Added regression test coverage to ensure behaviour remains stable.
 
 ## P1 Tasks
-1. **Rate-limit expensive admin operations**  
-   - Files: `server/routes/training.py:95-205`, `server/routes/images.py:110-161`  
-   - Problem: Admin endpoints can enqueue heavy Celery work or bulk uploads without throttle, allowing accidental or malicious floods.  
-   - Fix: Add server-side throttling (Flask-Limiter or NGINX) and queue-depth checks before enqueuing new jobs.
+1. [x] **Rate-limit expensive admin operations** *(Oct 29, 2025)*  
+   - Files: `server/utils/rate_limiter.py`, `server/routes/training.py`, `server/routes/images.py`  
+   - Outcome: Introduced reusable Redis-aware helper and enforced limits/concurrency guards on training starts and image uploads, returning consistent 429s with retry hints.
 
 - [x] **Distribute generation rate limits** *(Oct 29, 2025)*  
   - Files: `server/api.py:150-223`, `server/utils/rate_limiter.py`  
   - Status: Completed for `/api/generate` (Redis-backed with local fallback). **Follow-up:** extend limiter helpers to other heavy admin endpoints (`/api/training`, `/api/images/upload`) during the next pass.
 
-3. **Redact internal filesystem details from API responses**  
-    - Files: `server/api.py:1300-1496`, `server/routes/images.py:250-420`  
-    - Problem: Batch and output listing responses return absolute server paths and raw stdout, leaking infrastructure layout and sensitive metadata.  
-    - Fix: Return relative URLs or opaque IDs, strip stdout dumps, and restrict path details to admin-only diagnostics.
+3. [x] **Redact internal filesystem details from API responses** *(Oct 29, 2025)*  
+    - Files: `server/database.py`, `server/routes/{images,albums,training,scraping}.py`, `server/api.py`  
+    - Outcome: Public payloads now expose stable download URLs and storage names while suppressing absolute paths; admin sessions continue to see full locations for operations.
 
 ## P2 Tasks
 1. **Cache configuration reads with invalidation**  

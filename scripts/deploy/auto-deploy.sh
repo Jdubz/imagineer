@@ -45,6 +45,14 @@ git pull origin $BRANCH
 echo ""
 echo "🔧 Deploying updates..."
 
+# Build frontend
+echo "📦 Building frontend..."
+cd "$APP_DIR/web"
+npm ci --production=false
+npm run deploy:build
+cd "$APP_DIR"
+echo "✅ Frontend built"
+
 if [ "$USE_DOCKER" = "true" ]; then
     echo "Using Docker deployment..."
 
@@ -87,6 +95,10 @@ else
 
     echo "✅ Service restarted successfully"
 fi
+
+# Reload nginx to pick up new static files
+echo "🔄 Reloading nginx..."
+sudo systemctl reload nginx || echo "⚠️  nginx reload failed (may not be critical)"
 
 echo ""
 echo "🧪 Testing deployment..."

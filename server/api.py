@@ -131,10 +131,17 @@ logger = configure_logging(app)
 # Initialize database
 init_database(app)
 
+# Initialize trace ID middleware
+from server.middleware.trace_id import trace_id_middleware  # noqa: E402
+
+trace_id_middleware(app)
+
 # Initialize Celery
 from server.celery_app import make_celery  # noqa: E402
 
 celery = make_celery(app)
+
+from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 
 # Register blueprints
 from server.routes.images import images_bp, outputs_bp  # noqa: E402
@@ -145,6 +152,7 @@ app.register_blueprint(images_bp)
 app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
+app.register_blueprint(bug_reports_bp)
 
 # ============================================================================
 # Generation Endpoint Safeguards
@@ -1301,8 +1309,8 @@ def get_batch(batch_id):
             images.append(
                 {
                     "filename": img_file.name,
-                    "path": str(img_file),
                     "relative_path": f"{batch_id}/{img_file.name}",
+                    "download_url": f"/api/outputs/{batch_id}/{img_file.name}",
                     "size": img_file.stat().st_size,
                     "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
                     "metadata": metadata,

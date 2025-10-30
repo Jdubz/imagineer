@@ -12,6 +12,13 @@ from server.database import Album, AlbumImage, Image, Label, db
 albums_bp = Blueprint("albums", __name__, url_prefix="/api/albums")
 
 
+def _is_admin_user() -> bool:
+    try:
+        return bool(current_user.is_authenticated and current_user.is_admin())
+    except Exception:  # pragma: no cover
+        return False
+
+
 @albums_bp.route("", methods=["GET"])
 def list_albums():
     """List all albums (public, with pagination)"""
@@ -50,12 +57,14 @@ def get_album(album_id):
     album_data = album.to_dict()
     images_payload: list[dict] = []
 
+    include_sensitive = _is_admin_user()
+
     for association in album.album_images:
         image = association.image
         if not image:
             continue
 
-        image_payload = image.to_dict()
+        image_payload = image.to_dict(include_sensitive=include_sensitive)
 
         labels = image.labels or []
         image_payload["labels"] = [label.to_dict() for label in labels]

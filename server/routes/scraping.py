@@ -8,7 +8,7 @@ import shutil
 
 from flask import Blueprint, abort, jsonify, request
 
-from server.auth import require_admin
+from server.auth import current_user, require_admin
 from server.database import ScrapeJob, db
 from server.tasks.scraping import (
     cleanup_scrape_job,
@@ -27,6 +27,13 @@ def get_scrape_job_or_404(job_id: int) -> ScrapeJob:
     if job is None:
         abort(404)
     return job
+
+
+def _is_admin_user() -> bool:
+    try:
+        return bool(current_user.is_authenticated and current_user.is_admin())
+    except Exception:  # pragma: no cover
+        return False
 
 
 @scraping_bp.route("/start", methods=["POST"])
@@ -107,9 +114,11 @@ def list_scrape_jobs():
         jobs_query = ScrapeJob.query.order_by(ScrapeJob.created_at.desc())
         jobs = jobs_query.paginate(page=page, per_page=per_page, error_out=False)
 
+        include_sensitive = _is_admin_user()
+
         return jsonify(
             {
-                "jobs": [job.to_dict() for job in jobs.items],
+                "jobs": [job.to_dict(include_sensitive=include_sensitive) for job in jobs.items],
                 "total": jobs.total,
                 "page": page,
                 "per_page": per_page,
@@ -129,7 +138,7 @@ def get_scrape_job(job_id):
         job = db.session.get(ScrapeJob, job_id)
         if not job:
             return jsonify({"error": "Scrape job not found"}), 404
-        return jsonify(job.to_dict())
+        return jsonify(job.to_dict(include_sensitive=_is_admin_user()))
 
     except Exception as e:
         logger.error(f"Error getting scrape job {job_id}: {e}", exc_info=True)

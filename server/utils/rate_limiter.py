@@ -13,6 +13,11 @@ import time
 from collections import defaultdict, deque
 from typing import Optional
 
+from flask import jsonify, request
+
+# We import lazily inside functions to avoid circular dependencies when Flask
+# initialises the application.
+
 try:
     from redis import Redis
     from redis.exceptions import RedisError  # type: ignore
@@ -105,3 +110,72 @@ def is_rate_limit_exceeded(
         while queue and queue[0] < window_start:
             queue.popleft()
         return len(queue) > limit
+
+
+def enforce_rate_limit(
+    *,
+    namespace: str,
+    limit: int,
+    window_seconds: int,
+    identifier: Optional[str] = None,
+    message: Optional[str] = None,
+    logger=None,
+):
+    """
+    Enforce a sliding-window rate limit for the current caller and return a
+    429 response tuple when the limit is exceeded.
+
+    Args:
+        namespace: Logical operation name (e.g. "training:start").
+        limit: Maximum allowed invocations within the window.
+        window_seconds: Size of the rolling window in seconds.
+        identifier: Optional identifier; defaults to the authenticated email or
+            remote address.
+        message: Optional custom error message for the response.
+        logger: Optional logger to record limit events.
+
+    Returns:
+        None when under the limit, otherwise (Response, 429) suitable for
+        returning from a Flask view.
+    """
+
+    if limit <= 0 or window_seconds <= 0:
+        return None
+
+    if identifier is None:
+        try:
+            from server.auth import current_user  # Imported lazily
+        except Exception:  # pragma: no cover - happens during app init
+            current_user = None  # type: ignore
+
+        user_email = getattr(current_user, "email", None) if current_user else None
+        identifier = user_email or request.remote_addr or "anonymous"
+
+    exceeded = is_rate_limit_exceeded(namespace, identifier, limit, window_seconds)
+    if not exceeded:
+        return None
+
+    if logger is not None:
+        try:
+            logger.warning(
+                "Rate limit exceeded",
+                extra={
+                    "operation": namespace,
+                    "identifier": identifier,
+                    "limit": limit,
+                    "window_seconds": window_seconds,
+                },
+            )
+        except Exception:  # pragma: no cover - defensive logging
+            logger.warning("Rate limit exceeded for %s", namespace)
+
+    response = jsonify(
+        {
+            "success": False,
+            "error": message or "Rate limit exceeded. Please wait before trying again.",
+            "limit": limit,
+            "window_seconds": window_seconds,
+        }
+    )
+    response.headers["Retry-After"] = str(max(1, window_seconds))
+    return response, 429
