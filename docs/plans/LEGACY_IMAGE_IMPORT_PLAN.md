@@ -77,7 +77,9 @@ CI Impact: collectors/stagers/importer should expose pure Python modules with co
 3. Execute stager script to populate `data/legacy`.
 4. Dry-run importer in staging (use feature flag to disable thumbnail writes during test).
 5. Validate in UI (filter by new “Legacy” album tag) and confirm counts match manifest.
-6. Once verified, archive raw outputs folders (rename to `.legacy-archive`) to prevent double imports.
+6. Once verified, archive raw source folders (rename to `.legacy-archive`) to prevent double imports.
+
+> **Integration note:** The `../training-data` project writes its scraped datasets into `/mnt/speedy/image packs/*`. Ensure collectors ingest both the discovered JSON manifests and the downloaded imagery so that training reference packs appear in their own albums/collections.
 
 ## 6. Open Questions
 
