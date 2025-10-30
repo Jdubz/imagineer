@@ -55,8 +55,25 @@ find -L <root> -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o
    - Relative image path
    - Prompt text (or source description for reference packs)
    - Timestamp (from filename or JSON)
-   - Target album name & visibility flags
+   - Target album/collection name & visibility flags
    - Any LoRA/model metadata
+   - Label annotations (tags, suits, ranks, NSFW flags, etc.)
+   - Original source (e.g., `outputs/tarot_deck_20251014_224018`, `training-data/marytcusack`)
+
+## 3a. Album Architecture Alignment
+
+- **Album taxonomy**
+  - `Legacy Singles/<YYYY-MM>` for ad-hoc generations.
+  - `Decks/<deck_slug>` (card & tarot sets).
+  - `Zodiac/<set_slug>` collections.
+  - `LoRA Experiments/<experiment_slug>` results.
+  - `Reference Packs/<pack_slug>` for datasets sourced by the `training-data` project.
+- **Metadata preservation**
+  - Album descriptions should include provenance (source URL, scrape/generation date, license notes).
+  - Respect privacy flags; sensitive packs default to private albums.
+- **Labels & prompts**
+  - Import prompt text, negative prompts, LoRA metadata, and any structured labels (suit/rank, animal type, etc.) into the existing label tables so search & filters remain functional.
+  - Where auxiliary metadata (CSV/JSON) exists, parse it into the manifest and attach to album items during import.
 
 ## 4. Import Pipeline (Unit-Test Focused)
 
@@ -64,9 +81,9 @@ find -L <root> -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o
 | --- | --- | --- |
 | **Collectors** | Write small collectors (one per source folder) that scan the original directories (`outputs/…`) and emit a normalized `LegacyImage` dataclass + manifest entry. Pure functions = easy unit tests. | Backend |
 | **Stagers** | Copy or symlink assets into `data/legacy` according to manifest, ensuring deterministic filenames (e.g., `<timestamp>-<slug>.png` for generated art, `<pack>/<original_name>` for reference packs). Unit tests verify idempotency & path rules. | Backend |
-| **Album Resolver** | Map each record to an album ID (create if missing). Implement as a service layer function with dependency-injected repositories so we can unit test without DB I/O. | Backend |
-| **Ingest Command** | Build a CLI `scripts/import_legacy_media.py` which reads manifests, writes DB rows, and enqueues thumbnails. Cover logic with unit tests using in-memory stubs; integration with real DB can be optional/manual. | Backend |
-| **Verification Suite** | Add tests that validate manifest completeness (no orphaned JSON/PNG), and ensure the importer skips duplicates based on hash or prompt+timestamp. | QA |
+| **Album Resolver** | Map each record to an album ID (create if missing) based on the manifest’s album slug. Implement as a service layer with dependency-injected repositories so we can unit test without DB I/O and assert album metadata (description, visibility) mirrors legacy source notes. | Backend |
+| **Ingest Command** | Build a CLI `scripts/import_legacy_media.py` which reads manifests (generated art + `training-data` reference packs), writes DB rows, attaches albums/labels, and enqueues thumbnails. Cover logic with unit tests using in-memory stubs; integration with real DB can be optional/manual. | Backend |
+| **Verification Suite** | Add tests that validate manifest completeness (no orphaned JSON/PNG/label records), and ensure the importer skips duplicates based on hash or prompt+timestamp while preserving original labels and metadata. | QA |
 
 CI Impact: collectors/stagers/importer should expose pure Python modules with comprehensive unit tests. Avoid adding long-running end-to-end gallery rebuilds to CI; keep those as manual ops runbooks.
 
