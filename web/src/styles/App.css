@@ -6,13 +6,16 @@
 
 .App {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: hsl(var(--background));
+  /* Optional: Use a subtle gradient with theme colors */
+  /* background: linear-gradient(135deg, hsl(var(--primary) / 0.05) 0%, hsl(var(--secondary) / 0.05) 100%); */
 }
 
 .header {
-  color: white;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  color: hsl(var(--primary-foreground));
   padding: 2rem 1rem;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .header-content {
@@ -31,9 +34,9 @@
 }
 
 .bug-report-trigger {
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(13, 19, 41, 0.35);
-  color: #ffffff;
+  border: 1px solid hsl(var(--primary-foreground) / 0.4);
+  background: hsl(var(--primary-foreground) / 0.1);
+  color: hsl(var(--primary-foreground));
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -46,8 +49,8 @@
 
 .bug-report-trigger:hover {
   transform: translateY(-1px);
-  background: rgba(13, 19, 41, 0.55);
-  border-color: rgba(255, 255, 255, 0.6);
+  background: hsl(var(--primary-foreground) / 0.2);
+  border-color: hsl(var(--primary-foreground) / 0.6);
 }
 
 .bug-report-trigger:active {
@@ -90,28 +93,32 @@
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
-  color: #555;
+  color: hsl(var(--foreground));
 }
 
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-family: inherit;
   resize: vertical;
   transition: border-color 0.3s;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
 }
 
 .form-group textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
 }
 
 .form-group textarea:disabled {
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* Control Grid */
@@ -127,7 +134,7 @@
   width: 100%;
   height: 8px;
   border-radius: 5px;
-  background: #e0e0e0;
+  background: hsl(var(--border));
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -140,9 +147,10 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
   cursor: pointer;
   transition: transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .form-group input[type="range"]::-webkit-slider-thumb:hover {
@@ -153,10 +161,11 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
   cursor: pointer;
   border: none;
   transition: transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .form-group input[type="range"]::-moz-range-thumb:hover {
@@ -172,7 +181,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.85rem;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   margin-top: 0.25rem;
 }
 
@@ -191,15 +200,15 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   font-size: 0.75rem;
   cursor: help;
   font-weight: bold;
 }
 
 .tooltip:hover {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .tooltip-text {
@@ -209,16 +218,17 @@
   bottom: 125%;
   transform: translateX(-50%);
   width: 280px;
-  background-color: #333;
-  color: #fff;
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
   text-align: left;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid hsl(var(--border));
   padding: 0.75rem;
   font-size: 0.85rem;
   font-weight: normal;
   line-height: 1.5;
   z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .tooltip-text::after {
@@ -229,7 +239,7 @@
   margin-left: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: #333 transparent transparent transparent;
+  border-color: hsl(var(--popover)) transparent transparent transparent;
 }
 
 .tooltip:hover .tooltip-text {
@@ -251,9 +261,9 @@
 .seed-toggle {
   display: flex;
   gap: 0.5rem;
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   padding: 0.25rem;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
 }
 
 .toggle-option {
@@ -261,16 +271,16 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 6px;
+  border-radius: calc(var(--radius) - 4px);
   cursor: pointer;
   transition: background 0.2s;
   font-size: 0.9rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 .toggle-option:has(input:checked) {
-  background: white;
-  color: #667eea;
+  background: hsl(var(--card));
+  color: hsl(var(--primary));
   font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -287,33 +297,37 @@
 .seed-input {
   flex: 1;
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-family: inherit;
   transition: border-color 0.3s;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
 }
 
 .seed-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
 }
 
 .seed-input:disabled {
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .seed-input::placeholder {
-  color: #aaa;
+  color: hsl(var(--muted-foreground));
 }
 
 .generate-seed-btn {
   padding: 0.75rem 1rem;
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1.2rem;
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
@@ -324,7 +338,7 @@
 }
 
 .generate-seed-btn:hover:not(:disabled) {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
   transform: scale(1.05);
 }
 
@@ -336,10 +350,10 @@
 button[type="submit"] {
   width: 100%;
   padding: 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -348,7 +362,7 @@ button[type="submit"] {
 
 button[type="submit"]:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 12px hsl(var(--primary) / 0.4);
 }
 
 button[type="submit"]:disabled {
@@ -359,9 +373,9 @@ button[type="submit"]:disabled {
 
 /* Queue Status */
 .queue-status {
-  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-  border: 2px solid #667eea;
-  border-radius: 12px;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--secondary) / 0.08) 100%);
+  border: 2px solid hsl(var(--primary));
+  border-radius: var(--radius);
   padding: 1.5rem;
   text-align: center;
   animation: pulse 2s ease-in-out infinite;
@@ -370,18 +384,18 @@ button[type="submit"]:disabled {
 .queue-status p {
   margin: 0.5rem 0;
   font-size: 1.1rem;
-  color: #667eea;
+  color: hsl(var(--primary));
   font-weight: 600;
 }
 
 .queue-status .job-prompt {
   font-size: 0.95rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-weight: normal;
   font-style: italic;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #667eea30;
+  border-top: 1px solid hsl(var(--primary) / 0.2);
 }
 
 @keyframes pulse {
@@ -392,12 +406,12 @@ button[type="submit"]:disabled {
 .loading-indicator {
   margin-top: 1rem;
   text-align: center;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 .spinner {
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #667eea;
+  border: 3px solid hsl(var(--border));
+  border-top: 3px solid hsl(var(--primary));
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -412,10 +426,11 @@ button[type="submit"]:disabled {
 
 /* Config Display */
 .config-display {
-  background: white;
-  border-radius: 12px;
+  background: hsl(var(--card));
+  border-radius: var(--radius);
   padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
 }
 
 .config-header {
@@ -427,8 +442,8 @@ button[type="submit"]:disabled {
 }
 
 .config-header h2 {
-  color: #667eea;
-  border-bottom: 2px solid #f0f0f0;
+  color: hsl(var(--primary));
+  border-bottom: 2px solid hsl(var(--border));
   padding-bottom: 0.5rem;
   flex: 1;
 }
@@ -437,7 +452,7 @@ button[type="submit"]:disabled {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #667eea;
+  color: hsl(var(--primary));
   cursor: pointer;
   padding: 0.5rem;
   margin-left: 1rem;
@@ -450,7 +465,7 @@ button[type="submit"]:disabled {
 }
 
 .config-section h3 {
-  color: #764ba2;
+  color: hsl(var(--secondary));
   margin-bottom: 0.75rem;
   font-size: 1.1rem;
 }
@@ -458,7 +473,7 @@ button[type="submit"]:disabled {
 .config-item {
   display: flex;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .config-item:last-child {
@@ -467,12 +482,12 @@ button[type="submit"]:disabled {
 
 .config-key {
   font-weight: 600;
-  color: #555;
+  color: hsl(var(--foreground));
   min-width: 150px;
 }
 
 .config-value {
-  color: #666;
+  color: hsl(var(--muted-foreground));
   flex: 1;
 }
 
@@ -487,33 +502,33 @@ button[type="submit"]:disabled {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid hsl(var(--border));
   padding-bottom: 0.5rem;
 }
 
 .grid-header h2 {
-  color: #667eea;
+  color: hsl(var(--primary));
 }
 
 .refresh-btn {
   padding: 0.5rem 1rem;
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 6px;
+  border-radius: calc(var(--radius) - 4px);
   cursor: pointer;
   font-weight: 600;
   transition: background 0.3s;
 }
 
 .refresh-btn:hover {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .no-images {
   text-align: center;
   padding: 3rem;
-  color: #999;
+  color: hsl(var(--muted-foreground));
 }
 
 .no-images p {
@@ -528,15 +543,17 @@ button[type="submit"]:disabled {
 
 .image-card {
   position: relative;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
 }
 
 .image-card:hover {
   transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .image-card img {
@@ -544,7 +561,7 @@ button[type="submit"]:disabled {
   height: 250px;
   object-fit: cover;
   display: block;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--border)) 100%);
   transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
@@ -563,11 +580,12 @@ button[type="submit"]:disabled {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-  color: white;
+  background: linear-gradient(to top, hsl(var(--background) / 0.95), transparent);
+  color: hsl(var(--foreground));
   padding: 1rem;
   transform: translateY(100%);
   transition: transform 0.3s;
+  backdrop-filter: blur(8px);
 }
 
 .image-card:hover .image-overlay {
@@ -587,7 +605,7 @@ button[type="submit"]:disabled {
 /* Batch Form Styles */
 .form-divider {
   border: none;
-  border-top: 2px dashed #e0e0e0;
+  border-top: 2px dashed hsl(var(--border));
   margin: 2rem 0;
 }
 
@@ -598,29 +616,32 @@ button[type="submit"]:disabled {
 .form-group select {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-family: inherit;
-  background: white;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   cursor: pointer;
   transition: border-color 0.3s;
 }
 
 .form-group select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
 }
 
 .form-group select:disabled {
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .set-info {
   margin-top: 0.5rem;
   font-size: 0.9rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-style: italic;
 }
 
@@ -633,26 +654,29 @@ button[type="submit"]:disabled {
 .theme-input-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-family: inherit;
   resize: vertical;
   transition: border-color 0.3s;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
 }
 
 .theme-input-group textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
 }
 
 .random-theme-btn {
   align-self: flex-start;
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 6px;
+  border-radius: calc(var(--radius) - 4px);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
@@ -664,7 +688,7 @@ button[type="submit"]:disabled {
 
 .random-theme-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 8px hsl(var(--primary) / 0.3);
 }
 
 .random-theme-btn:disabled {
@@ -676,10 +700,10 @@ button[type="submit"]:disabled {
 .batch-submit-btn {
   width: 100%;
   padding: 1rem;
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  color: white;
+  background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--primary)) 100%);
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -688,7 +712,7 @@ button[type="submit"]:disabled {
 
 .batch-submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(118, 75, 162, 0.4);
+  box-shadow: 0 6px 12px hsl(var(--secondary) / 0.4);
 }
 
 .batch-submit-btn:disabled {
@@ -701,7 +725,7 @@ button[type="submit"]:disabled {
 .no-batches {
   text-align: center;
   padding: 2rem;
-  color: #999;
+  color: hsl(var(--muted-foreground));
   font-style: italic;
 }
 
@@ -711,17 +735,19 @@ button[type="submit"]:disabled {
 }
 
 .batch-item {
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   padding: 1rem;
   cursor: pointer;
   transition: all 0.3s;
+  background: hsl(var(--card));
 }
 
 .batch-item:hover {
-  border-color: #667eea;
-  background: linear-gradient(135deg, #667eea05 0%, #764ba205 100%);
+  border-color: hsl(var(--primary));
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.02) 0%, hsl(var(--secondary) / 0.02) 100%);
   transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .batch-item-header {
@@ -732,32 +758,33 @@ button[type="submit"]:disabled {
 }
 
 .batch-item-header h4 {
-  color: #764ba2;
+  color: hsl(var(--secondary));
   margin: 0;
   font-size: 1rem;
 }
 
 .batch-count {
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
 }
 
 .batch-date {
   font-size: 0.85rem;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   margin: 0;
 }
 
 /* Batch Gallery Styles */
 .batch-gallery {
-  background: white;
-  border-radius: 12px;
+  background: hsl(var(--card));
+  border-radius: var(--radius);
   padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
 }
 
 .batch-header {
@@ -766,10 +793,10 @@ button[type="submit"]:disabled {
 
 .back-button {
   padding: 0.75rem 1.5rem;
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -781,30 +808,31 @@ button[type="submit"]:disabled {
 }
 
 .back-button:hover {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
   transform: translateX(-3px);
 }
 
 .batch-header h2 {
-  color: #667eea;
+  color: hsl(var(--primary));
   margin: 1rem 0 0.5rem;
   word-break: break-word;
 }
 
 .batch-info {
-  color: #888;
+  color: hsl(var(--muted-foreground));
   font-size: 0.95rem;
   margin: 0;
 }
 
 .batch-gallery .image-info {
   padding: 1rem;
-  background: #f8f8f8;
+  background: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 4px);
 }
 
 .batch-gallery .image-prompt {
   font-size: 0.9rem;
-  color: #555;
+  color: hsl(var(--foreground));
   margin-bottom: 0.5rem;
   line-height: 1.4;
 }
@@ -813,13 +841,14 @@ button[type="submit"]:disabled {
   display: flex;
   gap: 1rem;
   font-size: 0.85rem;
-  color: #888;
+  color: hsl(var(--muted-foreground));
 }
 
 .batch-gallery .image-metadata span {
   padding: 0.25rem 0.5rem;
-  background: white;
-  border-radius: 4px;
+  background: hsl(var(--card));
+  border-radius: calc(var(--radius) - 6px);
+  border: 1px solid hsl(var(--border));
 }
 
 /* Responsive */
@@ -870,10 +899,10 @@ button[type="submit"]:disabled {
 
 /* LoRA Configuration Styles */
 .lora-config-section {
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   padding: 1rem;
-  background: #f9f9f9;
+  background: hsl(var(--muted) / 0.3);
 }
 
 .lora-header {
@@ -885,10 +914,10 @@ button[type="submit"]:disabled {
 
 .toggle-lora-btn {
   padding: 0.5rem 1rem;
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
-  border-radius: 6px;
+  border-radius: calc(var(--radius) - 4px);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -896,13 +925,13 @@ button[type="submit"]:disabled {
 }
 
 .toggle-lora-btn:hover {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .no-loras-message {
   text-align: center;
   padding: 1rem;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   font-style: italic;
   margin: 1rem 0;
 }
@@ -915,15 +944,15 @@ button[type="submit"]:disabled {
 }
 
 .lora-item {
-  background: white;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  background: hsl(var(--card));
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   padding: 0.75rem;
   transition: border-color 0.2s;
 }
 
 .lora-item:hover {
-  border-color: #667eea;
+  border-color: hsl(var(--primary));
 }
 
 .lora-info {
@@ -932,7 +961,7 @@ button[type="submit"]:disabled {
 
 .lora-name {
   font-weight: 600;
-  color: #555;
+  color: hsl(var(--foreground));
   font-size: 0.95rem;
 }
 
@@ -944,7 +973,7 @@ button[type="submit"]:disabled {
 
 .weight-label {
   font-size: 0.85rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
   min-width: 80px;
   font-weight: normal;
 }
@@ -953,7 +982,7 @@ button[type="submit"]:disabled {
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: #e0e0e0;
+  background: hsl(var(--border));
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -965,7 +994,7 @@ button[type="submit"]:disabled {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #667eea;
+  background: hsl(var(--primary));
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -978,7 +1007,7 @@ button[type="submit"]:disabled {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #667eea;
+  background: hsl(var(--primary));
   cursor: pointer;
   border: none;
   transition: transform 0.2s;
@@ -990,8 +1019,8 @@ button[type="submit"]:disabled {
 
 .remove-lora-btn {
   padding: 0.5rem;
-  background: #ff4444;
-  color: white;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -1006,7 +1035,7 @@ button[type="submit"]:disabled {
 }
 
 .remove-lora-btn:hover:not(:disabled) {
-  background: #cc0000;
+  background: hsl(var(--destructive) / 0.9);
   transform: scale(1.1);
 }
 
@@ -1018,7 +1047,7 @@ button[type="submit"]:disabled {
 .add-lora-section {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 2px dashed #e0e0e0;
+  border-top: 2px dashed hsl(var(--border));
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1027,27 +1056,29 @@ button[type="submit"]:disabled {
 .add-lora-section label {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #555;
+  color: hsl(var(--foreground));
 }
 
 .add-lora-select {
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
   font-size: 1rem;
   font-family: inherit;
-  background: white;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   cursor: pointer;
   transition: border-color 0.3s;
 }
 
 .add-lora-select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
 }
 
 .add-lora-select:disabled {
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   cursor: not-allowed;
   opacity: 0.5;
 }

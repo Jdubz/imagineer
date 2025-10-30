@@ -4,16 +4,16 @@
   justify-content: center;
   min-height: 400px;
   padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
 }
 
 .error-boundary-content {
-  background: white;
+  background: hsl(var(--card));
   border-radius: 12px;
   padding: 3rem;
   max-width: 600px;
   width: 100%;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 40px hsl(var(--foreground) / 0.2);
   text-align: center;
 }
 
@@ -30,14 +30,14 @@
 }
 
 .error-title {
-  color: #2d3748;
+  color: hsl(var(--card-foreground));
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 1rem;
 }
 
 .error-message {
-  color: #4a5568;
+  color: hsl(var(--muted-foreground));
   font-size: 1.1rem;
   line-height: 1.6;
   margin-bottom: 2rem;
@@ -62,35 +62,35 @@
 }
 
 .error-button.primary {
-  background: #667eea;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .error-button.primary:hover {
-  background: #5568d3;
+  background: hsl(var(--primary) / 0.9);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.4);
 }
 
 .error-button.secondary {
-  background: #e2e8f0;
-  color: #2d3748;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
 }
 
 .error-button.secondary:hover {
-  background: #cbd5e0;
+  background: hsl(var(--muted) / 0.8);
   transform: translateY(-2px);
 }
 
 .error-button.report-bug {
-  background: #f56565;
-  color: white;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
 }
 
 .error-button.report-bug:hover {
-  background: #e53e3e;
+  background: hsl(var(--destructive) / 0.9);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+  box-shadow: 0 4px 12px hsl(var(--destructive) / 0.4);
 }
 
 .error-button:active {
@@ -100,8 +100,8 @@
 .error-details {
   margin: 2rem 0;
   text-align: left;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   padding: 1rem;
 }
@@ -109,13 +109,13 @@
 .error-details summary {
   cursor: pointer;
   font-weight: 600;
-  color: #2d3748;
+  color: hsl(var(--foreground));
   padding: 0.5rem;
   user-select: none;
 }
 
 .error-details summary:hover {
-  color: #667eea;
+  color: hsl(var(--primary));
 }
 
 .error-stack {
@@ -125,7 +125,7 @@
 }
 
 .error-stack h3 {
-  color: #2d3748;
+  color: hsl(var(--foreground));
   font-size: 0.9rem;
   font-weight: 600;
   margin-top: 1rem;
@@ -133,8 +133,8 @@
 }
 
 .error-stack pre {
-  background: #2d3748;
-  color: #f7fafc;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
@@ -145,59 +145,12 @@
 }
 
 .error-footer {
-  color: #718096;
+  color: hsl(var(--muted-foreground));
   font-size: 0.9rem;
   margin-top: 1rem;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .error-boundary {
-    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-  }
-
-  .error-boundary-content {
-    background: #1a202c;
-  }
-
-  .error-title {
-    color: #f7fafc;
-  }
-
-  .error-message {
-    color: #e2e8f0;
-  }
-
-  .error-button.secondary {
-    background: #2d3748;
-    color: #f7fafc;
-  }
-
-  .error-button.secondary:hover {
-    background: #4a5568;
-  }
-
-  .error-details {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .error-details summary {
-    color: #f7fafc;
-  }
-
-  .error-details summary:hover {
-    color: #667eea;
-  }
-
-  .error-stack h3 {
-    color: #f7fafc;
-  }
-
-  .error-footer {
-    color: #cbd5e0;
-  }
-}
+/* Dark mode is handled by the theme tokens, no need for separate media query */
 
 /* Mobile responsive */
 @media (max-width: 640px) {

@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -878,7 +878,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="user-theme">Art Style Theme (required)</Label>
+            <FormLabel htmlFor="user-theme">Art Style Theme (required)</FormLabel>
             <Input
               id="user-theme"
               type="text"
@@ -894,7 +894,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="steps">Steps (optional)</Label>
+            <FormLabel htmlFor="steps">Steps (optional)</FormLabel>
             <Input
               id="steps"
               type="number"
@@ -908,7 +908,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="seed">Seed (optional)</Label>
+            <FormLabel htmlFor="seed">Seed (optional)</FormLabel>
             <Input
               id="seed"
               type="number"
@@ -977,7 +977,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="album-name">Album Name</Label>
+            <FormLabel htmlFor="album-name">Album Name</FormLabel>
             <Input
               id="album-name"
               type="text"
@@ -989,7 +989,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="album-description">Description</Label>
+            <FormLabel htmlFor="album-description">Description</FormLabel>
             <Textarea
               id="album-description"
               value={description}
@@ -1000,7 +1000,7 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="album-type">Album Type</Label>
+            <FormLabel htmlFor="album-type">Album Type</FormLabel>
             <Select value={albumType} onValueChange={handleAlbumTypeChange}>
               <SelectTrigger id="album-type">
                 <SelectValue placeholder="Select album type" />
