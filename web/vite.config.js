@@ -54,25 +54,7 @@ export default defineConfig(({ mode }) => ({
           }
           return `assets/[name]-${version}-[hash].[ext]`
         },
-        // Manual chunk splitting for better caching
-        manualChunks: (id) => {
-          // Vendor chunk for node_modules
-          if (id.includes('node_modules')) {
-            // Split large libraries into separate chunks
-            if (id.includes('react-router')) {
-              return 'vendor-router'
-            }
-            // Must check exact package names to avoid matching react-router, react-focus-lock, etc.
-            if (id.includes('/react/') || id.includes('/react-dom/')) {
-              return 'vendor-react'
-            }
-            if (id.includes('zod')) {
-              return 'vendor-zod'
-            }
-            // Everything else goes into vendor
-            return 'vendor'
-          }
-        }
+        // Use Vite's default chunking strategy to avoid circular vendor splits
       }
     }
   },

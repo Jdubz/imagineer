@@ -79,7 +79,8 @@ export const useKeyboardShortcut = ({
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
+        target.isContentEditable ||
+        target.contentEditable === 'true'
       ) {
         return
       }
@@ -94,11 +95,12 @@ export const useKeyboardShortcut = ({
 
       // If ctrlKey specified, check Ctrl or Cmd
       // If metaKey specified, check specifically Meta
+      // Otherwise ensure no ctrl/meta keys are pressed
       const modifiersMatch =
         isKey &&
         isShift &&
         isAlt &&
-        (ctrlKey ? isCtrlOrCmd : !event.ctrlKey && !event.metaKey) &&
+        (ctrlKey ? isCtrlOrCmd : metaKey ? true : !event.ctrlKey && !event.metaKey) &&
         (metaKey ? isMeta : true)
 
       if (modifiersMatch) {

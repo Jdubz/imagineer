@@ -138,11 +138,11 @@ describe('ErrorBoundaryWithReporting', () => {
       const callArg = mockOpenBugReport.mock.calls[0][0]
 
       // Verify pre-filled content
-      expect(callArg).toContain('**Error caught in Test Boundary**')
-      expect(callArg).toContain('Test error message')
-      expect(callArg).toContain('**Error Stack:**')
-      expect(callArg).toContain('**Steps to reproduce:**')
-      expect(callArg).toContain('**Expected behavior:**')
+      expect(callArg.description).toContain('**Error caught in Test Boundary**')
+      expect(callArg.description).toContain('Test error message')
+      expect(callArg.description).toContain('**Error Stack:**')
+      expect(callArg.description).toContain('**Steps to reproduce:**')
+      expect(callArg.description).toContain('**Expected behavior:**')
     })
 
     it('includes error stack trace in pre-filled description', () => {
@@ -162,7 +162,7 @@ describe('ErrorBoundaryWithReporting', () => {
       reportButton.click()
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
-      expect(callArg).toContain('Error: Test error message')
+      expect(callArg.description).toContain('Error: Test error message')
     })
   })
 
@@ -235,7 +235,7 @@ describe('ErrorBoundaryWithReporting', () => {
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
       // Should have component stack section even if empty
-      expect(callArg).toMatch(/\*\*Component Stack:\*\*|\*\*Error Stack:\*\*/)
+      expect(callArg.description).toMatch(/\*\*Component Stack:\*\*|\*\*Error Stack:\*\*/)
     })
   })
 
@@ -356,7 +356,7 @@ describe('ErrorBoundaryWithReporting', () => {
       reportButton.click()
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
-      expect(callArg).toContain('Custom Boundary Name')
+      expect(callArg.description).toContain('Custom Boundary Name')
     })
   })
 

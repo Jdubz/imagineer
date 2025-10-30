@@ -90,7 +90,7 @@ describe('SettingsMenu', () => {
       fireEvent.click(trigger)
 
       expect(screen.getByText(mockUser.email)).toBeInTheDocument()
-      expect(screen.getByText(/admin/i)).toBeInTheDocument()
+      expect(screen.getByText('Admin')).toBeInTheDocument()
       expect(screen.getByText('👑')).toBeInTheDocument()
     })
 
@@ -108,7 +108,7 @@ describe('SettingsMenu', () => {
       fireEvent.click(trigger)
 
       expect(screen.getByText(mockViewerUser.email)).toBeInTheDocument()
-      expect(screen.getByText(/viewer/i)).toBeInTheDocument()
+      expect(screen.getByText('Viewer')).toBeInTheDocument()
       expect(screen.getByText('👁️')).toBeInTheDocument()
     })
   })

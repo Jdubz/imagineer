@@ -422,7 +422,9 @@ describe('AuthContext', () => {
 
       await result.current.logout()
 
-      expect(result.current.user).toBeNull()
+      await waitFor(() => {
+        expect(result.current.user).toBeNull()
+      })
       expect(fetch).toHaveBeenCalledWith('/api/auth/logout', {
         credentials: 'include',
         headers: {
