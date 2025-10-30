@@ -177,8 +177,6 @@ class Album(db.Model):
         return [ai.image for ai in self.album_images if ai.image]
 
     def to_dict(self):
-        import json
-
         try:
             template_items = json.loads(self.csv_data) if self.csv_data else []
         except json.JSONDecodeError:

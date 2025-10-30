@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import queue
+import random
 import subprocess
 import threading
 import time
@@ -40,6 +41,13 @@ GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 
 job_queue: queue.Queue[dict] = queue.Queue()
 job_history: list[dict] = []
+
+
+def _prune_none_fields(payload: dict) -> dict:
+    """Remove keys with None values to keep API responses clean."""
+    return {key: value for key, value in payload.items() if value is not None}
+
+
 current_job: dict | None = None
 
 
@@ -102,8 +110,6 @@ def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_s
 
 def generate_random_theme():
     """Generate a random art style theme for inspiration."""
-    import random
-
     styles = [
         "watercolor",
         "oil painting",
@@ -266,6 +272,7 @@ def process_jobs():  # noqa: C901
             job["error"] = str(exc)
 
         job["completed_at"] = datetime.now().isoformat()
+        job = _prune_none_fields(job)
         job_history.append(job)
         current_job = None
         job_queue.task_done()
@@ -388,6 +395,11 @@ def generate():  # noqa: C901
         job = {
             "id": len(job_history) + job_queue.qsize() + 1,
             "prompt": prompt,
+            "status": "queued",
+            "submitted_at": datetime.now().isoformat(),
+        }
+
+        optional_fields = {
             "seed": seed,
             "steps": steps,
             "width": width,
@@ -395,11 +407,10 @@ def generate():  # noqa: C901
             "guidance_scale": guidance_scale,
             "negative_prompt": negative_prompt,
             "output": output,
-            "lora_paths": lora_paths,
-            "lora_weights": lora_weights,
-            "status": "queued",
-            "submitted_at": datetime.now().isoformat(),
+            "lora_paths": lora_paths if isinstance(lora_paths, list) else None,
+            "lora_weights": lora_weights if isinstance(lora_weights, list) else None,
         }
+        job.update(_prune_none_fields(optional_fields))
 
         rate_limit_response = _check_generation_rate_limit()
         if rate_limit_response:
@@ -549,12 +560,6 @@ def generate_batch_from_album(album_id):  # noqa: C901
         job = {
             "id": job_id,
             "prompt": prompt,
-            "seed": seed,
-            "steps": steps,
-            "width": width,
-            "height": height,
-            "guidance_scale": guidance_scale,
-            "negative_prompt": negative_prompt,
             "status": "queued",
             "submitted_at": datetime.now().isoformat(),
             "batch_id": batch_id,
@@ -564,9 +569,20 @@ def generate_batch_from_album(album_id):  # noqa: C901
             "album_id": album.id,
         }
 
+        optional_fields = {
+            "seed": seed,
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "guidance_scale": guidance_scale,
+            "negative_prompt": negative_prompt,
+        }
+
         if loras:
-            job["lora_paths"] = [lora["path"] for lora in loras]
-            job["lora_weights"] = [lora["weight"] for lora in loras]
+            optional_fields["lora_paths"] = [lora["path"] for lora in loras]
+            optional_fields["lora_weights"] = [lora["weight"] for lora in loras]
+
+        job.update(_prune_none_fields(optional_fields))
 
         job_queue.put(job)
         job_ids.append(job_id)

@@ -48,6 +48,7 @@ export interface GeneratedImage {
   guidance_scale?: number | null
   width?: number | null
   height?: number | null
+  lora_config?: string | null
   is_nsfw?: boolean
   is_public?: boolean
   metadata?: ImageMetadata

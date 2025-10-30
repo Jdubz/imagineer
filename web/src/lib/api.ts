@@ -113,7 +113,7 @@ function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | 
     return image.metadata
   }
 
-  const metadata: Partial<ImageMetadata> = {}
+  const metadata: ImageMetadata = {}
 
   if (typeof image.prompt === 'string' && image.prompt.trim().length > 0) {
     metadata.prompt = image.prompt
@@ -122,12 +122,12 @@ function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | 
     metadata.negative_prompt = image.negative_prompt
   }
   type NumericMetadataKey = 'seed' | 'steps' | 'guidance_scale' | 'width' | 'height'
-  const numericFields: Array<[NumericMetadataKey, number | undefined]> = [
-    ['seed', image.seed ?? undefined],
-    ['steps', image.steps ?? undefined],
-    ['guidance_scale', image.guidance_scale ?? undefined],
-    ['width', image.width ?? undefined],
-    ['height', image.height ?? undefined],
+  const numericFields: Array<[NumericMetadataKey, number | null | undefined]> = [
+    ['seed', image.seed],
+    ['steps', image.steps],
+    ['guidance_scale', image.guidance_scale],
+    ['width', image.width],
+    ['height', image.height],
   ]
   for (const [key, value] of numericFields) {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -135,11 +135,7 @@ function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | 
     }
   }
 
-  if (Object.keys(metadata).length === 0) {
-    return undefined
-  }
-
-  return metadata as ImageMetadata
+  return Object.keys(metadata).length > 0 ? metadata : undefined
 }
 
 function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage {
@@ -166,14 +162,11 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
     created_at: image.created_at ?? (created ?? undefined),
     prompt: typeof image.prompt === 'string' ? image.prompt : null,
     negative_prompt: typeof image.negative_prompt === 'string' ? image.negative_prompt : null,
-    seed: typeof image.seed === 'number' ? image.seed : image.seed ?? null,
-    steps: typeof image.steps === 'number' ? image.steps : image.steps ?? null,
-    guidance_scale:
-      typeof image.guidance_scale === 'number'
-        ? image.guidance_scale
-        : image.guidance_scale ?? null,
-    width: typeof image.width === 'number' ? image.width : image.width ?? null,
-    height: typeof image.height === 'number' ? image.height : image.height ?? null,
+    seed: typeof image.seed === 'number' ? image.seed : null,
+    steps: typeof image.steps === 'number' ? image.steps : null,
+    guidance_scale: typeof image.guidance_scale === 'number' ? image.guidance_scale : null,
+    width: typeof image.width === 'number' ? image.width : null,
+    height: typeof image.height === 'number' ? image.height : null,
     is_nsfw: image.is_nsfw,
     is_public: image.is_public,
     metadata: buildMetadataFromImage(image),
