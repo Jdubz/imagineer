@@ -364,6 +364,50 @@ class TestImageAPI:
         response = client.get(f"/api/images/{image_id}/thumbnail")
         assert response.status_code == 404
 
+    @patch("pathlib.Path.mkdir")
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("PIL.Image.open")
+    @patch("server.api.load_config")
+    def test_get_thumbnail_private_image_admin(
+        self,
+        mock_load_config,
+        mock_pil_open,
+        mock_exists,
+        mock_mkdir,
+        client,
+        mock_admin_auth,
+    ):
+        """Admins should access thumbnails for private images."""
+        mock_load_config.return_value = {
+            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
+            "output": {"directory": "/tmp/imagineer/outputs"},
+        }
+
+        with client.application.app_context():
+            image = Image(
+                filename="private_admin.jpg",
+                file_path="/tmp/private_admin.jpg",
+                is_public=False,
+            )
+            db.session.add(image)
+            db.session.commit()
+            image_id = image.id
+
+        mock_img = MagicMock()
+        mock_img.thumbnail.return_value = None
+        mock_pil_open.return_value.__enter__.return_value = mock_img
+
+        with patch("flask.send_file") as mock_send:
+            mock_send.return_value = "thumbnail_data"
+
+            response = client.get(f"/api/images/{image_id}/thumbnail")
+            assert response.status_code == 200
+
+        with client.application.app_context():
+            persisted = Image.query.get(image_id)
+            assert persisted is not None
+            assert persisted.thumbnail_path == f"thumbnails/{image_id}.webp"
+
 
 class TestNSFWFiltering:
     """Test NSFW filtering functionality"""

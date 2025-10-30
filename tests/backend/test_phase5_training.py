@@ -377,6 +377,8 @@ class TestTrainingAPI:
         assert payload is not None
         assert payload["dataset_path"] is None
         assert payload["output_path"] is None
+        assert payload["training_config"] is None
+        assert payload["final_checkpoint"] is None
 
     def test_list_training_runs_admin_includes_paths(self, client, mock_admin_auth):
         """Admins should see dataset/output paths when listing runs."""
@@ -385,6 +387,8 @@ class TestTrainingAPI:
                 name="Admin Run",
                 dataset_path="/tmp/training/admin",
                 output_path="/tmp/training/admin_out",
+                training_config='{"steps": 42, "album_ids": [1, 2]}',
+                final_checkpoint="/tmp/training/admin_ckpt.safetensors",
                 status="pending",
             )
             db.session.add(run)
@@ -400,6 +404,8 @@ class TestTrainingAPI:
         assert payload is not None
         assert payload["dataset_path"] == "/tmp/training/admin"
         assert payload["output_path"] == "/tmp/training/admin_out"
+        assert '"album_ids": [1, 2]' in payload["training_config"]
+        assert payload["final_checkpoint"] == "/tmp/training/admin_ckpt.safetensors"
 
     def test_get_training_run(self, client, app):
         """Test getting specific training run"""
@@ -420,6 +426,8 @@ class TestTrainingAPI:
             assert data["name"] == "Test Run"
             assert data["dataset_path"] is None
             assert data["output_path"] is None
+            assert data["training_config"] is None
+            assert data["final_checkpoint"] is None
 
     def test_get_training_run_admin_includes_paths(self, client, app, mock_admin_auth):
         """Admins should receive full path details for a specific run."""
@@ -428,6 +436,8 @@ class TestTrainingAPI:
                 name="Admin Detail Run",
                 dataset_path="/tmp/data-admin",
                 output_path="/tmp/output-admin",
+                training_config='{"steps": 100, "album_ids": [5]}',
+                final_checkpoint="/tmp/data-admin/ckpt.safetensors",
                 status="pending",
             )
             db.session.add(run)
@@ -438,6 +448,8 @@ class TestTrainingAPI:
             data = response.get_json()
             assert data["dataset_path"] == "/tmp/data-admin"
             assert data["output_path"] == "/tmp/output-admin"
+            assert '"album_ids": [5]' in data["training_config"]
+            assert data["final_checkpoint"] == "/tmp/data-admin/ckpt.safetensors"
 
     def test_get_training_run_not_found(self, client):
         """Test getting non-existent training run"""
@@ -635,6 +647,8 @@ class TestTrainingAPI:
                 data = response.get_json()
                 assert len(data["trained_loras"]) == 1
                 assert data["trained_loras"][0]["name"] == "Test Training"
+                assert data["trained_loras"][0]["checkpoint_path"] is None
+                assert data["trained_loras"][0]["public_download_available"] is False
 
     def test_integrate_trained_lora(self, client, app, mock_admin_user):
         """Test integrating trained LoRA (admin)"""
