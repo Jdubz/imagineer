@@ -62,7 +62,8 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('react-router')) {
               return 'vendor-router'
             }
-            if (id.includes('react') || id.includes('react-dom')) {
+            // Must check exact package names to avoid matching react-router, react-focus-lock, etc.
+            if (id.includes('/react/') || id.includes('/react-dom/')) {
               return 'vendor-react'
             }
             if (id.includes('zod')) {
