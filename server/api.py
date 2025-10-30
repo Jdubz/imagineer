@@ -43,6 +43,8 @@ from server.auth import (  # noqa: E402
 from server.config_loader import (  # noqa: E402
     CONFIG_PATH,
     PROJECT_ROOT,
+    clear_config_cache,
+    get_cache_stats,
     load_config,
     save_config,
 )
@@ -786,6 +788,57 @@ def update_generation_config():
         return jsonify({"success": True, "config": config["generation"]})
     except Exception:
         return jsonify({"success": False, "error": "Failed to update generation config"}), 400
+
+
+@app.route("/api/admin/config/cache", methods=["GET"])
+@require_admin
+def get_config_cache_stats():
+    """
+    Get configuration cache statistics (admin only).
+
+    Returns information about the current cache state including whether
+    config is cached, modification times, and cache staleness.
+    """
+    try:
+        stats = get_cache_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get cache statistics"}), 500
+
+
+@app.route("/api/admin/config/reload", methods=["POST"])
+@require_admin
+def reload_config_cache():
+    """
+    Force configuration reload from disk (admin only).
+
+    Clears the cache and immediately reloads the configuration from disk.
+    Useful when config.yaml has been edited externally and you want to
+    ensure the application uses the latest version.
+    """
+    try:
+        clear_config_cache()
+        load_config(force_reload=True)  # Reload to populate cache
+
+        logger.info(
+            "Configuration reloaded by admin",
+            extra={
+                "operation": "config_reload",
+                "user": current_user.email if current_user.is_authenticated else "unknown",
+            },
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "Configuration reloaded from disk",
+                "cache_stats": get_cache_stats(),
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error reloading config: {e}", exc_info=True)
+        return jsonify({"error": "Failed to reload configuration"}), 500
 
 
 @app.route("/api/generate", methods=["POST"])
