@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -109,6 +111,25 @@ def load_config(*, force_reload: bool = False) -> Dict[str, Any]:
     global _config_cache, _config_mtime
 
     with _config_lock:
+        global CONFIG_PATH
+        override_path: Optional[Path] = None
+
+        env_override = os.environ.get("IMAGINEER_CONFIG_PATH")
+        if env_override:
+            override_path = Path(env_override)
+        else:
+            api_module = sys.modules.get("server.api")
+            if api_module is not None:
+                candidate = getattr(api_module, "CONFIG_PATH", None)
+                if candidate:
+                    override_path = Path(candidate)
+
+        if override_path and override_path != CONFIG_PATH:
+            logger.info("Using configuration override at %s", override_path)
+            CONFIG_PATH = override_path
+            _config_cache = None
+            _config_mtime = None
+
         # Check if we need to reload from disk
         should_reload = force_reload or _config_cache is None
 
