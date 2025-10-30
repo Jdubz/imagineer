@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import FocusLock from 'react-focus-lock'
 import { SkeletonImageCard } from './Skeleton'
 import type { GeneratedImage } from '../types/models'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
 
 interface ImageGridProps {
   images: GeneratedImage[]
@@ -53,13 +55,14 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     <div className="image-grid-container">
       <div className="grid-header">
         <h2>Generated Images ({loading ? '...' : images.length})</h2>
-        <button
+        <Button
           onClick={handleRefresh}
-          className="refresh-btn"
+          variant="outline"
           disabled={isRefreshing || loading}
         >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
           {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        </Button>
       </div>
 
       {loading ? (

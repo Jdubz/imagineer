@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import FocusLock from 'react-focus-lock'
 import { logger } from '../lib/logger'
 import type { ImageMetadata } from '../types/models'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
 
 interface BatchImage {
   filename: string
@@ -84,7 +86,10 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
   if (!batch) {
     return (
       <div className="batch-gallery">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
+        <Button onClick={onBack} variant="outline">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Gallery
+        </Button>
         <p>Batch not found</p>
       </div>
     )
@@ -93,7 +98,10 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
   return (
     <div className="batch-gallery">
       <div className="batch-header">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
+        <Button onClick={onBack} variant="outline">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Gallery
+        </Button>
         <h2>{batch.batch_id}</h2>
         <p className="batch-info">{batch.image_count} images</p>
       </div>
