@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { logger } from '../lib/logger'
 import '../styles/LabelingPanel.css'
+import { Button } from '@/components/ui/button'
+import { Tag } from 'lucide-react'
 
 type Identifier = number | string
 
@@ -198,14 +200,16 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
   if (variant === 'compact') {
     return (
       <div className="labeling-panel compact">
-        <button
-          className="labeling-trigger"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => void startLabeling()}
           disabled={isRunning}
           title={isRunning ? 'Labeling in progress' : 'Label this image'}
         >
+          <Tag className="h-3 w-3 mr-1" />
           {isRunning ? 'Labeling…' : 'Label image'}
-        </button>
+        </Button>
         {statusMessage && <p className="status-text">{statusMessage}</p>}
       </div>
     )
@@ -219,13 +223,13 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
       </p>
 
       <div className="labeling-actions">
-        <button
-          className="labeling-button"
+        <Button
           onClick={() => void startLabeling()}
           disabled={isRunning}
         >
+          <Tag className="h-4 w-4 mr-2" />
           {isRunning ? 'Labeling…' : 'Start Labeling'}
-        </button>
+        </Button>
         {taskId && (
           <span className="task-id" aria-live="polite">
             Task ID: {taskId}

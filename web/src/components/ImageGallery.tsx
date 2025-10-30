@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import type { GeneratedImage } from '../types/models'
+import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 
 interface ImageGalleryProps {
   images?: GeneratedImage[]
@@ -60,13 +62,14 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
           onClick={handleBackdropClick}
         >
           <div className="modal-content" role="dialog" aria-modal="true">
-            <button
-              className="close-button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={closeModal}
               aria-label="Close"
             >
-              ×
-            </button>
+              <X className="h-4 w-4" />
+            </Button>
             <img
               src={`/api${selectedImage.path}`}
               alt={selectedImage.metadata?.prompt || selectedImage.filename}
