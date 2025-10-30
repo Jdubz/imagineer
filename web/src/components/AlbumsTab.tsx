@@ -9,6 +9,34 @@ import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Album as SharedAlbum, Label, LabelAnalytics } from '../types/models'
 import { Button } from '@/components/ui/button'
 import { Plus, Trash2, Zap, ArrowLeft, Check, X, Edit2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface AlbumImage {
   id: number
@@ -81,6 +109,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
   const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
   const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
+  const [deleteConfirmAlbum, setDeleteConfirmAlbum] = useState<string | null>(null)
 
   const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -223,18 +252,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [isAdmin, toast, fetchAlbums])
 
-  const deleteAlbum = useCallback(async (albumId: string): Promise<void> => {
+  const deleteAlbum = useCallback((albumId: string): void => {
     if (!isAdmin) return
+    setDeleteConfirmAlbum(albumId)
+  }, [isAdmin])
 
-    if (!window.confirm('Are you sure you want to delete this album?')) return
+  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
+    if (!deleteConfirmAlbum) return
 
     try {
-      const result = await api.albums.delete(albumId)
+      const result = await api.albums.delete(deleteConfirmAlbum)
 
       if (result.success) {
         toast.success('Album deleted successfully')
         fetchAlbums()
-        if (selectedAlbum?.id === albumId) {
+        if (selectedAlbum?.id === deleteConfirmAlbum) {
           setSelectedAlbum(null)
           setAlbumAnalytics(null)
         }
@@ -244,8 +276,10 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     } catch (error) {
       logger.error('Failed to delete album:', error)
       toast.error('Error deleting album')
+    } finally {
+      setDeleteConfirmAlbum(null)
     }
-  }, [isAdmin, toast, fetchAlbums, selectedAlbum])
+  }, [deleteConfirmAlbum, toast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
@@ -430,6 +464,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           onSuccess={handleBatchSuccess}
         />
       )}
+
+      <AlertDialog open={!!deleteConfirmAlbum} onOpenChange={(open) => !open && setDeleteConfirmAlbum(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Album?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the album and all its images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 })
@@ -778,14 +827,6 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
     setSeed(e.target.value)
   }, [])
 
-  const handleOverlayClick = useCallback(() => {
-    onClose()
-  }, [onClose])
-
-  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-  }, [])
-
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
@@ -826,17 +867,19 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
   }, [userTheme, steps, seed, album.id, toast, onSuccess])
 
   return (
-    <div className="dialog-overlay" onClick={handleOverlayClick}>
-      <div className="dialog" onClick={handleDialogClick}>
-        <h2>Generate Batch: {album.name}</h2>
-        <p className="dialog-description">
-          Generate {album.template_item_count || 0} images using this set template
-        </p>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Generate Batch: {album.name}</DialogTitle>
+          <DialogDescription>
+            Generate {album.template_item_count || 0} images using this set template
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="user-theme">Art Style Theme (required):</label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="user-theme">Art Style Theme (required)</Label>
+            <Input
               id="user-theme"
               type="text"
               value={userTheme}
@@ -846,13 +889,13 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
               disabled={isSubmitting}
             />
             {album.example_theme && (
-              <small className="form-hint">Example: {album.example_theme}</small>
+              <p className="text-sm text-muted-foreground">Example: {album.example_theme}</p>
             )}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="steps">Steps (optional):</label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="steps">Steps (optional)</Label>
+            <Input
               id="steps"
               type="number"
               value={steps}
@@ -864,9 +907,9 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="seed">Seed (optional):</label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="seed">Seed (optional)</Label>
+            <Input
               id="seed"
               type="number"
               value={seed}
@@ -878,19 +921,19 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
             />
           </div>
 
-          <div className="dialog-actions">
-            <Button type="submit" disabled={isSubmitting || !userTheme.trim()}>
-              <Zap className="h-4 w-4 mr-2" />
-              {isSubmitting ? 'Starting...' : 'Start Generation'}
-            </Button>
+          <DialogFooter>
             <Button type="button" onClick={onClose} disabled={isSubmitting} variant="outline">
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-          </div>
+            <Button type="submit" disabled={isSubmitting || !userTheme.trim()}>
+              <Zap className="h-4 w-4 mr-2" />
+              {isSubmitting ? 'Starting...' : 'Start Generation'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 })
 
@@ -914,16 +957,8 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
     setDescription(e.target.value)
   }, [])
 
-  const handleAlbumTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    setAlbumType(e.target.value)
-  }, [])
-
-  const handleOverlayClick = useCallback(() => {
-    onClose()
-  }, [onClose])
-
-  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation()
+  const handleAlbumTypeChange = useCallback((value: string) => {
+    setAlbumType(value)
   }, [])
 
   const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
@@ -934,14 +969,16 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
   }, [name, description, albumType, onCreate])
 
   return (
-    <div className="dialog-overlay" onClick={handleOverlayClick}>
-      <div className="dialog" onClick={handleDialogClick}>
-        <h2>Create Album</h2>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Album</DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="album-name">Album Name:</label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="album-name">Album Name</Label>
+            <Input
               id="album-name"
               type="text"
               value={name}
@@ -951,9 +988,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="album-description">Description:</label>
-            <textarea
+          <div className="space-y-2">
+            <Label htmlFor="album-description">Description</Label>
+            <Textarea
               id="album-description"
               value={description}
               onChange={handleDescriptionChange}
@@ -962,28 +999,33 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="album-type">Album Type:</label>
-            <select id="album-type" value={albumType} onChange={handleAlbumTypeChange}>
-              <option value="manual">Manual Collection</option>
-              <option value="batch">Generated Batch</option>
-              <option value="set">CSV Set</option>
-            </select>
+          <div className="space-y-2">
+            <Label htmlFor="album-type">Album Type</Label>
+            <Select value={albumType} onValueChange={handleAlbumTypeChange}>
+              <SelectTrigger id="album-type">
+                <SelectValue placeholder="Select album type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">Manual Collection</SelectItem>
+                <SelectItem value="batch">Generated Batch</SelectItem>
+                <SelectItem value="set">CSV Set</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="dialog-actions">
-            <Button type="submit">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Album
-            </Button>
+          <DialogFooter>
             <Button type="button" onClick={onClose} variant="outline">
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-          </div>
+            <Button type="submit">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Album
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 })
 
