@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { logger } from '../lib/logger'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { LogOut, X } from 'lucide-react'
 
 interface AuthButtonProps {
@@ -254,38 +261,6 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     return null
   }
 
-  const authModal = isAuthModalOpen
-    ? createPortal(
-        <div className="auth-modal-backdrop" role="presentation">
-          <div
-            className="auth-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="auth-modal-title"
-          >
-            <h2 id="auth-modal-title">Complete Google Sign-In</h2>
-            <p className="auth-modal-message">
-              Finish signing in with Google in the window that just opened. This dialog will close
-              automatically once we confirm your account.
-            </p>
-            <div className="auth-modal-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  closeAuthWindow('cancelled')
-                }}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )
-    : null
-
   const primaryLabel = user?.role === 'admin' ? 'Admin' : 'Viewer'
 
   return (
@@ -296,11 +271,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
             {primaryLabel}
           </Button>
           {user && (
-            <Button
-              type="button"
-              onClick={handleLogout}
-              variant="outline"
-            >
+            <Button type="button" onClick={handleLogout} variant="outline">
               <LogOut className="h-4 w-4 mr-2" />
               Log Out
             </Button>
@@ -308,7 +279,28 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
         </div>
         {error && <div className="auth-error">{error}</div>}
       </div>
-      {authModal}
+
+      <Dialog open={isAuthModalOpen} onOpenChange={(open) => !open && closeAuthWindow('cancelled')}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete Google Sign-In</DialogTitle>
+            <DialogDescription>
+              Finish signing in with Google in the window that just opened. This dialog will close
+              automatically once we confirm your account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => closeAuthWindow('cancelled')}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
