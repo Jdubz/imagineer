@@ -89,7 +89,8 @@ Recent completions:
   - Preload modal images on hover
   - Add blur-up placeholder effect
 - **Estimated Time:** 3-5 days (Medium)
-- **Status:** Not Started
+- **Status:** Blocked (awaiting thumbnail API endpoint delivery)
+- **Dependencies:** Backend thumbnail API endpoints (coordinate with backend roadmap)
 - **Reference:** FRONTEND_CODE_AUDIT.md:337-362
 
 ---
@@ -455,13 +456,13 @@ Recent completions:
 
 ### This Sprint (2 weeks)
 1. **Task #20:** Build Optimization - Quick win, improves deployment
-2. **Task #13:** Image Optimization - High user impact, improves performance
-3. **Task #15:** Centralized API Client - Improves maintainability
+2. **Task #14:** Context for Prop Drilling - Unlocks API client refactor by removing duplicated prop wiring
+3. **Frontend Auth Adaptations:** Verify OAuth/rate-limit handling end-to-end before closing the high-priority follow-up
 
 ### Next Sprint (2 weeks)
 1. **Task #11:** Code Splitting - Reduces initial bundle size
-2. **Task #17:** Extract Reusable Components - Reduces code duplication
-3. **Task #14:** Context for Prop Drilling - Improves code organization
+2. **Task #15:** Centralized API Client - Builds on new contexts to consolidate API access
+3. **Task #17:** Extract Reusable Components - Reduces code duplication
 
 ### Long-term (Quarterly Planning)
 1. **Task #18:** Dependency Updates - Security and modernization
@@ -477,6 +478,7 @@ Recent completions:
 - Remaining tasks are enhancements and optimizations
 - Consider business priorities when scheduling P2/P3 work
 - Some tasks have dependencies (e.g., #14 should precede #15)
+- Task #13 is blocked until backend thumbnail endpoints ship; coordinate cross-team scheduling before committing to sprint
 
 ---
 
