@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { api, ApiError } from '../lib/api'
 import '../styles/LorasTab.css'
+import { Button } from '@/components/ui/button'
+import { RotateCw } from 'lucide-react'
 
 interface LoraModel {
   folder: string
@@ -60,9 +62,10 @@ const LorasTab: React.FC = () => {
       <div className="loras-tab">
         <div className="loras-error">
           <p>❌ {error}</p>
-          <button onClick={fetchLoras} className="retry-button">
+          <Button onClick={fetchLoras} variant="outline">
+            <RotateCw className="h-4 w-4 mr-2" />
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -74,9 +77,9 @@ const LorasTab: React.FC = () => {
         <h2>🎨 LoRA Models</h2>
         <div className="loras-stats">
           <span className="stat">{loras.length} models</span>
-          <button onClick={fetchLoras} className="refresh-button" title="Refresh">
-            🔄
-          </button>
+          <Button onClick={fetchLoras} variant="ghost" size="icon" title="Refresh">
+            <RotateCw className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
