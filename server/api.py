@@ -40,6 +40,12 @@ from server.auth import (  # noqa: E402
     require_admin,
     save_users,
 )
+from server.config_loader import (  # noqa: E402
+    CONFIG_PATH,
+    PROJECT_ROOT,
+    load_config,
+    save_config,
+)
 from server.database import (  # noqa: E402
     Album,
     AlbumImage,
@@ -474,9 +480,6 @@ def auth_me():
 # Configuration
 # ============================================================================
 
-# Configuration
-PROJECT_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
 GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 
@@ -484,37 +487,6 @@ GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 job_queue = queue.Queue()
 job_history = []
 current_job = None
-
-
-def load_config():
-    """Load config.yaml"""
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            config = yaml.safe_load(f)
-    except FileNotFoundError:
-        # Fallback config for CI environments
-        logger.info("Config file not found, using fallback config for CI")
-        config = {
-            "model": {"cache_dir": "/tmp/imagineer/models"},
-            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
-            "output": {"directory": "/tmp/imagineer/outputs"},
-            "generation": {"width": 512, "height": 512, "steps": 30},
-            "training": {
-                "checkpoint_dir": "/tmp/imagineer/checkpoints",
-                "learning_rate": 1e-5,
-                "max_train_steps": 1000,
-                "lora": {"rank": 4, "alpha": 32, "dropout": 0.1},
-            },
-            "dataset": {"data_dir": "/tmp/imagineer/data/training"},
-        }
-
-    return config
-
-
-def save_config(config):
-    """Save config.yaml"""
-    with open(CONFIG_PATH, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
 def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):

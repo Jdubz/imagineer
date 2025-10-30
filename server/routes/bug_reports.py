@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from server.auth import require_admin
+from server.config_loader import load_config
 from server.utils.error_handler import APIError, format_error_response
 
 logger = logging.getLogger(__name__)
@@ -26,16 +27,22 @@ def get_bug_reports_dir() -> str:
     Returns:
         Path to bug reports directory
     """
-    try:
-        from server.config import get_config
+    env_override = os.getenv("BUG_REPORTS_PATH")
+    if env_override:
+        return env_override
 
-        config = get_config()
-        return config.get("bug_reports", {}).get(
-            "storage_path", "/mnt/storage/imagineer/bug_reports"
-        )
+    try:
+        config = load_config()
+        storage_path = config.get("bug_reports", {}).get("storage_path")
+        if storage_path:
+            return storage_path
     except Exception:
-        # Fallback to environment variable or default
-        return os.getenv("BUG_REPORTS_PATH", "/mnt/storage/imagineer/bug_reports")
+        logger.warning(
+            "Falling back to default bug report directory due to config load failure",
+            exc_info=True,
+        )
+
+    return "/mnt/storage/imagineer/bug_reports"
 
 
 @bug_reports_bp.route("/api/bug-reports", methods=["POST"])
