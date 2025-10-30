@@ -4,6 +4,8 @@ import { usePolling } from '../hooks/usePolling'
 import '../styles/ScrapingTab.css'
 import type { ScrapingJob } from '../types/models'
 import { validateForm, scrapeFormSchema } from '../lib/validation'
+import { Button } from '@/components/ui/button'
+import { Plus, StopCircle, Trash2, X } from 'lucide-react'
 
 // Helper function to clamp progress values between 0 and 100
 const clampProgress = (value: number | null | undefined): number | undefined => {
@@ -219,13 +221,13 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       <div className="scraping-header">
         <h2>Web Scraping</h2>
         {isAdmin && (
-          <button
-            className="start-scrape-btn"
+          <Button
             onClick={() => setShowStartDialog(true)}
             disabled={loading}
           >
+            <Plus className="h-4 w-4 mr-2" />
             {loading ? 'Starting...' : 'Start New Scrape'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -396,20 +398,22 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
                 {isAdmin && (
                   <div className="job-actions">
                     {job.status === 'running' && (
-                      <button
-                        className="cancel-btn"
+                      <Button
+                        variant="destructive"
                         onClick={() => cancelJob(job.id)}
                       >
+                        <StopCircle className="h-4 w-4 mr-2" />
                         Cancel
-                      </button>
+                      </Button>
                     )}
                     {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
-                      <button
-                        className="cleanup-btn"
+                      <Button
+                        variant="outline"
                         onClick={() => cleanupJob(job.id)}
                       >
+                        <Trash2 className="h-4 w-4 mr-2" />
                         Cleanup
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -592,20 +596,22 @@ const StartScrapeDialog: React.FC<StartScrapeDialogProps> = ({ onClose, onSubmit
           </div>
 
           <div className="dialog-actions">
-            <button
+            <Button
               type="submit"
-              className="submit-btn"
               disabled={loading || !url}
             >
+              <Plus className="h-4 w-4 mr-2" />
               {loading ? 'Starting...' : 'Start Scrape'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
               disabled={loading}
+              variant="outline"
             >
+              <X className="h-4 w-4 mr-2" />
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </div>
