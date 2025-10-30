@@ -84,14 +84,21 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 def load_config() -> Dict[str, Any]:
-    """Load ``config.yaml`` from disk, falling back to defaults when missing."""
+    """Load ``config.yaml`` from disk, falling back to defaults when missing or on error."""
     try:
         with CONFIG_PATH.open("r", encoding="utf-8") as handle:
             config = yaml.safe_load(handle) or {}
             return config
     except FileNotFoundError:
         logger.info("Config file not found at %s, using fallback config", CONFIG_PATH)
-        return copy.deepcopy(_DEFAULT_CONFIG)
+    except Exception as error:  # noqa: BLE001 - intentional broad catch for resilience
+        logger.warning(
+            "Failed to load config from %s: %s. Using fallback config.",
+            CONFIG_PATH,
+            error,
+            exc_info=True,
+        )
+    return copy.deepcopy(_DEFAULT_CONFIG)
 
 
 def save_config(config: Dict[str, Any]) -> None:
