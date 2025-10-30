@@ -33,6 +33,7 @@ const ScrapingTab = lazy(() => import('./components/ScrapingTab'))
 const TrainingTab = lazy(() => import('./components/TrainingTab'))
 const LorasTab = lazy(() => import('./components/LorasTab'))
 const QueueTab = lazy(() => import('./components/QueueTab'))
+const ShadcnTest = lazy(() => import('./components/ShadcnTest'))
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
@@ -417,6 +418,14 @@ const AppContent: React.FC = () => {
                 element={
                   <ErrorBoundaryWithReporting boundaryName="LoRAs Tab">
                     <LorasTab />
+                  </ErrorBoundaryWithReporting>
+                }
+              />
+              <Route
+                path="/shadcn-test"
+                element={
+                  <ErrorBoundaryWithReporting boundaryName="Shadcn Test">
+                    <ShadcnTest />
                   </ErrorBoundaryWithReporting>
                 }
               />

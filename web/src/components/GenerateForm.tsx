@@ -8,6 +8,8 @@ import {
   generateFormSchema,
   themeSchema,
 } from '../lib/validation'
+import { Button } from '@/components/ui/button'
+import { Shuffle } from 'lucide-react'
 
 interface GenerateFormProps {
   onGenerate: (params: GenerateParams) => void
@@ -353,22 +355,28 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               disabled={loading || useRandomSeed}
               className="seed-input"
             />
-            <button
+            <Button
               type="button"
               onClick={generateRandomSeed}
               disabled={loading}
-              className="generate-seed-btn"
+              size="icon"
+              variant="secondary"
               title="Generate random seed"
               aria-label="Generate random seed"
             >
-              🎲
-            </button>
+              <Shuffle className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
-        <button type="submit" disabled={loading || !prompt.trim()}>
+        <Button
+          type="submit"
+          disabled={loading || !prompt.trim()}
+          size="lg"
+          className="w-full"
+        >
           {loading ? 'Generating...' : 'Generate Image'}
-        </button>
+        </Button>
 
         {loading && (
           <div className="loading-indicator">
@@ -458,9 +466,15 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               </div>
             </div>
 
-            <button type="submit" disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}>
+            <Button
+              type="submit"
+              disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}
+              size="lg"
+              variant="secondary"
+              className="w-full"
+            >
               {submittingBatch ? 'Starting Batch...' : 'Generate Batch'}
-            </button>
+            </Button>
 
             {submittingBatch && (
               <div className="loading-indicator">
