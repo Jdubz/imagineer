@@ -81,21 +81,7 @@
   gap: 2rem;
 }
 
-/* Generate Form */
-.generate-form {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.generate-form h2 {
-  color: #667eea;
-  margin-bottom: 1.5rem;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 0.5rem;
-}
-
+/* Form Styles */
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -496,13 +482,6 @@ button[type="submit"]:disabled {
 }
 
 /* Image Grid */
-.image-grid-container {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
 .grid-header {
   display: flex;
   justify-content: space-between;
@@ -603,93 +582,6 @@ button[type="submit"]:disabled {
 .image-date {
   font-size: 0.8rem;
   opacity: 0.8;
-}
-
-/* Modal */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 2rem;
-  overflow: auto;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  max-width: 1000px;
-  max-height: 90vh;
-  overflow: auto;
-  position: relative;
-}
-
-.modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: white;
-  border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 2rem;
-  cursor: pointer;
-  line-height: 1;
-  z-index: 10;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.modal-close:hover {
-  background: #f0f0f0;
-}
-
-.modal-content img {
-  width: 100%;
-  display: block;
-}
-
-.modal-info {
-  padding: 2rem;
-}
-
-.modal-info h3 {
-  color: #667eea;
-  margin-bottom: 1rem;
-}
-
-.detail-item {
-  margin-bottom: 1rem;
-}
-
-.detail-item strong {
-  color: #555;
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.detail-item p {
-  color: #666;
-  margin: 0;
-  line-height: 1.6;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin: 1rem 0;
-}
-
-.detail-grid .detail-item strong {
-  display: inline;
-  margin-right: 0.5rem;
 }
 
 /* Batch Form Styles */
@@ -806,20 +698,6 @@ button[type="submit"]:disabled {
 }
 
 /* Batch List Styles */
-.batch-list {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.batch-list h3 {
-  color: #667eea;
-  margin-bottom: 1rem;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 0.5rem;
-}
-
 .no-batches {
   text-align: center;
   padding: 2rem;
