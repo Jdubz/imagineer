@@ -153,6 +153,15 @@ class Album(db.Model):
     generation_prompt = db.Column(db.Text)
     generation_config = db.Column(db.Text)  # JSON: generation settings
 
+    # Set template metadata
+    is_set_template = db.Column(db.Boolean, default=False)
+    csv_data = db.Column(db.Text)  # JSON string containing template rows
+    base_prompt = db.Column(db.Text)
+    prompt_template = db.Column(db.Text)
+    style_suffix = db.Column(db.Text)
+    example_theme = db.Column(db.Text)
+    lora_config = db.Column(db.Text)  # JSON array of LoRA configs
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=utcnow)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
@@ -168,6 +177,18 @@ class Album(db.Model):
         return [ai.image for ai in self.album_images if ai.image]
 
     def to_dict(self):
+        import json
+
+        try:
+            template_items = json.loads(self.csv_data) if self.csv_data else []
+        except json.JSONDecodeError:
+            template_items = []
+
+        try:
+            lora_payload = json.loads(self.lora_config) if self.lora_config else []
+        except json.JSONDecodeError:
+            lora_payload = []
+
         return {
             "id": self.id,
             "name": self.name,
@@ -181,6 +202,16 @@ class Album(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "image_count": len(self.album_images) if self.album_images else 0,
+            "is_set_template": self.is_set_template,
+            "csv_data": self.csv_data,
+            "base_prompt": self.base_prompt,
+            "prompt_template": self.prompt_template,
+            "style_suffix": self.style_suffix,
+            "example_theme": self.example_theme,
+            "lora_config": self.lora_config,
+            "template_item_count": len(template_items),
+            "template_items_preview": template_items[:5] if template_items else [],
+            "lora_count": len(lora_payload),
         }
 
 

@@ -1,8 +1,8 @@
 # Backend Outstanding Tasks
 
 **Last Updated:** 2025-10-30
-**Status:** 9 tasks remaining (0 Critical, 3 P2, 6 P3) - ✅ Critical + P2 Task #1 COMPLETED!
-**Recent Update:** Added 3 new tasks (#8-10) from comprehensive docs/plans review; removed OpenAPI/Swagger and complex monitoring (not needed)
+**Status:** 5 tasks remaining (0 Critical, 0 P2, 5 P3) - ✅ Logging, automation, and label analytics shipped Oct 30
+**Recent Update:** Delivered label analytics endpoints alongside log taxonomy/PII scrubbing and automated retention/disk telemetry (Oct 30, 2025)
 
 ## Overview
 
@@ -18,44 +18,17 @@ This document consolidates all outstanding backend tasks from comprehensive audi
 
 ## Critical Priority (Blockers)
 
-### CRITICAL: Register Album Blueprint ❗
-**Priority:** P0
-**Estimated Time:** 5 minutes
+### ✅ CRITICAL: Register Album Blueprint (Completed Oct 30, 2025)
+**Priority:** P0  
 **Files:** `/home/jdubz/Development/imagineer/server/api.py`
 
-**Problem:** The `albums_bp` blueprint exists with full functionality (including analytics endpoint) but is never registered in the Flask application. This causes the album analytics endpoint to return 404 despite being fully implemented.
+**Resolution:** `albums_bp` is now imported and registered with the Flask app (`server/api.py:153-160`), restoring the analytics endpoint while eliminating the duplicated album routes. Verified in commit `7d9f03b`.
 
-**Impact:**
-- Analytics endpoint returns 404 despite being implemented
-- 208 lines of duplicate album routes in api.py without analytics
-
-**Location:**
-- Endpoint exists: `server/routes/albums.py:84`
-- Blueprint NOT imported in: `server/api.py`
-- Duplicate routes in: `server/api.py:1418-1625` (without analytics)
-
-**Fix:**
-```python
-# File: server/api.py
-
-# Line ~156: Add import
-from server.routes.albums import albums_bp  # noqa: E402
-
-# Line ~162: Register blueprint
-app.register_blueprint(albums_bp)
-
-# Lines 1418-1625: Delete duplicate routes (208 lines)
-```
-
-**Testing:**
+**Regression Test:**
 ```bash
-# After fix, test analytics endpoint
 curl http://localhost:10050/api/albums/1/labeling/analytics
 ```
 
-**Impact:** Enables analytics endpoint immediately, removes 208 lines of duplicate code, no breaking changes.
-
-**Status:** Not Started
 **Reference:** AUDIT_FINDINGS_SUMMARY.md:213-236
 
 ---
@@ -116,138 +89,83 @@ Recent completions (Oct 29, 2025):
 
 ---
 
-### Task #2: Improve Log Taxonomy and Scrub Sensitive Payloads
-**Priority:** P2
-**Estimated Time:** 1 week
-**Files:**
-- `server/api.py` (request logging)
-- `server/tasks/*`
-- `server/logging_config.py`
+### ✅ Task #2: Improve Log Taxonomy and Scrub Sensitive Payloads (Completed Oct 30, 2025)
+**Priority:** P2  
+**Files:** `server/logging_config.py`, `server/api.py`, `server/utils/logging_utils.py`
 
-**Problem:** Request logs currently dump method/path only; task logs may contain user prompts or external URLs.
+**Highlights:**
+- Added `RequestContextFilter` to enrich every log line with trace IDs, request metadata, and authenticated user email.
+- Centralised PII scrubbing via reusable helpers that redact prompts, payloads, and oversize strings before emission.
+- Introduced environment-driven log levels and optional JSON console formatting for parity across environments.
+- Normalised request lifecycle logging to emit structured `request.completed` events instead of free-form strings.
 
-**Solution:**
-- Add structured logging fields (request IDs, user email)
-- Central prompt redaction to avoid leaking PII into CloudWatch/Splunk
-- Implement log formatters for different environments
-- Add log level controls via environment variables
+**Testing/Observability:** Manual verification via local API smoke tests; automated test suite currently blocked (Flask dependency missing in CI image).
 
-**Tasks:**
-- Create PII redaction utility
-- Update all logging calls to use structured format
-- Add request ID correlation across logs
-- Document logging standards
-
-**Status:** Not Started
+**Status:** ✅ Completed Oct 30, 2025
 **Reference:** BACKEND_AUDIT_TASKS.md:48-52
 
 ---
 
-### Task #3: Automate Artifact Lifecycle Management
-**Priority:** P2
-**Estimated Time:** 1 week
-**Files:**
-- `server/tasks/scraping.py`
-- `server/tasks/training.py`
-- `server/routes/training.py`
-- `server/routes/scraping.py`
+### ✅ Task #3: Automate Artifact Lifecycle Management (Completed Oct 30, 2025)
+**Priority:** P2  
+**Files:** `server/celery_app.py`, `server/tasks/{training,scraping,maintenance}.py`, `server/utils/disk_stats.py`, `server/api.py`
 
-**Problem:** Manual cleanup endpoints exist, but automated retention policy not scheduled.
+**Highlights:**
+- Daily Celery Beat entries now dispatch `purge_stale_training_artifacts` and `purge_stale_scrape_artifacts` with configurable windows.
+- Added maintenance task `record_disk_usage` to log snapshots and emit warnings when utilisation breaches thresholds.
+- New admin endpoint `GET /api/admin/disk-stats` surfaces live disk metrics for operations teams.
+- Introduced reusable disk measurement helpers with `du` fallbacks for consistent reporting across mounts.
 
-**Current Status:**
-- ✅ Retention-aware purge tasks exist
-- ✅ Admin endpoints can queue cleanups
-- ❌ Not wired into scheduled automation (Celery beat/crontab)
-- ❌ No disk utilization alerts
-
-**Solution:**
-- Wire purge jobs into Celery beat schedule
-- Add disk utilization monitoring
-- Surface alerts when storage runs hot
-- Document retention policies
-
-**Tasks:**
-- Configure Celery beat schedule for daily cleanup
-- Add disk space monitoring endpoint
-- Implement alerting (email/Slack) for low disk space
-- Document cleanup policies in admin guide
-
-**Status:** In Progress
+**Status:** ✅ Completed Oct 30, 2025
 **Reference:** BACKEND_AUDIT_TASKS.md:54-56
 
 ---
 
-## Low Priority (4 tasks)
+## Low Priority (4 tasks total; 3 remaining)
 
-### Task #4: Validation for Public Training Run Visibility
-**Priority:** P3
-**Estimated Time:** 2-3 days
-**File:** `server/routes/training.py:28-76`
+### ✅ Task #4: Validation for Public Training Run Visibility (Completed Oct 30, 2025)
+**Priority:** P3  
+**Files:** `server/routes/training.py`, `tests/backend/test_phase5_training.py`
 
-**Problem:** Training metadata (names, album composition) is publicly readable; confirm this is intentional or add auth/field filtering.
+**Highlights:**
+- Added `_serialize_training_run` helper to strip dataset/output paths, training configs, and checkpoints for non-admin responses while retaining full detail for admins.
+- Sanitised `/api/training/loras` to hide checkpoint filesystem paths from public callers while still exposing filenames and sizes.
+- Expanded training API tests covering both public and admin visibility to lock down the new policy.
 
-**Solution:**
-- Decide policy: should training runs be public or private?
-- If private, wrap in `@require_admin` decorator
-- If public, redact sensitive columns (email, album IDs)
-- Document decision in API docs
-
-**Status:** Not Started
 **Reference:** BACKEND_AUDIT_TASKS.md:58-61
 
 ---
 
-### Task #5: Split Monolithic server/api.py
-**Priority:** P3
-**Estimated Time:** 2-3 weeks
-**Files:** `server/api.py` (1,871 lines)
+### ✅ Task #5: Split Monolithic server/api.py (Completed Oct 30, 2025)
+**Priority:** P3  
+**Files:** `server/api.py`, `server/routes/generation.py`, `server/routes/admin.py`, `tests/backend/test_api.py`
 
-**Problem:** File exceeds 1,500 lines with mixed responsibilities, making review/testing difficult.
+**Problem:** `server/api.py` exceeded 1,500 lines with interleaved queue/admin logic, creating merge pressure and opaque coupling.
 
 **Solution:**
-- Extract config loading to `server/config.py`
-- Extract job queue to `server/queue.py`
-- Extract auth handlers to `server/auth_handlers.py`
-- Leave Flask app wiring minimal
-- Ensure all imports work correctly
-- Update tests to import from new locations
+- Lifted generation queue + LoRA endpoints into `server/routes/generation.py` blueprint with `/api` prefix.
+- Moved configuration/admin maintenance endpoints into `server/routes/admin.py`.
+- Registered the new blueprints from `server/api.py`, keeping routing order identical for backwards compatibility.
+- Added `/api/health` test coverage to confirm blueprint wiring and queue stats exposure.
 
 **Impact:**
-- Easier code review
-- Better test isolation
-- Clearer separation of concerns
-- Reduced merge conflicts
+- Reduced `server/api.py` by ~430 lines; central file now focuses on auth/public routes.
+- Blueprint separation lets future maintenance touch queue/admin code without risking unrelated merge conflicts.
+- Tests cover the health check happy path and core generation/admin blueprint endpoints (`/api/batches`, `/api/loras/*`, `/api/admin/config/*`, `/api/admin/disk-stats`) to guard regressions.
 
-**Status:** Not Started
 **Reference:** BACKEND_AUDIT_TASKS.md:63-66
 
 ---
 
-### Task #6: Document Celery Worker Expectations
-**Priority:** P3
-**Estimated Time:** 1-2 days
-**Files:**
-- New: `docs/deployment/CELERY.md`
-- `README.md` (add reference)
+### ✅ Task #6: Document Celery Worker Expectations (Completed Oct 30, 2025)
+**Priority:** P3  
+**Files:** `docs/deployment/CELERY.md`, `README.md`
 
-**Problem:** Worker concurrency/memory requirements are implicit. New environments guess at queue definitions.
+**Highlights:**
+- Authored a Celery operations runbook covering queue roles, sizing envelopes, systemd/Kubernetes deployment templates, and monitoring guardrails.
+- Captured environment knobs from `server/celery_app.py` (prefetch, time limits, beat schedules) with recommended overrides per environment.
+- Added README cross-link under the production deployment section for visibility.
 
-**Solution:**
-- Document queue names and routing
-- Document prefetch limits per worker
-- Document memory guardrails
-- Add Helm values example
-- Add systemd service examples
-- Document scaling guidelines
-
-**Contents:**
-- Queue definitions (default, training, scraping, labeling)
-- Recommended worker counts
-- Memory requirements per queue
-- Monitoring recommendations
-- Troubleshooting guide
-
-**Status:** Not Started
 **Reference:** BACKEND_AUDIT_TASKS.md:68-70
 
 ---
@@ -279,12 +197,17 @@ Recent completions (Oct 29, 2025):
 
 2. Create migration script to import existing sets
 
-3. Update API endpoints to handle set-backed albums
+3. **(✅ Oct 30)** Update API endpoints to handle set-backed albums
 
 4. Add UI for creating/editing set templates
 
-**Status:** Not Started (migration plan documented)
+**Status:** In Progress (backend schema/API landed Oct 30, 2025)
 **Reference:** SETS_TO_ALBUMS_MIGRATION.md
+
+**Progress (Oct 30, 2025):**
+- Added set-template columns (`is_set_template`, `csv_data`, `base_prompt`, `prompt_template`, `style_suffix`, `example_theme`, `lora_config`) to `server/database.py` with serialization helpers.
+- `/api/albums` now accepts and returns set-template metadata, including filtering via `?is_set_template=` and `album_type`.
+- Backend tests (`tests/backend/test_api.py`) cover set-template creation/update flows and ensure normalization of JSON payloads.
 
 ---
 
@@ -348,51 +271,17 @@ data/legacy/
 
 ---
 
-### Task #9: Label Analytics Endpoints
-**Priority:** P2-P3
-**Estimated Time:** 1 week
-**Files:**
-- `server/routes/labels.py` - New file
-- `server/database.py` - May need query optimizations
+### ✅ Task #9: Label Analytics Endpoints (Completed Oct 30, 2025)
+**Priority:** P2-P3  
+**Files:** `server/routes/labels.py`, `server/api.py`, `tests/backend/test_label_analytics.py`
 
-**Problem:**
-- No endpoints for label statistics
-- No tag cloud visualization data
-- Missing label frequency analysis
-- Unable to assess training data quality via UI
-- No visibility into label distribution across albums
+**Highlights:**
+- Added dedicated blueprint with `/api/labels/stats`, `/api/labels/top-tags`, and `/api/labels/distribution` endpoints, all admin-gated.
+- Each endpoint supports `label_type`, `album_id`, pagination, and public-only filters to mirror UI needs.
+- Aggregations expose total/unique label counts, per-image averages, tag frequency percentages, and per-album coverage metrics ready for dashboards.
+- New backend tests cover summary stats, tag filtering, and distribution logic with mocked admin auth.
 
-**Solution:**
-1. Create `server/routes/labels.py` blueprint with endpoints:
-   - `GET /api/labels/stats` - Overall label statistics
-   - `GET /api/labels/top-tags` - Most frequent tags (for tag cloud)
-   - `GET /api/labels/distribution` - Label breakdown by album/image
-2. Support filtering by `label_type` (manual, caption, tag)
-3. Add query parameters for pagination and limits
-4. Include aggregations:
-   - Total label count
-   - Unique label count
-   - Labels per image (avg/min/max)
-   - Top N tags with frequencies
-   - Label coverage percentage
-
-**Response Format:**
-```json
-{
-  "total_labels": 1234,
-  "unique_labels": 456,
-  "avg_labels_per_image": 3.2,
-  "top_tags": [
-    {"tag": "portrait", "count": 89, "percentage": 7.2},
-    {"tag": "landscape", "count": 67, "percentage": 5.4}
-  ],
-  "by_type": {
-    "manual": 456,
-    "caption": 678,
-    "tag": 100
-  }
-}
-```
+**Status:** ✅ Completed Oct 30, 2025
 
 **Benefits:**
 - Better insights for training data quality
@@ -406,73 +295,16 @@ data/legacy/
 
 ---
 
-### Task #10: Local Disk Usage Statistics
-**Priority:** P3
-**Estimated Time:** 2-3 days
-**Files:**
-- `server/api.py` - Add disk stats endpoint
-- `server/utils/disk_stats.py` - New utility module
+### ✅ Task #10: Local Disk Usage Statistics (Completed Oct 30, 2025)
+**Priority:** P3  
+**Files:** `server/utils/disk_stats.py`, `server/api.py`, `server/tasks/maintenance.py`
 
-**Problem:**
-- No visibility into disk usage for mounted volumes
-- Risk of filling storage without warning
-- Unable to track artifact growth over time
-- No way to identify which directories consume most space
+**Highlights:**
+- Delivered admin endpoint `/api/admin/disk-stats` exposing mount utilisation, per-target byte counts, and alert thresholds.
+- Added disk measurement helpers with `du -sb` fallbacks to keep reporting accurate across mounted volumes.
+- Scheduled `record_disk_usage` maintenance task to log snapshots and emit warnings once utilisation exceeds the configurable 85% threshold.
 
-**Solution:**
-1. Add `/api/admin/disk-stats` endpoint (admin only) that returns:
-   - Total/used/free space for each mount point
-   - Percentage used
-   - Breakdown by subdirectory (outputs, models, checkpoints, scraped)
-2. Create `server/utils/disk_stats.py` with helper functions:
-   ```python
-   def get_disk_usage(path: str) -> dict:
-       """Get disk usage statistics for a path."""
-       stat = os.statvfs(path)
-       total = stat.f_blocks * stat.f_frsize
-       free = stat.f_bfree * stat.f_frsize
-       used = total - free
-       return {
-           'total_bytes': total,
-           'used_bytes': used,
-           'free_bytes': free,
-           'percent_used': (used / total) * 100
-       }
-
-   def get_directory_sizes(base_path: str, subdirs: list) -> dict:
-       """Get sizes of subdirectories."""
-       # Use du command or os.walk to calculate sizes
-   ```
-3. Monitor key paths:
-   - `/mnt/speedy/imagineer/` (models, outputs, sets, checkpoints)
-   - `/mnt/storage/imagineer/` (scraped data, bug reports)
-
-**Response Format:**
-```json
-{
-  "mounts": {
-    "/mnt/speedy": {
-      "total_bytes": 1000000000000,
-      "used_bytes": 500000000000,
-      "free_bytes": 500000000000,
-      "percent_used": 50.0
-    }
-  },
-  "directories": {
-    "outputs": {"size_bytes": 50000000000, "percent_of_mount": 10.0},
-    "models": {"size_bytes": 25000000000, "percent_of_mount": 5.0},
-    "checkpoints": {"size_bytes": 100000000000, "percent_of_mount": 20.0}
-  }
-}
-```
-
-**Benefits:**
-- Visibility into disk usage trends
-- Identify space-consuming directories
-- Inform cleanup decisions
-- Simple, local-only solution (no external dependencies)
-
-**Status:** Not Started
+**Status:** ✅ Completed Oct 30, 2025
 **Reference:** CONSOLIDATED_STATUS.md Section 6.4 (simplified)
 
 ---
@@ -606,10 +438,10 @@ data/legacy/
 | Priority | Count | Estimated Time |
 |----------|-------|----------------|
 | ~~P0 (Critical)~~ | ~~1~~ | ~~5 minutes~~ ✅ COMPLETED Oct 30 |
-| P2 (Medium) | ~~3~~ → **3** | **3 weeks** (Task #2, #3, #9) |
-| P3 (Low) | ~~3~~ → **6** | **6-9 weeks** (Tasks #4-#8, #10) |
+| P2 (Medium) | ~~3~~ → ~~1~~ → 0 | ✅ Completed Oct 30 |
+| P3 (Low) | ~~3~~ → ~~4~~ → ~~3~~ → **2** | **2-3 weeks** (Tasks #7-#8) |
 | ~~Additional~~ | ~~1~~ | ~~8-12 hours~~ ✅ VERIFIED Oct 30 |
-| **Total** | **~~9~~ → ~~5~~ → 9** | **~~8-13~~ → ~~6-9~~ → 9-12 weeks** |
+| **Total** | **~~9~~ → ~~5~~ → 4 → 3 → 2** | **~~8-13~~ → ~~6-9~~ → ~~4-6~~ → ~~3-4~~ → 2-3 weeks** |
 
 **Note:** 3 additional tasks discovered from docs/plans review (Oct 30, 2025). OpenAPI/Swagger and complex monitoring removed per requirements.
 
@@ -618,26 +450,15 @@ data/legacy/
 ## Recommended Next Actions
 
 ### ✅ Completed This Session
-1. ~~**CRITICAL:** Register albums_bp blueprint~~ - DONE (Commit: 7d9f03b)
-2. ~~**Task #1:** Configuration caching~~ - DONE (Commit: 2e21e09)
-3. ~~**Bug Report Endpoint:** Verified fully implemented~~ - DONE
+1. ~~**Task #2:** Log taxonomy & PII scrubbing~~ - DONE (Oct 30, 2025)
+2. ~~**Task #3:** Automate artifact lifecycle~~ - DONE (Oct 30, 2025)
+3. ~~**Task #9:** Label analytics endpoints~~ - DONE (Oct 30, 2025)
+4. ~~**Task #10:** Local disk usage statistics~~ - DONE (Oct 30, 2025)
+5. ~~**Task #6:** Celery worker expectations~~ - DONE (Oct 30, 2025)
 
-### This Sprint (2 weeks) - P2 Tasks
-1. **Task #2:** Log taxonomy and PII redaction - Improves security & observability
-2. **Task #3:** Automate artifact lifecycle - Prevents disk space issues
-3. **Task #9:** Label analytics endpoints - Enables training data insights
-
-### Next Sprint (2 weeks) - High-value P3 Tasks
-1. **Task #4:** Training run visibility policy - Security decision
-2. **Task #6:** Celery documentation - Improves operations
-3. **Task #10:** Local disk usage statistics - Operational visibility (2-3 days)
-
-### Long-term (Quarterly) - Large P3 Tasks
-1. **Task #5:** Split api.py - Improves maintainability (2-3 weeks)
-2. **Task #7:** Sets → Albums migration - Feature consolidation (1-2 weeks)
-3. **Task #8:** Legacy image import - Restore 424 historic images (1-2 weeks)
-
----
+### Upcoming Focus - High-value P3 Tasks
+1. **Task #7:** Sets → Albums migration - Feature consolidation
+2. **Task #8:** Legacy image import - Restore 424 historic images
 
 ## Notes
 
@@ -645,16 +466,15 @@ data/legacy/
 - ✅ **Configuration caching implemented** (Oct 30, 2025 - Commit: 2e21e09)
 - All training/scraping systems verified working as of Oct 28, 2025
 - Backend is **production-ready** with all P0/P1 tasks completed
-- 9 remaining tasks: 3 P2 (3 weeks), 6 P3 (6-9 weeks)
-- 3 new tasks added from comprehensive docs/plans review:
+- 2 remaining tasks: both P3 (2-3 weeks)
+- Recent additions (Oct 30, 2025):
   - Legacy image import (424 images to restore)
-  - Label analytics endpoints (training data insights)
-  - Local disk usage statistics (simple operational visibility)
 - Removed unnecessary tasks:
   - OpenAPI/Swagger documentation (not needed)
-  - Complex monitoring/alerting (replaced with simple disk stats)
-- Consider business priorities when scheduling P2/P3 work
-- P2 tasks should be prioritized for security and operational stability
+- Completed Oct 30, 2025: Generation + admin blueprints extracted (`server/routes/{generation,admin}.py`) with `/api/health` regression tests covering queue stats.
+- Completed Oct 30, 2025: Celery runbook added (`docs/deployment/CELERY.md`) with README linkage and operations guidance.
+- Disk telemetry now lives in `/api/admin/disk-stats`; consider extending to alerting integrations if needed
+- Consider business priorities when scheduling remaining P3 work
 
 ---
 

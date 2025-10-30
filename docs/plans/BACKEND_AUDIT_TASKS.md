@@ -40,30 +40,31 @@ Owner: Backend Platform · Status: Draft
     - Outcome: Public payloads now expose stable download URLs and storage names while suppressing absolute paths; admin sessions continue to see full locations for operations.
 
 ## P2 Tasks
-1. **Cache configuration reads with invalidation**  
+1. **Cache configuration reads with invalidation** ✅ *(Completed Oct 30, 2025)*  
     - Files: `server/api.py:400-470`, `server/routes/images.py:312`, `server/tasks/*`  
     - Problem: `load_config()` hits disk on every request/task, which is wasteful and risks stale globals (`SETS_DIR`).  
     - Fix: Cache the config with mtime checks or memoization and add an explicit reload hook for admins.
 
-2. **Improve log taxonomy and scrub sensitive payloads**  
+2. **Improve log taxonomy and scrub sensitive payloads** ✅ *(Completed Oct 30, 2025)*  
     - Files: `server/api.py` (request logging), `server/tasks/*`  
     - Problem: Request logs currently dump method/path only; task logs may contain user prompts or external URLs.  
     - Fix: Add structured logging fields (request ids, user email) and central prompt redaction to avoid leaking PII into CloudWatch/Splunk.
 
-- **Automate artifact lifecycle management** *(in progress)*  
+- **Automate artifact lifecycle management** ✅ *(Completed Oct 30, 2025)*  
     - Files: `server/tasks/scraping.py`, `server/tasks/training.py`, `server/routes/training.py`, `server/routes/scraping.py`  
-    - Status: Added retention-aware purge tasks and admin endpoints to queue cleanups. **Remaining:** wire purge jobs into scheduled automation (Celery beat/crontab) and surface disk utilisation alerts.
+    - Status: Daily Celery beat schedule now dispatches purge tasks; maintenance job records disk usage and emits alerts via logging.
 
-4. **Validation for public training run visibility**  
-    - File: `server/routes/training.py:28-76`  
-    - Problem: Training metadata (names, album composition) is publicly readable; confirm this is intentional or add auth/field filtering.  
-    - Fix: Decide policy; if private, wrap in `@require_admin` or redact sensitive columns.
+4. **Validation for public training run visibility** ✅ *(Completed Oct 30, 2025)*  
+    - File: `server/routes/training.py:28-220`  
+    - Outcome: Added sanitisation layer that hides dataset/output paths, training configs, and checkpoints for non-admin users while retaining full detail for administrators. `/api/training/loras` now omits filesystem paths for public callers.
 
 ## P3 Tasks
-1. **Split monolithic `server/api.py`**  
-    - Problem: File exceeds 1,500 lines with mixed responsibilities, making review/testing difficult.  
-    - Fix: Extract config, job queue, and auth handlers into dedicated modules and leave Flask app wiring minimal.
+1. [x] **Split monolithic `server/api.py`** *(Completed Oct 30, 2025)*  
+   - Files: `server/routes/generation.py`, `server/routes/admin.py`, `server/api.py`, `tests/backend/test_api.py`  
+   - Outcome: Queue/admin endpoints now live in dedicated blueprints with preserved routing order; `/api/health` test verifies registration and queue stats wiring.
 
-2. **Document Celery worker expectations**  
-    - Problem: Worker concurrency/memory requirements are implicit. New environments guess at queue definitions.  
-    - Fix: Add deployment docs (or Helm values) specifying queue names, prefetch limits, and memory guardrails.
+2. [x] **Document Celery worker expectations** *(Completed Oct 30, 2025)*  
+    - Files: `docs/deployment/CELERY.md`, `README.md`  
+    - Outcome: Published queue sizing & deployment runbook with systemd/Helm examples and linked it from the deployment docs for operators.
+
+- **Update Oct 30, 2025:** Album schema/API now exposes set-template metadata (`server/database.py`, `server/routes/albums.py`, `tests/backend/test_api.py`) with migration tooling still pending.

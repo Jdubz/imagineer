@@ -2,6 +2,9 @@
 Album management endpoints
 """
 
+import json
+from typing import Any
+
 from flask import Blueprint, abort, jsonify, request
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -27,7 +30,16 @@ def list_albums():
 
     query = Album.query.order_by(Album.created_at.desc())
 
-    # Paginate
+    album_type = request.args.get("album_type")
+    if album_type:
+        query = query.filter(Album.album_type == album_type)
+
+    is_set_template_param = request.args.get("is_set_template")
+    if is_set_template_param is not None:
+        lowered = is_set_template_param.strip().lower()
+        filter_value = lowered in {"1", "true", "yes", "on"}
+        query = query.filter(Album.is_set_template.is_(filter_value))
+
     pagination = query.paginate(page=page, per_page=per_page)
 
     return jsonify(
@@ -210,13 +222,20 @@ def create_album():
     if not name:
         return jsonify({"error": "Album name is required"}), 400
 
+    album_type = (data.get("album_type") or "batch").strip() or "batch"
+    is_set_template = bool(data.get("is_set_template", False))
+
     album = Album(
         name=name,
         description=data.get("description", ""),
+        album_type=album_type,
         is_training_source=data.get("is_training_source", False),
         is_public=data.get("is_public", True),
         created_by=current_user.email,
+        is_set_template=is_set_template,
     )
+
+    _apply_template_fields(album, data)
 
     db.session.add(album)
     db.session.commit()
@@ -237,6 +256,13 @@ def update_album(album_id):
         album.description = data["description"]
     if "is_training_source" in data:
         album.is_training_source = data["is_training_source"]
+    if "is_public" in data:
+        album.is_public = data["is_public"]
+    if "album_type" in data:
+        album.album_type = (data.get("album_type") or "").strip() or album.album_type
+    if "is_set_template" in data:
+        album.is_set_template = bool(data["is_set_template"])
+    _apply_template_fields(album, data)
     if "cover_image_id" in data:
         album.cover_image_id = data["cover_image_id"]
 
@@ -255,6 +281,32 @@ def delete_album(album_id):
     db.session.commit()
 
     return jsonify({"success": True})
+
+
+def _normalize_template_payload(value: Any) -> str | None:
+    """Normalise template JSON payloads."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
+def _apply_template_fields(album: Album, data: dict[str, Any]) -> None:
+    """Apply set-template metadata to an album instance."""
+    template_fields = {
+        "csv_data": _normalize_template_payload(data.get("csv_data")),
+        "base_prompt": data.get("base_prompt"),
+        "prompt_template": data.get("prompt_template"),
+        "style_suffix": data.get("style_suffix"),
+        "example_theme": data.get("example_theme"),
+        "lora_config": _normalize_template_payload(data.get("lora_config")),
+        "generation_config": _normalize_template_payload(data.get("generation_config")),
+    }
+
+    for field, value in template_fields.items():
+        if value is not None or field in data:
+            setattr(album, field, value)
 
 
 @albums_bp.route("/<int:album_id>/images", methods=["POST"])

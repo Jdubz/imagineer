@@ -169,7 +169,6 @@ def submit_bug_report():
             f"Bug report saved: {report_id}",
             extra={
                 "report_id": report_id,
-                "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
                 "user": g.user.email if hasattr(g, "user") else None,
             },
         )
