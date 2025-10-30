@@ -48,14 +48,17 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
     } finally {
       setLoadingTemplates(false)
     }
-  }, [toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load templates on mount
   useEffect(() => {
     if (isAdmin) {
       fetchTemplates()
     }
-  }, [isAdmin, fetchTemplates])
+    // fetchTemplates is stable (empty deps), safe to omit from dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin])
 
   const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
