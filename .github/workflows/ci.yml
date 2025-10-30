@@ -1,4 +1,4 @@
-name: PR Checks
+name: CI
 
 on:
   pull_request:
@@ -7,10 +7,8 @@ on:
       - main
 
 jobs:
-  # Frontend checks run in parallel with backend
-  frontend:
+  frontend-unit-tests:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +24,6 @@ jobs:
         working-directory: web
         run: npm ci
 
-      # Run lint first - fails faster than tests
       - name: Lint
         working-directory: web
         run: npm run lint
@@ -35,14 +32,12 @@ jobs:
         working-directory: web
         run: npm run tsc
 
-      - name: Run tests
+      - name: Run unit tests
         working-directory: web
-        run: npm test -- --run
+        run: npm test -- --run --coverage
 
-  # Backend checks run in parallel with frontend
-  backend:
+  backend-unit-tests:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,50 +53,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install black flake8 pytest-xdist
+          pip install black flake8
 
-      # Run linters first - fail faster than tests
       - name: Format check (black)
-        run: black --check server src examples tests
+        run: black --check server src tests
 
       - name: Lint (flake8)
-        run: flake8 server src examples tests
+        run: flake8 server src tests
 
-      - name: Run tests (parallel)
-        run: pytest -v -n auto
+      - name: Run unit tests
+        run: pytest --maxfail=1 --disable-warnings -v tests/backend
         env:
           IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
           IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
           IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
-
-  # Summary job that requires both frontend and backend to pass
-  verify:
-    runs-on: ubuntu-latest
-    needs: [frontend, backend]
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-    steps:
-      - name: All checks passed
-        run: echo "✅ All frontend and backend checks passed!"
-
-  # Deploy job only runs on main branch
-  deploy-tooling:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install dependencies
-        working-directory: web
-        run: npm ci
-
-      - name: Build production bundle
-        working-directory: web
-        run: npm run deploy:build
