@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Shuffle } from 'lucide-react'
 
 interface GenerateFormProps {
@@ -237,8 +238,12 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
   return (
     <div className="generate-form">
-      <h2>Generate Single Image</h2>
-      <form onSubmit={handleSubmit}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Generate Single Image</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit}>
         <div className="form-group">
           <Label htmlFor="prompt">Prompt</Label>
           <Textarea
@@ -394,14 +399,19 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
             <p>Generating your image... This may take 10-30 seconds</p>
           </div>
         )}
-      </form>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="form-divider"></div>
 
       {isAdmin ? (
-        <>
-          <h2>Generate Batch from Template</h2>
-          <form onSubmit={handleBatchSubmit} className="batch-generate-form">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Batch from Template</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleBatchSubmit} className="batch-generate-form">
             <div className="form-group">
               <Label htmlFor="template">Select Template</Label>
               <Select
@@ -496,16 +506,21 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                 <p>Queuing batch generation jobs...</p>
               </div>
             )}
-          </form>
-        </>
+            </form>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="info-box">
-          <h3>🎨 Batch Generation from Templates</h3>
-          <p>
-            Admin users can generate complete sets of themed images from templates.
-            Batch generation is available in the <strong>Albums</strong> tab.
-          </p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>🎨 Batch Generation from Templates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>
+              Admin users can generate complete sets of themed images from templates.
+              Batch generation is available in the <strong>Albums</strong> tab.
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

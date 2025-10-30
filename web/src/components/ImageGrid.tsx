@@ -3,6 +3,7 @@ import FocusLock from 'react-focus-lock'
 import { SkeletonImageCard } from './Skeleton'
 import type { GeneratedImage } from '../types/models'
 import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { RefreshCw } from 'lucide-react'
 
 interface ImageGridProps {
@@ -52,60 +53,63 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
   }, [selectedImage])
 
   return (
-    <div className="image-grid-container">
-      <div className="grid-header">
-        <h2>Generated Images ({loading ? '...' : images.length})</h2>
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          disabled={isRefreshing || loading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="image-grid">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <SkeletonImageCard key={index} />
-          ))}
+    <Card>
+      <CardHeader>
+        <div className="grid-header">
+          <CardTitle>Generated Images ({loading ? '...' : images.length})</CardTitle>
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            disabled={isRefreshing || loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
         </div>
-      ) : images.length === 0 ? (
-        <div className="no-images">
-          <p>No images generated yet.</p>
-          <p>Use the form above to create your first image!</p>
-        </div>
-      ) : (
-        <div className="image-grid">
-          {images.map((image) => (
-            <div
-              key={image.filename}
-              className="image-card"
-              onClick={() => openModal(image)}
-            >
-              <img
-                src={`/api/outputs/${image.filename}`}
-                alt={image.metadata?.prompt || 'Generated image'}
-                loading="lazy"
-                className={loadedImages.has(image.filename) ? 'loaded' : 'loading'}
-                onLoad={() => handleImageLoad(image.filename)}
-              />
-              <div className="image-overlay">
-                <p className="image-prompt">
-                  {image.metadata?.prompt?.substring(0, 60)}
-                  {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
-                </p>
-                {image.created && (
-                  <p className="image-date">
-                    {new Date(image.created).toLocaleDateString()}
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="image-grid">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <SkeletonImageCard key={index} />
+            ))}
+          </div>
+        ) : images.length === 0 ? (
+          <div className="no-images">
+            <p>No images generated yet.</p>
+            <p>Use the form above to create your first image!</p>
+          </div>
+        ) : (
+          <div className="image-grid">
+            {images.map((image) => (
+              <div
+                key={image.filename}
+                className="image-card"
+                onClick={() => openModal(image)}
+              >
+                <img
+                  src={`/api/outputs/${image.filename}`}
+                  alt={image.metadata?.prompt || 'Generated image'}
+                  loading="lazy"
+                  className={loadedImages.has(image.filename) ? 'loaded' : 'loading'}
+                  onLoad={() => handleImageLoad(image.filename)}
+                />
+                <div className="image-overlay">
+                  <p className="image-prompt">
+                    {image.metadata?.prompt?.substring(0, 60)}
+                    {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
                   </p>
-                )}
+                  {image.created && (
+                    <p className="image-date">
+                      {new Date(image.created).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </CardContent>
 
       {selectedImage && (
         <div className="modal" onClick={closeModal}>
@@ -176,7 +180,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
           </FocusLock>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
