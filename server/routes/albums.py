@@ -2,7 +2,7 @@
 Album management endpoints
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, abort, jsonify, request
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
@@ -54,6 +54,9 @@ def get_album(album_id):
         loader = loader.joinedload(Image.labels)
 
     album = Album.query.options(loader).get_or_404(album_id)
+    if not album.is_public and not _is_admin_user():
+        # Avoid leaking the existence of private albums to anonymous users
+        abort(404)
     album_data = album.to_dict()
     images_payload: list[dict] = []
 
@@ -200,11 +203,18 @@ def album_labeling_analytics(album_id: int):
 def create_album():
     """Create new album (admin only)"""
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Album name is required"}), 400
 
     album = Album(
-        name=data["name"],
+        name=name,
         description=data.get("description", ""),
         is_training_source=data.get("is_training_source", False),
+        is_public=data.get("is_public", True),
         created_by=current_user.email,
     )
 
@@ -256,7 +266,7 @@ def add_images_to_album(album_id):
     data = request.json
 
     image_ids = data.get("image_ids", [])
-
+    added_count = 0
     for image_id in image_ids:
         # Check if already in album
         existing = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first()
@@ -264,10 +274,11 @@ def add_images_to_album(album_id):
         if not existing:
             assoc = AlbumImage(album_id=album_id, image_id=image_id, added_by=current_user.email)
             db.session.add(assoc)
+            added_count += 1
 
     db.session.commit()
 
-    return jsonify({"success": True, "added": len(image_ids)})
+    return jsonify({"success": True, "added_count": added_count})
 
 
 @albums_bp.route("/<int:album_id>/images/<int:image_id>", methods=["DELETE"])

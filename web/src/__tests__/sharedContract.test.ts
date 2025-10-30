@@ -4,10 +4,28 @@ import path from 'node:path';
 
 import type { ZodTypeAny } from 'zod';
 
-import type { AuthStatus, ImageMetadata as SharedImageMetadata } from '../types/shared';
+import type {
+  AuthStatus,
+  BugReportSubmissionRequest as SharedBugReportSubmissionRequest,
+  BugReportSubmissionResponse as SharedBugReportSubmissionResponse,
+  ImageMetadata as SharedImageMetadata,
+  Job as SharedJob,
+  JobsResponse as SharedJobsResponse,
+} from '../types/shared';
 import authStatusSchemaRaw from '../../../shared/schema/auth_status.json';
 import imageMetadataSchemaRaw from '../../../shared/schema/image_metadata.json';
-import { AuthStatusSchema, ImageMetadataSchema } from '../lib/schemas';
+import jobSchemaRaw from '../../../shared/schema/job.json';
+import jobsResponseSchemaRaw from '../../../shared/schema/jobs_response.json';
+import bugReportSubmissionRequestSchemaRaw from '../../../shared/schema/bug_report_submission_request.json';
+import bugReportSubmissionResponseSchemaRaw from '../../../shared/schema/bug_report_submission_response.json';
+import {
+  AuthStatusSchema,
+  ImageMetadataSchema,
+  JobSchema,
+  JobsResponseSchema,
+  BugReportResponseSchema,
+} from '../lib/schemas';
+import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport';
 
 type PropertySchema = {
   type?: string | string[];
@@ -18,6 +36,7 @@ type PropertySchema = {
   additionalProperties?: boolean | PropertySchema;
   anyOf?: PropertySchema[];
   oneOf?: PropertySchema[];
+  $ref?: string;
 };
 
 type JsonSchema = {
@@ -31,6 +50,10 @@ type JsonSchema = {
 
 const authStatusSchema = authStatusSchemaRaw as JsonSchema;
 const imageMetadataSchema = imageMetadataSchemaRaw as JsonSchema;
+const jobSchema = jobSchemaRaw as JsonSchema;
+const jobsResponseSchema = jobsResponseSchemaRaw as JsonSchema;
+const bugReportRequestSchema = bugReportSubmissionRequestSchemaRaw as JsonSchema;
+const bugReportResponseSchema = bugReportSubmissionResponseSchemaRaw as JsonSchema;
 
 const sharedTypesPath = path.resolve(__dirname, '../types/shared.ts');
 
@@ -44,6 +67,14 @@ type SchemaCase = {
 };
 
 type ZodObjectLike = ZodTypeAny & { shape: Record<string, ZodTypeAny> };
+
+const schemaRegistry = new Map<string, JsonSchema>([
+  [authStatusSchema.name, authStatusSchema],
+  [imageMetadataSchema.name, imageMetadataSchema],
+  [jobSchema.name, jobSchema],
+  [jobsResponseSchema.name, jobsResponseSchema],
+  [bugReportResponseSchema.name, bugReportResponseSchema],
+]);
 
 const schemaCases: readonly SchemaCase[] = [
   {
@@ -78,6 +109,42 @@ const schemaCases: readonly SchemaCase[] = [
       >();
     },
   },
+  {
+    name: 'Job',
+    schema: jobSchema,
+    zod: JobSchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof jobSchemaRaw.properties;
+      type RequiredKeys = typeof jobSchemaRaw.required extends readonly string[]
+        ? (typeof jobSchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedJob>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'JobsResponse',
+    schema: jobsResponseSchema,
+    zod: JobsResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedJobsResponse>().toMatchTypeOf<{
+        current: SharedJob | null;
+        queue: SharedJob[];
+        history: SharedJob[];
+      }>();
+    },
+  },
+  {
+    name: 'BugReportSubmissionResponse',
+    schema: bugReportResponseSchema,
+    zod: BugReportResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<BugReportSubmissionResponse>().toMatchTypeOf<SharedBugReportSubmissionResponse>();
+    },
+  },
 ];
 
 const PRIMITIVE_SAMPLES: Record<'string' | 'number' | 'boolean', unknown> = {
@@ -94,6 +161,14 @@ const FALLBACK_SAMPLES: Record<'object' | 'array', unknown> = {
 function tsType(prop: PropertySchema): string {
   if (prop.enum) {
     return prop.enum.map((value) => JSON.stringify(value)).join(' | ');
+  }
+
+  if (prop.$ref) {
+    const schemaType = prop.type;
+    if (Array.isArray(schemaType) && schemaType.includes('null')) {
+      return `${prop.$ref} | null`;
+    }
+    return prop.$ref;
   }
 
   const schemaType = prop.type;
@@ -214,6 +289,24 @@ describe('shared API contract', () => {
     });
   });
 
+  it('keeps the bug report submission request contract aligned with the JSON schema', () => {
+    const interfaceSource = fs.readFileSync(sharedTypesPath, 'utf-8');
+    const parsed = parseInterfaceBody(interfaceSource, 'BugReportSubmissionRequest');
+    const expected = buildExpectedEntries(bugReportRequestSchema);
+
+    expect(Array.from(parsed.keys()).sort()).toEqual(Array.from(expected.keys()).sort());
+    expected.forEach((expectedEntry, key) => {
+      const actual = parsed.get(key);
+      expect(actual).toBeDefined();
+      expect(actual?.optional).toBe(expectedEntry.optional);
+      expect(actual?.type).toBe(expectedEntry.type);
+    });
+  });
+
+  it('aliases BugReportOptions to the shared bug report submission request type', () => {
+    expectTypeOf<BugReportOptions>().toEqualTypeOf<SharedBugReportSubmissionRequest>();
+  });
+
   it('keeps the Zod schemas aligned with the JSON schemas', () => {
     schemaCases.forEach(({ schema, zod }) => {
       const zodShape = zod.shape;
@@ -314,21 +407,50 @@ function normalizeSchemaType(value: string): string {
 }
 
 function buildSampleForType(type: string, property: PropertySchema): unknown | undefined {
+  if (property.enum && property.enum.length > 0) {
+    const match = property.enum.find((value) => {
+      if (type === 'string') {
+        return typeof value === 'string';
+      }
+      if (type === 'number') {
+        return typeof value === 'number';
+      }
+      if (type === 'boolean') {
+        return typeof value === 'boolean';
+      }
+      if (type === 'object') {
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
+      }
+      if (type === 'array') {
+        return Array.isArray(value);
+      }
+      return false;
+    });
+    if (match !== undefined) {
+      return match;
+    }
+  }
+
   if (type === 'string' || type === 'number' || type === 'boolean') {
     return PRIMITIVE_SAMPLES[type as keyof typeof PRIMITIVE_SAMPLES];
   }
 
   if (type === 'object') {
-    const { properties = {}, required } = property;
-    if (!properties || Object.keys(properties).length === 0) {
+    const referencedSchema = property.$ref ? schemaRegistry.get(property.$ref) : undefined;
+    const schemaProperties = referencedSchema?.properties ?? property.properties ?? {};
+    if (Object.keys(schemaProperties).length === 0) {
       return {};
     }
 
-    const requiredKeys = new Set(required ?? Object.keys(properties));
+    const requiredSource =
+      referencedSchema?.required ?? property.required ?? Object.keys(schemaProperties);
+    const requiredKeys = new Set(requiredSource);
     const result: Record<string, unknown> = {};
 
     requiredKeys.forEach((key) => {
-      const child = properties[key];
+      const child =
+        (referencedSchema?.properties?.[key] as PropertySchema | undefined) ??
+        (schemaProperties[key] as PropertySchema | undefined);
       if (!child) {
         return;
       }
@@ -359,6 +481,14 @@ function buildSampleForType(type: string, property: PropertySchema): unknown | u
 }
 
 function getSampleForSchema(property: PropertySchema): unknown | undefined {
+  if (property.$ref) {
+    const referencedSchema = schemaRegistry.get(property.$ref);
+    if (!referencedSchema) {
+      return undefined;
+    }
+    return buildSampleFromSchema(referencedSchema);
+  }
+
   const types = extractJsonTypes(property);
   for (const type of types) {
     if (type === 'null') {
@@ -370,4 +500,26 @@ function getSampleForSchema(property: PropertySchema): unknown | undefined {
     }
   }
   return undefined;
+}
+
+function buildSampleFromSchema(schema: JsonSchema): Record<string, unknown> {
+  const properties = schema.properties ?? {};
+  if (Object.keys(properties).length === 0) {
+    return {};
+  }
+
+  const requiredKeys = new Set(schema.required ?? Object.keys(properties));
+  const sample: Record<string, unknown> = {};
+  requiredKeys.forEach((key) => {
+    const property = properties[key];
+    if (!property) {
+      return;
+    }
+    const value = getSampleForSchema(property);
+    if (value !== undefined) {
+      sample[key] = value;
+    }
+  });
+
+  return sample;
 }

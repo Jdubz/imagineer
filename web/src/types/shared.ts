@@ -14,6 +14,24 @@ export interface AuthStatus {
   message?: string | null;
 }
 
+/** Payload accepted by POST /api/bug-reports. */
+export interface BugReportSubmissionRequest {
+  description: string;
+  environment: { mode: string; appVersion?: string | null; gitSha?: string | null; buildTime?: string | null };
+  clientMeta: { locationHref: string; userAgent?: string; platform?: string; language?: string; locale?: string; timezone?: string; viewport?: { width: number; height: number } };
+  appState: Record<string, unknown>;
+  recentLogs: Array<{ level: string; message: string; args: Array<unknown>; timestamp: string; serializedArgs: Array<unknown> }>;
+  networkEvents: Array<{ id: string; method: string; url: string; started_at: string; completed_at?: string | null; duration_ms?: number | null; status?: number | null; ok?: boolean | null; trace_id?: string | null; requestHeaders: Array<{ name: string; value: string }>; responseHeaders: Array<{ name: string; value: string }>; requestBody?: string | null; responseBody?: string | null; error?: string }>;
+}
+
+/** Response returned by POST /api/bug-reports. */
+export interface BugReportSubmissionResponse {
+  success: boolean;
+  report_id: string;
+  trace_id: string;
+  stored_at?: string | null;
+}
+
 /** Generation metadata saved alongside generated images. */
 export interface ImageMetadata {
   prompt?: string;
@@ -27,4 +45,45 @@ export interface ImageMetadata {
   lora_path?: string;
   lora_weight?: number;
   loras?: Array<{ path: string; weight: number }>;
+}
+
+/** Job state returned by image generation endpoints. */
+export interface Job {
+  id: number;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  prompt: string;
+  queue_position?: number | null;
+  submitted_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  created_at?: string;
+  created?: string;
+  output_path?: string | null;
+  output_filename?: string;
+  output_directory?: string;
+  output_dir?: string;
+  output?: string;
+  lora_paths?: Array<string>;
+  lora_weights?: Array<number>;
+  width?: number;
+  height?: number;
+  steps?: number;
+  seed?: number;
+  guidance_scale?: number;
+  negative_prompt?: string;
+  error?: string | null;
+  duration_seconds?: number;
+  estimated_time_remaining?: number | null;
+  album_id?: number;
+  batch_id?: string;
+  batch_item_name?: string;
+  batch_item_data?: Record<string, unknown>;
+}
+
+/** Envelope returned by GET /api/jobs. */
+export interface JobsResponse {
+  current: Job | null;
+  queue: Array<Job>;
+  history: Array<Job>;
 }

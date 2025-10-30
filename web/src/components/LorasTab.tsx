@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
+import { api, ApiError } from '../lib/api'
 import '../styles/LorasTab.css'
 
 interface LoraModel {
@@ -7,12 +8,8 @@ interface LoraModel {
   filename: string
   format?: string
   default_weight?: number
-  has_preview: boolean
+  has_preview?: boolean
   organized_at?: string
-}
-
-interface LorasResponse {
-  loras: LoraModel[]
 }
 
 const LorasTab: React.FC = () => {
@@ -21,27 +18,28 @@ const LorasTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [selectedLora, setSelectedLora] = useState<LoraModel | null>(null)
 
-  useEffect(() => {
-    fetchLoras()
-  }, [])
-
-  const fetchLoras = async (): Promise<void> => {
+  const fetchLoras = useCallback(async (): Promise<void> => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/loras')
-      if (!response.ok) {
-        throw new Error('Failed to fetch LoRAs')
-      }
-      const data: LorasResponse = await response.json()
-      setLoras(data.loras || [])
+      const data = await api.loras.getAll()
+      setLoras(data || [])
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logger.warn('LoRA catalogue requires admin authentication')
+        setError('Admin authentication required to view available LoRAs.')
+        return
+      }
       logger.error('Failed to fetch LoRAs:', err)
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void fetchLoras()
+  }, [fetchLoras])
 
   const handleLoraClick = (lora: LoraModel): void => {
     setSelectedLora(selectedLora?.folder === lora.folder ? null : lora)

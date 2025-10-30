@@ -1,0 +1,13 @@
+{
+  "name": "BugReportSubmissionResponse",
+  "description": "Response returned by POST /api/bug-reports.",
+  "type": "object",
+  "properties": {
+    "success": { "type": "boolean" },
+    "report_id": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "stored_at": { "type": ["string", "null"] }
+  },
+  "required": ["success", "report_id", "trace_id"],
+  "additionalProperties": false
+}

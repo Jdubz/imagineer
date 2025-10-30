@@ -5,6 +5,7 @@ import type {
   GeneratedImage,
   BatchSummary,
   Job,
+  JobsResponse,
   Album,
   LabelAnalytics,
 } from '../types/models'
@@ -266,8 +267,9 @@ export const api = {
      * Fetch job status by ID
      * Requires admin authentication
      */
-    async getById(jobId: string, signal?: AbortSignal): Promise<Job> {
-      return apiRequest(`/api/jobs/${jobId}`, schemas.JobSchema, {
+    async getById(jobId: number | string, signal?: AbortSignal): Promise<Job> {
+      const id = encodeURIComponent(jobId.toString())
+      return apiRequest(`/api/jobs/${id}`, schemas.JobSchema, {
         credentials: 'include',
         signal,
       })
@@ -277,7 +279,7 @@ export const api = {
      * Fetch all jobs (current, queue, history)
      * Requires admin authentication
      */
-    async getAll(signal?: AbortSignal): Promise<{ current: Job | null; queue: Job[]; history: Job[] }> {
+    async getAll(signal?: AbortSignal): Promise<JobsResponse> {
       return apiRequest(`/api/jobs`, schemas.JobsResponseSchema, {
         credentials: 'include',
         signal,
@@ -294,7 +296,10 @@ export const api = {
      * Fetch all available LoRAs
      */
     async getAll(signal?: AbortSignal): Promise<Array<{ folder: string; filename: string }>> {
-      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, { signal })
+      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, {
+        signal,
+        credentials: 'include',
+      })
       return response.loras || []
     },
   },

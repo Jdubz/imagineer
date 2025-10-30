@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react'
+import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
@@ -23,6 +23,7 @@ import type {
 } from './types/models'
 import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
 import SettingsMenu from './components/SettingsMenu'
+import BugReportButton from './components/BugReportButton'
 
 // Lazy load tab components for code splitting
 const GenerateTab = lazy(() => import('./components/GenerateTab'))
@@ -49,6 +50,12 @@ const AppContent: React.FC = () => {
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
   const [batches, setBatches] = useState<BatchSummary[]>([])
   const [nsfwEnabled, setNsfwEnabled] = useState<boolean>(false)
+  const [configAuthAlerted, setConfigAuthAlerted] = useState<boolean>(false)
+  const toastRef = useRef(toast)
+
+  useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
 
   // Tab configuration
   const tabs: Tab[] = [
@@ -77,11 +84,18 @@ const AppContent: React.FC = () => {
     try {
       const config = await api.getConfig(signal)
       setConfig(config)
+      if (config !== null) {
+        setConfigAuthAlerted(false)
+      }
 
       // Config is null when 401/403 (admin auth required) - already handled by api.getConfig
       if (config === null && user?.role !== 'admin') {
         // Only show message if user is not admin - helps them understand why config isn't loading
         logger.info('Config requires admin authentication')
+        if (!configAuthAlerted) {
+          toastRef.current.info('Admin login required to load configuration settings.')
+          setConfigAuthAlerted(true)
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -89,8 +103,12 @@ const AppContent: React.FC = () => {
       }
       logger.error('Failed to fetch config', error as Error)
       setConfig(null)
+      if (!configAuthAlerted) {
+        toastRef.current.error('Unable to load configuration. Please verify admin access.')
+        setConfigAuthAlerted(true)
+      }
     }
-  }, [user?.role])
+  }, [configAuthAlerted, user?.role])
 
   const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setLoadingImages(true)
@@ -244,7 +262,7 @@ const AppContent: React.FC = () => {
     }
   }
 
-  const pollJobStatus = (jobId: string): void => {
+  const pollJobStatus = (jobId: number | string): void => {
     const checkStatus = async (): Promise<void> => {
       try {
         const job = await api.jobs.getById(jobId)
@@ -296,12 +314,15 @@ const AppContent: React.FC = () => {
           </div>
           <div className="header-actions">
             {user ? (
-              <SettingsMenu
-                user={user}
-                onLogout={logout}
-                onNsfwToggle={setNsfwEnabled}
-                nsfwEnabled={nsfwEnabled}
-              />
+              <>
+                <BugReportButton />
+                <SettingsMenu
+                  user={user}
+                  onLogout={logout}
+                  onNsfwToggle={setNsfwEnabled}
+                  nsfwEnabled={nsfwEnabled}
+                />
+              </>
             ) : (
               <button
                 type="button"

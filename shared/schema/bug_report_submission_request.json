@@ -1,0 +1,131 @@
+{
+  "name": "BugReportSubmissionRequest",
+  "description": "Payload accepted by POST /api/bug-reports.",
+  "type": "object",
+  "properties": {
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string" },
+        "appVersion": { "type": ["string", "null"] },
+        "gitSha": { "type": ["string", "null"] },
+        "buildTime": { "type": ["string", "null"] }
+      },
+      "required": ["mode"],
+      "additionalProperties": true
+    },
+    "clientMeta": {
+      "type": "object",
+      "properties": {
+        "locationHref": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "platform": { "type": "string" },
+        "language": { "type": "string" },
+        "locale": { "type": "string" },
+        "timezone": { "type": "string" },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer" },
+            "height": { "type": "integer" }
+          },
+          "required": ["width", "height"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["locationHref"],
+      "additionalProperties": true
+    },
+    "appState": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "recentLogs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "level": { "type": "string" },
+          "message": { "type": "string" },
+          "args": {
+            "type": "array",
+            "items": {}
+          },
+          "timestamp": { "type": "string" },
+          "serializedArgs": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": ["level", "message", "args", "timestamp", "serializedArgs"],
+        "additionalProperties": true
+      }
+    },
+    "networkEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "method": { "type": "string" },
+          "url": { "type": "string" },
+          "started_at": { "type": "string" },
+          "completed_at": { "type": ["string", "null"] },
+          "duration_ms": { "type": ["integer", "null"] },
+          "status": { "type": ["integer", "null"] },
+          "ok": { "type": ["boolean", "null"] },
+          "trace_id": { "type": ["string", "null"] },
+          "requestHeaders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "value": { "type": "string" }
+              },
+              "required": ["name", "value"],
+              "additionalProperties": false
+            }
+          },
+          "responseHeaders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "value": { "type": "string" }
+              },
+              "required": ["name", "value"],
+              "additionalProperties": false
+            }
+          },
+          "requestBody": { "type": ["string", "null"] },
+          "responseBody": { "type": ["string", "null"] },
+          "error": { "type": "string" }
+        },
+        "required": [
+          "id",
+          "method",
+          "url",
+          "started_at",
+          "requestHeaders",
+          "responseHeaders"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "description",
+    "environment",
+    "clientMeta",
+    "appState",
+    "recentLogs",
+    "networkEvents"
+  ],
+  "additionalProperties": false
+}

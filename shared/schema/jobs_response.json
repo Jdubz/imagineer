@@ -1,0 +1,21 @@
+{
+  "name": "JobsResponse",
+  "description": "Envelope returned by GET /api/jobs.",
+  "type": "object",
+  "properties": {
+    "current": {
+      "$ref": "Job",
+      "type": ["object", "null"]
+    },
+    "queue": {
+      "type": "array",
+      "items": { "$ref": "Job" }
+    },
+    "history": {
+      "type": "array",
+      "items": { "$ref": "Job" }
+    }
+  },
+  "required": ["current", "queue", "history"],
+  "additionalProperties": false
+}

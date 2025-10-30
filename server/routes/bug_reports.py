@@ -8,15 +8,29 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import cast
 
 from flask import Blueprint, g, jsonify, request
+from jsonschema import Draft202012Validator, ValidationError
+from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
+from server.config_loader import PROJECT_ROOT, load_config
+from server.shared_types import (
+    BugReportSubmissionRequestTypedDict,
+    BugReportSubmissionResponseTypedDict,
+)
 from server.utils.error_handler import APIError, format_error_response
 
 logger = logging.getLogger(__name__)
 
 bug_reports_bp = Blueprint("bug_reports", __name__)
+
+_SCHEMA_DIR = PROJECT_ROOT / "shared" / "schema"
+with (_SCHEMA_DIR / "bug_report_submission_request.json").open("r", encoding="utf-8") as f:
+    _BUG_REPORT_REQUEST_VALIDATOR = Draft202012Validator(json.load(f))
+with (_SCHEMA_DIR / "bug_report_submission_response.json").open("r", encoding="utf-8") as f:
+    _BUG_REPORT_RESPONSE_VALIDATOR = Draft202012Validator(json.load(f))
 
 
 def get_bug_reports_dir() -> str:
@@ -26,16 +40,22 @@ def get_bug_reports_dir() -> str:
     Returns:
         Path to bug reports directory
     """
-    try:
-        from server.config import get_config
+    env_override = os.getenv("BUG_REPORTS_PATH")
+    if env_override:
+        return env_override
 
-        config = get_config()
-        return config.get("bug_reports", {}).get(
-            "storage_path", "/mnt/storage/imagineer/bug_reports"
-        )
+    try:
+        config = load_config()
+        storage_path = config.get("bug_reports", {}).get("storage_path")
+        if storage_path:
+            return storage_path
     except Exception:
-        # Fallback to environment variable or default
-        return os.getenv("BUG_REPORTS_PATH", "/mnt/storage/imagineer/bug_reports")
+        logger.warning(
+            "Falling back to default bug report directory due to config load failure",
+            exc_info=True,
+        )
+
+    return "/mnt/storage/imagineer/bug_reports"
 
 
 @bug_reports_bp.route("/api/bug-reports", methods=["POST"])
@@ -65,12 +85,34 @@ def submit_bug_report():
     """
     try:
         # Get request payload
-        payload = request.get_json()
+        try:
+            payload_raw = request.get_json()
+        except BadRequest as exc:
+            raise APIError(
+                "Request body must be valid JSON", "INVALID_JSON", 400, {"error": str(exc)}
+            )
 
-        if not payload:
+        if payload_raw is None:
             raise APIError("Request body is required", "MISSING_PAYLOAD", 400)
 
-        if "description" not in payload:
+        if not isinstance(payload_raw, dict):
+            raise APIError("Request body must be a JSON object", "INVALID_PAYLOAD", 400)
+
+        try:
+            _BUG_REPORT_REQUEST_VALIDATOR.validate(payload_raw)
+        except ValidationError as exc:
+            if exc.validator == "required" and "description" in exc.message:
+                raise APIError("Description is required", "MISSING_DESCRIPTION", 400)
+            raise APIError(
+                "Invalid bug report payload",
+                "INVALID_BUG_REPORT_PAYLOAD",
+                400,
+                {"schema_error": exc.message},
+            )
+
+        payload = cast(BugReportSubmissionRequestTypedDict, payload_raw)
+
+        if payload["description"].strip() == "":
             raise APIError("Description is required", "MISSING_DESCRIPTION", 400)
 
         # Generate report ID with timestamp and trace ID prefix
@@ -132,17 +174,24 @@ def submit_bug_report():
             },
         )
 
-        return (
-            jsonify(
-                {
-                    "success": True,
-                    "report_id": report_id,
-                    "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
-                    "stored_at": report_path,
-                }
-            ),
-            201,
-        )
+        response_payload: BugReportSubmissionResponseTypedDict = {
+            "success": True,
+            "report_id": report_id,
+            "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
+            "stored_at": report_path,
+        }
+
+        try:
+            _BUG_REPORT_RESPONSE_VALIDATOR.validate(response_payload)
+        except ValidationError as exc:
+            raise APIError(
+                "Failed to save bug report",
+                "BUG_REPORT_RESPONSE_INVALID",
+                500,
+                {"schema_error": exc.message},
+            )
+
+        return jsonify(response_payload), 201
 
     except APIError as e:
         return format_error_response(e)

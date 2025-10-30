@@ -40,6 +40,14 @@ from server.auth import (  # noqa: E402
     require_admin,
     save_users,
 )
+from server.config_loader import (  # noqa: E402
+    CONFIG_PATH,
+    PROJECT_ROOT,
+    clear_config_cache,
+    get_cache_stats,
+    load_config,
+    save_config,
+)
 from server.database import (  # noqa: E402
     Album,
     AlbumImage,
@@ -141,14 +149,15 @@ from server.celery_app import make_celery  # noqa: E402
 
 celery = make_celery(app)
 
-from server.routes.bug_reports import bug_reports_bp  # noqa: E402
-
 # Register blueprints
+from server.routes.albums import albums_bp  # noqa: E402
+from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 from server.routes.images import images_bp, outputs_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(images_bp)
+app.register_blueprint(albums_bp)
 app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
@@ -474,9 +483,6 @@ def auth_me():
 # Configuration
 # ============================================================================
 
-# Configuration
-PROJECT_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
 GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 
@@ -484,37 +490,6 @@ GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 job_queue = queue.Queue()
 job_history = []
 current_job = None
-
-
-def load_config():
-    """Load config.yaml"""
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            config = yaml.safe_load(f)
-    except FileNotFoundError:
-        # Fallback config for CI environments
-        logger.info("Config file not found, using fallback config for CI")
-        config = {
-            "model": {"cache_dir": "/tmp/imagineer/models"},
-            "outputs": {"base_dir": "/tmp/imagineer/outputs"},
-            "output": {"directory": "/tmp/imagineer/outputs"},
-            "generation": {"width": 512, "height": 512, "steps": 30},
-            "training": {
-                "checkpoint_dir": "/tmp/imagineer/checkpoints",
-                "learning_rate": 1e-5,
-                "max_train_steps": 1000,
-                "lora": {"rank": 4, "alpha": 32, "dropout": 0.1},
-            },
-            "dataset": {"data_dir": "/tmp/imagineer/data/training"},
-        }
-
-    return config
-
-
-def save_config(config):
-    """Save config.yaml"""
-    with open(CONFIG_PATH, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
 def construct_prompt(base_prompt, user_theme, csv_data, prompt_template, style_suffix):
@@ -813,6 +788,57 @@ def update_generation_config():
         return jsonify({"success": True, "config": config["generation"]})
     except Exception:
         return jsonify({"success": False, "error": "Failed to update generation config"}), 400
+
+
+@app.route("/api/admin/config/cache", methods=["GET"])
+@require_admin
+def get_config_cache_stats():
+    """
+    Get configuration cache statistics (admin only).
+
+    Returns information about the current cache state including whether
+    config is cached, modification times, and cache staleness.
+    """
+    try:
+        stats = get_cache_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get cache statistics"}), 500
+
+
+@app.route("/api/admin/config/reload", methods=["POST"])
+@require_admin
+def reload_config_cache():
+    """
+    Force configuration reload from disk (admin only).
+
+    Clears the cache and immediately reloads the configuration from disk.
+    Useful when config.yaml has been edited externally and you want to
+    ensure the application uses the latest version.
+    """
+    try:
+        clear_config_cache()
+        load_config(force_reload=True)  # Reload to populate cache
+
+        logger.info(
+            "Configuration reloaded by admin",
+            extra={
+                "operation": "config_reload",
+                "user": current_user.email if current_user.is_authenticated else "unknown",
+            },
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "Configuration reloaded from disk",
+                "cache_stats": get_cache_stats(),
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error reloading config: {e}", exc_info=True)
+        return jsonify({"error": "Failed to reload configuration"}), 500
 
 
 @app.route("/api/generate", methods=["POST"])
@@ -1439,219 +1465,6 @@ def get_lora_details(folder):
 
 
 # ============================================================================
-# Database API Endpoints
-# ============================================================================
-
-
-@app.route("/api/albums", methods=["GET"])
-def get_albums():
-    """Get all albums (public endpoint with pagination)"""
-    try:
-        logger.info("Fetching public albums", extra={"operation": "get_albums"})
-
-        # Get pagination parameters
-        page = request.args.get("page", 1, type=int)
-        per_page = min(request.args.get("per_page", 50, type=int), 100)
-
-        # Query public albums with pagination
-        query = Album.query.filter_by(is_public=True).order_by(Album.created_at.desc())
-        pagination = query.paginate(page=page, per_page=per_page)
-
-        album_count = pagination.total
-        logger.info(
-            f"Retrieved {album_count} public albums",
-            extra={"operation": "get_albums", "album_count": album_count},
-        )
-
-        return jsonify(
-            {
-                "albums": [album.to_dict() for album in pagination.items],
-                "total": pagination.total,
-                "page": page,
-                "per_page": per_page,
-                "pages": pagination.pages,
-            }
-        )
-    except Exception as e:
-        logger.error(
-            f"Error getting albums: {e}",
-            exc_info=True,
-            extra={"operation": "get_albums", "error_type": type(e).__name__},
-        )
-        return jsonify({"error": "Failed to get albums"}), 500
-
-
-@app.route("/api/albums/<int:album_id>", methods=["GET"])
-def get_album(album_id):
-    """Get specific album with images (public endpoint)"""
-    try:
-        album = Album.query.get(album_id)
-        if not album:
-            return jsonify({"error": "Album not found"}), 404
-        if not album.is_public:
-            return jsonify({"error": "Album not found"}), 404
-
-        album_data = album.to_dict()
-
-        # Get images in this album
-        album_images = (
-            AlbumImage.query.filter_by(album_id=album_id).order_by(AlbumImage.sort_order).all()
-        )
-        images = []
-        for album_image in album_images:
-            image_data = album_image.image.to_dict()
-            images.append(image_data)
-
-        album_data["images"] = images
-        return jsonify(album_data)
-    except Exception as e:
-        logger.error(f"Error getting album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get album"}), 500
-
-
-# Admin album endpoints
-@app.route("/api/albums", methods=["POST"])
-@require_admin
-def create_album():
-    """Create new album (admin only)"""
-    try:
-        data = request.json
-
-        album = Album(
-            name=data["name"],
-            description=data.get("description", ""),
-            album_type=data.get("album_type", "manual"),
-            is_public=data.get("is_public", True),
-            generation_prompt=data.get("generation_prompt"),
-            generation_config=data.get("generation_config"),
-        )
-
-        db.session.add(album)
-        db.session.commit()
-
-        logger.info(
-            f"Created album: {album.name}",
-            extra={"operation": "create_album", "album_id": album.id},
-        )
-        return jsonify(album.to_dict()), 201
-    except Exception as e:
-        logger.error(f"Error creating album: {e}", exc_info=True)
-        return jsonify({"error": "Failed to create album"}), 500
-
-
-@app.route("/api/albums/<int:album_id>", methods=["PUT"])
-@require_admin
-def update_album(album_id):
-    """Update album (admin only)"""
-    try:
-        album = Album.query.get_or_404(album_id)
-        data = request.json
-
-        if "name" in data:
-            album.name = data["name"]
-        if "description" in data:
-            album.description = data["description"]
-        if "album_type" in data:
-            album.album_type = data["album_type"]
-        if "is_public" in data:
-            album.is_public = data["is_public"]
-        if "generation_prompt" in data:
-            album.generation_prompt = data["generation_prompt"]
-        if "generation_config" in data:
-            album.generation_config = data["generation_config"]
-
-        db.session.commit()
-
-        logger.info(
-            f"Updated album: {album.name}",
-            extra={"operation": "update_album", "album_id": album.id},
-        )
-        return jsonify(album.to_dict())
-    except Exception as e:
-        logger.error(f"Error updating album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to update album"}), 500
-
-
-@app.route("/api/albums/<int:album_id>", methods=["DELETE"])
-@require_admin
-def delete_album(album_id):
-    """Delete album (admin only)"""
-    try:
-        album = Album.query.get_or_404(album_id)
-
-        db.session.delete(album)
-        db.session.commit()
-
-        logger.info(
-            f"Deleted album: {album.name}",
-            extra={"operation": "delete_album", "album_id": album_id},
-        )
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error deleting album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to delete album"}), 500
-
-
-@app.route("/api/albums/<int:album_id>/images", methods=["POST"])
-@require_admin
-def add_images_to_album(album_id):
-    """Add images to album (admin only)"""
-    try:
-        album = Album.query.get_or_404(album_id)
-        data = request.json
-
-        image_ids = data.get("image_ids", [])
-
-        for image_id in image_ids:
-            # Check if already in album
-            existing = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first()
-
-            if not existing:
-                assoc = AlbumImage(
-                    album_id=album_id, image_id=image_id, sort_order=len(album.album_images) + 1
-                )
-                db.session.add(assoc)
-
-        db.session.commit()
-
-        logger.info(
-            f"Added {len(image_ids)} images to album {album.name}",
-            extra={
-                "operation": "add_images_to_album",
-                "album_id": album_id,
-                "image_count": len(image_ids),
-            },
-        )
-        return jsonify({"success": True, "added_count": len(image_ids)})
-    except Exception as e:
-        logger.error(f"Error adding images to album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to add images to album"}), 500
-
-
-@app.route("/api/albums/<int:album_id>/images/<int:image_id>", methods=["DELETE"])
-@require_admin
-def remove_image_from_album(album_id, image_id):
-    """Remove image from album (admin only)"""
-    try:
-        assoc = AlbumImage.query.filter_by(album_id=album_id, image_id=image_id).first_or_404()
-
-        db.session.delete(assoc)
-        db.session.commit()
-
-        logger.info(
-            f"Removed image {image_id} from album {album_id}",
-            extra={
-                "operation": "remove_image_from_album",
-                "album_id": album_id,
-                "image_id": image_id,
-            },
-        )
-        return jsonify({"success": True})
-    except Exception as e:
-        logger.error(f"Error removing image {image_id} from album {album_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to remove image from album"}), 500
-
-
 @app.route("/api/labeling/image/<int:image_id>", methods=["POST"])
 @require_admin
 def label_image(image_id):

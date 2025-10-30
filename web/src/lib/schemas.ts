@@ -1,4 +1,5 @@
-import { z } from 'zod'
+import { z, type ZodType } from 'zod'
+import type { Job as JobContract, JobsResponse } from '../types/shared'
 
 /**
  * Zod schemas for runtime validation of API responses
@@ -37,25 +38,37 @@ export const GenerateParamsSchema = z.object({
   lora_weight: z.number().optional(),
 })
 
-export const JobSchema = z.object({
-  id: z.string(),
+export const JobSchema: ZodType<JobContract> = z.object({
+  id: z.number(),
   status: JobStatusSchema,
   prompt: z.string(),
-  params: GenerateParamsSchema.optional(),
   queue_position: z.number().nullable().optional(),
-  created: z.string().optional(),
-  created_at: z.string().optional(),
+  submitted_at: z.string(),
   started_at: z.string().nullable().optional(),
-  submitted_at: z.string().nullable().optional(),
   completed_at: z.string().nullable().optional(),
+  cancelled_at: z.string().nullable().optional(),
+  created_at: z.string().optional(),
+  created: z.string().optional(),
   output_path: z.string().nullable().optional(),
   output_filename: z.string().optional(),
   output_directory: z.string().optional(),
+  output_dir: z.string().optional(),
+  output: z.string().optional(),
   lora_paths: z.array(z.string()).optional(),
+  lora_weights: z.array(z.number()).optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   steps: z.number().optional(),
+  seed: z.number().optional(),
+  guidance_scale: z.number().optional(),
+  negative_prompt: z.string().optional(),
   error: z.string().nullable().optional(),
+  duration_seconds: z.number().optional(),
+  estimated_time_remaining: z.number().nullable().optional(),
+  album_id: z.number().optional(),
+  batch_id: z.string().optional(),
+  batch_item_name: z.string().optional(),
+  batch_item_data: z.record(z.string(), z.unknown()).optional(),
 })
 
 // ============================================
@@ -236,7 +249,7 @@ export const AlbumsResponseSchema = z.union([
   }),
 ])
 
-export const JobsResponseSchema = z.object({
+export const JobsResponseSchema: ZodType<JobsResponse> = z.object({
   current: JobSchema.nullable(),
   queue: z.array(JobSchema),
   history: z.array(JobSchema),
@@ -250,7 +263,7 @@ export const BugReportResponseSchema = z.object({
   success: z.boolean(),
   report_id: z.string(),
   trace_id: z.string(),
-  stored_at: z.string().optional(),
+  stored_at: z.string().nullable().optional(),
 })
 
 // ============================================
