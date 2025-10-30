@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { logger } from '../lib/logger'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
+import { Button } from '@/components/ui/button'
+import { LogOut, X } from 'lucide-react'
 
 interface AuthButtonProps {
   onAuthChange?: (user: AuthStatus | null) => void
@@ -267,15 +269,16 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
               automatically once we confirm your account.
             </p>
             <div className="auth-modal-actions">
-              <button
+              <Button
                 type="button"
-                className="auth-modal-button"
+                variant="outline"
                 onClick={() => {
                   closeAuthWindow('cancelled')
                 }}
               >
+                <X className="h-4 w-4 mr-2" />
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>,
@@ -289,17 +292,18 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     <>
       <div className="auth-button-container">
         <div className="auth-actions">
-          <button type="button" onClick={handleLogin} className="auth-button auth-button--primary">
+          <Button type="button" onClick={handleLogin} variant="default">
             {primaryLabel}
-          </button>
+          </Button>
           {user && (
-            <button
+            <Button
               type="button"
               onClick={handleLogout}
-              className="auth-button auth-button--secondary"
+              variant="outline"
             >
+              <LogOut className="h-4 w-4 mr-2" />
               Log Out
-            </button>
+            </Button>
           )}
         </div>
         {error && <div className="auth-error">{error}</div>}

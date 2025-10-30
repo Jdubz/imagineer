@@ -1,6 +1,8 @@
 import React from 'react'
 import { useBugReporter } from '../contexts/BugReportContext'
 import { useAuth } from '../contexts/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Bug } from 'lucide-react'
 
 const BugReportButton: React.FC = () => {
   const { openBugReport } = useBugReporter()
@@ -12,15 +14,16 @@ const BugReportButton: React.FC = () => {
   }
 
   return (
-    <button
+    <Button
       type="button"
-      className="bug-report-trigger"
+      variant="secondary"
       onClick={() => openBugReport()}
       aria-label="Report a bug (Ctrl+Shift+B)"
       title="Report a bug (Ctrl+Shift+B)"
     >
-      🐞 Report Bug
-    </button>
+      <Bug className="h-4 w-4 mr-2" />
+      Report Bug
+    </Button>
   )
 }
 

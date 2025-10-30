@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 interface ConfigDisplayProps {
   config: {
@@ -29,15 +31,16 @@ const ConfigDisplay: React.FC<ConfigDisplayProps> = ({ config }) => {
     <div className="config-display">
       <div className="config-header">
         <h2>Current Configuration</h2>
-        <button
+        <Button
           type="button"
-          className="collapse-btn"
+          variant="ghost"
+          size="icon"
           onClick={() => setCollapsed(!collapsed)}
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expand configuration' : 'Collapse configuration'}
         >
-          {collapsed ? '▼' : '▲'}
-        </button>
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+        </Button>
       </div>
 
       {!collapsed && (
