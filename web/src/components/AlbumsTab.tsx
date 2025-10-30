@@ -2,41 +2,12 @@ import React, { useState, useCallback, useMemo, memo } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
+import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import type { Album as SharedAlbum, Label, LabelAnalytics } from '../types/models'
-import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Zap, ArrowLeft, Check, X, Edit2 } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
-import { Label as FormLabel } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 
 interface AlbumImage {
   id: number
@@ -109,7 +80,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
   const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
   const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
-  const [deleteConfirmAlbum, setDeleteConfirmAlbum] = useState<string | null>(null)
 
   const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -252,21 +222,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [isAdmin, toast, fetchAlbums])
 
-  const deleteAlbum = useCallback((albumId: string): void => {
+  const deleteAlbum = useCallback(async (albumId: string): Promise<void> => {
     if (!isAdmin) return
-    setDeleteConfirmAlbum(albumId)
-  }, [isAdmin])
 
-  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
-    if (!deleteConfirmAlbum) return
+    if (!window.confirm('Are you sure you want to delete this album?')) return
 
     try {
-      const result = await api.albums.delete(deleteConfirmAlbum)
+      const result = await api.albums.delete(albumId)
 
       if (result.success) {
         toast.success('Album deleted successfully')
         fetchAlbums()
-        if (selectedAlbum?.id === deleteConfirmAlbum) {
+        if (selectedAlbum?.id === albumId) {
           setSelectedAlbum(null)
           setAlbumAnalytics(null)
         }
@@ -276,10 +243,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     } catch (error) {
       logger.error('Failed to delete album:', error)
       toast.error('Error deleting album')
-    } finally {
-      setDeleteConfirmAlbum(null)
     }
-  }, [deleteConfirmAlbum, toast, fetchAlbums, selectedAlbum])
+  }, [isAdmin, toast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
@@ -339,32 +304,32 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
         <h2>Albums</h2>
         <div className="albums-header-actions">
           <div className="album-filter-buttons">
-            <Button
-              variant={albumFilter === 'all' ? 'default' : 'outline'}
+            <button
+              className={`filter-btn ${albumFilter === 'all' ? 'active' : ''}`}
               onClick={handleFilterAll}
             >
               All Albums
-            </Button>
-            <Button
-              variant={albumFilter === 'sets' ? 'default' : 'outline'}
+            </button>
+            <button
+              className={`filter-btn ${albumFilter === 'sets' ? 'active' : ''}`}
               onClick={handleFilterSets}
             >
               Set Templates
-            </Button>
-            <Button
-              variant={albumFilter === 'regular' ? 'default' : 'outline'}
+            </button>
+            <button
+              className={`filter-btn ${albumFilter === 'regular' ? 'active' : ''}`}
               onClick={handleFilterRegular}
             >
               Regular Albums
-            </Button>
+            </button>
           </div>
           {isAdmin && (
-            <Button
+            <button
+              className="create-album-btn"
               onClick={handleShowCreateDialog}
             >
-              <Plus className="h-4 w-4 mr-2" />
               Create Album
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -377,6 +342,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             deleteAlbum(album.id)
           }
           const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)
+          const coverImage = album.images && album.images.length > 0 ? album.images[0] : null
+          const coverGenerated: GeneratedImage | null = coverImage
+            ? {
+                id: coverImage.id,
+                filename: coverImage.filename,
+                thumbnail_url: `/api/images/${coverImage.id}/thumbnail`,
+                download_url: `/api/images/${coverImage.id}/file`,
+              }
+            : null
+          const coverSources = coverGenerated
+            ? resolveImageSources(coverGenerated, { fallbackAlt: album.name })
+            : null
 
           return (
             <div
@@ -384,12 +361,26 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
               className="album-card"
               onClick={handleSelectAlbum}
             >
-            <div className="album-cover">
-              {album.images && album.images.length > 0 ? (
-                <img
-                  src={`/api/images/${album.images[0].id}/thumbnail`}
-                  alt={album.name}
-                />
+            <div
+              className="album-cover"
+              onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
+              onFocus={() => coverSources && preloadImage(coverSources.full)}
+            >
+              {coverSources ? (
+                <picture>
+                  {coverSources.thumbnail.endsWith('.webp') && (
+                    <source srcSet={coverSources.srcSet} type="image/webp" />
+                  )}
+                  <img
+                    src={coverSources.thumbnail}
+                    srcSet={coverSources.srcSet}
+                    sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 100vw"
+                    alt={coverSources.alt || album.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="album-cover-image blur-up"
+                  />
+                </picture>
               ) : (
                 <div className="album-placeholder">
                   {album.image_count || 0} images
@@ -415,21 +406,19 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
               {isAdmin && (
                 <div className="album-actions">
                   {album.is_set_template && (
-                    <Button
-                      variant="secondary"
+                    <button
+                      className="generate-batch-btn"
                       onClick={handleBatchClick}
                     >
-                      <Zap className="h-4 w-4 mr-2" />
                       Generate Batch
-                    </Button>
+                    </button>
                   )}
-                  <Button
-                    variant="destructive"
+                  <button
+                    className="delete-album-btn"
                     onClick={handleDeleteAlbum}
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
                     Delete
-                  </Button>
+                  </button>
                 </div>
               )}
             </div>
@@ -464,21 +453,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           onSuccess={handleBatchSuccess}
         />
       )}
-
-      <AlertDialog open={!!deleteConfirmAlbum} onOpenChange={(open) => !open && setDeleteConfirmAlbum(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Album?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the album and all its images.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 })
@@ -534,10 +508,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
   return (
     <div className="album-detail">
       <div className="album-detail-header">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <button className="back-btn" onClick={onBack}>
+          ← Back
+        </button>
         <h2>{album.name}</h2>
 
         <div className="nsfw-filter">
@@ -553,10 +526,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
         </div>
 
         {isAdmin && selectedImages.size > 0 && (
-          <Button variant="destructive" onClick={actions.removeSelectedImages}>
-            <Trash2 className="h-4 w-4 mr-2" />
+          <button className="remove-images-btn" onClick={actions.removeSelectedImages}>
             Remove {selectedImages.size} images
-          </Button>
+          </button>
         )}
       </div>
 
@@ -643,12 +615,24 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const handleUpdateLabelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
             actions.updateLabelInput(image.id, e.target.value)
           }
+          const generatedImage: GeneratedImage = {
+            id: image.id,
+            filename: image.filename,
+            thumbnail_url: `/api/images/${image.id}/thumbnail`,
+            download_url: `/api/images/${image.id}/file`,
+            is_nsfw: image.is_nsfw,
+          }
+          const { thumbnail, full, alt, srcSet } = resolveImageSources(generatedImage, {
+            fallbackAlt: image.filename,
+          })
 
           return (
             <div
               key={image.id}
               className={`image-card ${image.is_nsfw ? 'nsfw' : ''} ${nsfwSetting}`}
               onClick={handleImageClick}
+              onMouseEnter={() => preloadImage(full)}
+              onFocus={() => preloadImage(full)}
             >
               {isAdmin && (
                 <input
@@ -659,13 +643,21 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                 />
               )}
 
-              <img
-                src={`/api/images/${image.id}/thumbnail`}
-                alt={image.filename}
-                className={`${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
-                loading="lazy"
-                onLoad={handleImageLoaded}
-              />
+              <picture className="image-picture">
+                {thumbnail.endsWith('.webp') && (
+                  <source srcSet={srcSet} type="image/webp" />
+                )}
+                <img
+                  src={thumbnail}
+                  srcSet={srcSet}
+                  sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
+                  alt={alt || image.filename}
+                  loading="lazy"
+                  decoding="async"
+                  className={`preview-image ${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
+                  onLoad={handleImageLoaded}
+                />
+              </picture>
 
               {image.is_nsfw && <div className="nsfw-badge">18+</div>}
 
@@ -707,26 +699,20 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                                   disabled={state.loadingStates.editingLabel}
                                 />
                                 <div className="label-chip-actions">
-                                  <Button
+                                  <button
                                     type="button"
                                     onClick={actions.saveEditedLabel}
                                     disabled={state.loadingStates.editingLabel || !(activeEdit?.value ?? '').trim()}
-                                    size="sm"
-                                    variant="default"
                                   >
-                                    <Check className="h-3 w-3 mr-1" />
                                     {state.loadingStates.editingLabel ? 'Saving...' : 'Save'}
-                                  </Button>
-                                  <Button
+                                  </button>
+                                  <button
                                     type="button"
                                     onClick={actions.cancelEditingLabel}
                                     disabled={state.loadingStates.editingLabel}
-                                    size="sm"
-                                    variant="outline"
                                   >
-                                    <X className="h-3 w-3 mr-1" />
                                     Cancel
-                                  </Button>
+                                  </button>
                                 </div>
                               </>
                             ) : (
@@ -734,27 +720,21 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                                 <span>{label.label_text}</span>
                                 <div className="label-chip-actions">
                                   {!isCaption && (
-                                    <Button
+                                    <button
                                       type="button"
                                       onClick={handleStartEdit}
                                       disabled={state.loadingStates.editingLabel}
-                                      size="sm"
-                                      variant="ghost"
                                     >
-                                      <Edit2 className="h-3 w-3 mr-1" />
                                       Edit
-                                    </Button>
+                                    </button>
                                   )}
-                                  <Button
+                                  <button
                                     type="button"
                                     onClick={handleDeleteLabel}
                                     disabled={isDeletingThisLabel}
-                                    size="sm"
-                                    variant="ghost"
                                   >
-                                    <X className="h-3 w-3 mr-1" />
                                     {isDeletingThisLabel ? 'Removing...' : 'Remove'}
-                                  </Button>
+                                  </button>
                                 </div>
                               </>
                             )}
@@ -774,14 +754,12 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         onChange={handleUpdateLabelInput}
                         disabled={isLoading.addingLabel(image.id)}
                       />
-                      <Button
+                      <button
                         type="submit"
                         disabled={isLoading.addingLabel(image.id) || !inputValue.trim()}
-                        size="sm"
                       >
-                        <Plus className="h-3 w-3 mr-1" />
                         {isLoading.addingLabel(image.id) ? 'Adding...' : 'Add'}
-                      </Button>
+                      </button>
                     </form>
                   </div>
                 </>
@@ -827,6 +805,14 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
     setSeed(e.target.value)
   }, [])
 
+  const handleOverlayClick = useCallback(() => {
+    onClose()
+  }, [onClose])
+
+  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+  }, [])
+
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
@@ -867,19 +853,17 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
   }, [userTheme, steps, seed, album.id, toast, onSuccess])
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Generate Batch: {album.name}</DialogTitle>
-          <DialogDescription>
-            Generate {album.template_item_count || 0} images using this set template
-          </DialogDescription>
-        </DialogHeader>
+    <div className="dialog-overlay" onClick={handleOverlayClick}>
+      <div className="dialog" onClick={handleDialogClick}>
+        <h2>Generate Batch: {album.name}</h2>
+        <p className="dialog-description">
+          Generate {album.template_item_count || 0} images using this set template
+        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <FormLabel htmlFor="user-theme">Art Style Theme (required)</FormLabel>
-            <Input
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="user-theme">Art Style Theme (required):</label>
+            <input
               id="user-theme"
               type="text"
               value={userTheme}
@@ -889,13 +873,13 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
               disabled={isSubmitting}
             />
             {album.example_theme && (
-              <p className="text-sm text-muted-foreground">Example: {album.example_theme}</p>
+              <small className="form-hint">Example: {album.example_theme}</small>
             )}
           </div>
 
-          <div className="space-y-2">
-            <FormLabel htmlFor="steps">Steps (optional)</FormLabel>
-            <Input
+          <div className="form-group">
+            <label htmlFor="steps">Steps (optional):</label>
+            <input
               id="steps"
               type="number"
               value={steps}
@@ -907,9 +891,9 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
             />
           </div>
 
-          <div className="space-y-2">
-            <FormLabel htmlFor="seed">Seed (optional)</FormLabel>
-            <Input
+          <div className="form-group">
+            <label htmlFor="seed">Seed (optional):</label>
+            <input
               id="seed"
               type="number"
               value={seed}
@@ -921,19 +905,17 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" onClick={onClose} disabled={isSubmitting} variant="outline">
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !userTheme.trim()}>
-              <Zap className="h-4 w-4 mr-2" />
+          <div className="dialog-actions">
+            <button type="submit" disabled={isSubmitting || !userTheme.trim()}>
               {isSubmitting ? 'Starting...' : 'Start Generation'}
-            </Button>
-          </DialogFooter>
+            </button>
+            <button type="button" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </button>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 })
 
@@ -957,8 +939,16 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
     setDescription(e.target.value)
   }, [])
 
-  const handleAlbumTypeChange = useCallback((value: string) => {
-    setAlbumType(value)
+  const handleAlbumTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAlbumType(e.target.value)
+  }, [])
+
+  const handleOverlayClick = useCallback(() => {
+    onClose()
+  }, [onClose])
+
+  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
   }, [])
 
   const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
@@ -969,16 +959,14 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
   }, [name, description, albumType, onCreate])
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create Album</DialogTitle>
-        </DialogHeader>
+    <div className="dialog-overlay" onClick={handleOverlayClick}>
+      <div className="dialog" onClick={handleDialogClick}>
+        <h2>Create Album</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <FormLabel htmlFor="album-name">Album Name</FormLabel>
-            <Input
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="album-name">Album Name:</label>
+            <input
               id="album-name"
               type="text"
               value={name}
@@ -988,9 +976,9 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
             />
           </div>
 
-          <div className="space-y-2">
-            <FormLabel htmlFor="album-description">Description</FormLabel>
-            <Textarea
+          <div className="form-group">
+            <label htmlFor="album-description">Description:</label>
+            <textarea
               id="album-description"
               value={description}
               onChange={handleDescriptionChange}
@@ -999,33 +987,22 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
             />
           </div>
 
-          <div className="space-y-2">
-            <FormLabel htmlFor="album-type">Album Type</FormLabel>
-            <Select value={albumType} onValueChange={handleAlbumTypeChange}>
-              <SelectTrigger id="album-type">
-                <SelectValue placeholder="Select album type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">Manual Collection</SelectItem>
-                <SelectItem value="batch">Generated Batch</SelectItem>
-                <SelectItem value="set">CSV Set</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="form-group">
+            <label htmlFor="album-type">Album Type:</label>
+            <select id="album-type" value={albumType} onChange={handleAlbumTypeChange}>
+              <option value="manual">Manual Collection</option>
+              <option value="batch">Generated Batch</option>
+              <option value="set">CSV Set</option>
+            </select>
           </div>
 
-          <DialogFooter>
-            <Button type="button" onClick={onClose} variant="outline">
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button type="submit">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Album
-            </Button>
-          </DialogFooter>
+          <div className="dialog-actions">
+            <button type="submit">Create Album</button>
+            <button type="button" onClick={onClose}>Cancel</button>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 })
 

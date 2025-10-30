@@ -507,7 +507,8 @@ def delete_label(image_id: int, label_id: int):
 def get_thumbnail(image_id: int):  # noqa: C901
     """Get image thumbnail (300px, public)."""
     image = Image.query.get_or_404(image_id)
-    if not image.is_public:
+    is_admin_requester = _is_admin_user()
+    if not image.is_public and not is_admin_requester:
         return jsonify({"error": "Image not found"}), 404
 
     import os
@@ -518,27 +519,36 @@ def get_thumbnail(image_id: int):  # noqa: C901
     outputs_base = os.environ.get("IMAGINEER_OUTPUTS_DIR")
     if not outputs_base:
         config = load_config()
-        outputs_base = config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs")
+        outputs_base = (
+            config.get("outputs", {}).get("base_dir")
+            or config.get("output", {}).get("directory")
+            or "/tmp/imagineer/outputs"
+        )
 
     outputs_dir = Path(outputs_base).resolve()
-    thumbnail_dir = outputs_dir / "thumbnails"
+    thumbnail_rel_path = Path("thumbnails") / f"{image_id}.webp"
+    thumbnail_path = outputs_dir / thumbnail_rel_path
 
-    # Ensure parent directories exist before creating thumbnail directory
+    # Ensure parent directories exist, falling back to /tmp as needed.
     try:
-        thumbnail_dir.mkdir(parents=True, exist_ok=True)
-    except (FileNotFoundError, OSError) as e:
-        # If we can't create the directory (e.g., parent is a non-existent mount point),
-        # fall back to /tmp
+        thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+    except (FileNotFoundError, OSError) as exc:
         logger = logging.getLogger(__name__)
+        fallback_base = Path("/tmp/imagineer/outputs").resolve()
         logger.warning(
-            f"Could not create thumbnail directory {thumbnail_dir}: {e}. Falling back to /tmp"
+            "Could not create thumbnail directory %s: %s. Falling back to %s",
+            thumbnail_path.parent,
+            exc,
+            fallback_base,
         )
-        outputs_dir = Path("/tmp/imagineer/outputs")
-        thumbnail_dir = outputs_dir / "thumbnails"
-        thumbnail_dir.mkdir(parents=True, exist_ok=True)
-    thumbnail_path = thumbnail_dir / f"{image_id}.webp"
+        outputs_dir = fallback_base
+        thumbnail_rel_path = Path("thumbnails") / f"{image_id}.webp"
+        thumbnail_path = outputs_dir / thumbnail_rel_path
+        thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
 
     raw_path = image.file_path or getattr(image, "path", None)
+    if not raw_path and getattr(image, "filename", None):
+        raw_path = image.filename
     if not raw_path:
         return jsonify({"error": "Image not found"}), 404
 
@@ -556,6 +566,38 @@ def get_thumbnail(image_id: int):  # noqa: C901
                 img.save(thumbnail_path, "WEBP", quality=85)
         except FileNotFoundError:
             return jsonify({"error": "Image not found"}), 404
+        except Exception as exc:  # pragma: no cover - logged for observability
+            logging.getLogger(__name__).error(
+                "Failed to generate thumbnail for image_id=%s: %s",
+                image_id,
+                exc,
+                extra={
+                    "operation": "images:thumbnail",
+                    "image_id": image_id,
+                    "original_path": str(original_path),
+                },
+                exc_info=True,
+            )
+            return jsonify({"error": "Failed to generate thumbnail"}), 500
+
+    relative_path_str = str(thumbnail_rel_path)
+    if image.thumbnail_path != relative_path_str:
+        try:
+            image.thumbnail_path = relative_path_str
+            db.session.add(image)
+            db.session.commit()
+        except Exception as exc:  # pragma: no cover - log but continue serving file
+            db.session.rollback()
+            logging.getLogger(__name__).warning(
+                "Failed to persist thumbnail path for image_id=%s: %s",
+                image_id,
+                exc,
+                extra={
+                    "operation": "images:thumbnail",
+                    "image_id": image_id,
+                    "thumbnail_path": relative_path_str,
+                },
+            )
 
     from flask import send_file
 

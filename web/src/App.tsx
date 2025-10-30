@@ -114,7 +114,7 @@ const AppContent: React.FC = () => {
   const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setLoadingImages(true)
     try {
-      const images = await api.images.getAll(signal)
+      const images = await api.images.getAll({ signal })
       setImages(images)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

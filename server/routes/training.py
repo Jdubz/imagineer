@@ -76,6 +76,18 @@ def _is_admin_user() -> bool:
         return False
 
 
+def _serialize_training_run(run: TrainingRun, *, include_sensitive: bool) -> dict:
+    """Return a sanitized representation of a training run for API responses."""
+    payload = run.to_dict(include_sensitive=include_sensitive)
+
+    if not include_sensitive:
+        payload["training_config"] = None
+        payload["final_checkpoint"] = None
+        payload["error_message"] = None
+
+    return payload
+
+
 def _ensure_directory(preferred: Path, fallback: Path, *, kind: str) -> Path:
     try:
         preferred.mkdir(parents=True, exist_ok=True)
@@ -122,7 +134,8 @@ def list_training_runs():
     return jsonify(
         {
             "training_runs": [
-                run.to_dict(include_sensitive=include_sensitive) for run in training_runs.items
+                _serialize_training_run(run, include_sensitive=include_sensitive)
+                for run in training_runs.items
             ],
             "pagination": {
                 "page": page,
@@ -140,7 +153,7 @@ def list_training_runs():
 def get_training_run(run_id):
     """Get training run details (public)"""
     run = get_training_run_or_404(run_id)
-    return jsonify(run.to_dict(include_sensitive=_is_admin_user()))
+    return jsonify(_serialize_training_run(run, include_sensitive=_is_admin_user()))
 
 
 @training_bp.route("", methods=["POST"])
@@ -384,6 +397,8 @@ def list_trained_loras():
     """List trained LoRAs (public)"""
     from pathlib import Path
 
+    include_sensitive = _is_admin_user()
+
     try:
         # Get all completed training runs
         completed_runs = TrainingRun.query.filter(
@@ -399,7 +414,7 @@ def list_trained_loras():
                         "id": run.id,
                         "name": run.name,
                         "description": run.description,
-                        "checkpoint_path": str(checkpoint_path),
+                        "checkpoint_path": str(checkpoint_path) if include_sensitive else None,
                         "filename": checkpoint_path.name,
                         "training_loss": run.training_loss,
                         "created_at": run.created_at.isoformat() if run.created_at else None,
@@ -407,6 +422,7 @@ def list_trained_loras():
                         "file_size": (
                             checkpoint_path.stat().st_size if checkpoint_path.exists() else 0
                         ),
+                        "public_download_available": include_sensitive,
                     }
                 )
 

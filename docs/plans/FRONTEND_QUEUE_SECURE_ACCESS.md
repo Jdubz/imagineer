@@ -9,9 +9,10 @@ Backend changes now require admin authentication for `/api/jobs` and `/api/jobs/
 ## Required UI Changes
 - **Authenticated fetches**: Ensure all queue polling (e.g., `QueueTab`, `App.tsx` job poller) sends `credentials: 'include'` and handles 401/403 by prompting the admin to re-authenticate.
 - **Field mapping**: Update components to read `output_filename`/`output_directory` instead of raw path keys. Remove any client logic that expects absolute paths.
-- **Error messaging**: Surface a friendly banner or toast when the queue view is inaccessible due to missing admin rights, with a call-to-action to sign in.
+- **Admin gating**: Hide queue controls and metrics entirely for non-admin users. Use the upcoming `AuthContext` (#14) so access checks stay centralized and reusable.
+- **Error messaging**: Surface a friendly banner or toast when the queue view is inaccessible due to missing admin rights, with a call-to-action to sign in. Ensure we never continue polling after a permission failure.
 
 ## QA Checklist
 - Admin session loads queue successfully and displays sanitized filenames.
-- Non-admin or expired session sees clear messaging and never renders stale data.
+- Non-admin or expired session never renders queue data, sees clear messaging, and polling stops until re-authenticated.
 - Job detail views (`/api/jobs/{id}`) continue to update the UI without requiring path assumptions.

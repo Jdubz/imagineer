@@ -104,6 +104,7 @@ python examples/generate.py --prompt "a beautiful sunset over mountains"
 - **[Deployment Cheat Sheet](docs/deployment/DEPLOYMENT_CHEATSHEET.md)** - Quick reference
 - **[Credentials Guide](docs/deployment/CREDENTIALS_QUICK_REFERENCE.md)** - Required credentials
 - **[Deployment Guide](docs/deployment/DEPLOYMENT_ORCHESTRATION_COMPLETE.md)** - Complete deployment
+- **[Celery Worker Expectations](docs/deployment/CELERY.md)** - Queue sizing, scaling, and operations runbook
 
 **LoRA Management:**
 - **[LoRA Setup](docs/lora/LORA_SETUP.md)** - Getting started with LoRAs

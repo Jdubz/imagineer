@@ -223,7 +223,7 @@ def client(app):
 @pytest.fixture
 def admin_client(client):
     """Return a test client with an authenticated admin session."""
-    from server import api as api_module
+    from server.routes import generation as generation_module
 
     with client.session_transaction() as session:
         session["_user_id"] = "admin@example.com"
@@ -235,8 +235,8 @@ def admin_client(client):
             "role": "admin",
         }
 
-    with api_module._generation_rate_lock:
-        api_module._generation_request_times.clear()
+    with generation_module._generation_rate_lock:
+        generation_module._generation_request_times.clear()
 
     return client
 
@@ -326,12 +326,15 @@ def mock_admin_auth():
         "server.routes.albums.current_user",
         "server.routes.training.current_user",
         "server.routes.scraping.current_user",
+        "server.routes.admin.current_user",
+        "server.routes.labels.current_user",
+        "server.routes.admin.current_user",
     ]
 
     with ExitStack() as stack:
         for target in patch_targets:
             try:
-                stack.enter_context(patch(target, admin_user))
+                stack.enter_context(patch(target, admin_user, create=True))
             except ModuleNotFoundError:
                 continue
         yield admin_user
@@ -364,6 +367,26 @@ def mock_public_auth():
             except ModuleNotFoundError:
                 continue
         yield public_user
+
+
+@pytest.fixture
+def generation_paths(tmp_path, monkeypatch):
+    """Provide isolated directories and config for generation route tests."""
+    from server.routes import generation as generation_module
+
+    base_dir = tmp_path / "imagineer"
+    output_dir = base_dir / "outputs"
+    lora_dir = base_dir / "models" / "lora"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lora_dir.mkdir(parents=True, exist_ok=True)
+
+    config = {
+        "output": {"directory": str(output_dir)},
+        "model": {"cache_dir": str(base_dir / "models")},
+    }
+
+    monkeypatch.setattr(generation_module, "load_config", lambda: config)
+    return {"output_dir": output_dir, "lora_dir": lora_dir, "config": config}
 
 
 @pytest.fixture(autouse=True)

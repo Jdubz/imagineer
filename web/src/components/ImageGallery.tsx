@@ -1,7 +1,6 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import type { GeneratedImage } from '../types/models'
-import { Button } from '@/components/ui/button'
-import { X } from 'lucide-react'
+import { resolveImageSources, preloadImage } from '../lib/imageSources'
 
 interface ImageGalleryProps {
   images?: GeneratedImage[]
@@ -9,6 +8,16 @@ interface ImageGalleryProps {
 
 const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
+  const selectedSources = useMemo(
+    () => (selectedImage ? resolveImageSources(selectedImage) : null),
+    [selectedImage]
+  )
+
+  useEffect(() => {
+    if (selectedSources?.full) {
+      preloadImage(selectedSources.full)
+    }
+  }, [selectedSources?.full])
 
   if (images.length === 0) {
     return (
@@ -35,24 +44,37 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
   return (
     <div className="image-gallery">
       <div className="image-grid">
-        {images.map((image, index) => (
-          <div key={index} className="image-item">
-            <img
-              src={`/api${image.path}`}
-              alt={image.metadata?.prompt || image.filename}
-              loading="lazy"
-              onClick={() => openModal(image)}
-              className="gallery-image"
-            />
-            <div className="image-prompt">
-              {image.metadata?.prompt ? (
-                <p>{image.metadata.prompt.length > 50
-                  ? `${image.metadata.prompt.substring(0, 50)}...`
-                  : image.metadata.prompt}</p>
-              ) : null}
+        {images.map((image, index) => {
+          const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
+          const imageKey = image.filename ?? (image.id ? `image-${image.id}` : `${index}`)
+
+          return (
+            <div key={imageKey} className="image-item" onMouseEnter={() => preloadImage(full)}>
+              <picture>
+                {thumbnail.endsWith('.webp') && <source srcSet={srcSet} type="image/webp" />}
+                <img
+                  src={thumbnail}
+                  srcSet={srcSet}
+                  sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
+                  alt={alt || image.filename}
+                  loading="lazy"
+                  decoding="async"
+                  onClick={() => openModal(image)}
+                  className="gallery-image"
+                />
+              </picture>
+              <div className="image-prompt">
+                {image.metadata?.prompt ? (
+                  <p>
+                    {image.metadata.prompt.length > 50
+                      ? `${image.metadata.prompt.substring(0, 50)}...`
+                      : image.metadata.prompt}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {selectedImage && (
@@ -62,19 +84,24 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
           onClick={handleBackdropClick}
         >
           <div className="modal-content" role="dialog" aria-modal="true">
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              className="close-button"
               onClick={closeModal}
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
-            </Button>
-            <img
-              src={`/api${selectedImage.path}`}
-              alt={selectedImage.metadata?.prompt || selectedImage.filename}
-              className="modal-image"
-            />
+              ×
+            </button>
+            {selectedSources && (
+              <img
+                src={selectedSources.full}
+                srcSet={selectedSources.srcSet}
+                sizes="90vw"
+                alt={selectedSources.alt || selectedImage.filename}
+                className="modal-image"
+                loading="eager"
+                decoding="async"
+              />
+            )}
             {selectedImage.metadata && (
               <div className="image-metadata">
                 <h3>Image Details</h3>
