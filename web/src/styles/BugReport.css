@@ -1,7 +1,7 @@
 .bug-report-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: hsl(var(--foreground) / 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10,13 +10,13 @@
 }
 
 .bug-report-modal {
-  background: #131316;
+  background: hsl(var(--card));
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 28px 60px hsl(var(--foreground) / 0.3);
   max-width: 620px;
   width: 100%;
-  color: #f7f7f9;
+  color: hsl(var(--card-foreground));
 }
 
 .bug-report-form {
@@ -33,7 +33,7 @@
 
 .bug-report-header p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.75);
+  color: hsl(var(--muted-foreground));
   font-size: 0.95rem;
   line-height: 1.45;
 }
@@ -48,21 +48,21 @@
   resize: vertical;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(19, 19, 23, 0.85);
-  color: #f7f7f9;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.85);
+  color: hsl(var(--foreground));
   font-size: 0.95rem;
   line-height: 1.5;
 }
 
 .bug-report-textarea:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
 }
 
 .bug-report-error {
-  color: #ff8b8b;
+  color: hsl(var(--destructive));
   font-size: 0.85rem;
   margin: -8px 0 0;
 }
@@ -83,9 +83,9 @@
 }
 
 .bug-report-button--primary {
-  background: linear-gradient(135deg, #5b7dff, #7a5bff);
-  color: #0a0a0d;
-  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--border));
   font-weight: 600;
 }
 
@@ -99,11 +99,11 @@
 }
 
 .bug-report-button--secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.92);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border-color: hsl(var(--border));
 }
 
 .bug-report-button--secondary:hover {
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: hsl(var(--foreground) / 0.3);
 }

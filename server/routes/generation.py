@@ -48,6 +48,13 @@ def _prune_none_fields(payload: dict) -> dict:
     return {key: value for key, value in payload.items() if value is not None}
 
 
+def _serialize_job(job: dict | None) -> dict | None:
+    """Return a JSON-safe job payload with optional fields removed when empty."""
+    if job is None:
+        return None
+    return _prune_none_fields(job.copy())
+
+
 current_job: dict | None = None
 
 
@@ -418,15 +425,17 @@ def generate():  # noqa: C901
 
         job_queue.put(job)
 
-        response = jsonify(
+        response_payload = _serialize_job(
             {
-                "id": job["id"],
-                "status": job["status"],
-                "submitted_at": job["submitted_at"],
+                **job,
                 "queue_position": job_queue.qsize(),
-                "prompt": job["prompt"],
             }
-        )
+        ) or {
+            **job,
+            "queue_position": job_queue.qsize(),
+        }
+
+        response = jsonify(response_payload)
         response.status_code = 201
         response.headers["Location"] = f"/api/jobs/{job['id']}"
         return response
@@ -605,12 +614,12 @@ def generate_batch_from_album(album_id):  # noqa: C901
 @generation_bp.route("/jobs", methods=["GET"])
 def get_jobs():
     """Return job history and queue snapshot."""
-    queue_list = list(job_queue.queue)
+    queue_list = [_serialize_job(job) or {} for job in list(job_queue.queue)]
     return jsonify(
         {
-            "current": current_job,
+            "current": _serialize_job(current_job) or None,
             "queue": queue_list,
-            "history": job_history[-50:],
+            "history": [_serialize_job(job) or {} for job in job_history[-50:]],
         }
     )
 
@@ -620,7 +629,7 @@ def get_job(job_id):
     """Return a single job entry."""
     if current_job and current_job["id"] == job_id:
         job_response = {
-            **current_job,
+            **(_serialize_job(current_job) or {}),
             "queue_position": 0,
             "estimated_time_remaining": None,
         }
@@ -630,7 +639,7 @@ def get_job(job_id):
     for job in list(job_queue.queue):
         if job["id"] == job_id:
             job_response = {
-                **job,
+                **(_serialize_job(job) or {}),
                 "queue_position": position,
                 "estimated_time_remaining": None,
             }
@@ -639,11 +648,17 @@ def get_job(job_id):
 
     for job in job_history:
         if job["id"] == job_id:
+            duration_seconds = None
             if job.get("started_at") and job.get("completed_at"):
                 start = datetime.fromisoformat(job["started_at"])
                 end = datetime.fromisoformat(job["completed_at"])
-                job["duration_seconds"] = (end - start).total_seconds()
-            return jsonify(job)
+                duration_seconds = (end - start).total_seconds()
+                job["duration_seconds"] = duration_seconds
+
+            serialized_job = _serialize_job(job) or {}
+            if duration_seconds is not None:
+                serialized_job["duration_seconds"] = duration_seconds
+            return jsonify(serialized_job)
 
     return jsonify({"error": "Job not found"}), 404
 

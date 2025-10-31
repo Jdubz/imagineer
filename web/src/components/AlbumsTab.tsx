@@ -8,6 +8,16 @@ import { useToast } from '../hooks/useToast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface AlbumImage {
   id: number
@@ -80,6 +90,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
   const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
   const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
+  const [deleteConfirmAlbum, setDeleteConfirmAlbum] = useState<string | null>(null)
 
   const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -222,18 +233,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [isAdmin, toast, fetchAlbums])
 
-  const deleteAlbum = useCallback(async (albumId: string): Promise<void> => {
+  const deleteAlbum = useCallback((albumId: string): void => {
     if (!isAdmin) return
+    setDeleteConfirmAlbum(albumId)
+  }, [isAdmin])
 
-    if (!window.confirm('Are you sure you want to delete this album?')) return
+  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
+    if (!deleteConfirmAlbum) return
 
     try {
-      const result = await api.albums.delete(albumId)
+      const result = await api.albums.delete(deleteConfirmAlbum)
 
       if (result.success) {
         toast.success('Album deleted successfully')
         fetchAlbums()
-        if (selectedAlbum?.id === albumId) {
+        if (selectedAlbum?.id === deleteConfirmAlbum) {
           setSelectedAlbum(null)
           setAlbumAnalytics(null)
         }
@@ -243,8 +257,10 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     } catch (error) {
       logger.error('Failed to delete album:', error)
       toast.error('Error deleting album')
+    } finally {
+      setDeleteConfirmAlbum(null)
     }
-  }, [isAdmin, toast, fetchAlbums, selectedAlbum])
+  }, [deleteConfirmAlbum, toast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
@@ -453,6 +469,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           onSuccess={handleBatchSuccess}
         />
       )}
+
+      <AlertDialog open={!!deleteConfirmAlbum} onOpenChange={(open) => !open && setDeleteConfirmAlbum(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Album?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the album and all its images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 })

@@ -1,11 +1,11 @@
 .tabs {
   display: flex;
   gap: 4px;
-  background: #1a1a1a;
+  background: hsl(var(--card));
   padding: 8px;
   border-radius: 12px;
   margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px hsl(var(--foreground) / 0.1);
 }
 
 .tab {
@@ -18,7 +18,7 @@
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
@@ -26,14 +26,14 @@
 }
 
 .tab:hover {
-  background: #2a2a2a;
-  color: #fff;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.4);
 }
 
 .tab-icon {

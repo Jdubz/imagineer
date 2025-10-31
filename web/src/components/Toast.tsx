@@ -1,6 +1,8 @@
 import React, { useContext } from 'react'
 import { ToastContext } from '../contexts/ToastContext'
 import '../styles/Toast.css'
+import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 
 /**
  * Toast notification component that displays success, error, warning, and info messages.
@@ -47,13 +49,14 @@ const ToastContainer: React.FC = () => {
         >
           <div className="toast-icon">{getIcon(toast.type)}</div>
           <div className="toast-message">{toast.message}</div>
-          <button
-            className="toast-close"
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => removeToast(toast.id)}
             aria-label="Close notification"
           >
-            ×
-          </button>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       ))}
     </div>

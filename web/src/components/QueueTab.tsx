@@ -6,6 +6,8 @@ import { useToast } from '../hooks/useToast'
 import { usePolling } from '../hooks/usePolling'
 import type { JobsResponse } from '../types/models'
 import '../styles/QueueTab.css'
+import { Button } from '@/components/ui/button'
+import { RotateCw } from 'lucide-react'
 
 const QueueTab: React.FC = () => {
   const toast = useToast()
@@ -67,9 +69,10 @@ const QueueTab: React.FC = () => {
         <div className="auth-error-banner">
           <h3>🔒 Admin Authentication Required</h3>
           <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
-          <button onClick={fetchQueueData} className="retry-button">
-            🔄 Retry
-          </button>
+          <Button onClick={fetchQueueData} variant="outline">
+            <RotateCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
         </div>
       </div>
     )
@@ -92,9 +95,10 @@ const QueueTab: React.FC = () => {
             />
             Auto-refresh
           </label>
-          <button onClick={fetchQueueData} className="refresh-button">
-            🔄 Refresh
-          </button>
+          <Button onClick={fetchQueueData} variant="outline">
+            <RotateCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
 

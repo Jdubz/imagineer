@@ -115,7 +115,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      expect(screen.getByText(/🐞 report bug/i)).toBeInTheDocument()
+      expect(screen.getByText(/report bug/i)).toBeInTheDocument()
     })
 
     it('calls openBugReport with pre-filled description when report bug is clicked', () => {
@@ -131,7 +131,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      const reportButton = screen.getByText(/🐞 report bug/i)
+      const reportButton = screen.getByText(/report bug/i)
       reportButton.click()
 
       expect(mockOpenBugReport).toHaveBeenCalledTimes(1)
@@ -158,7 +158,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      const reportButton = screen.getByText(/🐞 report bug/i)
+      const reportButton = screen.getByText(/report bug/i)
       reportButton.click()
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
@@ -180,7 +180,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      expect(screen.queryByText(/🐞 report bug/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/report bug/i)).not.toBeInTheDocument()
     })
 
     it('does not show report bug button when user is null', () => {
@@ -196,7 +196,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      expect(screen.queryByText(/🐞 report bug/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/report bug/i)).not.toBeInTheDocument()
     })
 
     it('does not show report bug button when auth is loading', () => {
@@ -212,7 +212,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      expect(screen.queryByText(/🐞 report bug/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/report bug/i)).not.toBeInTheDocument()
     })
   })
 
@@ -230,7 +230,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      const reportButton = screen.getByText(/🐞 report bug/i)
+      const reportButton = screen.getByText(/report bug/i)
       reportButton.click()
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
@@ -352,7 +352,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      const reportButton = screen.getByText(/🐞 report bug/i)
+      const reportButton = screen.getByText(/report bug/i)
       reportButton.click()
 
       const callArg = mockOpenBugReport.mock.calls[0][0]
@@ -374,7 +374,7 @@ describe('ErrorBoundaryWithReporting', () => {
         </ErrorBoundaryWithReporting>
       )
 
-      const reportButton = screen.getByText(/🐞 report bug/i)
+      const reportButton = screen.getByText(/report bug/i)
       reportButton.click()
 
       // Verify openBugReport was called from context

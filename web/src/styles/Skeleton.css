@@ -3,9 +3,9 @@
 .skeleton {
   background: linear-gradient(
     90deg,
-    #f0f0f0 25%,
-    #e0e0e0 50%,
-    #f0f0f0 75%
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted) / 0.8) 50%,
+    hsl(var(--muted)) 75%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
@@ -34,8 +34,8 @@
 
 /* Pre-configured skeleton layouts */
 .skeleton-image-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   overflow: hidden;
   padding: 0;
@@ -52,8 +52,8 @@
   display: flex;
   gap: 1rem;
   padding: 1rem;
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   margin-bottom: 0.5rem;
 }
@@ -75,49 +75,18 @@
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      #2a2a2a 25%,
-      #3a3a3a 50%,
-      #2a2a2a 75%
-    );
-    background-size: 200% 100%;
-  }
-
-  .skeleton-image-card,
-  .skeleton-batch-item {
-    background: #1a1a1a;
-    border-color: #3a3a3a;
-  }
-}
-
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
-    background: #e0e0e0;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .skeleton {
-      background: #3a3a3a;
-    }
+    background: hsl(var(--muted));
   }
 }
 
 /* High contrast mode */
 @media (prefers-contrast: high) {
   .skeleton {
-    background: #d0d0d0;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .skeleton {
-      background: #4a4a4a;
-    }
+    background: hsl(var(--muted) / 0.9);
   }
 
   .skeleton-image-card,
