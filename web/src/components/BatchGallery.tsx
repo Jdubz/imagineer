@@ -134,7 +134,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
 
             return (
               <div
-                key={index}
+                key={image.filename || image.relative_path || index}
                 className="image-card"
                 onClick={() => openModal(image)}
                 onMouseEnter={() => preloadImage(full)}

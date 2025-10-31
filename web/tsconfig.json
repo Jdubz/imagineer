@@ -38,5 +38,5 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*", "vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "build", "src/__tests__"]
+  "exclude": ["node_modules", "dist", "build"]
 }

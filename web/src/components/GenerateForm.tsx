@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
-import { useToast } from '../hooks/useToast'
+import { useToast } from '../hooks/use-toast'
 import type { Config, GenerateParams, Album } from '../types/models'
 import {
   validateForm,
@@ -30,7 +30,7 @@ interface GenerateFormProps {
 }
 
 const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, config, isAdmin }) => {
-  const toast = useToast()
+  const { toast } = useToast()
   // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
@@ -57,21 +57,18 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
       setTemplates(templateAlbums)
     } catch (error) {
       logger.error('Failed to fetch templates:', error)
-      toast.error('Failed to load batch templates')
+      toast({ title: 'Error', description: 'Failed to load batch templates', variant: 'destructive' })
     } finally {
       setLoadingTemplates(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [toast])
 
   // Load templates on mount
   useEffect(() => {
     if (isAdmin) {
       fetchTemplates()
     }
-    // fetchTemplates is stable (empty deps), safe to omit from dependencies
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+  }, [isAdmin, fetchTemplates])
 
   const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
@@ -122,7 +119,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
     setBatchValidationErrors({})
 
     if (!selectedTemplate) {
-      toast.error('Please select a template')
+      toast({ title: 'Error', description: 'Please select a template', variant: 'destructive' })
       return
     }
 
@@ -158,16 +155,16 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
       if (result.success) {
         const template = templates.find(t => t.id === selectedTemplate)
-        toast.success(`Batch generation started! ${template?.template_item_count || 0} jobs queued.`)
+        toast({ title: 'Success', description: `Batch generation started! ${template?.template_item_count || 0} jobs queued.` })
         setBatchTheme('')
         setBatchSteps('')
         setBatchSeed('')
       } else {
-        toast.error(result.error || 'Failed to start batch generation')
+        toast({ title: 'Error', description: result.error || 'Failed to start batch generation', variant: 'destructive' })
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      toast.error('Error starting batch generation')
+      toast({ title: 'Error', description: 'Error starting batch generation', variant: 'destructive' })
     } finally {
       setSubmittingBatch(false)
     }

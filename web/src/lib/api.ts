@@ -388,6 +388,30 @@ export const api = {
     },
   },
 
+  /**
+   * Submit a new generation job
+   * @param params Generation parameters (prompt, steps, seed, etc.)
+   * @returns The created job with ID and status
+   */
+  async submitJob(params: { prompt: string; negative_prompt?: string; steps?: number; guidance_scale?: number; seed?: number }, signal?: AbortSignal): Promise<Job> {
+    return apiRequest('/api/generate', schemas.JobSchema, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(params),
+      signal,
+    })
+  },
+
+  /**
+   * Get job status by ID (convenience alias for jobs.getById)
+   * @param jobId Job ID to fetch
+   * @returns Job status data
+   */
+  async getJob(jobId: number | string, signal?: AbortSignal): Promise<Job> {
+    return api.jobs.getById(jobId, signal)
+  },
+
   // ============================================
   // LoRAs
   // ============================================
