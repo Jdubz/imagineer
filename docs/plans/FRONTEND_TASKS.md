@@ -1,42 +1,234 @@
 # Frontend Outstanding Tasks
 
-**Last Updated:** 2025-10-30
-**Status:** 20 tasks remaining (10 P2, 10 P3)
+**Last Updated:** 2025-10-31 (Comprehensive Audit Completed)
+**Status:** 29 tasks remaining (7 P0, 2 P1, 10 P2, 10 P3)
+
+## 🔴 BREAKING: Post-Refactor Audit Findings (2025-10-31)
+
+A comprehensive systematic investigation revealed the application is in a **critical transitional state** after the shadcn/ui design refactor. Multiple duplicate systems are running concurrently, creating maintenance burden, performance issues, and inconsistent UX.
+
+**Overall Application Grade: C+ (70/100)**
+
+### Critical Metrics
+- **Test Coverage:** 58% (target: 80%)
+- **TypeScript Coverage:** 100% (good)
+- **Code Duplication:** ~15% (target: <5%)
+- **Legacy CSS:** 4,616 lines across 18 files to delete
+- **Performance Optimizations:** 0 (no useMemo/useCallback/React.memo)
+- **Bundle Size:** ~200KB uncompressed (target: <150KB)
+
+### Most Critical Issues
+1. **Duplicate Toast Systems** - Two complete implementations running simultaneously
+2. **No Error Boundaries** - Crashes propagate to users
+3. **Aggressive Polling** - 1,800 API requests/hour causing OOM crashes
+4. **Props Drilling** - 15+ props through multiple layers
+5. **Mixed Styling** - 3 concurrent approaches (legacy CSS, Tailwind, shadcn)
+6. **Zero Performance Optimizations** - Every component re-renders unnecessarily
+
+**See:** Post-refactor audit reports in task descriptions below.
+**Reference:** Comprehensive redundancy, best practices, and design consistency analysis completed 2025-10-31.
 
 ## Overview
 
-This document consolidates all outstanding frontend tasks from the comprehensive code audit. All P0 (Critical) and P1 (High Priority) tasks have been completed. Remaining work focuses on performance optimization, code organization, and nice-to-have enhancements.
+This document consolidates outstanding frontend work across the October 2025 plans. Newly identified blockers focus on hardened admin auth flows and completing the bug reporting experience before returning to audit follow-ups and polish items.
 
 **Related Documents:**
-- Source: `FRONTEND_AUDIT_TASKS.md` - Detailed audit with completion status
-- Source: `FRONTEND_CODE_AUDIT.md` - Original comprehensive audit
-- Source: `CONSOLIDATED_STATUS.md` - Overall project status
+- Source: `FRONTEND_AUDIT_TASKS.md` – Detailed audit with completion status
+- Source: `FRONTEND_CODE_AUDIT.md` – Original comprehensive audit
+- Source: `FRONTEND_ADAPTATIONS_FOR_BACKEND_AUTH.md` – Auth gating requirements
+- Source: `FRONTEND_QUEUE_SECURE_ACCESS.md` – Queue hardening checklist
+- Source: `BUG_REPORT_IMPLEMENTATION_PLAN.md` – Bug reporter frontend phases
+- Source: `BUG_REPORT_TOOL_PLAN.md` – Remaining telemetry gaps
+- Source: `NSFW_FILTER_STATUS.md` – Global preference requirements
+- Source: `SHARED_TYPES_VALIDATION_FIX.md` – Contract alignment tasks
+- Source: `CONSOLIDATED_STATUS.md` – Overall project status
+- Source: `SHADCN_REDESIGN_PLAN.md` – UI/system design guidance
 
 ---
 
-## Critical Priority (Blockers)
+## Critical Priority (P0)
 
-**Status:** All P0 tasks completed! ✅
+### Task #35: URGENT - Consolidate Duplicate Toast Systems
+- **Priority:** P0 (CRITICAL)
+- **Estimated Time:** 4-6 hours (Small)
+- **Status:** ✅ COMPLETE (2025-10-31)
+- **Files:**
+  - DELETE: `web/src/components/Toast.tsx`
+  - DELETE: `web/src/contexts/ToastContext.tsx`
+  - DELETE: `web/src/hooks/useToast.ts`
+  - DELETE: `web/src/styles/Toast.css`
+  - KEEP: `web/src/components/ui/toast.tsx`, `web/src/components/ui/toaster.tsx`, `web/src/hooks/use-toast.ts`
+  - UPDATE: `web/src/App.tsx`, `web/src/contexts/BugReportContext.tsx`, `web/src/components/QueueTab.tsx`, `web/src/components/AlbumsTab.tsx`, `web/src/components/GenerateForm.tsx`
+- **Issue:** TWO complete toast notification systems running simultaneously after shadcn refactor. Custom implementation (Toast.tsx, ToastContext) exists alongside shadcn/Radix UI implementation (ui/toast.tsx, use-toast.ts), causing developer confusion, larger bundle, and inconsistent UX.
+- **Solution:**
+  - Migrate all imports from `useToast` → `use-toast`
+  - Replace `ToastContainer` with `Toaster` in App.tsx
+  - Update toast API calls: `toast.success('Message')` → `toast({ title: 'Success', description: 'Message' })`
+  - Delete 4 redundant files (Toast.tsx, ToastContext.tsx, hooks/useToast.ts, Toast.css)
+  - Test all toast notifications across application
+- **Impact:** Eliminates 300+ lines of duplicate code, reduces bundle ~15KB, establishes single notification pattern
+- **Reference:** Redundancy analysis 2025-10-31, Critical Issue #1
 
-Recent completions:
-- Error Boundaries ✅ (2025-10-29)
-- State mutation fixes in AlbumsTab ✅
-- Memory leak fixes in polling ✅
-- Input validation and sanitization ✅
-- Accessibility (WCAG 2.1 AA compliance) ✅
+### Task #36: URGENT - Add Error Boundaries to Prevent Crashes
+- **Priority:** P0 (CRITICAL)
+- **Estimated Time:** 3-4 hours (Small)
+- **Status:** ✅ COMPLETE (Already implemented)
+- **Files:**
+  - NEW: `web/src/components/ErrorBoundary.tsx`
+  - UPDATE: `web/src/App.tsx`
+  - UPDATE: Major components (GenerateForm, ImageGallery, JobQueue)
+- **Issue:** Application has ZERO error boundaries. Any component error propagates to users as white screen crash. No error recovery, no user-friendly messages.
+- **Solution:**
+  - Create ErrorBoundary component with:
+    - Error state capture
+    - User-friendly error UI with reload button
+    - Error logging to console (TODO: integrate with error tracking service)
+  - Wrap App root in ErrorBoundary
+  - Wrap each major feature in ErrorBoundary (GenerateForm, ImageGallery, JobQueue)
+  - Add retry/reload functionality
+  - Consider integration with bug report system (Task #33)
+- **Impact:** Prevents complete application crashes, provides graceful error recovery, improves user experience
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #2
+
+### Task #37: URGENT - Stop Aggressive Polling Memory Leak
+- **Priority:** P0 (CRITICAL)
+- **Estimated Time:** 4-6 hours (Small)
+- **Status:** Not Started
+- **Files:**
+  - UPDATE: `web/src/components/JobQueue.tsx`
+  - NEW: `web/src/hooks/useSmartPolling.ts` OR implement WebSocket
+  - Consider: Backend WebSocket endpoint
+- **Issue:** JobQueue polls API every 2 seconds = **1,800 requests/hour**. Runs continuously even when tab inactive, no error backoff, causes memory leaks and contributed to OOM crashes (see codex crash investigation 2025-10-31).
+- **Solution:** Option A (Preferred - WebSocket):
+  - Add WebSocket support to backend (server/api.py with flask-socketio)
+  - Create useJobSocket hook in frontend
+  - Emit job updates from backend on status changes
+  - Replace polling with real-time updates
+  - Add connection status indicator
+
+  Option B (Smart Polling):
+  - Create useSmartPolling hook with:
+    - Page Visibility API (pause when tab hidden)
+    - Exponential backoff on errors (2s → 4s → 8s → max 30s)
+    - Stop polling on 401/403
+    - Abort controller for cleanup
+  - Replace setInterval with smart polling
+- **Impact:** Reduces API calls from 1,800/hour to ~10-20/hour (WebSocket) or ~120/hour (smart polling), prevents memory leaks, reduces server load
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #3, Related to codex OOM crash investigation
+
+### Task #38: URGENT - Eliminate Props Drilling with Context
+- **Priority:** P0 (CRITICAL)
+- **Estimated Time:** 8-10 hours (Medium)
+- **Status:** Not Started (BLOCKS Task #31)
+- **Files:**
+  - NEW: `web/src/contexts/AppContext.tsx`
+  - NEW: `web/src/hooks/useApp.ts`
+  - NEW: `web/src/hooks/useGeneration.ts`
+  - UPDATE: `web/src/App.tsx`
+  - UPDATE: All components receiving drilled props (GenerateForm, ImageGallery, JobQueue, SetSelector)
+- **Issue:** App.tsx passes 15+ props through multiple component layers causing:
+  - Unnecessary re-renders (every state change re-renders all children)
+  - Tight coupling between components
+  - Difficult maintenance and refactoring
+  - Poor performance (no memoization possible with this pattern)
+- **Solution:**
+  - Create AppContext with AppProvider containing:
+    - Job state (jobs, generating, setJobs, setGenerating)
+    - Set selection state (sets, selectedSet, theme)
+    - Gallery state (selectedBatchId, selectedBatch, selectedImage)
+    - Memoized actions (addJob, updateJob, selectBatch)
+  - Create specialized hooks:
+    - useGeneration() - for generation-specific actions
+    - useGallery() - for gallery-specific actions
+    - useJobQueue() - for queue-specific actions
+  - Update App.tsx to wrap with AppProvider
+  - Refactor all components to use context hooks instead of props
+  - Remove all prop drilling
+- **Impact:** Eliminates 15+ prop parameters, enables performance optimization, improves maintainability, UNBLOCKS Task #31
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #4, DUPLICATE of Task #14 but elevated to P0
+
+### Task #39: Add Basic Performance Optimizations
+- **Priority:** P0 (HIGH IMPACT)
+- **Estimated Time:** 6-8 hours (Medium)
+- **Status:** Not Started
+- **Files:**
+  - UPDATE: `web/src/components/ImageGallery.tsx`
+  - UPDATE: `web/src/components/BatchGallery.tsx`
+  - UPDATE: `web/src/components/GenerateForm.tsx`
+  - UPDATE: `web/src/components/JobQueue.tsx`
+  - NEW: `web/src/hooks/useDebounce.ts`
+- **Issue:** ZERO performance optimizations in entire application:
+  - No React.memo on any component
+  - No useMemo for expensive computations
+  - No useCallback for event handlers
+  - All components re-render on every parent update
+  - Inline event handlers recreated every render
+- **Solution:**
+  - Wrap ImageCard in React.memo with custom comparison
+  - Add useMemo for filtered/sorted image lists
+  - Add useCallback for all event handlers passed as props
+  - Memoize expensive modal components
+  - Add useDebounce for search/filter inputs
+  - Measure performance improvement with React DevTools Profiler
+- **Impact:** 50-70% reduction in unnecessary re-renders, faster UI interactions, reduced CPU/battery usage
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #6
+
+### Task #31: Harden AuthContext & secured fetch flows
+- **Priority:** P0
+- **Estimated Time:** 2-3 days (Large)
+- **Status:** Not Started
+- **Files:** `web/src/App.tsx`, `web/src/lib/api.ts`, `web/src/components/QueueTab.tsx`, `web/src/components/SettingsMenu.tsx`, `web/src/hooks/useAuth.ts`, shared fetch helpers
+- **Issue:** Backend auth changes on 2025-10-29 now require admin credentials for `/api/config`, `/api/jobs*`, and `/api/sets/*`. The SPA still assumes anonymous access, leaks queue data to viewers, and continues polling after 401 responses.
+- **Solution:**
+  - Implement the shared `AuthContext` (see Task #14 dependency) and expose `isAdmin`, `login`, `logout`, and session refresh helpers.
+  - Update all fetch helpers and direct `fetch` usage to include `credentials: 'include'`, honor `Retry-After`, bubble `trace_id`, and stop polling on 401/403.
+  - Gate queue/config/LoRA controls behind admin checks, map sanitized backend fields (`output_filename`, `output_directory`), and surface a re-auth banner instead of silent failures.
+  - Add regression tests (RTL) that cover viewer vs. admin flows for QueueTab and config editor.
+- **Dependencies:** Task #14 (Eliminate Prop Drilling with Context) should land first to avoid duplicating context wiring.
+- **Reference:** `FRONTEND_ADAPTATIONS_FOR_BACKEND_AUTH.md`, `FRONTEND_QUEUE_SECURE_ACCESS.md`
+
+### Task #32: Realign AuthStatus schema and contract tests
+- **Priority:** P0
+- **Estimated Time:** 0.5 day (Small)
+- **Status:** Not Started
+- **Files:** `web/src/lib/schemas.ts`, `web/src/__tests__/sharedContract.test.ts`, `shared/schema/auth_status.json`
+- **Issue:** The runtime Zod schema strips nullable fields (`email`, `picture`, `is_admin`, `trace_id`), causing validation errors after the backend contract update.
+- **Solution:**
+  - Update `AuthStatusSchema` to mirror the generated TypeScript types and JSON Schema (nullable fields, `is_admin`, `message`, `trace_id`).
+  - Extend contract tests to diff Zod schemas against their JSON Schema counterparts so drift fails fast.
+  - Document the regeneration workflow in the engineering handbook (link from `docs/plans/SHARED_TYPES_VALIDATION_FIX.md`).
+- **Reference:** `SHARED_TYPES_VALIDATION_FIX.md`, `CONTRACT_TESTING_INSPECTION_REPORT.md`
 
 ---
 
-## High Priority
+## High Priority (P1)
 
-**Status:** All P1 tasks completed! ✅
+### Task #33: Ship bug report UX integration
+- **Priority:** P1
+- **Estimated Time:** 1-2 days (Medium)
+- **Status:** Not Started
+- **Files:** `web/src/components/SettingsMenu.tsx`, `web/src/components/BugReportButton.tsx`, `web/src/hooks/useKeyboardShortcut.ts`, `web/src/components/ErrorBoundaryWithReporting.tsx`, `web/src/contexts/BugReportContext.tsx`, `web/src/lib/api.ts`
+- **Issue:** Backend bug report endpoint is live, but the frontend lacks the settings menu entry, admin-only hotkey, trace ID surfacing, and error-boundary integration needed to collect useful reports.
+- **Solution:**
+  - Add the gear menu with admin-only “Report Bug” action, persist placement in `App.tsx`, and hide legacy standalone button.
+  - Implement `useKeyboardShortcut` to register `Ctrl+Shift+B`/`Cmd+Shift+B` for admins.
+  - Wire `ErrorBoundary` and toast system to offer “Report Bug” with prefilled context (include `trace_id`, component stack, recent logs).
+  - Capture optional screenshot (`html2canvas`), redact sensitive payloads per plan, and ensure payload includes network events/trace IDs.
+  - Backfill RTL tests for the new surfaces and update docs (`docs/guides/BUG_REPORT_WORKFLOW.md`).
+- **Reference:** `BUG_REPORT_IMPLEMENTATION_PLAN.md`, `BUG_REPORT_TOOL_PLAN.md`
 
-Recent completions:
-- Standardized error handling with toast system ✅ (2025-10-29)
-- Request cancellation with AbortController ✅
-- Console logging removed from production ✅
-- Type safety improved with Zod ✅
-- Loading states added to components ✅
+### Task #34: Roll out global NSFW preference controls
+- **Priority:** P1
+- **Estimated Time:** 1-2 days (Medium)
+- **Status:** Not Started
+- **Files:** `web/src/contexts/NSFWContext.tsx` (new), `web/src/components/SettingsMenu.tsx`, `web/src/components/AlbumsTab.tsx`, `web/src/components/ImageGallery.tsx`, `web/src/components/BatchGallery.tsx`
+- **Issue:** NSFW filter preferences only exist inside `AlbumsTab`; other galleries ignore the setting and the gear toggle is a stub.
+- **Solution:**
+  - Create a global NSFW context with localStorage persistence and defaults (`blur`).
+  - Drive the Settings menu toggle off the global context and update fetches to send `nsfw` query params.
+  - Update gallery components to respect the shared setting and fall back to client-side filtering if results are cached.
+  - Add regression tests to ensure preference persists across reloads and viewer/admin roles.
+- **Reference:** `NSFW_FILTER_STATUS.md`, `BUG_REPORT_IMPLEMENTATION_PLAN.md`
 
 ---
 
@@ -113,6 +305,7 @@ Recent completions:
   - Consider state management library (Zustand, Jotai) if needed
 - **Estimated Time:** 3-5 days (Medium)
 - **Status:** Not Started
+- **Dependency:** Blocks P0 Task #31; ship AuthContext provider ahead of auth-gating changes
 - **Reference:** FRONTEND_CODE_AUDIT.md:365-383
 
 ---
@@ -332,10 +525,11 @@ Recent completions:
   - Add touch-friendly interactions (44px+ touch targets)
   - Implement hamburger menu for tabs on mobile
   - Add responsive images
+  - Adopt shadcn/ui layout primitives (cards, navigation, sheets) per redesign plan
   - Test on various screen sizes
 - **Estimated Time:** 1-2 weeks (Large)
 - **Status:** Not Started
-- **Reference:** FRONTEND_CODE_AUDIT.md:635-653
+- **Reference:** FRONTEND_CODE_AUDIT.md:635-653, SHADCN_REDESIGN_PLAN.md
 
 ---
 
@@ -355,7 +549,7 @@ Recent completions:
   - Persist user preference
 - **Estimated Time:** 3-5 days (Medium)
 - **Status:** Not Started
-- **Reference:** FRONTEND_CODE_AUDIT.md:656-672
+- **Reference:** FRONTEND_CODE_AUDIT.md:656-672, SHADCN_REDESIGN_PLAN.md
 
 ---
 
