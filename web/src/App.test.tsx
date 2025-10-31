@@ -238,7 +238,7 @@ describe('App', () => {
     consoleWarnSpy.mockRestore()
   })
 
-  it('allows admin users to open the bug report modal via the header button', async () => {
+  it('allows admin users to open the bug report modal via the settings menu', async () => {
     const user = userEvent.setup()
     const bugReportHandler = vi.fn(() =>
       Promise.resolve(
@@ -266,8 +266,11 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument())
 
-    const profileBugButton = screen.getByRole('button', { name: /report a bug/i })
-    await user.click(profileBugButton)
+    const settingsTrigger = screen.getByRole('button', { name: /open settings menu/i })
+    await user.click(settingsTrigger)
+
+    const menuBugButton = await screen.findByRole('menuitem', { name: /report bug/i })
+    await user.click(menuBugButton)
 
     const modal = await screen.findByRole('dialog', { name: /report a bug/i })
     expect(modal).toBeInTheDocument()

@@ -33,30 +33,6 @@
   gap: 12px;
 }
 
-.bug-report-trigger {
-  border: 1px solid hsl(var(--primary-foreground) / 0.4);
-  background: hsl(var(--primary-foreground) / 0.1);
-  color: hsl(var(--primary-foreground));
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease, border 0.2s ease;
-}
-
-.bug-report-trigger:hover {
-  transform: translateY(-1px);
-  background: hsl(var(--primary-foreground) / 0.2);
-  border-color: hsl(var(--primary-foreground) / 0.6);
-}
-
-.bug-report-trigger:active {
-  transform: translateY(0);
-}
-
 .header-title {
   text-align: center;
   flex: 1;

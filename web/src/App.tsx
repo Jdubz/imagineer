@@ -23,7 +23,6 @@ import type {
 } from './types/models'
 import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
 import SettingsMenu from './components/SettingsMenu'
-import BugReportButton from './components/BugReportButton'
 
 // Lazy load tab components for code splitting
 const GenerateTab = lazy(() => import('./components/GenerateTab'))
@@ -316,7 +315,6 @@ const AppContent: React.FC = () => {
           <div className="header-actions">
             {user ? (
               <>
-                <BugReportButton />
                 <SettingsMenu
                   user={user}
                   onLogout={logout}
