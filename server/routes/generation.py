@@ -423,18 +423,19 @@ def generate():  # noqa: C901
         if rate_limit_response:
             return rate_limit_response
 
-        job = _serialize_job(job) or {}
         job_queue.put(job)
 
-        response = jsonify(
+        response_payload = _serialize_job(
             {
-                "id": job["id"],
-                "status": job["status"],
-                "submitted_at": job["submitted_at"],
+                **job,
                 "queue_position": job_queue.qsize(),
-                "prompt": job["prompt"],
             }
-        )
+        ) or {
+            **job,
+            "queue_position": job_queue.qsize(),
+        }
+
+        response = jsonify(response_payload)
         response.status_code = 201
         response.headers["Location"] = f"/api/jobs/{job['id']}"
         return response
@@ -592,7 +593,6 @@ def generate_batch_from_album(album_id):  # noqa: C901
 
         job.update(_prune_none_fields(optional_fields))
 
-        job = _serialize_job(job) or {}
         job_queue.put(job)
         job_ids.append(job_id)
 
@@ -648,11 +648,17 @@ def get_job(job_id):
 
     for job in job_history:
         if job["id"] == job_id:
+            duration_seconds = None
             if job.get("started_at") and job.get("completed_at"):
                 start = datetime.fromisoformat(job["started_at"])
                 end = datetime.fromisoformat(job["completed_at"])
-                job["duration_seconds"] = (end - start).total_seconds()
-            return jsonify(_serialize_job(job) or {})
+                duration_seconds = (end - start).total_seconds()
+                job["duration_seconds"] = duration_seconds
+
+            serialized_job = _serialize_job(job) or {}
+            if duration_seconds is not None:
+                serialized_job["duration_seconds"] = duration_seconds
+            return jsonify(serialized_job)
 
     return jsonify({"error": "Job not found"}), 404
 
