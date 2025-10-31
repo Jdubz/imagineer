@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
-import { ToastProvider } from '../contexts/ToastContext'
 import type { Config } from '../types/models'
 import { api } from '../lib/api'
 
@@ -17,15 +16,13 @@ describe('GenerateForm', () => {
 
   const renderForm = (overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {}) =>
     render(
-      <ToastProvider>
-        <GenerateForm
-          onGenerate={mockOnGenerate}
-          loading={false}
-          config={(mockConfig as Config) ?? null}
-          isAdmin={false}
-          {...overrides}
-        />
-      </ToastProvider>,
+      <GenerateForm
+        onGenerate={mockOnGenerate}
+        loading={false}
+        config={(mockConfig as Config) ?? null}
+        isAdmin={false}
+        {...overrides}
+      />,
     )
 
   beforeEach(() => {

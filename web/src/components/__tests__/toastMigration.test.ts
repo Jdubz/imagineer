@@ -5,13 +5,11 @@
  * removed and replaced with shadcn/ui toast throughout the application.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 
-const SRC_DIR = join(__dirname, '..')
+const SRC_DIR = join(__dirname, '../..')
 
 /**
  * Recursively get all TypeScript/JavaScript files in a directory

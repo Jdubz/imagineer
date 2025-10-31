@@ -9,15 +9,15 @@ import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bug
 import { logger } from '../lib/logger'
 
 const mocks = vi.hoisted(() => ({
-  success: vi.fn<[string], void>(),
-  error: vi.fn<[string], void>(),
+  toast: vi.fn(),
   submit: vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>(),
 }))
 
-vi.mock('../hooks/useToast', () => ({
+vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
-    success: mocks.success,
-    error: mocks.error,
+    toast: mocks.toast,
+    dismiss: vi.fn(),
+    toasts: [],
   }),
 }))
 
@@ -64,8 +64,7 @@ const renderWithProvider = (ui: React.ReactElement): void => {
 describe('BugReportProvider', () => {
   beforeEach(() => {
     mocks.submit.mockReset()
-    mocks.success.mockReset()
-    mocks.error.mockReset()
+    mocks.toast.mockReset()
     setupFetch()
   })
 
@@ -122,7 +121,10 @@ describe('BugReportProvider', () => {
     expect(payload.recentLogs.length).toBeGreaterThan(0)
     expect(payload.networkEvents.length).toBeGreaterThan(0)
 
-    expect(mocks.success).toHaveBeenCalledWith(expect.stringMatching(/saved/i))
-    expect(mocks.error).not.toHaveBeenCalled()
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: expect.stringMatching(/saved/i),
+      })
+    )
   })
 })

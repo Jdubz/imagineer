@@ -1,47 +1,52 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { ApiError } from '../lib/api'
-import { useToast } from '../hooks/useToast'
-import { usePolling } from '../hooks/usePolling'
+import { useToast } from '../hooks/use-toast'
+import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
 import type { JobsResponse } from '../types/models'
 import '../styles/QueueTab.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw } from 'lucide-react'
 
 const QueueTab: React.FC = () => {
-  const toast = useToast()
-  const [queueData, setQueueData] = useState<JobsResponse | null>(null)
+  const { toast } = useToast()
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
   const [authError, setAuthError] = useState<boolean>(false)
 
-  const fetchQueueData = useCallback(async (): Promise<void> => {
+  const fetchQueueData = useCallback(async (): Promise<JobsResponse> => {
     try {
       const data = await api.jobs.getAll()
-      setQueueData(data)
       setAuthError(false)  // Clear auth error on successful fetch
+      return data
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         // Admin authentication required
         setAuthError(true)
         logger.warn('Queue access requires admin authentication')
-        return
+        throw error
       }
       logger.error('Failed to fetch queue data:', error)
-      toast.error('Failed to load job queue')
+      toast({ title: 'Error', description: 'Failed to load job queue', variant: 'destructive' })
+      throw error
     }
   }, [toast])
 
-  // Initial fetch on mount
-  useEffect(() => {
-    void fetchQueueData()
-  }, [fetchQueueData])
-
-  // Polling with proper cleanup and memory leak prevention
-  usePolling(fetchQueueData, {
-    interval: 2000,
+  // Adaptive polling: fast when jobs running, slow when idle
+  const queueData = useAdaptivePolling(fetchQueueData, {
+    activeInterval: 2000,   // 2s when job is running (1,800 req/hour)
+    mediumInterval: 10000,  // 10s when jobs queued (360 req/hour - 80% reduction)
+    baseInterval: 30000,    // 30s when idle (120 req/hour - 93% reduction)
     enabled: autoRefresh,
     pauseWhenHidden: true,
+    getActivityLevel: (data) => {
+      // Fast polling when a job is currently running
+      if (data?.current) return 'active'
+      // Medium polling when jobs are queued
+      if (data?.queue && data.queue.length > 0) return 'medium'
+      // Slow polling when completely idle
+      return 'idle'
+    },
   })
 
   const formatDate = (dateString?: string | null): string => {
@@ -69,7 +74,7 @@ const QueueTab: React.FC = () => {
         <div className="auth-error-banner">
           <h3>🔒 Admin Authentication Required</h3>
           <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
-          <Button onClick={fetchQueueData} variant="outline">
+          <Button onClick={() => void fetchQueueData()} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -95,7 +100,7 @@ const QueueTab: React.FC = () => {
             />
             Auto-refresh
           </label>
-          <Button onClick={fetchQueueData} variant="outline">
+          <Button onClick={() => void fetchQueueData()} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>

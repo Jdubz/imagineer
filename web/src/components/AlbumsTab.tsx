@@ -4,7 +4,7 @@ import LabelingPanel from './LabelingPanel'
 import { logger } from '../lib/logger'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
-import { useToast } from '../hooks/useToast'
+import { useToast } from '../hooks/use-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
@@ -83,7 +83,7 @@ interface RawAlbum {
 type AlbumFilter = 'all' | 'sets' | 'regular'
 
 const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
-  const toast = useToast()
+  const { toast } = useToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
@@ -221,15 +221,15 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       const result = await api.albums.create(name, description, albumType)
 
       if (result.success) {
-        toast.success('Album created successfully!')
+        toast({ title: 'Success', description: 'Album created successfully!' })
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        toast.error('Failed to create album: ' + (result.error ?? 'Unknown error'))
+        toast({ title: 'Error', description: 'Failed to create album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
-      toast.error('Error creating album')
+      toast({ title: 'Error', description: 'Error creating album', variant: 'destructive' })
     }
   }, [isAdmin, toast, fetchAlbums])
 
@@ -245,18 +245,18 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       const result = await api.albums.delete(deleteConfirmAlbum)
 
       if (result.success) {
-        toast.success('Album deleted successfully')
+        toast({ title: 'Success', description: 'Album deleted successfully' })
         fetchAlbums()
         if (selectedAlbum?.id === deleteConfirmAlbum) {
           setSelectedAlbum(null)
           setAlbumAnalytics(null)
         }
       } else {
-        toast.error('Failed to delete album: ' + (result.error ?? 'Unknown error'))
+        toast({ title: 'Error', description: 'Failed to delete album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      toast.error('Error deleting album')
+      toast({ title: 'Error', description: 'Error deleting album', variant: 'destructive' })
     } finally {
       setDeleteConfirmAlbum(null)
     }
@@ -297,7 +297,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const handleBatchSuccess = useCallback((result: GenerateBatchSuccess) => {
     setShowBatchDialog(null)
     const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
-    toast.success(`${result.message}${suffix}`)
+    toast({ title: 'Success', description: `${result.message}${suffix}` })
   }, [toast])
 
   if (selectedAlbum) {
@@ -818,7 +818,7 @@ interface BatchGenerateDialogProps {
 }
 
 const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
-  const toast = useToast()
+  const { toast } = useToast()
   const [userTheme, setUserTheme] = useState<string>('')
   const [steps, setSteps] = useState<string>('')
   const [seed, setSeed] = useState<string>('')
@@ -847,7 +847,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
-      toast.error('User theme is required')
+      toast({ title: 'Error', description: 'User theme is required', variant: 'destructive' })
       return
     }
 
@@ -873,11 +873,11 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
       if (result.success) {
         onSuccess(result)
       } else {
-        toast.error(result.error)
+        toast({ title: 'Error', description: result.error, variant: 'destructive' })
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      toast.error('Error starting batch generation')
+      toast({ title: 'Error', description: 'Error starting batch generation', variant: 'destructive' })
     } finally {
       setIsSubmitting(false)
     }
