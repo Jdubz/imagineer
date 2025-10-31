@@ -9,7 +9,7 @@
   justify-content: center;
   align-items: center;
   min-height: 400px;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   font-size: 16px;
 }
 
@@ -19,13 +19,13 @@
   align-items: center;
   margin-bottom: 30px;
   padding-bottom: 15px;
-  border-bottom: 2px solid #333;
+  border-bottom: 2px solid hsl(var(--border));
 }
 
 .queue-header h2 {
   margin: 0;
   font-size: 28px;
-  color: #fff;
+  color: hsl(var(--foreground));
 }
 
 .queue-controls {
@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
   user-select: none;
 }
@@ -49,8 +49,8 @@
 
 .refresh-button {
   padding: 8px 16px;
-  background: #4a9eff;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -59,7 +59,7 @@
 }
 
 .refresh-button:hover {
-  background: #3a8eef;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .queue-section {
@@ -69,7 +69,7 @@
 .queue-section h3 {
   margin: 0 0 15px 0;
   font-size: 20px;
-  color: #fff;
+  color: hsl(var(--foreground));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -82,16 +82,16 @@
   min-width: 24px;
   height: 24px;
   padding: 0 8px;
-  background: #4a9eff;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   font-size: 12px;
   font-weight: 600;
   border-radius: 12px;
 }
 
 .job-card {
-  background: #1e1e1e;
-  border: 1px solid #333;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   padding: 15px;
   margin-bottom: 12px;
@@ -99,17 +99,17 @@
 }
 
 .job-card:hover {
-  border-color: #4a9eff;
-  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.15);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.15);
 }
 
 .current-job {
-  border-left: 4px solid #4ade80;
-  background: linear-gradient(90deg, rgba(74, 222, 128, 0.1) 0%, #1e1e1e 50%);
+  border-left: 4px solid hsl(var(--success));
+  background: linear-gradient(90deg, hsl(var(--success) / 0.1) 0%, hsl(var(--card)) 50%);
 }
 
 .queued-job {
-  border-left: 4px solid #fbbf24;
+  border-left: 4px solid hsl(var(--warning));
 }
 
 .history-job {
@@ -117,15 +117,15 @@
 }
 
 .history-job.status-completed {
-  border-left: 4px solid #4ade80;
+  border-left: 4px solid hsl(var(--success));
 }
 
 .history-job.status-failed {
-  border-left: 4px solid #ef4444;
+  border-left: 4px solid hsl(var(--destructive));
 }
 
 .history-job.status-cancelled {
-  border-left: 4px solid #6b7280;
+  border-left: 4px solid hsl(var(--muted));
 }
 
 .job-header {
@@ -137,13 +137,13 @@
 
 .job-id {
   font-weight: 600;
-  color: #ccc;
+  color: hsl(var(--muted-foreground));
   font-size: 14px;
 }
 
 .job-duration {
   margin-left: auto;
-  color: #888;
+  color: hsl(var(--muted-foreground));
   font-size: 13px;
 }
 
@@ -158,28 +158,28 @@
 }
 
 .status-badge.status-running {
-  background: #4ade80;
-  color: #000;
+  background: hsl(var(--success));
+  color: hsl(var(--success-foreground));
 }
 
 .status-badge.status-queued {
-  background: #fbbf24;
-  color: #000;
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
 }
 
 .status-badge.status-completed {
-  background: #4ade80;
-  color: #000;
+  background: hsl(var(--success));
+  color: hsl(var(--success-foreground));
 }
 
 .status-badge.status-failed {
-  background: #ef4444;
-  color: #fff;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
 }
 
 .status-badge.status-cancelled {
-  background: #6b7280;
-  color: #fff;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
 }
 
 .job-details {
@@ -196,28 +196,28 @@
 }
 
 .job-field strong {
-  color: #888;
+  color: hsl(var(--muted-foreground));
   min-width: 100px;
   flex-shrink: 0;
 }
 
 .job-field span {
-  color: #ccc;
+  color: hsl(var(--foreground));
   word-break: break-word;
 }
 
 .job-field.error strong {
-  color: #ef4444;
+  color: hsl(var(--destructive));
 }
 
 .job-field.error span {
-  color: #fca5a5;
+  color: hsl(var(--destructive) / 0.8);
 }
 
 .output-path {
   font-family: 'Courier New', monospace;
   font-size: 13px;
-  color: #4a9eff !important;
+  color: hsl(var(--primary)) !important;
 }
 
 .job-list {
@@ -233,10 +233,10 @@
 .empty-state {
   padding: 40px;
   text-align: center;
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-size: 16px;
-  background: #1a1a1a;
-  border: 1px dashed #333;
+  background: hsl(var(--muted));
+  border: 1px dashed hsl(var(--border));
   border-radius: 8px;
 }
 
@@ -246,17 +246,17 @@
 }
 
 .history-list::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: hsl(var(--muted));
   border-radius: 4px;
 }
 
 .history-list::-webkit-scrollbar-thumb {
-  background: #333;
+  background: hsl(var(--border));
   border-radius: 4px;
 }
 
 .history-list::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: hsl(var(--foreground) / 0.3);
 }
 
 /* Responsive adjustments */

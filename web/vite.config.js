@@ -1,14 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { compression } from 'vite-plugin-compression2'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // Read version from VERSION file
 const version = readFileSync(resolve(__dirname, '../VERSION'), 'utf-8').trim()
 
 export default defineConfig(({ mode }) => ({
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+    },
+  },
   plugins: [
     react(),
     // Bundle analyzer - generates stats.html after build

@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import FocusLock from 'react-focus-lock'
 import { logger } from '../lib/logger'
 import type { GeneratedImage, ImageMetadata } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface BatchImage {
   filename: string
@@ -86,20 +91,6 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
     setLoadedImages((prev) => new Set(prev).add(filename))
   }
 
-  // Add Escape key handler for modal
-  useEffect(() => {
-    if (!selectedImage) return
-
-    const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        closeModal()
-      }
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [selectedImage])
-
   if (loading) {
     return (
       <div className="batch-gallery">
@@ -181,78 +172,77 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
         )}
       </div>
 
-      {selectedImage && (
-        <div className="modal" onClick={closeModal}>
-          <FocusLock returnFocus>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={closeModal} aria-label="Close modal">×</button>
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Image Details</DialogTitle>
+          </DialogHeader>
 
-            {selectedImageSources && (
-              <img
-                src={selectedImageSources.full}
-                srcSet={selectedImageSources.srcSet}
-                sizes="90vw"
-                alt={selectedImageSources.alt}
-                loading="eager"
-                decoding="async"
-              />
-            )}
+          {selectedImageSources && (
+            <img
+              src={selectedImageSources.full}
+              srcSet={selectedImageSources.srcSet}
+              sizes="90vw"
+              alt={selectedImageSources.alt}
+              loading="eager"
+              decoding="async"
+              className="w-full rounded-md"
+            />
+          )}
 
-            <div className="modal-info">
-              <h3>Image Details</h3>
-
+          {selectedImage && (
+            <div className="space-y-3">
               {selectedImage.metadata?.prompt && (
-                <div className="detail-item">
-                  <strong>Prompt:</strong>
-                  <p>{selectedImage.metadata.prompt}</p>
+                <div className="space-y-1">
+                  <strong className="text-sm font-semibold">Prompt:</strong>
+                  <p className="text-sm text-muted-foreground">{selectedImage.metadata.prompt}</p>
                 </div>
               )}
 
               {selectedImage.metadata?.negative_prompt && (
-                <div className="detail-item">
-                  <strong>Negative Prompt:</strong>
-                  <p>{selectedImage.metadata.negative_prompt}</p>
+                <div className="space-y-1">
+                  <strong className="text-sm font-semibold">Negative Prompt:</strong>
+                  <p className="text-sm text-muted-foreground">{selectedImage.metadata.negative_prompt}</p>
                 </div>
               )}
 
-              <div className="detail-grid">
+              <div className="grid grid-cols-2 gap-2 text-sm">
                 {selectedImage.metadata?.seed && (
-                  <div className="detail-item">
+                  <div>
                     <strong>Seed:</strong> {selectedImage.metadata.seed}
                   </div>
                 )}
 
                 {selectedImage.metadata?.steps && (
-                  <div className="detail-item">
+                  <div>
                     <strong>Steps:</strong> {selectedImage.metadata.steps}
                   </div>
                 )}
 
                 {selectedImage.metadata?.guidance_scale && (
-                  <div className="detail-item">
+                  <div>
                     <strong>Guidance:</strong> {selectedImage.metadata.guidance_scale}
                   </div>
                 )}
 
                 {selectedImage.metadata?.width && selectedImage.metadata?.height && (
-                  <div className="detail-item">
+                  <div>
                     <strong>Size:</strong> {selectedImage.metadata.width}x{selectedImage.metadata.height}
                   </div>
                 )}
               </div>
 
-              <div className="detail-item">
+              <div className="text-sm">
                 <strong>Filename:</strong> {selectedImage.filename}
               </div>
 
-              <div className="detail-item">
+              <div className="text-sm">
                 <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
               </div>
             </div>
-            </div>
-          </FocusLock>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

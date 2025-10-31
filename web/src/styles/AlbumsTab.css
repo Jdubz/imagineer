@@ -11,12 +11,12 @@
 
 .albums-header h2 {
   margin: 0;
-  color: #333;
+  color: hsl(var(--foreground));
 }
 
 .create-album-btn {
-  background: #007bff;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -25,7 +25,7 @@
 }
 
 .create-album-btn:hover {
-  background: #0056b3;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .albums-grid {
@@ -36,23 +36,23 @@
 }
 
 .album-card {
-  border: 1px solid #ddd;
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  background: white;
+  background: hsl(var(--card));
 }
 
 .album-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.15);
 }
 
 .album-cover {
   width: 100%;
   height: 200px;
-  background: #f5f5f5;
+  background: hsl(var(--muted));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -66,7 +66,7 @@
 }
 
 .album-placeholder {
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-size: 0.9rem;
   text-align: center;
 }
@@ -77,13 +77,13 @@
 
 .album-info h3 {
   margin: 0 0 0.5rem 0;
-  color: #333;
+  color: hsl(var(--card-foreground));
   font-size: 1.1rem;
 }
 
 .album-info p {
   margin: 0 0 1rem 0;
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -93,19 +93,19 @@
   justify-content: space-between;
   align-items: center;
   font-size: 0.8rem;
-  color: #888;
+  color: hsl(var(--muted-foreground));
 }
 
 .album-type {
-  background: #e9ecef;
+  background: hsl(var(--muted));
   padding: 0.2rem 0.5rem;
   border-radius: 3px;
   text-transform: capitalize;
 }
 
 .delete-album-btn {
-  background: #dc3545;
-  color: white;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
   border: none;
   padding: 0.2rem 0.5rem;
   border-radius: 3px;
@@ -114,13 +114,13 @@
 }
 
 .delete-album-btn:hover {
-  background: #c82333;
+  background: hsl(var(--destructive) / 0.9);
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 /* Album Detail View */
@@ -141,8 +141,8 @@
 }
 
 .back-btn {
-  background: #6c757d;
-  color: white;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -150,12 +150,12 @@
 }
 
 .back-btn:hover {
-  background: #5a6268;
+  background: hsl(var(--muted) / 0.8);
 }
 
 .album-detail-header h2 {
   margin: 0;
-  color: #333;
+  color: hsl(var(--foreground));
   flex: 1;
 }
 
@@ -167,18 +167,18 @@
 
 .nsfw-filter label {
   font-size: 0.9rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 .nsfw-filter select {
   padding: 0.3rem;
-  border: 1px solid #ddd;
+  border: 1px solid hsl(var(--border));
   border-radius: 3px;
 }
 
 .remove-images-btn {
-  background: #dc3545;
-  color: white;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -186,19 +186,19 @@
 }
 
 .remove-images-btn:hover {
-  background: #c82333;
+  background: hsl(var(--destructive) / 0.9);
 }
 
 .album-description {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f8f9fa;
+  background: hsl(var(--muted));
   border-radius: 4px;
 }
 
 .album-description p {
   margin: 0;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 .album-images-grid {
@@ -209,7 +209,7 @@
 
 .image-card {
   position: relative;
-  border: 1px solid #ddd;
+  border: 1px solid hsl(var(--border));
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
@@ -239,7 +239,7 @@
   width: 100%;
   height: 200px;
   object-fit: cover;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--muted) / 0.8) 100%);
   transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
@@ -257,8 +257,8 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background: red;
-  color: white;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.7rem;
@@ -269,8 +269,8 @@
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: rgba(0,0,0,0.7);
-  color: white;
+  background: hsl(var(--foreground) / 0.7);
+  color: hsl(var(--background));
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.7rem;
@@ -279,22 +279,22 @@
 .empty-album {
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: hsl(var(--muted-foreground));
 }
 
 .label-error {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
   border-radius: 4px;
-  background: #fdecea;
-  color: #a94442;
-  border: 1px solid #f5c6cb;
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive) / 0.3);
 }
 
 .album-analytics {
   margin-bottom: 1.5rem;
-  background: #f8f9fa;
-  border: 1px solid #e0e0e0;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   padding: 1rem 1.25rem;
   display: flex;
@@ -309,8 +309,8 @@
 }
 
 .analytics-card {
-  background: white;
-  border: 1px solid #e3e6eb;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 6px;
   padding: 0.75rem;
   display: flex;
@@ -323,23 +323,23 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6c757d;
+  color: hsl(var(--muted-foreground));
 }
 
 .analytics-card strong {
   font-size: 1.1rem;
-  color: #2c3e50;
+  color: hsl(var(--foreground));
 }
 
 .analytics-card small {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: hsl(var(--muted-foreground));
 }
 
 .analytics-top-tags h4 {
   margin: 0 0 0.5rem 0;
   font-size: 0.95rem;
-  color: #333;
+  color: hsl(var(--foreground));
 }
 
 .analytics-top-tags ul {
@@ -352,29 +352,29 @@
 }
 
 .analytics-top-tags li {
-  background: white;
-  border: 1px solid #e3e6eb;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 999px;
   padding: 0.4rem 0.75rem;
   font-size: 0.85rem;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #34495e;
+  color: hsl(var(--foreground));
 }
 
 .analytics-top-tags .tag-count {
-  background: #eef2f6;
+  background: hsl(var(--muted));
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   font-size: 0.75rem;
-  color: #4a5568;
+  color: hsl(var(--muted-foreground));
 }
 
 .label-editor {
   margin-top: 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: hsl(var(--card) / 0.92);
+  border: 1px solid hsl(var(--border) / 0.5);
   border-radius: 6px;
   padding: 0.75rem;
   display: flex;
@@ -394,8 +394,8 @@
   gap: 0.5rem;
   padding: 0.35rem 0.6rem;
   border-radius: 999px;
-  background: #eef2f6;
-  color: #34495e;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
   font-size: 0.8rem;
   border: 1px solid transparent;
 }
@@ -403,12 +403,12 @@
 .label-chip.editing {
   flex-wrap: wrap;
   gap: 0.4rem;
-  background: #fff6e6;
-  border-color: #f3c46f;
+  background: hsl(var(--warning) / 0.1);
+  border-color: hsl(var(--warning));
 }
 
 .label-chip input {
-  border: 1px solid #ccd4dd;
+  border: 1px solid hsl(var(--border));
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
@@ -421,32 +421,32 @@
 
 .label-chip-actions button {
   background: transparent;
-  border: 1px solid #ccd4dd;
+  border: 1px solid hsl(var(--border));
   border-radius: 4px;
   padding: 0.2rem 0.5rem;
   font-size: 0.75rem;
   cursor: pointer;
-  color: #495057;
+  color: hsl(var(--muted-foreground));
 }
 
 .label-chip-actions button:hover:not(:disabled) {
-  border-color: #868e96;
-  color: #212529;
+  border-color: hsl(var(--foreground) / 0.5);
+  color: hsl(var(--foreground));
 }
 
 .label-chip.label-type-manual {
-  background: #e8f7f0;
-  color: #2f855a;
+  background: hsl(var(--success) / 0.1);
+  color: hsl(var(--success));
 }
 
 .label-chip.label-type-tag {
-  background: #eef2ff;
-  color: #3c366b;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .label-chip.label-type-caption {
-  background: #fff5f5;
-  color: #97266d;
+  background: hsl(var(--secondary) / 0.1);
+  color: hsl(var(--secondary));
 }
 
 .label-add-form {
@@ -457,15 +457,15 @@
 
 .label-add-form input {
   flex: 1;
-  border: 1px solid #ccd4dd;
+  border: 1px solid hsl(var(--border));
   border-radius: 4px;
   padding: 0.4rem 0.5rem;
   font-size: 0.85rem;
 }
 
 .label-add-form button {
-  background: #007bff;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   padding: 0.4rem 0.75rem;
   border-radius: 4px;
@@ -474,100 +474,11 @@
 }
 
 .label-add-form button:disabled {
-  background: #a0aec0;
+  background: hsl(var(--muted));
   cursor: not-allowed;
 }
 
 .label-empty {
   font-size: 0.8rem;
-  color: #6c757d;
-}
-
-
-/* Dialog Styles */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog {
-  background: white;
-  border-radius: 8px;
-  padding: 2rem;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.dialog h2 {
-  margin: 0 0 1.5rem 0;
-  color: #333;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #333;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.dialog-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-.dialog-actions button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.dialog-actions button[type="submit"] {
-  background: #007bff;
-  color: white;
-}
-
-.dialog-actions button[type="submit"]:hover {
-  background: #0056b3;
-}
-
-.dialog-actions button[type="button"] {
-  background: #6c757d;
-  color: white;
-}
-
-.dialog-actions button[type="button"]:hover {
-  background: #5a6268;
+  color: hsl(var(--muted-foreground));
 }

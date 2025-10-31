@@ -1,6 +1,8 @@
 import { Component, ReactNode, ErrorInfo } from 'react'
 import { logger } from '../lib/logger'
 import '../styles/ErrorBoundary.css'
+import { Button } from '@/components/ui/button'
+import { RotateCw, RefreshCw, Home, Bug } from 'lucide-react'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -156,36 +158,39 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             </p>
 
             <div className="error-actions">
-              <button
-                className="error-button primary"
+              <Button
                 onClick={this.handleReset}
                 type="button"
               >
+                <RotateCw className="h-4 w-4 mr-2" />
                 Try Again
-              </button>
-              <button
-                className="error-button secondary"
+              </Button>
+              <Button
+                variant="outline"
                 onClick={this.handleReload}
                 type="button"
               >
+                <RefreshCw className="h-4 w-4 mr-2" />
                 Reload Page
-              </button>
-              <button
-                className="error-button secondary"
+              </Button>
+              <Button
+                variant="outline"
                 onClick={this.handleGoHome}
                 type="button"
               >
+                <Home className="h-4 w-4 mr-2" />
                 Go Home
-              </button>
+              </Button>
               {showReportBugButton && (
-                <button
-                  className="error-button report-bug"
+                <Button
+                  variant="secondary"
                   onClick={this.handleReportBug}
                   type="button"
                   title="Report this error to the development team"
                 >
-                  🐞 Report Bug
-                </button>
+                  <Bug className="h-4 w-4 mr-2" />
+                  Report Bug
+                </Button>
               )}
             </div>
 

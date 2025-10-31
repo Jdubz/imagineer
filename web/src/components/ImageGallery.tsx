@@ -1,6 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import type { GeneratedImage } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface ImageGalleryProps {
   images?: GeneratedImage[]
@@ -33,12 +39,6 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
 
   const closeModal = (): void => {
     setSelectedImage(null)
-  }
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>): void => {
-    if (e.target === e.currentTarget) {
-      closeModal()
-    }
   }
 
   return (
@@ -77,51 +77,45 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
         })}
       </div>
 
-      {selectedImage && (
-        <div
-          className="modal-backdrop"
-          data-testid="modal-backdrop"
-          onClick={handleBackdropClick}
-        >
-          <div className="modal-content" role="dialog" aria-modal="true">
-            <button
-              className="close-button"
-              onClick={closeModal}
-              aria-label="Close"
-            >
-              ×
-            </button>
-            {selectedSources && (
-              <img
-                src={selectedSources.full}
-                srcSet={selectedSources.srcSet}
-                sizes="90vw"
-                alt={selectedSources.alt || selectedImage.filename}
-                className="modal-image"
-                loading="eager"
-                decoding="async"
-              />
-            )}
-            {selectedImage.metadata && (
-              <div className="image-metadata">
-                <h3>Image Details</h3>
-                {selectedImage.metadata.prompt && (
-                  <p><strong>Prompt:</strong> {selectedImage.metadata.prompt}</p>
-                )}
-                {selectedImage.metadata.seed && (
-                  <p><strong>Seed:</strong> {selectedImage.metadata.seed}</p>
-                )}
-                {selectedImage.metadata.steps && (
-                  <p><strong>Steps:</strong> {selectedImage.metadata.steps}</p>
-                )}
-                {selectedImage.metadata.guidance_scale && (
-                  <p><strong>Guidance Scale:</strong> {selectedImage.metadata.guidance_scale}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Image Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedSources && (
+            <img
+              src={selectedSources.full}
+              srcSet={selectedSources.srcSet}
+              sizes="90vw"
+              alt={selectedSources.alt || (selectedImage?.filename ?? 'Generated image')}
+              loading="eager"
+              decoding="async"
+              className="w-full rounded-md"
+            />
+          )}
+
+          {selectedImage?.metadata && (
+            <div className="space-y-2 text-sm">
+              {selectedImage.metadata.prompt && (
+                <div className="space-y-1">
+                  <strong className="font-semibold">Prompt:</strong>
+                  <p className="text-muted-foreground">{selectedImage.metadata.prompt}</p>
+                </div>
+              )}
+              {selectedImage.metadata.seed && (
+                <p><strong>Seed:</strong> {selectedImage.metadata.seed}</p>
+              )}
+              {selectedImage.metadata.steps && (
+                <p><strong>Steps:</strong> {selectedImage.metadata.steps}</p>
+              )}
+              {selectedImage.metadata.guidance_scale && (
+                <p><strong>Guidance Scale:</strong> {selectedImage.metadata.guidance_scale}</p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

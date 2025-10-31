@@ -6,6 +6,12 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
 
+    /* Path Mapping */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Type Checking */
     "strict": true,
     "noUnusedLocals": true,

@@ -1,23 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Font setup */
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    /* Color System - Artistic & Creative Theme */
+    --background: 0 0% 98%; /* #FAFAFA */
+    --foreground: 210 25% 22%; /* #2C3E50 */
+
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 210 25% 22%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 25% 22%;
+
+    /* Primary - Coral Pink */
+    --primary: 343 100% 70%; /* #FF6B9D */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Turquoise */
+    --secondary: 175 52% 58%; /* #4ECDC4 */
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent - Sunny Yellow */
+    --accent: 48 100% 71%; /* #FFE66D */
+    --accent-foreground: 210 25% 22%;
+
+    --destructive: 0 84% 70%; /* #FF6B6B */
+    --destructive-foreground: 0 0% 100%;
+
+    --muted: 210 14% 83%; /* #E0E0E0 */
+    --muted-foreground: 210 10% 59%; /* #95A5A6 */
+
+    --border: 210 14% 89%; /* #E0E0E0 */
+    --input: 210 14% 89%;
+    --ring: 343 100% 70%;
+
+    --radius: 0.75rem;
+
+    /* Success - Mint */
+    --success: 165 42% 73%; /* #95E1D3 */
+
+    /* Warning - Light Coral */
+    --warning: 17 100% 73%; /* #FFA07A */
+  }
+
+  .dark {
+    --background: 222 31% 14%; /* #1A1F2E */
+    --foreground: 210 40% 98%;
+
+    --card: 222 25% 17%; /* #242A3A */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 25% 17%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 343 100% 70%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 175 52% 58%;
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 48 100% 71%;
+    --accent-foreground: 222 31% 14%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --muted: 222 25% 25%;
+    --muted-foreground: 215 20% 65%;
+
+    --border: 222 25% 25%;
+    --input: 222 25% 25%;
+    --ring: 343 100% 70%;
+
+    --success: 165 42% 63%;
+    --warning: 17 100% 63%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+  }
+}
+
+/* Design Tokens */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-}
+  /* Spacing Scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+  /* Typography */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
 
-body {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #333;
-}
+  /* Animation Durations */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
 
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  /* Easing Functions */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }

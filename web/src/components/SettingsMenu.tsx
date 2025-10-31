@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useBugReporter } from '../contexts/BugReportContext'
 import type { AuthStatus } from '../types/shared'
 import '../styles/SettingsMenu.css'
+import { Button } from '@/components/ui/button'
+import { Settings, Bug, LogOut } from 'lucide-react'
 
 interface SettingsMenuProps {
   user: AuthStatus | null
@@ -91,29 +93,17 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
   return (
     <div className="settings-menu" ref={menuRef}>
-      <button
-        className="settings-trigger"
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={toggleMenu}
         aria-label="Open settings menu"
         aria-expanded={isOpen}
         aria-haspopup="true"
         type="button"
       >
-        <svg
-          className="settings-icon"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v6m0 6v10m-5-16.7l3 5.2m0 6.9-3 5.2m10-16.4-3 5.2m0 6.9 3 5.2m5-10.8-5.2-3m-6.9 0-5.2 3m16.4 10-5.2 3m-6.9 0-5.2-3" />
-        </svg>
-      </button>
+        <Settings className="h-5 w-5" />
+      </Button>
 
       {isOpen && (
         <div className="settings-dropdown" role="menu">
@@ -153,30 +143,34 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
             {isAdmin && (
               <>
                 <div className="settings-divider" />
-                <button
-                  className="settings-option settings-button"
+                <Button
+                  variant="ghost"
+                  className="settings-option settings-button w-full justify-between"
                   onClick={handleBugReport}
                   type="button"
                   role="menuitem"
                 >
                   <span className="settings-option-label">
-                    <span className="bug-icon">🐞</span> Report Bug
+                    <Bug className="h-4 w-4 inline mr-2" />
+                    Report Bug
                   </span>
                   <span className="settings-option-hint">Ctrl+Shift+B</span>
-                </button>
+                </Button>
               </>
             )}
 
             {/* Logout */}
             <div className="settings-divider" />
-            <button
-              className="settings-option settings-button"
+            <Button
+              variant="ghost"
+              className="settings-option settings-button w-full justify-start"
               onClick={handleLogout}
               type="button"
               role="menuitem"
             >
+              <LogOut className="h-4 w-4 mr-2" />
               <span className="settings-option-label">Logout</span>
-            </button>
+            </Button>
           </div>
         </div>
       )}

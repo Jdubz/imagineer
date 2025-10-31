@@ -8,6 +8,19 @@ import {
   generateFormSchema,
   themeSchema,
 } from '../lib/validation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Shuffle } from 'lucide-react'
 
 interface GenerateFormProps {
   onGenerate: (params: GenerateParams) => void
@@ -193,8 +206,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
     setSeed(e.target.value)
   }, [])
 
-  const handleTemplateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedTemplate(e.target.value)
+  const handleTemplateChange = useCallback((value: string) => {
+    setSelectedTemplate(value)
   }, [])
 
   const handleBatchThemeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,11 +238,15 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
   return (
     <div className="generate-form">
-      <h2>Generate Single Image</h2>
-      <form onSubmit={handleSubmit}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Generate Single Image</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="prompt">Prompt</label>
-          <textarea
+          <Label htmlFor="prompt">Prompt</Label>
+          <Textarea
             id="prompt"
             value={prompt}
             onChange={handlePromptChange}
@@ -246,7 +263,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
         <div className="controls-grid">
           <div className="form-group">
-            <label htmlFor="steps">
+            <Label htmlFor="steps">
               Steps: {steps}
               <span className="tooltip">?
                 <span className="tooltip-text">
@@ -256,7 +273,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                   <br/>• 50+: Diminishing returns
                 </span>
               </span>
-            </label>
+            </Label>
             <input
               type="range"
               id="steps"
@@ -276,7 +293,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
           </div>
 
           <div className="form-group">
-            <label htmlFor="guidance">
+            <Label htmlFor="guidance">
               Guidance Scale: {guidanceScale}
               <span className="tooltip">?
                 <span className="tooltip-text">
@@ -287,7 +304,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                   <br/>• 15-20: Very strict (may reduce quality)
                 </span>
               </span>
-            </label>
+            </Label>
             <input
               type="range"
               id="guidance"
@@ -308,7 +325,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
         </div>
 
         <div className="form-group seed-group">
-          <label htmlFor="seed">
+          <Label htmlFor="seed">
             Seed (Optional)
             <span className="tooltip">?
               <span className="tooltip-text">
@@ -318,7 +335,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                 <br/>• Range: 0 to 2,147,483,647
               </span>
             </span>
-          </label>
+          </Label>
           <div className="seed-controls">
             <div className="seed-toggle">
               <label className="toggle-option">
@@ -342,7 +359,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                 <span>Fixed</span>
               </label>
             </div>
-            <input
+            <Input
               type="number"
               id="seed"
               value={seed}
@@ -353,22 +370,28 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               disabled={loading || useRandomSeed}
               className="seed-input"
             />
-            <button
+            <Button
               type="button"
               onClick={generateRandomSeed}
               disabled={loading}
-              className="generate-seed-btn"
+              size="icon"
+              variant="secondary"
               title="Generate random seed"
               aria-label="Generate random seed"
             >
-              🎲
-            </button>
+              <Shuffle className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
-        <button type="submit" disabled={loading || !prompt.trim()}>
+        <Button
+          type="submit"
+          disabled={loading || !prompt.trim()}
+          size="lg"
+          className="w-full"
+        >
           {loading ? 'Generating...' : 'Generate Image'}
-        </button>
+        </Button>
 
         {loading && (
           <div className="loading-indicator">
@@ -376,30 +399,39 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
             <p>Generating your image... This may take 10-30 seconds</p>
           </div>
         )}
-      </form>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="form-divider"></div>
 
       {isAdmin ? (
-        <>
-          <h2>Generate Batch from Template</h2>
-          <form onSubmit={handleBatchSubmit} className="batch-generate-form">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Batch from Template</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleBatchSubmit} className="batch-generate-form">
             <div className="form-group">
-              <label htmlFor="template">Select Template</label>
-              <select
-                id="template"
+              <Label htmlFor="template">Select Template</Label>
+              <Select
                 value={selectedTemplate}
-                onChange={handleTemplateChange}
+                onValueChange={handleTemplateChange}
                 disabled={loadingTemplates || submittingBatch}
                 required
               >
-                <option value="">-- Choose a template --</option>
-                {templates.map(template => (
-                  <option key={template.id} value={template.id}>
-                    {template.name} ({template.template_item_count || 0} items)
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="template">
+                  <SelectValue placeholder="-- Choose a template --" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Choose a template --</SelectItem>
+                  {templates.map(template => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name} ({template.template_item_count || 0} items)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {loadingTemplates && <span className="loading-text">Loading templates...</span>}
               {templates.length === 0 && !loadingTemplates && (
                 <span className="info-text">No templates available. Create one in the Albums tab.</span>
@@ -407,8 +439,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
             </div>
 
             <div className="form-group">
-              <label htmlFor="batch-theme">Art Style Theme</label>
-              <input
+              <Label htmlFor="batch-theme">Art Style Theme</Label>
+              <Input
                 id="batch-theme"
                 type="text"
                 value={batchTheme}
@@ -430,8 +462,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
             <div className="controls-grid">
               <div className="form-group">
-                <label htmlFor="batch-steps">Steps (Optional)</label>
-                <input
+                <Label htmlFor="batch-steps">Steps (Optional)</Label>
+                <Input
                   type="number"
                   id="batch-steps"
                   value={batchSteps}
@@ -444,8 +476,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               </div>
 
               <div className="form-group">
-                <label htmlFor="batch-seed">Seed (Optional)</label>
-                <input
+                <Label htmlFor="batch-seed">Seed (Optional)</Label>
+                <Input
                   type="number"
                   id="batch-seed"
                   value={batchSeed}
@@ -458,9 +490,15 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               </div>
             </div>
 
-            <button type="submit" disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}>
+            <Button
+              type="submit"
+              disabled={submittingBatch || !selectedTemplate || !batchTheme.trim()}
+              size="lg"
+              variant="secondary"
+              className="w-full"
+            >
               {submittingBatch ? 'Starting Batch...' : 'Generate Batch'}
-            </button>
+            </Button>
 
             {submittingBatch && (
               <div className="loading-indicator">
@@ -468,16 +506,21 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                 <p>Queuing batch generation jobs...</p>
               </div>
             )}
-          </form>
-        </>
+            </form>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="info-box">
-          <h3>🎨 Batch Generation from Templates</h3>
-          <p>
-            Admin users can generate complete sets of themed images from templates.
-            Batch generation is available in the <strong>Albums</strong> tab.
-          </p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>🎨 Batch Generation from Templates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>
+              Admin users can generate complete sets of themed images from templates.
+              Batch generation is available in the <strong>Albums</strong> tab.
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
