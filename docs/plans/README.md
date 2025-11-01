@@ -107,11 +107,6 @@ Status report on NSFW filtering system.
 - **Status:** Implemented and working ✅
 - **No action required**
 
-#### [SHARED_TYPES_VALIDATION_FIX.md](./SHARED_TYPES_VALIDATION_FIX.md)
-Type validation alignment between frontend and backend.
-- **Status:** Resolved ✅
-- **Reference:** Contract tests passing
-
 ### Audit Documents
 
 #### [FRONTEND_CODE_AUDIT.md](./FRONTEND_CODE_AUDIT.md)
@@ -135,6 +130,11 @@ Backend audit task list with priorities.
 Verification of backend/frontend type contract alignment.
 - **Status:** Tests passing, types aligned ✅
 - **No action required**
+
+### Archived Plans (Completed)
+
+- [archive/SHARED_TYPES_VALIDATION_FIX_2025-11-01.md](./archive/SHARED_TYPES_VALIDATION_FIX_2025-11-01.md) — Zod/Auth contract alignment notes (fully shipped; retained for historical reference).
+- [archive/ACTUAL_REMAINING_WORK_2025-11-01.md](./archive/ACTUAL_REMAINING_WORK_2025-11-01.md) — Frontend gap tracker resolved by NSFW preference and gallery consolidation work.
 
 ### Frontend-Specific
 
