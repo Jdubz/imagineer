@@ -46,15 +46,13 @@ fi
 echo "📝 Creating systemd service file..."
 cat > /tmp/${SERVICE_NAME}.service <<EOF
 [Unit]
-Description=Imagineer API Server
+Description=Imagineer AI Image Generation API
 After=network.target
 
 [Service]
 Type=simple
 User=$USER
 WorkingDirectory=${PROJECT_DIR}
-Environment="PATH=${VENV_DIR}/bin"
-EnvironmentFile=${PROJECT_DIR}/.env
 ExecStart=${VENV_DIR}/bin/gunicorn \\
     --bind 127.0.0.1:10050 \\
     --workers 2 \\

@@ -15,17 +15,12 @@
 ## Current Status
 - Phase 1 (foundation + theme) ✅ – shadcn is installed, tokens configured.
 - Phase 2 (component migration) ✅ – core primitives and toasts migrated.
-- `/shadcn-test` demo route still exists and should be removed.
+- `/shadcn-test` demo route removed 2025-11-01.
 - Some legacy containers (`App.css`, ad-hoc padding) still need cleanup.
 
 ---
 
 ## Remaining Work (Priority P1)
-
-### 1. Remove Demo Route
-- Delete `components/ShadcnTest.tsx`.
-- Remove the lazy import and `<Route path="/shadcn-test" …>` from `App.tsx`.
-- Ensure navigation/tests no longer reference the demo.
 
 ### 2. Harmonise Layout
 - Introduce shared wrappers (`AppShell`, `PageHeader`, `PageContent`) using shadcn cards/dividers for consistent spacing.
