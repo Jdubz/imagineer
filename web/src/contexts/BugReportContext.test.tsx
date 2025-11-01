@@ -6,10 +6,16 @@ import userEvent from '@testing-library/user-event'
 
 import { BugReportProvider, useBugReporter } from './BugReportContext'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
+import type { Toast } from '../hooks/use-toast'
 import { logger } from '../lib/logger'
 
-const mocks = vi.hoisted(() => ({
-  toast: vi.fn(),
+interface MockImplementations {
+  toast: ReturnType<typeof vi.fn<[Toast], void>>
+  submit: ReturnType<typeof vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>>
+}
+
+const mocks = vi.hoisted<MockImplementations>(() => ({
+  toast: vi.fn<[Toast], void>(),
   submit: vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>(),
 }))
 

@@ -232,14 +232,14 @@ async function apiRequest<T>(
     const retryAfterHeader = response.headers?.get?.('Retry-After')
     if (retryAfterHeader) {
       // Retry-After can be a number (seconds) or an HTTP date
-      const retrySeconds = parseInt(retryAfterHeader, 10)
-      if (!isNaN(retrySeconds)) {
+      const retrySeconds = Number.parseInt(retryAfterHeader, 10)
+      if (!Number.isNaN(retrySeconds)) {
         retryAfter = retrySeconds
       } else {
         // Try parsing as HTTP date
-        const retryDate = new Date(retryAfterHeader)
-        if (!isNaN(retryDate.getTime())) {
-          retryAfter = Math.max(0, Math.floor((retryDate.getTime() - Date.now()) / 1000))
+        const retryDate = Date.parse(retryAfterHeader)
+        if (!Number.isNaN(retryDate)) {
+          retryAfter = Math.max(0, Math.floor((retryDate - Date.now()) / 1000))
         }
       }
     }
@@ -266,7 +266,13 @@ async function apiRequest<T>(
       throw new ApiError(errorMessage, response.status, undefined, traceId, retryAfter)
     }
 
-    const data = await response.json()
+    let data: unknown
+    try {
+      data = await response.json()
+    } catch (error) {
+      logger.error('Failed to parse JSON response:', error)
+      throw new ApiError('Failed to parse JSON response', response.status, undefined, traceId, retryAfter)
+    }
 
     // Validate response with Zod schema
     const validationResult = schema.safeParse(data)
