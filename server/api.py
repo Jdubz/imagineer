@@ -135,7 +135,6 @@ from server.celery_app import make_celery  # noqa: E402
 celery = make_celery(app)
 
 # Register blueprints
-from server.bug_reports.agent_manager import refresh_bug_report_agent_config  # noqa: E402
 from server.routes.admin import admin_bp  # noqa: E402
 from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
@@ -152,9 +151,6 @@ app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(generation_bp)
-
-# Refresh bug report agent configuration on startup so env overrides apply.
-refresh_bug_report_agent_config()
 
 # ============================================================================
 # Build / Version Metadata
