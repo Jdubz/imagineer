@@ -479,6 +479,8 @@ describe('AuthContext', () => {
     it('logs error on logout failure', async () => {
       const mockFetch = vi.fn()
       vi.stubGlobal('fetch', mockFetch)
+
+      // Initial checkAuth on mount
       mockFetch.mockResolvedValueOnce({
         status: 204,
       })
@@ -494,14 +496,26 @@ describe('AuthContext', () => {
       })
 
       const logoutError = new Error('Logout failed')
-      const mockLogoutFetch4 = vi.fn().mockRejectedValueOnce(logoutError)
-      vi.stubGlobal('fetch', mockLogoutFetch4)
+      // Logout call that will fail
+      mockFetch.mockRejectedValueOnce(logoutError)
+      // Any subsequent calls (e.g. checkAuth after error) return 204
+      // This prevents race conditions where checkAuth is called after logout fails
+      mockFetch.mockResolvedValue({
+        status: 204,
+      })
 
-      await expect(
-        act(async () => {
+      let logoutFailed = false
+      try {
+        await act(async () => {
           await result.current.logout()
         })
-      ).rejects.toThrow('Logout failed')
+      } catch (error) {
+        logoutFailed = true
+        expect(error).toBe(logoutError)
+      }
+
+      expect(logoutFailed).toBe(true)
+      // Verify logger.error was called with the logout error at some point
       expect(logger.error).toHaveBeenCalledWith('Failed to logout', logoutError)
     })
 
