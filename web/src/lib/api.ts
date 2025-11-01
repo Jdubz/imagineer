@@ -29,7 +29,8 @@ export class ApiError extends Error {
     message: string,
     public status?: number,
     public response?: unknown,
-    public traceId?: string
+    public traceId?: string,
+    public retryAfter?: number
   ) {
     super(message)
     this.name = 'ApiError'
@@ -204,6 +205,12 @@ export type GenerateBatchResult = GenerateBatchSuccess | GenerateBatchError
 
 /**
  * Makes a typed API request with Zod validation
+ *
+ * Features:
+ * - Automatically includes credentials: 'include' for all requests
+ * - Captures X-Trace-Id header for error tracking
+ * - Handles Retry-After header for rate limiting (429 responses)
+ * - Runtime validation with Zod schemas
  */
 async function apiRequest<T>(
   url: string,
@@ -211,8 +218,31 @@ async function apiRequest<T>(
   options?: RequestInit
 ): Promise<T> {
   try {
-    const response = await fetch(url, options)
+    // Ensure credentials are always included unless explicitly overridden
+    const requestOptions: RequestInit = {
+      credentials: 'include',
+      ...options,
+    }
+
+    const response = await fetch(url, requestOptions)
     const traceId = response.headers?.get?.('X-Trace-Id') ?? undefined
+
+    // Parse Retry-After header if present (for 429 responses)
+    let retryAfter: number | undefined
+    const retryAfterHeader = response.headers?.get?.('Retry-After')
+    if (retryAfterHeader) {
+      // Retry-After can be a number (seconds) or an HTTP date
+      const retrySeconds = parseInt(retryAfterHeader, 10)
+      if (!isNaN(retrySeconds)) {
+        retryAfter = retrySeconds
+      } else {
+        // Try parsing as HTTP date
+        const retryDate = new Date(retryAfterHeader)
+        if (!isNaN(retryDate.getTime())) {
+          retryAfter = Math.max(0, Math.floor((retryDate.getTime() - Date.now()) / 1000))
+        }
+      }
+    }
 
     if (!response.ok) {
       // Try to get error message from response
@@ -221,12 +251,19 @@ async function apiRequest<T>(
         const errorData = await response.json()
         if (isRecord(errorData) && typeof errorData.error === 'string') {
           errorMessage = errorData.error
+        } else if (isRecord(errorData) && typeof errorData.message === 'string') {
+          errorMessage = errorData.message
         }
       } catch {
         // Couldn't parse error response, use status text
       }
 
-      throw new ApiError(errorMessage, response.status, undefined, traceId)
+      // Special handling for rate limiting
+      if (response.status === 429 && retryAfter) {
+        errorMessage = `Rate limit exceeded. Please retry after ${retryAfter} seconds.`
+      }
+
+      throw new ApiError(errorMessage, response.status, undefined, traceId, retryAfter)
     }
 
     const data = await response.json()
