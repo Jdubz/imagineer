@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { logger } from '../lib/logger'
+import { getApiUrl } from '../lib/apiConfig'
 import type { AuthStatus } from '../types/shared'
 import '../styles/AuthButton.css'
 import { Button } from '@/components/ui/button'
@@ -87,7 +88,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     authCheckInFlightRef.current = true
 
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(getApiUrl('/auth/me'), {
         credentials: 'include',
         headers: {
           Accept: 'application/json'
@@ -200,13 +201,11 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
     const sanitizedState = buildLoginState(window.location)
 
-    // Force HTTPS in production, use current origin in development
-    let origin = window.location.origin
-    if (import.meta.env.PROD && origin.startsWith('http://')) {
-      origin = origin.replace('http://', 'https://')
-    }
-
-    const loginUrl = new URL('/api/auth/login', origin)
+    const apiUrl = getApiUrl('/auth/login')
+    // If API URL is relative (development), construct full URL from window.location
+    const loginUrl = apiUrl.startsWith('http')
+      ? new URL(apiUrl)
+      : new URL(apiUrl, window.location.origin)
     loginUrl.searchParams.set('state', sanitizedState)
 
     const popup = window.open(loginUrl.toString(), 'oauth', 'width=500,height=700')
@@ -237,7 +236,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
   const handleLogout = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/auth/logout', {
+      const response = await fetch(getApiUrl('/auth/logout'), {
         credentials: 'include',
         headers: {
           Accept: 'application/json'
