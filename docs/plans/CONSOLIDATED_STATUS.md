@@ -252,9 +252,9 @@ The Imagineer project has made **substantial progress** on the core vision of a 
 
 ### 🟡 High (Stabilization & Reliability)
 
-1. **Automate Training Data Retention**
-   - Files: `server/tasks/training.py`, scheduler tooling, infra docs.
-   - Impact: Manual workflow documented in `docs/guides/TRAINING_OPERATIONS.md`; consider cron/automation to prune old checkpoints.
+1. ✅ **Automate Training Data Retention**
+   - Files: `server/tasks/training.py`, `scripts/purge_training_artifacts.py`, scheduler tooling.
+   - Impact: Celery Beat now invokes the purge task daily (configurable via `IMAGINEER_PURGE_TRAINING_HOUR`), and a CLI helper is available for manual or dry-run cleanups. Updated operations guide documents usage.
 
 ### 🟢 Medium (Polish & UX)
 
