@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { logger } from '../lib/logger'
+import { api, ApiError } from '../lib/api'
+import { isAuthError } from '../lib/errorUtils'
 import type { AuthStatus } from '../types/shared'
 
 interface AuthContextValue {
@@ -30,32 +32,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuth = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-        },
-      })
+      // Use the api.auth.checkAuth method which validates with AuthStatusSchema
+      const data = await api.auth.checkAuth()
 
-      if (response.status === 204 || response.status === 401 || response.status === 403) {
-        setUser(null)
-        return
-      }
-
-      const contentType = response.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        setUser(null)
-        return
-      }
-
-      const data: AuthStatus = await response.json()
-
-      if (response.ok && data?.authenticated) {
+      if (data?.authenticated) {
         setUser(data)
       } else {
         setUser(null)
       }
     } catch (error) {
+      // Handle auth errors (401/403) gracefully
+      if (isAuthError(error)) {
+        setUser(null)
+        return
+      }
       logger.error('Failed to check auth', error as Error)
       setUser(null)
     } finally {

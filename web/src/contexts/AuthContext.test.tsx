@@ -69,12 +69,9 @@ describe('AuthContext', () => {
       )
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/auth/me', {
+        expect(mockFetch).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
           credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-          },
-        })
+        }))
       })
     })
 
@@ -328,7 +325,9 @@ describe('AuthContext', () => {
       })
 
       expect(result.current.user).toBeNull()
-      expect(logger.error).toHaveBeenCalledWith('Failed to check auth', mockError)
+      // The error is logged twice: once in apiRequest, once in checkAuth
+      expect(logger.error).toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledWith('Failed to check auth', expect.any(Error))
     })
 
     it('handles JSON parsing errors gracefully', async () => {
