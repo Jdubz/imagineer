@@ -139,7 +139,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=${CREDS_PATH}" >> "${GITHUB_ENV}"
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting:imagineer --project static-sites-257923
+        run: firebase deploy --only hosting --project static-sites-257923
 
   deploy-backend:
     runs-on: ubuntu-latest

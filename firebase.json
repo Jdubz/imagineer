@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "target": "imagineer",
+    "site": "imagineer-generator",
     "public": "public",
     "ignore": [
       "firebase.json",
