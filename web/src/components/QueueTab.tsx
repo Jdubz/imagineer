@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { ApiError } from '../lib/api'
@@ -9,7 +9,7 @@ import '../styles/QueueTab.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw } from 'lucide-react'
 
-const QueueTab: React.FC = () => {
+const QueueTab: React.FC = memo(() => {
   const { toast } = useToast()
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
   const [authError, setAuthError] = useState<boolean>(false)
@@ -49,24 +49,32 @@ const QueueTab: React.FC = () => {
     },
   })
 
-  const formatDate = (dateString?: string | null): string => {
+  const formatDate = useCallback((dateString?: string | null): string => {
     if (!dateString) return '-'
     const date = new Date(dateString)
     return date.toLocaleString()
-  }
+  }, [])
 
-  const formatDuration = (startTime?: string | null, endTime?: string | null): string => {
+  const formatDuration = useCallback((startTime?: string | null, endTime?: string | null): string => {
     if (!startTime || !endTime) return '-'
     const start = new Date(startTime)
     const end = new Date(endTime)
     const seconds = Math.floor((end.getTime() - start.getTime()) / 1000)
     return `${seconds}s`
-  }
+  }, [])
 
-  const getStatusBadge = (status: string): JSX.Element => {
+  const getStatusBadge = useCallback((status: string): JSX.Element => {
     const statusClass = `status-badge status-${status}`
     return <span className={statusClass}>{status}</span>
-  }
+  }, [])
+
+  const handleAutoRefreshChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setAutoRefresh(e.target.checked)
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    void fetchQueueData()
+  }, [fetchQueueData])
 
   if (authError) {
     return (
@@ -74,7 +82,7 @@ const QueueTab: React.FC = () => {
         <div className="auth-error-banner">
           <h3>🔒 Admin Authentication Required</h3>
           <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
-          <Button onClick={() => void fetchQueueData()} variant="outline">
+          <Button onClick={handleRefresh} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -96,11 +104,11 @@ const QueueTab: React.FC = () => {
             <input
               type="checkbox"
               checked={autoRefresh}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoRefresh(e.target.checked)}
+              onChange={handleAutoRefreshChange}
             />
             Auto-refresh
           </label>
-          <Button onClick={() => void fetchQueueData()} variant="outline">
+          <Button onClick={handleRefresh} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -238,6 +246,8 @@ const QueueTab: React.FC = () => {
       </section>
     </div>
   )
-}
+})
+
+QueueTab.displayName = 'QueueTab'
 
 export default QueueTab

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import type { GeneratedImage, ImageMetadata } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
@@ -27,7 +27,81 @@ interface BatchGalleryProps {
   onBack: () => void
 }
 
-const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
+// Memoized batch image card component
+interface BatchImageCardProps {
+  image: BatchImage
+  imageKey: string
+  onOpen: (image: BatchImage) => void
+  onImageLoad: (path: string) => void
+  isLoaded: boolean
+}
+
+const BatchImageCard = memo<BatchImageCardProps>(({ image, imageKey, onOpen, onImageLoad, isLoaded }) => {
+  const generatedImage: GeneratedImage = useMemo(() => ({
+    filename: image.filename,
+    relative_path: image.relative_path,
+    metadata: image.metadata,
+    download_url: `/api/outputs/${image.relative_path}`,
+  }), [image])
+
+  const { thumbnail, full, alt, srcSet } = useMemo(() =>
+    resolveImageSources(generatedImage, {
+      fallbackAlt: image.metadata?.prompt || 'Generated image',
+    }),
+    [generatedImage, image.metadata?.prompt]
+  )
+
+  const handleClick = useCallback(() => {
+    onOpen(image)
+  }, [image, onOpen])
+
+  const handlePreload = useCallback(() => {
+    preloadImage(full)
+  }, [full])
+
+  const handleLoad = useCallback(() => {
+    onImageLoad(image.relative_path)
+  }, [image.relative_path, onImageLoad])
+
+  return (
+    <div
+      key={imageKey}
+      className="image-card"
+      onClick={handleClick}
+      onMouseEnter={handlePreload}
+      onFocus={handlePreload}
+    >
+      <picture className="image-picture">
+        {thumbnail.endsWith('.webp') && (
+          <source srcSet={srcSet} type="image/webp" />
+        )}
+        <img
+          src={thumbnail}
+          srcSet={srcSet}
+          sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className={`preview-image ${isLoaded ? 'loaded' : 'loading'}`}
+          onLoad={handleLoad}
+        />
+      </picture>
+      <div className="image-info">
+        <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
+        {image.metadata && (
+          <div className="image-metadata">
+            <span>Steps: {image.metadata.steps}</span>
+            {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+})
+
+BatchImageCard.displayName = 'BatchImageCard'
+
+const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<BatchImage | null>(null)
@@ -79,17 +153,17 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
     void fetchBatch()
   }, [fetchBatch])
 
-  const openModal = (image: BatchImage): void => {
+  const openModal = useCallback((image: BatchImage): void => {
     setSelectedImage(image)
-  }
+  }, [])
 
-  const closeModal = (): void => {
+  const closeModal = useCallback((): void => {
     setSelectedImage(null)
-  }
+  }, [])
 
-  const handleImageLoad = (filename: string): void => {
+  const handleImageLoad = useCallback((filename: string): void => {
     setLoadedImages((prev) => new Set(prev).add(filename))
-  }
+  }, [])
 
   if (loading) {
     return (
@@ -122,49 +196,16 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
       <div className="image-grid">
         {batch.images && batch.images.length > 0 ? (
           batch.images.map((image, index) => {
-            const generatedImage: GeneratedImage = {
-              filename: image.filename,
-              relative_path: image.relative_path,
-              metadata: image.metadata,
-              download_url: `/api/outputs/${image.relative_path}`,
-            }
-            const { thumbnail, full, alt, srcSet } = resolveImageSources(generatedImage, {
-              fallbackAlt: image.metadata?.prompt || 'Generated image',
-            })
-
+            const imageKey = image.filename || image.relative_path || String(index)
             return (
-              <div
-                key={image.filename || image.relative_path || index}
-                className="image-card"
-                onClick={() => openModal(image)}
-                onMouseEnter={() => preloadImage(full)}
-                onFocus={() => preloadImage(full)}
-              >
-                <picture className="image-picture">
-                  {thumbnail.endsWith('.webp') && (
-                    <source srcSet={srcSet} type="image/webp" />
-                  )}
-                  <img
-                    src={thumbnail}
-                    srcSet={srcSet}
-                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
-                    alt={alt}
-                    loading="lazy"
-                    decoding="async"
-                    className={`preview-image ${loadedImages.has(image.relative_path) ? 'loaded' : 'loading'}`}
-                    onLoad={() => handleImageLoad(image.relative_path)}
-                  />
-                </picture>
-                <div className="image-info">
-                  <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
-                  {image.metadata && (
-                    <div className="image-metadata">
-                      <span>Steps: {image.metadata.steps}</span>
-                      {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <BatchImageCard
+                key={imageKey}
+                image={image}
+                imageKey={imageKey}
+                onOpen={openModal}
+                onImageLoad={handleImageLoad}
+                isLoaded={loadedImages.has(image.relative_path)}
+              />
             )
           })
         ) : (
@@ -245,6 +286,8 @@ const BatchGallery: React.FC<BatchGalleryProps> = ({ batchId, onBack }) => {
       </Dialog>
     </div>
   )
-}
+})
+
+BatchGallery.displayName = 'BatchGallery'
 
 export default BatchGallery
