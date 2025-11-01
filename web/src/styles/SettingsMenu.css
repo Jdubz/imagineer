@@ -132,6 +132,35 @@
   background-color: hsl(var(--muted) / 0.8);
 }
 
+.settings-select {
+  cursor: default;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-select:hover,
+.settings-select:active {
+  background: none;
+}
+
+.settings-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-option-description {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.settings-select-trigger {
+  width: 100%;
+  justify-content: space-between;
+}
+
 /* Option Label */
 .settings-option-label {
   display: flex;

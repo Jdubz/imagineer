@@ -19,30 +19,26 @@
    - On failure, alert user, continue submission, record failure in bug report JSON.
    - Store `{report_id}/screenshot.png` alongside other report artifacts.
 
-1. **Server-Side Storage & API**
-   - Build `/api/bug-reports` endpoint to persist reports locally on the server (filesystem or database).
-   - Define storage schema (JSONL, SQLite table, etc.) including captured logs, network traces, client metadata, and optional trace IDs.
-   - Return canonical `trace_id` and `report_id` values (and surface them back to the UI).
+1. **Server-Side Storage & API** ✅ *(Completed 2025-11-01)*
+   - `/api/bug-reports` implemented with list/detail/update/delete/purge.
+   - JSON file storage defined alongside CLI tooling for operators.
+   - Responses include canonical `trace_id` and `report_id`.
 
 2. **Frontend Error Telemetry → Server**
    - Forward client-side errors and unhandled promise rejections to a server logging endpoint immediately.
    - Ensure every logged error includes/receives a server-generated trace ID for correlation.
 
-3. **Trace ID Propagation**
-   - Have the backend attach `X-Trace-Id` to every response (all Flask routes + error handlers).
-   - Update the API client to forward trace IDs on subsequent requests and include them in bug report payloads.
+3. **Trace ID Propagation** ✅ *(Completed)*
+   - Middleware shipped Oct 2025; currently active end-to-end.
 
-4. **Network Capture Enhancements**
-   - Send recorded network event payloads alongside bug report submissions.
-   - Decide on safe body redaction rules (PII, secrets) for persisted reports.
+4. **Network Capture Enhancements** ✅ *(Completed)*
+   - Network capture ships with redaction caps (50 events, size limits).
 
-5. **System Health & Review Interface**
-   - Add CLI tooling or admin-only UI to browse/clear stored bug reports.
-   - Consider retention policy, disk usage caps, and optional export functionality.
+5. **System Health & Review Interface** ✅ *(Completed 2025-11-01)*
+   - Admin API + `scripts/bug_reports.py` cover listing, resolution, retention purge.
 
-6. **Automated Tests & Docs**
-   - Unit/integration tests for the provider, logger instrumentation, and new REST endpoint.
-   - Update developer documentation covering bug report workflow, trace IDs, and troubleshooting steps.
+6. **Automated Tests & Docs** ✅ *(Completed 2025-11-01)*
+   - Backend tests cover submission + admin routes; docs refreshed in workflow guide.
 
 ### Next Recommended Steps
 

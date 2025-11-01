@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useBugReporter } from '../contexts/BugReportContext'
 import type { AuthStatus } from '../types/shared'
+import type { NsfwPreference } from '@/types/models'
 import '../styles/SettingsMenu.css'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Settings, Bug, LogOut } from 'lucide-react'
 
 interface SettingsMenuProps {
   user: AuthStatus | null
   onLogout: () => void
-  onNsfwToggle?: (enabled: boolean) => void
-  nsfwEnabled?: boolean
+  onNsfwChange?: (preference: NsfwPreference) => void
+  nsfwPreference?: NsfwPreference
 }
 
 /**
@@ -24,8 +26,8 @@ interface SettingsMenuProps {
 const SettingsMenu: React.FC<SettingsMenuProps> = ({
   user,
   onLogout,
-  onNsfwToggle,
-  nsfwEnabled = false,
+  onNsfwChange,
+  nsfwPreference = 'show',
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -75,11 +77,14 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
     openBugReport()
   }, [openBugReport])
 
-  const handleNsfwToggle = useCallback(() => {
-    if (onNsfwToggle) {
-      onNsfwToggle(!nsfwEnabled)
-    }
-  }, [onNsfwToggle, nsfwEnabled])
+  const handleNsfwChange = useCallback(
+    (value: NsfwPreference) => {
+      if (onNsfwChange) {
+        onNsfwChange(value)
+      }
+    },
+    [onNsfwChange],
+  )
 
   const toggleMenu = useCallback(() => {
     setIsOpen((prev) => !prev)
@@ -127,17 +132,25 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
           <div className="settings-divider" />
 
           <div className="settings-options">
-            {/* NSFW Filter Toggle */}
-            <label className="settings-option settings-toggle" htmlFor="nsfw-filter">
-              <span className="settings-option-label">Hide NSFW</span>
-              <input
-                id="nsfw-filter"
-                type="checkbox"
-                checked={nsfwEnabled}
-                onChange={handleNsfwToggle}
-                className="settings-checkbox"
-              />
-            </label>
+            {/* NSFW Preference */}
+            <div className="settings-option settings-select">
+              <div className="settings-option-text">
+                <span className="settings-option-label">NSFW Content</span>
+                <span className="settings-option-description">
+                  Choose how NSFW images appear in galleries.
+                </span>
+              </div>
+              <Select value={nsfwPreference} onValueChange={(value) => handleNsfwChange(value as NsfwPreference)}>
+                <SelectTrigger className="settings-select-trigger" aria-label="NSFW preference">
+                  <SelectValue placeholder="Select preference" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="show">Show</SelectItem>
+                  <SelectItem value="blur">Blur</SelectItem>
+                  <SelectItem value="hide">Hide</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Bug Report (Admin Only) */}
             {isAdmin && (

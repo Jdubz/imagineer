@@ -23,7 +23,21 @@ import type {
   BatchSummary,
   Job,
   GenerateParams,
+  NsfwPreference,
 } from '../types/models'
+
+const NSFW_STORAGE_KEY = 'imagineer.nsfwPreference'
+
+const getStoredNsfwPreference = (): NsfwPreference => {
+  if (typeof window === 'undefined') {
+    return 'show'
+  }
+  const stored = window.localStorage.getItem(NSFW_STORAGE_KEY)
+  if (stored === 'show' || stored === 'blur' || stored === 'hide') {
+    return stored
+  }
+  return 'show'
+}
 
 // ===== Type Definitions =====
 
@@ -49,8 +63,8 @@ interface AppContextValue {
   gallery: GalleryState
 
   // NSFW Filter
-  nsfwEnabled: boolean
-  setNsfwEnabled: (enabled: boolean) => void
+  nsfwPreference: NsfwPreference
+  setNsfwPreference: (preference: NsfwPreference) => void
 
   // Generation Actions
   handleGenerate: (params: GenerateParams) => Promise<void>
@@ -89,7 +103,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loadingBatches, setLoadingBatches] = useState<boolean>(false)
 
   // ===== Other State =====
-  const [nsfwEnabled, setNsfwEnabled] = useState<boolean>(false)
+  const [nsfwPreference, setNsfwPreferenceState] = useState<NsfwPreference>(() => getStoredNsfwPreference())
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(NSFW_STORAGE_KEY, nsfwPreference)
+    }
+  }, [nsfwPreference])
+
+  const setNsfwPreference = useCallback((preference: NsfwPreference) => {
+    setNsfwPreferenceState(preference)
+  }, [])
 
   // ===== Config Fetching =====
   const fetchConfig = useCallback(async (signal?: AbortSignal): Promise<void> => {
@@ -245,8 +269,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       loadingImages,
       loadingBatches,
     },
-    nsfwEnabled,
-    setNsfwEnabled,
+    nsfwPreference,
+    setNsfwPreference,
     handleGenerate,
     fetchConfig,
     fetchImages,
@@ -284,6 +308,6 @@ export const useGeneration = () => {
  * Hook to access only gallery-related state and actions
  */
 export const useGallery = () => {
-  const { gallery, fetchImages, fetchBatches, nsfwEnabled, setNsfwEnabled } = useApp()
-  return { ...gallery, fetchImages, fetchBatches, nsfwEnabled, setNsfwEnabled }
+  const { gallery, fetchImages, fetchBatches, nsfwPreference, setNsfwPreference } = useApp()
+  return { ...gallery, fetchImages, fetchBatches, nsfwPreference, setNsfwPreference }
 }

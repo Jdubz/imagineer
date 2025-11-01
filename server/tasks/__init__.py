@@ -7,6 +7,6 @@ is started via `server.api` or directly through `celery -A server.celery_app`.
 """
 
 # Import task modules so Celery discovers task definitions on import.
-from . import labeling, scraping, training  # noqa: F401
+from . import bug_reports, labeling, scraping, training  # noqa: F401
 
-__all__ = ["labeling", "scraping", "training"]
+__all__ = ["bug_reports", "labeling", "scraping", "training"]

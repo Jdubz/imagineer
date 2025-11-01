@@ -1,0 +1,8 @@
+# List of configuration files copied into the Claude workspace before running auto-fix.
+# Paths are relative to the repository root. Lines starting with "#" are ignored.
+.claude/config.json
+.claude/prompts/
+.codex
+.env.example
+docs/guides/BUG_REPORT_WORKFLOW.md
+docs/plans/BUG_REPORT_AUTOFIX_PIPELINE.md

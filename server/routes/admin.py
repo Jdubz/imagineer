@@ -5,8 +5,9 @@ Administrative endpoints for configuration and resource management.
 from __future__ import annotations
 
 import logging
+import os
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 from flask_login import current_user
 
 from server.auth import ROLE_ADMIN, load_users, require_admin, save_users
@@ -17,6 +18,14 @@ from server.utils.disk_stats import collect_disk_statistics
 logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
+
+
+def _in_testing_mode() -> bool:
+    """Return True when running under pytest to soften noisy log messages."""
+    try:
+        return bool(current_app.testing)  # type: ignore[attr-defined]
+    except Exception:
+        return bool(os.getenv("PYTEST_CURRENT_TEST", ""))
 
 
 def _get_image_or_abort(image_id: int) -> Image:
@@ -74,7 +83,8 @@ def get_disk_statistics_admin():
         stats = collect_disk_statistics()
         return jsonify(stats)
     except FileNotFoundError as exc:
-        logger.warning("admin.disk_stats.missing_path", extra={"error": str(exc)})
+        log_fn = logger.debug if _in_testing_mode() else logger.warning
+        log_fn("admin.disk_stats.missing_path", extra={"error": str(exc)})
         return jsonify({"error": str(exc)}), 404
     except Exception as exc:  # pragma: no cover - defensive
         logger.error("admin.disk_stats.failure", extra={"error": str(exc)}, exc_info=True)

@@ -4,6 +4,8 @@ import type {
   JobsResponse as JobsResponseContract,
 } from './shared'
 
+export type NsfwPreference = 'show' | 'blur' | 'hide'
+
 export interface Config {
   model?: {
     name?: string
@@ -52,6 +54,7 @@ export interface GeneratedImage {
   is_nsfw?: boolean
   is_public?: boolean
   metadata?: ImageMetadata
+  labels?: Label[]
 }
 
 export interface BatchSummary {
@@ -198,6 +201,22 @@ export interface TrainingJob {
   last_error_at?: string | null
 }
 
+export interface TrainingAlbum {
+  id: string
+  name: string
+  image_count: number
+}
+
+export interface TrainingLogResponse {
+  training_run_id: number
+  status: JobStatus
+  progress: number
+  error_message?: string | null
+  log_path: string
+  log_available: boolean
+  logs: string
+}
+
 export interface ScrapingJobRuntime {
   stage?: string
   discovered?: number
@@ -205,6 +224,22 @@ export interface ScrapingJobRuntime {
   progress?: number
   last_message?: string
   updated_at?: string
+}
+
+export interface ScrapingStorageStats {
+  path: string
+  total_gb?: number
+  used_gb?: number
+  free_gb?: number
+  free_percent?: number | null
+  error?: string
+}
+
+export interface ScrapingStats {
+  total_jobs: number
+  total_images_scraped: number
+  recent_jobs: number
+  storage?: ScrapingStorageStats
 }
 
 export interface ScrapingJob {

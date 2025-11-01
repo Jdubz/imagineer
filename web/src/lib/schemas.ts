@@ -152,6 +152,126 @@ export const BatchDetailSchema = z.object({
 })
 
 // ============================================
+// Scraping
+// ============================================
+
+export const ScrapingJobRuntimeSchema = z.object({
+  stage: z.string().optional(),
+  discovered: z.number().optional(),
+  downloaded: z.number().optional(),
+  progress: z.number().optional(),
+  last_message: z.string().optional(),
+  updated_at: z.string().optional(),
+})
+
+export const ScrapingJobStatusSchema = z.enum([
+  'pending',
+  'queued',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'cleaned_up',
+])
+
+export const ScrapingJobSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(value => value.toString()),
+  status: ScrapingJobStatusSchema,
+  url: z.string().optional(),
+  name: z.string().optional(),
+  source_url: z.string().optional(),
+  output_dir: z.string().optional(),
+  output_directory: z.string().optional(),
+  progress: z.number().optional().nullable(),
+  progress_message: z.string().optional(),
+  description: z.string().optional(),
+  runtime: ScrapingJobRuntimeSchema.optional(),
+  created_at: z.string(),
+  completed_at: z.string().optional().nullable(),
+  error: z.string().optional().nullable(),
+  images_scraped: z.number().optional().nullable(),
+  config: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const ScrapingJobsResponseSchema = z.object({
+  jobs: z.array(ScrapingJobSchema),
+})
+
+export const ScrapingStorageStatsSchema = z.object({
+  path: z.string(),
+  total_gb: z.number().optional(),
+  used_gb: z.number().optional(),
+  free_gb: z.number().optional(),
+  free_percent: z.number().optional().nullable(),
+  error: z.string().optional(),
+})
+
+export const ScrapingStatsSchema = z.object({
+  total_jobs: z.number(),
+  total_images_scraped: z.number(),
+  recent_jobs: z.number(),
+  storage: ScrapingStorageStatsSchema.optional(),
+})
+
+export const ScrapingActionResponseSchema = z.object({
+  success: z.boolean().optional(),
+  message: z.string().optional(),
+}).passthrough()
+
+// ============================================
+// Training
+// ============================================
+
+export const TrainingJobSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string().optional().nullable(),
+  status: JobStatusSchema,
+  dataset_path: z.string().optional().nullable(),
+  output_path: z.string().optional().nullable(),
+  training_config: z.union([z.string(), z.record(z.string(), z.unknown())]).optional().nullable(),
+  created_at: z.string(),
+  started_at: z.string().optional().nullable(),
+  completed_at: z.string().optional().nullable(),
+  error_message: z.string().optional().nullable(),
+  error: z.string().optional().nullable(),
+  progress: z.number().optional().nullable(),
+  final_checkpoint: z.string().optional().nullable(),
+  training_loss: z.number().optional().nullable(),
+  validation_loss: z.number().optional().nullable(),
+  last_error_at: z.string().optional().nullable(),
+})
+
+export const TrainingRunsResponseSchema = z.object({
+  training_runs: z.array(TrainingJobSchema),
+})
+
+export const TrainingAlbumSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(value => value.toString()),
+  name: z.string(),
+  image_count: z.number(),
+})
+
+export const TrainingAlbumsResponseSchema = z.object({
+  albums: z.array(TrainingAlbumSchema),
+})
+
+export const TrainingLogResponseSchema = z.object({
+  training_run_id: z.number(),
+  status: JobStatusSchema,
+  progress: z.number(),
+  error_message: z.string().optional().nullable(),
+  log_path: z.string(),
+  log_available: z.boolean(),
+  logs: z.string(),
+})
+
+export const TrainingActionResponseSchema = z.object({
+  success: z.boolean().optional(),
+  message: z.string().optional(),
+}).passthrough()
+
+// ============================================
 // Configuration
 // ============================================
 

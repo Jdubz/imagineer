@@ -162,50 +162,56 @@ Example: `bug_20251029_162130_80da821b.json`
 
 ### Reviewing Reports
 
-#### 1. List All Reports
+### Using the Maintenance CLI
+
+The repository ships with `scripts/bug_reports.py`, which mirrors the admin API:
 
 ```bash
-ls -lth /mnt/storage/imagineer/bug_reports/ | head -20
+# List reports (sorted newest first)
+./scripts/bug_reports.py list
+
+# Show a single report
+./scripts/bug_reports.py show bug_20251029_162130_80da821b
+
+# Mark a report resolved with optional resolution metadata
+./scripts/bug_reports.py update bug_20251029_162130_80da821b \
+  --status resolved \
+  --resolution '{"commit": "abc123", "note": "Patched in hotfix"}'
+
+# Delete reports older than the retention window (dry run first)
+./scripts/bug_reports.py purge --dry-run
+./scripts/bug_reports.py purge
 ```
 
-#### 2. View a Report
+Pass `--root /custom/path` if the storage directory differs from the config.
 
-```bash
-cat /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json | jq .
-```
+### Working with Files Directly
 
-#### 3. Search Reports by Trace ID
+All CLI operations manipulate the underlying JSON files, so you can still
+use standard tooling when needed:
 
-```bash
-grep -r "80da821b" /mnt/storage/imagineer/bug_reports/
-```
+- **List newest reports**
+  ```bash
+  ls -lth /mnt/storage/imagineer/bug_reports/ | head -20
+  ```
 
-This will help you correlate bug reports with backend logs.
+- **Pretty-print a report**
+  ```bash
+  cat /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json | jq .
+  ```
 
-#### 4. Filter by Date
+- **Search by trace ID**
+  ```bash
+  grep -r "80da821b" /mnt/storage/imagineer/bug_reports/
+  ```
 
-```bash
-ls /mnt/storage/imagineer/bug_reports/bug_20251029_* | sort
-```
-
-#### 5. Mark as Resolved
-
-Move to `resolved/` subdirectory:
-
-```bash
-mkdir -p /mnt/storage/imagineer/bug_reports/resolved
-mv /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json \
-   /mnt/storage/imagineer/bug_reports/resolved/
-```
-
-Or update the `status` field:
-
-```bash
-jq '.status = "resolved"' \
-  /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json \
-  > /tmp/temp.json && \
-  mv /tmp/temp.json /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json
-```
+- **Update status manually**
+  ```bash
+  jq '.status = "resolved"' \
+    /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json \
+    > /tmp/temp.json && \
+    mv /tmp/temp.json /mnt/storage/imagineer/bug_reports/bug_20251029_162130_80da821b.json
+  ```
 
 ### Correlating with Backend Logs
 
@@ -310,8 +316,20 @@ In `config.yaml`:
 ```yaml
 bug_reports:
   storage_path: /mnt/storage/imagineer/bug_reports
-  retention_days: 30  # Manual cleanup recommended
+  retention_days: 30  # Purge job + /api/bug-reports/purge honour this value
 ```
+
+### Admin Maintenance API
+
+In addition to the submission endpoint, admins can automate triage through the REST API:
+
+- `GET /api/bug-reports` — Paginated list of reports (`status`, `page`, `per_page` filters).
+- `GET /api/bug-reports/<report_id>` — Retrieve a full report JSON payload.
+- `PATCH /api/bug-reports/<report_id>` — Update `status` (`open`/`resolved`) and append `resolution` metadata.
+- `DELETE /api/bug-reports/<report_id>` — Remove a stored report.
+- `POST /api/bug-reports/purge` — Delete reports older than the retention window (`older_than_days`, `dry_run` supported).
+
+All routes require an authenticated admin session and return JSON suitable for scripting.
 
 ---
 

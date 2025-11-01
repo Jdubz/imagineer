@@ -2,14 +2,19 @@ import { z } from 'zod'
 import { logger } from './logger'
 import { getApiUrl } from './apiConfig'
 import type {
+  Album,
+  BatchSummary,
   Config,
   GeneratedImage,
-  BatchSummary,
+  ImageMetadata,
   Job,
   JobsResponse,
-  Album,
   LabelAnalytics,
-  ImageMetadata,
+  ScrapingJob,
+  ScrapingStats,
+  TrainingAlbum,
+  TrainingJob,
+  TrainingLogResponse,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
@@ -203,6 +208,31 @@ export type GenerateBatchError = {
 }
 
 export type GenerateBatchResult = GenerateBatchSuccess | GenerateBatchError
+
+export interface StartScrapingJobParams {
+  url: string
+  name?: string
+  description?: string
+  depth?: number
+  max_images?: number
+}
+
+export interface CreateTrainingRunParams {
+  name: string
+  description: string
+  album_ids: Array<string | number>
+  config: {
+    steps: number
+    rank: number
+    learning_rate: number
+    batch_size: number
+  }
+}
+
+export interface TrainingLogRequestOptions {
+  tail?: number
+  signal?: AbortSignal
+}
 
 /**
  * Makes a typed API request with Zod validation
@@ -445,6 +475,102 @@ export const api = {
       body: JSON.stringify(params),
       signal,
     })
+  },
+
+  // ============================================
+  // Scraping
+  // ============================================
+
+  scraping: {
+    async getJobs(signal?: AbortSignal): Promise<ScrapingJob[]> {
+      const response = await apiRequest(getApiUrl('/scraping/jobs'), schemas.ScrapingJobsResponseSchema, { signal })
+      return response.jobs || []
+    },
+
+    async getStats(signal?: AbortSignal): Promise<ScrapingStats> {
+      return apiRequest(getApiUrl('/scraping/stats'), schemas.ScrapingStatsSchema, { signal })
+    },
+
+    async startJob(params: StartScrapingJobParams, signal?: AbortSignal): Promise<void> {
+      await apiRequest(getApiUrl('/scraping/start'), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal,
+      })
+    },
+
+    async cancelJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/cancel`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cleanupJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/cleanup`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+  },
+
+  // ============================================
+  // Training
+  // ============================================
+
+  training: {
+    async getRuns(signal?: AbortSignal): Promise<TrainingJob[]> {
+      const response = await apiRequest(getApiUrl('/training'), schemas.TrainingRunsResponseSchema, { signal })
+      return response.training_runs || []
+    },
+
+    async getAlbums(signal?: AbortSignal): Promise<TrainingAlbum[]> {
+      const response = await apiRequest(getApiUrl('/training/albums'), schemas.TrainingAlbumsResponseSchema, { signal })
+      return response.albums || []
+    },
+
+    async getLogs(runId: string | number, options: TrainingLogRequestOptions = {}): Promise<TrainingLogResponse> {
+      const tail = options.tail ?? 500
+      const id = encodeURIComponent(runId.toString())
+      const url = getApiUrl(`/training/${id}/logs?tail=${tail}`)
+      return apiRequest(url, schemas.TrainingLogResponseSchema, { signal: options.signal })
+    },
+
+    async createRun(params: CreateTrainingRunParams, signal?: AbortSignal): Promise<void> {
+      await apiRequest(getApiUrl('/training'), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal,
+      })
+    },
+
+    async startRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/start`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cancelRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/cancel`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cleanupRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/cleanup`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
   },
 
   /**

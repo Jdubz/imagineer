@@ -177,6 +177,22 @@ SERVER_START_TIME = datetime.now(timezone.utc).isoformat()
 
 # Add request timing and performance logging
 @app.before_request
+def block_known_scanners():
+    """Deny requests from known inventory scanners that spam the API."""
+    user_agent = request.headers.get("User-Agent", "")
+    if user_agent and "l9scan" in user_agent.lower():
+        logger.info(
+            "Blocked LeakIX scanner probe",
+            extra={
+                "operation": "scanner_block",
+                "user_agent": user_agent,
+                "ip": request.remote_addr,
+            },
+        )
+        return jsonify({"error": "Forbidden"}), 403
+
+
+@app.before_request
 def before_request():
     """Log request start and set timing"""
     from flask import g

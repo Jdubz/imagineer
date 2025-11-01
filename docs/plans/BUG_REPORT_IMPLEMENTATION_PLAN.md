@@ -25,10 +25,10 @@ Complete the bug report capture tool that allows admin users to submit detailed 
 - Type definitions for bug reports
 - `ErrorBoundary` + settings menu integration (Ctrl+Shift+B shortcut, modal launch, trace ID display)
 
-### ❌ Outstanding (Backend Ops Tooling)
-- Admin workflow to list & triage stored reports
-- Automated retention (delete reports older than `retention_days`)
-- Runbook documenting the review/cleanup steps
+### ✅ Backend Ops Tooling (Delivered 2025-11-01)
+- Admin REST + CLI workflow to list, inspect, resolve, and delete reports
+- Automated retention job (`POST /api/bug-reports/purge` + `celery` task)
+- Updated runbook in `docs/guides/BUG_REPORT_WORKFLOW.md`
 
 ---
 
@@ -915,16 +915,16 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 ## Implementation Checklist
 
 ### Backend
-- [ ] Create `server/middleware/trace_id.py`
-- [ ] Create `server/utils/error_handler.py`
-- [ ] Create `server/routes/bug_reports.py`
-- [ ] Register trace ID middleware in `server/api.py`
-- [ ] Update all error handlers to use structured format
-- [ ] Register bug_reports blueprint in `server/api.py`
-- [ ] Add bug_reports config to `config.yaml`
-- [ ] Add BUG_REPORTS_PATH to `.env.example`
-- [ ] Test /api/bug-reports endpoint
-- [ ] Verify trace IDs in response headers
+- [x] Create `server/middleware/trace_id.py`
+- [x] Create `server/utils/error_handler.py`
+- [x] Create `server/routes/bug_reports.py`
+- [x] Register trace ID middleware in `server/api.py`
+- [x] Update all error handlers to use structured format
+- [x] Register bug_reports blueprint in `server/api.py`
+- [x] Add bug_reports config to `config.yaml`
+- [x] Add BUG_REPORTS_PATH to `.env.example`
+- [x] Test /api/bug-reports endpoint
+- [x] Verify trace IDs in response headers
 
 ### Frontend - Settings Menu
 - [ ] Create `web/src/components/SettingsMenu.tsx`

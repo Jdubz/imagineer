@@ -2,21 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
 import '../styles/TrainingTab.css'
-import type { TrainingJob, JobStatus } from '../types/models'
+import type { TrainingJob, JobStatus, TrainingAlbum } from '../types/models'
 import { Button } from '@/components/ui/button'
 import { Plus, X, Play, StopCircle, Trash2, FileText, Copy } from 'lucide-react'
-
-// Helper function to clamp progress values between 0 and 100
-const clampProgress = (value: number | null | undefined): number => {
-  if (typeof value !== 'number') return 0
-  return Math.min(100, Math.max(0, value))
-}
-
-interface TrainingAlbum {
-  id: string
-  name: string
-  image_count: number
-}
+import { api, ApiError } from '@/lib/api'
+import { formatErrorMessage } from '@/lib/errorUtils'
+import { clampPercentOrDefault, getJobStatusColor } from '@/lib/adminJobs'
 
 interface TrainingConfig {
   steps: number
@@ -30,24 +21,6 @@ interface TrainingFormData {
   description: string
   album_ids: string[]
   config: TrainingConfig
-}
-
-interface TrainingRunsResponse {
-  training_runs: TrainingJob[]
-}
-
-interface AlbumsResponse {
-  albums: TrainingAlbum[]
-}
-
-interface TrainingLogResponse {
-  training_run_id: number
-  status: JobStatus
-  progress: number
-  error_message?: string | null
-  log_path: string
-  log_available: boolean
-  logs: string
 }
 
 interface TrainingTabProps {
@@ -132,13 +105,17 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     if (!isAdmin) return
     try {
       setLoading(true)
-      const response = await fetch('/api/training', {
-        credentials: 'include',
-      })
-      const data: TrainingRunsResponse = await response.json()
-      setTrainingRuns(data.training_runs || [])
+      const runs = await api.training.getRuns()
+      setTrainingRuns(runs)
+      setError(null)
     } catch (err) {
-      setError('Failed to fetch training runs')
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setTrainingRuns([])
+        setError('Admin access required to manage training runs.')
+      } else {
+        const message = formatErrorMessage(err, 'Failed to fetch training runs')
+        setError(message)
+      }
       logger.error('Error fetching training runs:', err)
     } finally {
       setLoading(false)
@@ -148,11 +125,8 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const fetchAlbums = useCallback(async (): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch('/api/training/albums', {
-        credentials: 'include',
-      })
-      const data: AlbumsResponse = await response.json()
-      setAlbums(data.albums || [])
+      const albumList = await api.training.getAlbums()
+      setAlbums(albumList)
     } catch (err) {
       logger.error('Error fetching albums:', err)
     }
@@ -172,15 +146,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     const runIdStr = String(runId)
     setLogState((prev) => ({ ...prev, loading: true, error: null }))
     try {
-      const response = await fetch(`/api/training/${runIdStr}/logs?tail=500`, {
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch logs (status ${response.status})`)
-      }
-
-      const data: TrainingLogResponse = await response.json()
+      const data = await api.training.getLogs(runIdStr, { tail: 500 })
       setLogState((prev) => ({
         ...prev,
         runId: runIdStr,
@@ -197,7 +163,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
         setLogState((prev) => ({ ...prev, runId: null }))
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load logs'
+      const message = formatErrorMessage(err, 'Failed to load logs')
       setLogState((prev) => ({ ...prev, loading: false, error: message }))
     }
   }, [])
@@ -301,35 +267,23 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     if (!isAdmin) return
 
     try {
-      const response = await fetch('/api/training', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await api.training.createRun(formData)
+      setShowCreateDialog(false)
+      setFormData({
+        name: '',
+        description: '',
+        album_ids: [],
+        config: {
+          steps: 1000,
+          rank: 4,
+          learning_rate: 0.0001,
+          batch_size: 1,
         },
-        credentials: 'include',
-        body: JSON.stringify(formData),
       })
-
-      if (response.ok) {
-        setShowCreateDialog(false)
-        setFormData({
-          name: '',
-          description: '',
-          album_ids: [],
-          config: {
-            steps: 1000,
-            rank: 4,
-            learning_rate: 0.0001,
-            batch_size: 1
-          }
-        })
-        fetchTrainingRuns()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to create training run')
-      }
+      await fetchTrainingRuns()
     } catch (err) {
-      setError('Failed to create training run')
+      const message = formatErrorMessage(err, 'Failed to create training run')
+      setError(message)
       logger.error('Error creating training run:', err)
     }
   }
@@ -337,19 +291,11 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const handleStartTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${String(runId)}/start`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (response.ok) {
-        fetchTrainingRuns()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to start training')
-      }
+      await api.training.startRun(runId)
+      await fetchTrainingRuns()
     } catch (err) {
-      setError('Failed to start training')
+      const message = formatErrorMessage(err, 'Failed to start training')
+      setError(message)
       logger.error('Error starting training:', err)
     }
   }
@@ -357,19 +303,11 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const handleCancelTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${String(runId)}/cancel`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (response.ok) {
-        fetchTrainingRuns()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to cancel training')
-      }
+      await api.training.cancelRun(runId)
+      await fetchTrainingRuns()
     } catch (err) {
-      setError('Failed to cancel training')
+      const message = formatErrorMessage(err, 'Failed to cancel training')
+      setError(message)
       logger.error('Error cancelling training:', err)
     }
   }
@@ -377,31 +315,12 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   const handleCleanupTraining = async (runId: number | string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/training/${String(runId)}/cleanup`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (response.ok) {
-        fetchTrainingRuns()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to cleanup training')
-      }
+      await api.training.cleanupRun(runId)
+      await fetchTrainingRuns()
     } catch (err) {
-      setError('Failed to cleanup training')
+      const message = formatErrorMessage(err, 'Failed to cleanup training')
+      setError(message)
       logger.error('Error cleaning up training:', err)
-    }
-  }
-
-  const getStatusColor = (status: JobStatus): string => {
-    switch (status) {
-      case 'completed': return '#4CAF50'
-      case 'running': return '#2196F3'
-      case 'failed': return '#F44336'
-      case 'cancelled': return '#FF9800'
-      case 'queued': return '#FFC107'
-      default: return '#9E9E9E'
     }
   }
 
@@ -463,7 +382,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
             const maybeAlbumIds = Array.isArray(config?.album_ids) ? config?.album_ids : undefined
             const runIdStr = String(run.id)
             const errorMessage = run.error_message ?? run.error ?? null
-            const progressPercent = clampProgress(run.progress)
+            const progressPercent = clampPercentOrDefault(run.progress)
 
             return (
               <div key={run.id} className="training-run-card">
@@ -471,7 +390,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
                   <h3>{run.name || `Training run ${runIdStr}`}</h3>
                   <span
                     className="status-badge"
-                    style={{ backgroundColor: getStatusColor(run.status) }}
+                    style={{ backgroundColor: getJobStatusColor(run.status) }}
                   >
                     {run.status.toUpperCase()}
                   </span>

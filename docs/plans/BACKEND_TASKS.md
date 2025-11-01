@@ -4,16 +4,11 @@ Completed items from the previous backlog have been moved to `docs/plans/archive
 
 ## Priority P1
 
-### B-1: Ship Bug Report Review & Retention Tooling
-- **Why it matters:** Admins can submit detailed bug reports (`server/routes/bug_reports.py`), but there is no supported workflow to list, triage, or expire them. Reports will accumulate indefinitely on disk.
-- **Current state:**
-  - Only a POST handler exists; no CLI or API for listing or marking reports resolved.
-  - No retention job deletes reports older than the configured window (`config.yaml` declares `retention_days`, but nothing consumes it).
-- **Definition of done:**
-  1. Provide either a CLI (`scripts/bug_reports.py`) or authenticated admin endpoints to list, filter, and update report status.
-  2. Implement a retention process (Celery beat or cron-friendly CLI) that purges reports older than the configured threshold.
-  3. Document the review workflow in `docs/guides/BUG_REPORT_WORKFLOW.md`.
-  4. Add unit/contract tests covering the new endpoints or CLI helpers.
+### B-1: Ship Bug Report Review & Retention Tooling ✅ (Delivered 2025-11-01)
+- Admin REST endpoints + CLI now cover listing, detail, status updates, deletion, and retention purges.
+- Celery task `server.tasks.bug_reports.purge_stale_reports` honours `bug_reports.retention_days`.
+- Documentation updated (`docs/guides/BUG_REPORT_WORKFLOW.md`) with new workflow and CLI usage.
+- Tests added in `tests/backend/test_bug_reports.py` to cover list/detail/update/delete/purge paths.
 
 ## Priority P2
 

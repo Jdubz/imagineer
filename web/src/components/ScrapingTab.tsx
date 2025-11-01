@@ -2,46 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
 import '../styles/ScrapingTab.css'
-import type { ScrapingJob } from '../types/models'
+import type { ScrapingJob, ScrapingStats } from '../types/models'
 import { validateForm, scrapeFormSchema } from '../lib/validation'
 import { Button } from '@/components/ui/button'
 import { Plus, StopCircle, Trash2, X } from 'lucide-react'
-
-// Helper function to clamp progress values between 0 and 100
-const clampProgress = (value: number | null | undefined): number | undefined => {
-  return typeof value === 'number' ? Math.min(100, Math.max(0, value)) : undefined
-}
-
-const formatGigabytes = (value?: number | null): string => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return 'N/A'
-  }
-  const fractionDigits = value < 10 ? 1 : 0
-  return `${value.toLocaleString(undefined, {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: 1,
-  })} GB`
-}
-
-interface StorageStats {
-  path: string
-  total_gb?: number
-  used_gb?: number
-  free_gb?: number
-  free_percent?: number | null
-  error?: string
-}
-
-interface ScrapingStats {
-  total_jobs: number
-  total_images_scraped: number
-  recent_jobs: number
-  storage?: StorageStats
-}
-
-interface ScrapingJobsResponse {
-  jobs: ScrapingJob[]
-}
+import { api, ApiError } from '@/lib/api'
+import { formatErrorMessage } from '@/lib/errorUtils'
+import { clampPercent, formatGigabytes, getJobStatusColor } from '@/lib/adminJobs'
 
 interface ScrapingTabProps {
   isAdmin?: boolean
@@ -57,21 +24,16 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
   const fetchJobs = useCallback(async (): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch('/api/scraping/jobs', {
-        credentials: 'include',
-      })
-      if (response.ok) {
-        const data: ScrapingJobsResponse = await response.json()
-        setScrapeJobs(data.jobs || [])
-        setError(null)
-      } else if (response.status === 401 || response.status === 403) {
+      const jobs = await api.scraping.getJobs()
+      setScrapeJobs(jobs)
+      setError(null)
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setScrapeJobs([])
         setError('You need admin access to view scrape jobs.')
-      } else {
-        setError('Failed to fetch scrape jobs')
+        return
       }
-    } catch (err) {
-      setError('Error fetching scrape jobs')
+      setError(formatErrorMessage(err, 'Error fetching scrape jobs'))
       logger.error('Error fetching jobs:', err)
     }
   }, [isAdmin])
@@ -79,14 +41,14 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
   const fetchStats = useCallback(async (): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch('/api/scraping/stats', {
-        credentials: 'include',
-      })
-      if (response.ok) {
-        const data: ScrapingStats = await response.json()
-        setStats(data)
-      }
+      const data = await api.scraping.getStats()
+      setStats(data)
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setStats(null)
+        setError('You need admin access to view scrape stats.')
+        return
+      }
       logger.error('Error fetching stats:', err)
     }
   }, [isAdmin])
@@ -119,31 +81,19 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
     setError(null)
 
     try {
-      const response = await fetch('/api/scraping/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          url,
-          name,
-          description,
-          depth,
-          max_images: maxImages
-        })
+      await api.scraping.startJob({
+        url,
+        name,
+        description,
+        depth,
+        max_images: maxImages,
       })
 
-      if (response.ok) {
-        await response.json() // Consume response
-        await fetchJobs()
-        setShowStartDialog(false)
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to start scrape job')
-      }
+      await Promise.all([fetchJobs(), fetchStats()])
+      setShowStartDialog(false)
     } catch (err) {
-      setError('Error starting scrape job')
+      const message = formatErrorMessage(err, 'Failed to start scrape job')
+      setError(message)
       logger.error('Error starting scrape:', err)
     } finally {
       setLoading(false)
@@ -153,18 +103,10 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
   const cancelJob = async (jobId: string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/scraping/jobs/${jobId}/cancel`, {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        await fetchJobs()
-      } else {
-        setError('Failed to cancel job')
-      }
+      await api.scraping.cancelJob(jobId)
+      await fetchJobs()
     } catch (err) {
-      setError('Error cancelling job')
+      setError(formatErrorMessage(err, 'Failed to cancel job'))
       logger.error('Error cancelling job:', err)
     }
   }
@@ -172,31 +114,11 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
   const cleanupJob = async (jobId: string): Promise<void> => {
     if (!isAdmin) return
     try {
-      const response = await fetch(`/api/scraping/jobs/${jobId}/cleanup`, {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        await fetchJobs()
-      } else {
-        setError('Failed to cleanup job')
-      }
+      await api.scraping.cleanupJob(jobId)
+      await fetchJobs()
     } catch (err) {
-      setError('Error cleaning up job')
+      setError(formatErrorMessage(err, 'Failed to cleanup job'))
       logger.error('Error cleaning up job:', err)
-    }
-  }
-
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'pending': return '#f39c12'
-      case 'running': return '#3498db'
-      case 'completed': return '#27ae60'
-      case 'failed': return '#e74c3c'
-      case 'cancelled': return '#95a5a6'
-      case 'cleaned_up': return '#7f8c8d'
-      default: return '#95a5a6'
     }
   }
 
@@ -285,7 +207,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
             const runtime = job.runtime ?? {}
             const jobUrl = job.url ?? job.source_url ?? 'Unknown URL'
             const outputDir = job.output_dir ?? job.output_directory
-            const progressPercent = clampProgress(job.progress) ?? clampProgress(runtime.progress)
+            const progressPercent = clampPercent(job.progress) ?? clampPercent(runtime.progress)
             const progressMessage = job.progress_message ?? runtime.last_message ?? ''
 
             return (
@@ -294,7 +216,7 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
                   <h3>{jobUrl}</h3>
                   <span
                     className="status-badge"
-                    style={{ backgroundColor: getStatusColor(job.status) }}
+                    style={{ backgroundColor: getJobStatusColor(job.status) }}
                   >
                     {job.status}
                   </span>

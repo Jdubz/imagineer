@@ -65,13 +65,13 @@ describe('ImageCard', () => {
     })
   })
 
-  describe('NSFW Filtering', () => {
+  describe('NSFW handling', () => {
     const nsfwImage: GeneratedImage = {
       ...mockImage,
       is_nsfw: true,
     }
 
-    it('hides NSFW images when hideNsfw is true (default)', () => {
+    it('hides NSFW images when preference is hide (default)', () => {
       const { container } = render(
         <ImageCard image={nsfwImage} />
       )
@@ -79,15 +79,24 @@ describe('ImageCard', () => {
       expect(container.firstChild).toBeNull()
     })
 
-    it('shows NSFW images when hideNsfw is false', () => {
-      render(<ImageCard image={nsfwImage} hideNsfw={false} />)
+    it('shows NSFW images when preference is show', () => {
+      render(<ImageCard image={nsfwImage} nsfwPreference="show" />)
 
       const img = screen.getByRole('img')
       expect(img).toBeInTheDocument()
     })
 
+    it('blurs NSFW images when preference is blur', () => {
+      render(<ImageCard image={nsfwImage} nsfwPreference="blur" />)
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveClass('blurred')
+      expect(screen.getByLabelText(/nsfw content blurred/i)).toBeInTheDocument()
+      expect(screen.getByText(/blurred/i)).toBeInTheDocument()
+    })
+
     it('shows NSFW badge on NSFW images when visible', () => {
-      render(<ImageCard image={nsfwImage} hideNsfw={false} />)
+      render(<ImageCard image={nsfwImage} nsfwPreference="show" />)
 
       expect(screen.getByText('18+')).toBeInTheDocument()
       expect(screen.getByLabelText('NSFW content')).toBeInTheDocument()
@@ -97,7 +106,7 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={nsfwImage}
-          hideNsfw={false}
+          nsfwPreference="show"
           showNsfwBadge={false}
         />
       )
@@ -204,7 +213,7 @@ describe('ImageCard', () => {
       const { container } = render(
         <ImageCard
           image={{ ...mockImage, is_nsfw: true }}
-          hideNsfw={false}
+          nsfwPreference="show"
         />
       )
 

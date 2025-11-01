@@ -28,7 +28,7 @@ const AppContent: React.FC = () => {
   const location = useLocation()
   const { user, logout, setUser } = useAuth()
   const { openBugReport, registerCollector } = useBugReporter()
-  const { generation, gallery, nsfwEnabled, setNsfwEnabled } = useApp()
+  const { generation, gallery, nsfwPreference, setNsfwPreference } = useApp()
 
   // Tab configuration
   const tabs: Tab[] = [
@@ -91,7 +91,7 @@ const AppContent: React.FC = () => {
         },
         current_job: jobSnapshot,
         queue_position: generation.queuePosition,
-        nsfw_enabled: nsfwEnabled,
+        nsfw_preference: nsfwPreference,
         images_preview: imagePreview,
         batches_preview: batchPreview,
       }
@@ -110,7 +110,7 @@ const AppContent: React.FC = () => {
     gallery.batches,
     gallery.loadingImages,
     gallery.loadingBatches,
-    nsfwEnabled,
+    nsfwPreference,
     activeTab,
   ])
 
@@ -129,8 +129,8 @@ const AppContent: React.FC = () => {
               <SettingsMenu
                 user={user}
                 onLogout={logout}
-                onNsfwToggle={setNsfwEnabled}
-                nsfwEnabled={nsfwEnabled}
+                onNsfwChange={setNsfwPreference}
+                nsfwPreference={nsfwPreference}
               />
             ) : (
               <AuthButton onAuthChange={setUser} />
