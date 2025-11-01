@@ -10,8 +10,8 @@ This guide covers setting up Google OAuth for user authentication in the Imagine
 
 The OAuth flow was constructing the redirect URI without the `/api/` prefix:
 ```
-❌ WRONG: http://imagineer.joshwentworth.com/auth/google/callback
-✓ CORRECT: http://imagineer.joshwentworth.com/api/auth/google/callback
+❌ WRONG: https://imagineer.joshwentworth.com/auth/google/callback
+✓ CORRECT: https://api.imagineer.joshwentworth.com/api/auth/google/callback
 ```
 
 **Root Cause**: Flask's `url_for()` function with multiple route decorators was choosing the route without the `/api/` prefix.
@@ -49,6 +49,7 @@ http://127.0.0.1:3000
 **Production:**
 ```
 https://imagineer.joshwentworth.com
+https://api.imagineer.joshwentworth.com
 https://imagineer-generator.web.app
 https://imagineer-generator.firebaseapp.com
 ```
@@ -67,7 +68,7 @@ http://127.0.0.1:10050/api/auth/google/callback
 
 **Production:**
 ```
-https://imagineer.joshwentworth.com/api/auth/google/callback
+https://api.imagineer.joshwentworth.com/api/auth/google/callback
 ```
 
 ### 4. Copy Credentials
@@ -98,7 +99,7 @@ python3 -c 'import secrets; print(secrets.token_hex(32))'
 ### How It Works
 
 1. **User clicks "Login with Google"** → Frontend calls `/api/auth/login`
-2. **Server redirects to Google** → With redirect_uri=`https://imagineer.joshwentworth.com/api/auth/google/callback`
+2. **Server redirects to Google** → With redirect_uri=`https://api.imagineer.joshwentworth.com/api/auth/google/callback`
 3. **User authenticates with Google** → Google redirects back to our callback
 4. **Callback processes token** → `/api/auth/google/callback` receives the OAuth token
 5. **Session created** → User is logged in, role determined from `users.json`
@@ -195,7 +196,7 @@ Roles are stored in `server/users.json`:
 
 **Solution**:
 1. Check that Google Cloud Console has the correct redirect URI
-2. Ensure it includes `/api/`: `https://imagineer.joshwentworth.com/api/auth/google/callback`
+2. Ensure it includes `/api/`: `https://api.imagineer.joshwentworth.com/api/auth/google/callback`
 3. Make sure the protocol matches (http vs https)
 4. Restart the API server after environment changes
 
@@ -257,7 +258,7 @@ Roles are stored in `server/users.json`:
 
 **What Changed:**
 - Fixed redirect URI construction in `server/api.py` to always include `/api/` prefix
-- Server now correctly sends: `https://imagineer.joshwentworth.com/api/auth/google/callback`
+- Server now correctly sends: `https://api.imagineer.joshwentworth.com/api/auth/google/callback`
 
 **What You Need to Do:**
 1. Update Google Cloud Console authorized redirect URIs to include `/api/`
@@ -266,5 +267,5 @@ Roles are stored in `server/users.json`:
 
 **Correct Redirect URI for Production:**
 ```
-https://imagineer.joshwentworth.com/api/auth/google/callback
+https://api.imagineer.joshwentworth.com/api/auth/google/callback
 ```

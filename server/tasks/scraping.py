@@ -181,7 +181,7 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
     from server.api import app
 
     with app.app_context():
-        job = ScrapeJob.query.get(scrape_job_id)
+        job = db.session.get(ScrapeJob, scrape_job_id)
         if not job:
             return {"status": "error", "message": "Job not found"}
 
@@ -465,7 +465,7 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     Returns:
         Dict with import results
     """
-    job = ScrapeJob.query.get(scrape_job_id)
+    job = db.session.get(ScrapeJob, scrape_job_id)
     if not job:
         return {"imported": 0, "album_id": None}
 
@@ -623,7 +623,7 @@ def cleanup_scrape_job(scrape_job_id):
     from server.api import app
 
     with app.app_context():
-        job = ScrapeJob.query.get(scrape_job_id)
+        job = db.session.get(ScrapeJob, scrape_job_id)
         if not job:
             return {"status": "error", "message": "Job not found"}
 

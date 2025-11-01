@@ -80,6 +80,17 @@ class RequestContextFilter(logging.Filter):
         return True
 
 
+class SafeTextFormatter(logging.Formatter):
+    """Plain-text formatter resilient to missing context attributes."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        if not hasattr(record, "trace_id"):
+            record.trace_id = None
+        if not hasattr(record, "user_email"):
+            record.user_email = None
+        return super().format(record)
+
+
 class JSONFormatter(logging.Formatter):
     """Format logs as JSON for structured logging"""
 
@@ -219,7 +230,7 @@ def configure_logging(app):
     if console_format == "json":
         console_handler.setFormatter(JSONFormatter())
     else:
-        console_formatter = logging.Formatter(
+        console_formatter = SafeTextFormatter(
             "%(asctime)s - %(levelname)s - %(name)s - %(message)s "
             "[trace_id=%(trace_id)s user=%(user_email)s]"
         )

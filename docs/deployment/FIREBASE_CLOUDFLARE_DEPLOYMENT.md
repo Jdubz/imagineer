@@ -465,6 +465,25 @@ firebase init hosting
 }
 ```
 
+#### 3.4 Add Custom Domain & Verify DNS
+1. In the Firebase Console, go to **Hosting → Add custom domain** and enter `imagineer.joshwentworth.com`.
+2. Firebase will show a TXT verification record (host + value). Copy it exactly.
+3. Create that TXT record in Cloudflare with the proxy **disabled**:
+   ```bash
+   # Example — replace with the host/value Firebase gives you
+   cloudflare dns create \
+     --zone joshwentworth.com \
+     --type TXT \
+     --name _firebase-imagineer \
+     --content "firebase=long-token-from-firebase" \
+     --ttl 3600 \
+     --proxied false
+   ```
+4. Wait until Firebase confirms domain ownership (can take several minutes).
+5. After verification, Firebase will provide the routing record:
+   - For `imagineer.joshwentworth.com` (a subdomain) add a **CNAME** to `ghs.googlehosted.com`, proxy **off**.
+   - For an apex domain, Firebase instead gives you A/AAAA records—add each one with proxy **off**.
+
 **File:** `.firebaserc`
 ```json
 {
@@ -488,7 +507,7 @@ firebase init hosting
 }
 ```
 
-#### 3.4 Build and Deploy Scripts
+#### 3.5 Build and Deploy Scripts
 **File:** `package.json` (add to root)
 ```json
 {
