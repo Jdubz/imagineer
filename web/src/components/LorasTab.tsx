@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
-import { api, ApiError } from '../lib/api'
+import { api } from '../lib/api'
+import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
 import '../styles/LorasTab.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw } from 'lucide-react'
@@ -27,13 +28,14 @@ const LorasTab: React.FC = () => {
       const data = await api.loras.getAll()
       setLoras(data || [])
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      if (isAuthError(err)) {
         logger.warn('LoRA catalogue requires admin authentication')
         setError('Admin authentication required to view available LoRAs.')
         return
       }
       logger.error('Failed to fetch LoRAs:', err)
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const errorMessage = formatErrorMessage(err, 'Failed to fetch LoRAs')
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

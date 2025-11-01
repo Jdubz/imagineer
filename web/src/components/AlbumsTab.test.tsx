@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import AlbumsTab from './AlbumsTab'
-import { ToastProvider } from '../contexts/ToastContext'
 
 describe('AlbumsTab admin labeling integration', () => {
   const originalFetch = globalThis.fetch
@@ -122,9 +121,7 @@ describe('AlbumsTab admin labeling integration', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <ToastProvider>
-          <AlbumsTab isAdmin />
-        </ToastProvider>
+        <AlbumsTab isAdmin />
       </MemoryRouter>
     )
 
@@ -149,9 +146,7 @@ describe('AlbumsTab admin labeling integration', () => {
 
     render(
       <MemoryRouter>
-        <ToastProvider>
-          <AlbumsTab isAdmin={false} />
-        </ToastProvider>
+        <AlbumsTab isAdmin={false} />
       </MemoryRouter>
     )
 

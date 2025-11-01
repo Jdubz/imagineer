@@ -95,7 +95,7 @@ Watch it deploy: https://github.com/joshbwentworth/imagineer/actions
 
 Visit these URLs:
 - ✅ https://imagineer.joshwentworth.com (React app)
-- ✅ https://imagineer.joshwentworth.com/api/health (API)
+- ✅ https://api.imagineer.joshwentworth.com/api/health (API)
 - ✅ https://imagineer.joshwentworth.com/auth/login (OAuth login)
 
 ## Total Time: ~20 minutes

@@ -1,0 +1,163 @@
+import { useCallback, memo } from 'react'
+import type { GeneratedImage } from '../../types/models'
+import { resolveImageSources, preloadImage } from '../../lib/imageSources'
+import '../../styles/ImageCard.css'
+
+export interface ImageCardProps {
+  /**
+   * The image data to display
+   */
+  image: GeneratedImage
+
+  /**
+   * Whether to hide NSFW images
+   * When true, images with is_nsfw will not be rendered
+   * @default true
+   */
+  hideNsfw?: boolean
+
+  /**
+   * Callback when image is clicked
+   */
+  onImageClick?: (image: GeneratedImage) => void
+
+  /**
+   * Number of labels on this image (for badge)
+   */
+  labelCount?: number
+
+  /**
+   * Whether to show the NSFW badge (18+) on NSFW images
+   * @default true
+   */
+  showNsfwBadge?: boolean
+
+  /**
+   * Whether to show the label badge (🏷️) when labels exist
+   * @default true
+   */
+  showLabelBadge?: boolean
+
+  /**
+   * Whether to show the prompt below the image
+   * @default true
+   */
+  showPrompt?: boolean
+
+  /**
+   * Additional CSS classes to apply to the card container
+   */
+  className?: string
+
+  /**
+   * Custom sizes attribute for responsive images
+   * @default "(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
+   */
+  sizes?: string
+}
+
+/**
+ * Common reusable image card component with NSFW filtering and badges
+ *
+ * Features:
+ * - NSFW filtering (hide when hideNsfw=true and is_nsfw=true)
+ * - NSFW badge (18+) display
+ * - Label badge (🏷️) display
+ * - Responsive images with srcSet
+ * - Lazy loading
+ * - Hover preloading
+ * - Optional prompt display
+ * - Configurable click handler
+ *
+ * @example
+ * ```tsx
+ * <ImageCard
+ *   image={image}
+ *   hideNsfw={nsfwEnabled}
+ *   onImageClick={handleOpenModal}
+ *   labelCount={image.labels?.length}
+ * />
+ * ```
+ */
+const ImageCard = memo<ImageCardProps>(({
+  image,
+  hideNsfw = true,
+  onImageClick,
+  labelCount = 0,
+  showNsfwBadge = true,
+  showLabelBadge = true,
+  showPrompt = true,
+  className = '',
+  sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw',
+}) => {
+  const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
+
+  const handlePreload = useCallback(() => {
+    preloadImage(full)
+  }, [full])
+
+  const handleClick = useCallback(() => {
+    if (onImageClick) {
+      onImageClick(image)
+    }
+  }, [image, onImageClick])
+
+  const hasLabels = labelCount > 0
+  const isNsfw = image.is_nsfw === true
+
+  // Hide NSFW images when filter is enabled
+  if (hideNsfw && isNsfw) {
+    return null
+  }
+
+  return (
+    <div
+      className={`image-card ${isNsfw ? 'nsfw' : ''} ${className}`}
+      onMouseEnter={handlePreload}
+    >
+      <picture className="image-picture">
+        {thumbnail.endsWith('.webp') && <source srcSet={srcSet} type="image/webp" />}
+        <img
+          src={thumbnail}
+          srcSet={srcSet}
+          sizes={sizes}
+          alt={alt || image.filename}
+          loading="lazy"
+          decoding="async"
+          onClick={handleClick}
+          className={`image-thumbnail ${onImageClick ? 'clickable' : ''}`}
+        />
+      </picture>
+
+      {/* NSFW Badge */}
+      {isNsfw && showNsfwBadge && (
+        <div className="nsfw-badge" aria-label="NSFW content">
+          18+
+        </div>
+      )}
+
+      {/* Label Badge */}
+      {hasLabels && showLabelBadge && (
+        <div className="label-badge" aria-label={`${labelCount} labels`} title={`${labelCount} label(s)`}>
+          🏷️
+          {labelCount > 1 && <span className="label-count">{labelCount}</span>}
+        </div>
+      )}
+
+      {/* Prompt (optional) */}
+      {showPrompt && image.metadata?.prompt && (
+        <div className="image-prompt">
+          <p>
+            {image.metadata.prompt.length > 50
+              ? `${image.metadata.prompt.substring(0, 50)}...`
+              : image.metadata.prompt}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+})
+
+ImageCard.displayName = 'ImageCard'
+
+export default ImageCard

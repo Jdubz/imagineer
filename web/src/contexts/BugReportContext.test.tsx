@@ -1,23 +1,29 @@
 import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SpyInstance } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { BugReportProvider, useBugReporter } from './BugReportContext'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
+import type { Toast } from '../hooks/use-toast'
 import { logger } from '../lib/logger'
 
-const mocks = vi.hoisted(() => ({
-  success: vi.fn<[string], void>(),
-  error: vi.fn<[string], void>(),
+interface MockImplementations {
+  toast: ReturnType<typeof vi.fn<[Toast], void>>
+  submit: ReturnType<typeof vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>>
+}
+
+const mocks = vi.hoisted<MockImplementations>(() => ({
+  toast: vi.fn<[Toast], void>(),
   submit: vi.fn<[BugReportOptions], Promise<BugReportSubmissionResponse>>(),
 }))
 
-vi.mock('../hooks/useToast', () => ({
+vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
-    success: mocks.success,
-    error: mocks.error,
+    toast: mocks.toast,
+    dismiss: vi.fn(),
+    toasts: [],
   }),
 }))
 
@@ -57,15 +63,23 @@ const CollectorComponent: React.FC = () => {
   )
 }
 
-const renderWithProvider = (ui: React.ReactElement): void => {
-  render(<BugReportProvider>{ui}</BugReportProvider>)
+const renderWithProvider = async (ui: React.ReactElement): Promise<void> => {
+  await act(async () => {
+    render(<BugReportProvider>{ui}</BugReportProvider>)
+    await Promise.resolve()
+  })
+}
+
+const flushAsync = async (): Promise<void> => {
+  await act(async () => {
+    await Promise.resolve()
+  })
 }
 
 describe('BugReportProvider', () => {
   beforeEach(() => {
     mocks.submit.mockReset()
-    mocks.success.mockReset()
-    mocks.error.mockReset()
+    mocks.toast.mockReset()
     setupFetch()
   })
 
@@ -76,9 +90,13 @@ describe('BugReportProvider', () => {
   it('opens the modal with a prefilled description when openBugReport is invoked', async () => {
     const user = userEvent.setup()
 
-    renderWithProvider(<CollectorComponent />)
+    await renderWithProvider(<CollectorComponent />)
+    await flushAsync()
 
-    await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    })
+    await flushAsync()
 
     const modal = await screen.findByRole('dialog', { name: /report a bug/i })
     expect(modal).toBeInTheDocument()
@@ -96,23 +114,38 @@ describe('BugReportProvider', () => {
       stored_at: '/tmp/bug.json',
     })
 
-    renderWithProvider(<CollectorComponent />)
+    await renderWithProvider(<CollectorComponent />)
+    await flushAsync()
 
-    logger.info('first log entry')
+    act(() => {
+      logger.info('first log entry')
+    })
 
-    await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    })
+    await flushAsync()
 
-    await fetch('/api/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' },
-      body: JSON.stringify({ foo: 'bar' }),
+    await act(async () => {
+      await fetch('/api/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' },
+        body: JSON.stringify({ foo: 'bar' }),
+      })
     })
 
     const textarea = await screen.findByLabelText<HTMLTextAreaElement>(/what went wrong/i)
-    await user.clear(textarea)
-    await user.type(textarea, 'New description')
+    await act(async () => {
+      await user.clear(textarea)
+    })
+    await act(async () => {
+      await user.type(textarea, 'New description')
+    })
 
-    await user.click(screen.getByRole('button', { name: /submit report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /submit report/i }))
+    })
+    await flushAsync()
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(1))
 
@@ -122,7 +155,10 @@ describe('BugReportProvider', () => {
     expect(payload.recentLogs.length).toBeGreaterThan(0)
     expect(payload.networkEvents.length).toBeGreaterThan(0)
 
-    expect(mocks.success).toHaveBeenCalledWith(expect.stringMatching(/saved/i))
-    expect(mocks.error).not.toHaveBeenCalled()
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: expect.stringMatching(/saved/i),
+      })
+    )
   })
 })

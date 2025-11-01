@@ -9,7 +9,7 @@ on:
 jobs:
   frontend-unit-tests:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
 
   backend-unit-tests:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,8 +70,11 @@ jobs:
           IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
           IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
 
-  deploy:
+  deploy-frontend:
     runs-on: ubuntu-latest
+    needs:
+      - frontend-unit-tests
+      - backend-unit-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
@@ -91,3 +94,74 @@ jobs:
       - name: Build production bundle
         working-directory: web
         run: npm run deploy:build
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Configure Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |2
+          set -euo pipefail
+          CREDS_PATH="${RUNNER_TEMP}/firebase-service-account.json"
+          python <<'PYCODE'
+          import textwrap
+
+          exec(
+              textwrap.dedent(
+                  """
+                  import base64
+                  import json
+                  import os
+                  import sys
+
+                  raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").strip()
+                  if not raw:
+                      sys.exit("FIREBASE_SERVICE_ACCOUNT secret is empty")
+
+                  def write_credentials(data: str) -> None:
+                      path = os.environ["RUNNER_TEMP"] + "/firebase-service-account.json"
+                      with open(path, "w", encoding="utf-8") as fh:
+                          fh.write(data)
+
+                  try:
+                      json.loads(raw)
+                  except json.JSONDecodeError:
+                      try:
+                          decoded = base64.b64decode(raw).decode("utf-8")
+                          json.loads(decoded)
+                          write_credentials(decoded)
+                      except Exception as exc:  # pylint: disable=broad-except
+                          raise SystemExit(f"Unable to decode FIREBASE_SERVICE_ACCOUNT: {exc}")
+                  else:
+                      write_credentials(raw)
+                  """
+              )
+          )
+          PYCODE
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${CREDS_PATH}" >> "${GITHUB_ENV}"
+
+      - name: Deploy to Firebase Hosting
+        run: firebase deploy --only hosting:imagineer --project static-sites-257923
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs:
+      - backend-unit-tests
+      - deploy-frontend
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy backend via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd /home/jdubz/Development/imagineer
+            if [ ! -x scripts/deploy/backend-release.sh ]; then
+              echo "backend-release.sh missing or not executable" >&2
+              exit 1
+            fi
+            ./scripts/deploy/backend-release.sh

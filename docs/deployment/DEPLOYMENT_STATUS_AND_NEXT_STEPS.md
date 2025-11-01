@@ -44,37 +44,27 @@
    - Cheat sheets and quick references ready
    - Terraform configuration documented
 
-### ❌ Not Yet Completed
+### ✅ Recently Completed
 
 1. **Backend API Service**
-   - Status: No systemd service running
-   - Port 10050: Not in use
-   - Needs: systemd service setup and start
+   - Systemd unit installed and controlled by `scripts/deploy/backend-release.sh`
+   - GitHub Actions SSH deploy configured (`deploy-backend` job)
 
 2. **Production Environment Variables**
-   - Needs: Actual secret values (not placeholders)
-   - Needs: FLASK_SECRET_KEY generation
-   - Needs: ANTHROPIC_API_KEY (for AI labeling)
-   - Needs: Google OAuth credentials review
+   - `.env.production` populated with real values (Google OAuth, Flask secret, etc.)
 
-3. **Cloudflare Tunnel Systemd Service**
-   - Tunnel exists but not running as a service
-   - Needs: systemd service configuration for auto-start
+3. **GitHub Secrets**
+   - `FIREBASE_SERVICE_ACCOUNT`, `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY` configured for workflows
 
-4. **GitHub Secrets**
-   - Needs: Configure secrets for CI/CD
-   - FIREBASE_SERVICE_ACCOUNT
-   - CLOUDFLARE_API_TOKEN
-   - Other deployment credentials
+4. **Frontend Deployment**
+   - Firebase Hosting deploy now happens from GitHub Actions (`deploy-frontend` job)
 
-5. **Terraform Infrastructure**
-   - Needs: terraform.tfvars configuration
-   - Needs: Initial `terraform apply`
-   - DNS, WAF, rate limiting setup
+### ⏳ Still Outstanding
 
-6. **Auto-Deployment Webhook**
-   - webhook-listener.py exists but not running
-   - Needs: systemd service setup (optional)
+1. **Cloudflare DNS & Tunnel Update**
+   - Add the Firebase-provided TXT verification record for `imagineer.joshwentworth.com`, then point it at Firebase Hosting once verification succeeds (TXT step still pending)
+   - Keep the API served via Cloudflare Tunnel (`api.imagineer.joshwentworth.com`)
+   - After propagation, verify HTTPS endpoints and update Terraform state/docs if needed
 
 ---
 
@@ -123,7 +113,7 @@ nano web/.env.production
 Required values:
 ```bash
 # API endpoint (via Cloudflare Tunnel)
-VITE_API_URL=https://imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
 
 # Google OAuth Client ID (same as backend)
 VITE_GOOGLE_CLIENT_ID=<from Google Cloud Console>
@@ -286,7 +276,7 @@ cloudflared --version  # Should show 2025.10.0 or newer
 
 ```bash
 # Test via Cloudflare Tunnel
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 
 # Should return same response as localhost
 ```
@@ -457,7 +447,7 @@ After completing deployment, verify all components:
 curl http://localhost:10050/api/health
 
 # Public (via tunnel)
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 
 # Both should return:
 # {"status":"ok",...}
@@ -484,13 +474,13 @@ curl -I https://imagineer.joshwentworth.com
 ### API Endpoints Working
 ```bash
 # Test config endpoint
-curl https://imagineer.joshwentworth.com/api/config
+curl https://api.imagineer.joshwentworth.com/api/config
 
 # Test sets endpoint
-curl https://imagineer.joshwentworth.com/api/sets
+curl https://api.imagineer.joshwentworth.com/api/sets
 
 # Test auth endpoint
-curl https://imagineer.joshwentworth.com/api/auth/me
+curl https://api.imagineer.joshwentworth.com/api/auth/me
 ```
 
 ### Frontend Integration
@@ -589,6 +579,8 @@ sudo systemctl restart imagineer-api
 ```python
 # server/api.py - should include Firebase URL
 ALLOWED_ORIGINS = [
+    'https://imagineer.joshwentworth.com',
+    'https://api.imagineer.joshwentworth.com',
     'https://imagineer-generator.web.app',
     'https://imagineer-generator.firebaseapp.com',
     'http://localhost:3000',
@@ -599,15 +591,15 @@ ALLOWED_ORIGINS = [
 **Check frontend .env:**
 ```bash
 # web/.env.production
-VITE_API_URL=https://imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
 ```
 
 ### Issue: OAuth not working
 
 **Verify OAuth redirect URIs in Google Cloud Console:**
-- https://imagineer-generator.web.app/auth/google/callback
-- https://imagineer.joshwentworth.com/auth/google/callback
-- http://localhost:3000/auth/google/callback (development)
+- https://api.imagineer.joshwentworth.com/api/auth/google/callback
+- http://localhost:10050/api/auth/google/callback (development)
+- http://localhost:5173/api/auth/google/callback (development Vite)
 
 ---
 
@@ -634,7 +626,7 @@ If you want to get deployed ASAP, do just these steps:
 1. **Configure .env files** (15 min)
    - Generate FLASK_SECRET_KEY
    - Add Google OAuth credentials
-   - Set VITE_API_URL in frontend
+   - Set VITE_API_BASE_URL in frontend
 
 2. **Start backend service** (15 min)
    - Create systemd service

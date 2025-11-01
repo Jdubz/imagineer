@@ -553,7 +553,7 @@ prod-status:
 # Manual deployment trigger
 prod-deploy:
 	@echo "🚀 Triggering manual deployment..."
-	bash scripts/deploy/auto-deploy.sh
+	bash scripts/deploy/backend-release.sh
 	@echo ""
 	@echo "✅ Deployment complete!"
 	@echo "   Run 'make prod-status' to verify"

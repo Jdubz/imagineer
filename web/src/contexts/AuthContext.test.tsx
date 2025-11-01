@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method, @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor, renderHook } from '@testing-library/react'
+import { render, waitFor, renderHook, act } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { AuthProvider, useAuth } from './AuthContext'
 import type { AuthStatus } from '../types/shared'
@@ -15,8 +15,12 @@ vi.mock('../lib/logger', () => ({
 }))
 
 describe('AuthContext', () => {
+  let defaultFetchMock: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    defaultFetchMock = vi.fn().mockResolvedValue({ status: 204 })
+    vi.stubGlobal('fetch', defaultFetchMock)
   })
 
   afterEach(() => {
@@ -25,7 +29,7 @@ describe('AuthContext', () => {
   })
 
   describe('AuthProvider', () => {
-    it('renders children', () => {
+    it('renders children', async () => {
       const { getByText } = render(
         <AuthProvider>
           <div>Test Child</div>
@@ -33,9 +37,12 @@ describe('AuthContext', () => {
       )
 
       expect(getByText('Test Child')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(defaultFetchMock).toHaveBeenCalled()
+      })
     })
 
-    it('initializes with loading state', () => {
+    it('initializes with loading state', async () => {
       const TestComponent = () => {
         const { loading } = useAuth()
         return <div>{loading ? 'Loading' : 'Not Loading'}</div>
@@ -54,6 +61,9 @@ describe('AuthContext', () => {
       )
 
       expect(getByText('Loading')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled()
+      })
     })
 
     it('calls checkAuth on mount', async () => {
@@ -69,12 +79,9 @@ describe('AuthContext', () => {
       )
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/auth/me', {
+        expect(mockFetch).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
           credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-          },
-        })
+        }))
       })
     })
 
@@ -328,7 +335,9 @@ describe('AuthContext', () => {
       })
 
       expect(result.current.user).toBeNull()
-      expect(logger.error).toHaveBeenCalledWith('Failed to check auth', mockError)
+      // The error is logged twice: once in apiRequest, once in checkAuth
+      expect(logger.error).toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledWith('Failed to check auth', expect.any(Error))
     })
 
     it('handles JSON parsing errors gracefully', async () => {
@@ -379,7 +388,9 @@ describe('AuthContext', () => {
       expect(callCount).toBe(1)
 
       // Call checkAuth manually
-      await result.current.checkAuth()
+      await act(async () => {
+        await result.current.checkAuth()
+      })
 
       expect(callCount).toBe(2)
     })
@@ -420,7 +431,9 @@ describe('AuthContext', () => {
       })
       vi.stubGlobal('fetch', mockLogoutFetch1)
 
-      await result.current.logout()
+      await act(async () => {
+        await result.current.logout()
+      })
 
       await waitFor(() => {
         expect(result.current.user).toBeNull()
@@ -456,12 +469,18 @@ describe('AuthContext', () => {
       })
       vi.stubGlobal('fetch', mockLogoutFetch2)
 
-      await expect(result.current.logout()).rejects.toThrow('Internal Server Error')
+      await expect(
+        act(async () => {
+          await result.current.logout()
+        })
+      ).rejects.toThrow('Internal Server Error')
     })
 
     it('logs error on logout failure', async () => {
       const mockFetch = vi.fn()
       vi.stubGlobal('fetch', mockFetch)
+
+      // Initial checkAuth on mount
       mockFetch.mockResolvedValueOnce({
         status: 204,
       })
@@ -477,10 +496,26 @@ describe('AuthContext', () => {
       })
 
       const logoutError = new Error('Logout failed')
-      const mockLogoutFetch4 = vi.fn().mockRejectedValueOnce(logoutError)
-      vi.stubGlobal('fetch', mockLogoutFetch4)
+      // Logout call that will fail
+      mockFetch.mockRejectedValueOnce(logoutError)
+      // Any subsequent calls (e.g. checkAuth after error) return 204
+      // This prevents race conditions where checkAuth is called after logout fails
+      mockFetch.mockResolvedValue({
+        status: 204,
+      })
 
-      await expect(result.current.logout()).rejects.toThrow('Logout failed')
+      let logoutFailed = false
+      try {
+        await act(async () => {
+          await result.current.logout()
+        })
+      } catch (error) {
+        logoutFailed = true
+        expect(error).toBe(logoutError)
+      }
+
+      expect(logoutFailed).toBe(true)
+      // Verify logger.error was called with the logout error at some point
       expect(logger.error).toHaveBeenCalledWith('Failed to logout', logoutError)
     })
 
@@ -507,7 +542,11 @@ describe('AuthContext', () => {
       })
       vi.stubGlobal('fetch', mockLogoutFetch3)
 
-      await expect(result.current.logout()).rejects.toThrow('Unexpected logout response')
+      await expect(
+        act(async () => {
+          await result.current.logout()
+        })
+      ).rejects.toThrow('Unexpected logout response')
     })
   })
 
@@ -535,7 +574,9 @@ describe('AuthContext', () => {
         role: 'viewer',
       }
 
-      result.current.setUser(newUser)
+      act(() => {
+        result.current.setUser(newUser)
+      })
 
       await waitFor(() => {
         expect(result.current.user).toEqual(newUser)
@@ -568,7 +609,9 @@ describe('AuthContext', () => {
         expect(result.current.user).toEqual(mockUser)
       })
 
-      result.current.setUser(null)
+      act(() => {
+        result.current.setUser(null)
+      })
 
       await waitFor(() => {
         expect(result.current.user).toBeNull()
@@ -748,14 +791,18 @@ describe('AuthContext', () => {
         role: 'viewer',
       }
 
-      result.current.setUser(viewerUser)
+      act(() => {
+        result.current.setUser(viewerUser)
+      })
 
       await waitFor(() => {
         expect(result.current.user).toEqual(viewerUser)
       })
 
       // Transition to null
-      result.current.setUser(null)
+      act(() => {
+        result.current.setUser(null)
+      })
 
       await waitFor(() => {
         expect(result.current.user).toBeNull()

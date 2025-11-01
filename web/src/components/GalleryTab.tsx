@@ -2,26 +2,11 @@ import React, { useState } from 'react'
 import BatchList from './BatchList'
 import BatchGallery from './BatchGallery'
 import ImageGrid from './ImageGrid'
-import type { BatchSummary, GeneratedImage } from '../types/models'
+import { useGallery } from '../contexts/AppContext'
 import '../styles/GalleryTab.css'
 
-interface GalleryTabProps {
-  batches: BatchSummary[]
-  images: GeneratedImage[]
-  onRefreshImages: () => Promise<void>
-  onRefreshBatches: () => Promise<void>
-  loadingImages?: boolean
-  loadingBatches?: boolean
-}
-
-const GalleryTab: React.FC<GalleryTabProps> = ({
-  batches,
-  images,
-  onRefreshImages,
-  onRefreshBatches,
-  loadingImages = false,
-  loadingBatches = false,
-}) => {
+const GalleryTab: React.FC = () => {
+  const { images, batches, loadingImages, loadingBatches, fetchImages, fetchBatches } = useGallery()
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
 
   const handleSelectBatch = (batchId: string): void => {
@@ -30,7 +15,7 @@ const GalleryTab: React.FC<GalleryTabProps> = ({
 
   const handleBackToList = (): void => {
     setSelectedBatchId(null)
-    void onRefreshBatches()
+    void fetchBatches()
   }
 
   return (
@@ -43,7 +28,7 @@ const GalleryTab: React.FC<GalleryTabProps> = ({
             <h2>🖼️ Recent Images</h2>
             <ImageGrid
               images={images}
-              onRefresh={onRefreshImages}
+              onRefresh={fetchImages}
               loading={loadingImages}
             />
           </section>

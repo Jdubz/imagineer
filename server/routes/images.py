@@ -11,7 +11,15 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request, send_file, send_from_directory
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    jsonify,
+    request,
+    send_file,
+    send_from_directory,
+)
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 
@@ -80,6 +88,13 @@ def _attach_image_to_album(image_id: int, album_id: int | None, added_by: str | 
     db.session.add(assoc)
 
 
+def _get_image_or_404(image_id: int) -> Image:
+    image = db.session.get(Image, image_id)
+    if image is None:
+        abort(404, description="Image not found")
+    return image
+
+
 def _upload_rate_settings() -> tuple[int, int]:
     """Return per-admin upload rate limit configuration."""
     limit_default = int(os.environ.get("IMAGINEER_UPLOAD_RATE_LIMIT", "6"))
@@ -136,7 +151,7 @@ def list_images():
 @images_bp.route("/<int:image_id>", methods=["GET"])
 def get_image(image_id: int):
     """Get specific image details (public)."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
     if not image.is_public:
         return jsonify({"error": "Image not found"}), 404
 
@@ -284,7 +299,7 @@ def upload_images():
 @require_admin
 def delete_image(image_id: int):
     """Delete image (admin only)."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
 
     filepath = Path(image.file_path)
     if filepath.exists():
@@ -303,7 +318,7 @@ def delete_image(image_id: int):
 @require_admin
 def add_label(image_id: int):
     """Add label to image (admin only)."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
     data = request.json or {}
 
     label_text = (data.get("text") or "").strip()
@@ -383,7 +398,7 @@ def _prepare_label_updates(payload: dict[str, object]) -> tuple[dict[str, object
 @images_bp.route("/<int:image_id>/file", methods=["GET"])
 def get_image_file(image_id: int):
     """Serve the original image file when permitted."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
 
     if not image.is_public and not _is_admin_user():
         return jsonify({"error": "Image not found"}), 404
@@ -404,7 +419,7 @@ def get_image_file(image_id: int):
 @require_admin
 def list_labels(image_id: int):
     """List labels for an image (admin only)."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
     return jsonify({"image_id": image.id, "labels": [label.to_dict() for label in image.labels]})
 
 
@@ -506,7 +521,7 @@ def delete_label(image_id: int, label_id: int):
 @images_bp.route("/<int:image_id>/thumbnail", methods=["GET"])
 def get_thumbnail(image_id: int):  # noqa: C901
     """Get image thumbnail (300px, public)."""
-    image = Image.query.get_or_404(image_id)
+    image = _get_image_or_404(image_id)
     is_admin_requester = _is_admin_user()
     if not image.is_public and not is_admin_requester:
         return jsonify({"error": "Image not found"}), 404

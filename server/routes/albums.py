@@ -22,6 +22,20 @@ def _is_admin_user() -> bool:
         return False
 
 
+def _load_album_or_abort(album_id: int, options: Any | None = None) -> Album:
+    query = db.session.query(Album)
+    if options:
+        if isinstance(options, (list, tuple)):
+            for option in options:
+                query = query.options(option)
+        else:
+            query = query.options(options)
+    album = query.filter(Album.id == album_id).one_or_none()
+    if album is None:
+        abort(404, description="Album not found")
+    return album
+
+
 @albums_bp.route("", methods=["GET"])
 def list_albums():
     """List all albums (public, with pagination)"""
@@ -65,7 +79,7 @@ def get_album(album_id):
     if include_labels:
         loader = loader.joinedload(Image.labels)
 
-    album = Album.query.options(loader).get_or_404(album_id)
+    album = _load_album_or_abort(album_id, loader)
     if not album.is_public and not _is_admin_user():
         # Avoid leaking the existence of private albums to anonymous users
         abort(404)
@@ -100,9 +114,9 @@ def get_album(album_id):
 @require_admin
 def album_labeling_analytics(album_id: int):
     """Return aggregated labeling statistics for an album (admin only)."""
-    album = Album.query.options(
-        joinedload(Album.album_images).joinedload(AlbumImage.image)
-    ).get_or_404(album_id)
+    album = _load_album_or_abort(
+        album_id, joinedload(Album.album_images).joinedload(AlbumImage.image)
+    )
 
     image_ids = [association.image_id for association in album.album_images if association.image_id]
     distinct_image_ids = list({image_id for image_id in image_ids if image_id is not None})
@@ -247,7 +261,7 @@ def create_album():
 @require_admin
 def update_album(album_id):
     """Update album (admin only)"""
-    album = Album.query.get_or_404(album_id)
+    album = _load_album_or_abort(album_id)
     data = request.json
 
     if "name" in data:
@@ -275,7 +289,7 @@ def update_album(album_id):
 @require_admin
 def delete_album(album_id):
     """Delete album (admin only)"""
-    album = Album.query.get_or_404(album_id)
+    album = _load_album_or_abort(album_id)
 
     db.session.delete(album)
     db.session.commit()
@@ -314,7 +328,7 @@ def _apply_template_fields(album: Album, data: dict[str, Any]) -> None:
 def add_images_to_album(album_id):
     """Add images to album (admin only)"""
     # Verify album exists
-    Album.query.get_or_404(album_id)
+    _load_album_or_abort(album_id)
     data = request.json
 
     image_ids = data.get("image_ids", [])

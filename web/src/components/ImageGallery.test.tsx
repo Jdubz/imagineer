@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ImageGallery from './ImageGallery'
+import { AppProvider } from '../contexts/AppContext'
+import { AuthProvider } from '../contexts/AuthContext'
+import { BugReportProvider } from '../contexts/BugReportContext'
 import type { GeneratedImage } from '../types/models'
 
 const makeImage = (overrides: Partial<GeneratedImage> = {}): GeneratedImage => ({
@@ -17,6 +20,15 @@ const makeImage = (overrides: Partial<GeneratedImage> = {}): GeneratedImage => (
   },
 })
 
+// Wrapper to provide necessary contexts for ImageGallery
+const Wrapper = ({ children }: { children: React.ReactNode }) => (
+  <AuthProvider>
+    <BugReportProvider>
+      <AppProvider>{children}</AppProvider>
+    </BugReportProvider>
+  </AuthProvider>
+)
+
 describe('ImageGallery', () => {
   const mockImages: GeneratedImage[] = [
     makeImage({ filename: 'test1.png', path: '/outputs/test1.png' }),
@@ -24,13 +36,13 @@ describe('ImageGallery', () => {
   ]
 
   it('renders empty state when no images', () => {
-    render(<ImageGallery images={[]} />)
+    render(<ImageGallery images={[]} />, { wrapper: Wrapper })
 
     expect(screen.getByText(/no images yet/i)).toBeInTheDocument()
   })
 
   it('renders all images', () => {
-    render(<ImageGallery images={mockImages} />)
+    render(<ImageGallery images={mockImages} />, { wrapper: Wrapper })
 
     const images = screen.getAllByRole('img')
     expect(images).toHaveLength(mockImages.length)
@@ -38,7 +50,7 @@ describe('ImageGallery', () => {
 
   it('opens and closes the modal', async () => {
     const user = userEvent.setup()
-    render(<ImageGallery images={mockImages} />)
+    render(<ImageGallery images={mockImages} />, { wrapper: Wrapper })
 
     const firstImage = screen.getAllByRole('img')[0]
     await user.click(firstImage)

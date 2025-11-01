@@ -136,7 +136,6 @@ from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 from server.routes.generation import generation_bp, get_generation_health  # noqa: E402
 from server.routes.images import images_bp, outputs_bp  # noqa: E402
-from server.routes.labels import labels_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
@@ -146,7 +145,6 @@ app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)
-app.register_blueprint(labels_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(generation_bp)
 

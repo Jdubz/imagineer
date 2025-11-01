@@ -9,7 +9,7 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { logger, type LogEntry } from '../lib/logger'
-import { useToast } from '../hooks/useToast'
+import { useToast } from '../hooks/use-toast'
 import type {
   BugReportEnvironmentSnapshot,
   BugReportOptions,
@@ -177,7 +177,7 @@ const serializeLogEntry = (entry: LogEntry): LogSnapshot => ({
 })
 
 export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }) => {
-  const toast = useToast()
+  const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [prefilledDescription, setPrefilledDescription] = useState<string | undefined>(undefined)
@@ -386,12 +386,12 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
 
         const response: BugReportSubmissionResponse = await api.bugReports.submit(payload)
 
-        toast.success('Bug report saved for review. Thank you!')
+        toast({ title: 'Success', description: 'Bug report saved for review. Thank you!' })
         logger.info('Bug report submitted', response)
         closeBugReport()
       } catch (error) {
         logger.error('Failed to submit bug report', error as Error)
-        toast.error('Failed to submit bug report. Please try again.')
+        toast({ title: 'Error', description: 'Failed to submit bug report. Please try again.', variant: 'destructive' })
       } finally {
         setIsSubmitting(false)
       }

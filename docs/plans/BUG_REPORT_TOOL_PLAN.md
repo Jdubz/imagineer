@@ -12,6 +12,13 @@
 
 ### Gaps / Work Remaining
 
+7. **Screenshot Capture (Planned)**
+   - Capture screenshot automatically on submission using `html2canvas`.
+   - Provide preview + include checkbox (default on), no retake option.
+   - Allow simple red annotations before sending.
+   - On failure, alert user, continue submission, record failure in bug report JSON.
+   - Store `{report_id}/screenshot.png` alongside other report artifacts.
+
 1. **Server-Side Storage & API**
    - Build `/api/bug-reports` endpoint to persist reports locally on the server (filesystem or database).
    - Define storage schema (JSONL, SQLite table, etc.) including captured logs, network traces, client metadata, and optional trace IDs.

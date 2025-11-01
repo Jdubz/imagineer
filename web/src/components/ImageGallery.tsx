@@ -1,6 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useCallback, memo } from 'react'
 import type { GeneratedImage } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import ImageCard from './common/ImageCard'
+import { useApp } from '../contexts/AppContext'
 import {
   Dialog,
   DialogContent,
@@ -12,7 +14,8 @@ interface ImageGalleryProps {
   images?: GeneratedImage[]
 }
 
-const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
+const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
+  const { nsfwEnabled } = useApp()
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const selectedSources = useMemo(
     () => (selectedImage ? resolveImageSources(selectedImage) : null),
@@ -25,6 +28,14 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
     }
   }, [selectedSources?.full])
 
+  const openModal = useCallback((image: GeneratedImage): void => {
+    setSelectedImage(image)
+  }, [])
+
+  const closeModal = useCallback((): void => {
+    setSelectedImage(null)
+  }, [])
+
   if (images.length === 0) {
     return (
       <div className="image-gallery">
@@ -33,46 +44,21 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
     )
   }
 
-  const openModal = (image: GeneratedImage): void => {
-    setSelectedImage(image)
-  }
-
-  const closeModal = (): void => {
-    setSelectedImage(null)
-  }
-
   return (
     <div className="image-gallery">
       <div className="image-grid">
         {images.map((image, index) => {
-          const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
           const imageKey = image.filename ?? (image.id ? `image-${image.id}` : `${index}`)
-
           return (
-            <div key={imageKey} className="image-item" onMouseEnter={() => preloadImage(full)}>
-              <picture>
-                {thumbnail.endsWith('.webp') && <source srcSet={srcSet} type="image/webp" />}
-                <img
-                  src={thumbnail}
-                  srcSet={srcSet}
-                  sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
-                  alt={alt || image.filename}
-                  loading="lazy"
-                  decoding="async"
-                  onClick={() => openModal(image)}
-                  className="gallery-image"
-                />
-              </picture>
-              <div className="image-prompt">
-                {image.metadata?.prompt ? (
-                  <p>
-                    {image.metadata.prompt.length > 50
-                      ? `${image.metadata.prompt.substring(0, 50)}...`
-                      : image.metadata.prompt}
-                  </p>
-                ) : null}
-              </div>
-            </div>
+            <ImageCard
+              key={imageKey}
+              image={image}
+              hideNsfw={nsfwEnabled}
+              onImageClick={openModal}
+              showNsfwBadge={true}
+              showLabelBadge={false}
+              className="gallery-image-card"
+            />
           )
         })}
       </div>
@@ -118,6 +104,8 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images = [] }) => {
       </Dialog>
     </div>
   )
-}
+})
+
+ImageGallery.displayName = 'ImageGallery'
 
 export default ImageGallery

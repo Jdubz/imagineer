@@ -260,7 +260,7 @@ class TestNSFWClassification:
         assert result["status"] == "success"
 
         with client.application.app_context():
-            updated_image = Image.query.get(image_id)
+            updated_image = db.session.get(Image, image_id)
             assert updated_image.is_nsfw is False
 
     @patch("server.services.labeling_cli.label_image_with_claude")
@@ -284,7 +284,7 @@ class TestNSFWClassification:
         assert result["status"] == "success"
 
         with client.application.app_context():
-            updated_image = Image.query.get(image_id)
+            updated_image = db.session.get(Image, image_id)
             assert updated_image.is_nsfw is True
 
     @patch("server.services.labeling_cli.label_image_with_claude")

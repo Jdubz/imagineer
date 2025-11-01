@@ -107,7 +107,7 @@ class TestAlbumAPI:
 
         # Verify album is deleted
         with client.application.app_context():
-            deleted_album = Album.query.get(album_id)
+            deleted_album = db.session.get(Album, album_id)
             assert deleted_album is None
 
     def test_add_images_to_album_admin(self, client, mock_admin_auth):
@@ -316,7 +316,7 @@ class TestImageAPI:
 
             # Verify image is deleted from database
             with client.application.app_context():
-                deleted_image = Image.query.get(image_id)
+                deleted_image = db.session.get(Image, image_id)
                 assert deleted_image is None
 
     @patch("pathlib.Path.mkdir")
@@ -404,7 +404,7 @@ class TestImageAPI:
             assert response.status_code == 200
 
         with client.application.app_context():
-            persisted = Image.query.get(image_id)
+            persisted = db.session.get(Image, image_id)
             assert persisted is not None
             assert persisted.thumbnail_path == f"thumbnails/{image_id}.webp"
 

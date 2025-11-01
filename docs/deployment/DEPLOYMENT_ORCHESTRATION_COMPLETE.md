@@ -207,7 +207,7 @@ nano web/.env.production
 ```
 
 Required settings:
-- `VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api`
+- `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
 - `VITE_APP_PASSWORD` (should be in GitHub Secrets)
 
 ### 3. Terraform Variables
@@ -255,7 +255,7 @@ make prod-status
 
 # Test endpoints
 curl http://localhost:10050/api/health
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 curl -I https://imagineer-generator.web.app
 ```
 
@@ -266,8 +266,8 @@ curl -I https://imagineer-generator.web.app
 - Alternative: https://imagineer-generator.firebaseapp.com
 
 **API:**
-- Public: https://imagineer.joshwentworth.com/api
-- Health: https://imagineer.joshwentworth.com/api/health
+- Public: https://api.imagineer.joshwentworth.com/api
+- Health: https://api.imagineer.joshwentworth.com/api/health
 - Local: http://localhost:10050/api
 
 **Dashboards:**

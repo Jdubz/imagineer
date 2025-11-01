@@ -1,67 +1,82 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
-import { ApiError } from '../lib/api'
-import { useToast } from '../hooks/useToast'
-import { usePolling } from '../hooks/usePolling'
+import { useToast } from '../hooks/use-toast'
+import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
 import type { JobsResponse } from '../types/models'
+import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
 import '../styles/QueueTab.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw } from 'lucide-react'
 
-const QueueTab: React.FC = () => {
-  const toast = useToast()
-  const [queueData, setQueueData] = useState<JobsResponse | null>(null)
+const QueueTab: React.FC = memo(() => {
+  const { toast } = useToast()
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
   const [authError, setAuthError] = useState<boolean>(false)
 
-  const fetchQueueData = useCallback(async (): Promise<void> => {
+  const fetchQueueData = useCallback(async (): Promise<JobsResponse> => {
     try {
       const data = await api.jobs.getAll()
-      setQueueData(data)
       setAuthError(false)  // Clear auth error on successful fetch
+      return data
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        // Admin authentication required
+      if (isAuthError(error)) {
+        // Admin authentication required - return empty state instead of throwing
         setAuthError(true)
         logger.warn('Queue access requires admin authentication')
-        return
+        return { current: null, queue: [], history: [] }
       }
       logger.error('Failed to fetch queue data:', error)
-      toast.error('Failed to load job queue')
+      const errorMessage = formatErrorMessage(error, 'Failed to load job queue')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      // Return empty data for non-auth errors to allow adaptive polling to reset
+      return { current: null, queue: [], history: [] }
     }
   }, [toast])
 
-  // Initial fetch on mount
-  useEffect(() => {
-    void fetchQueueData()
-  }, [fetchQueueData])
-
-  // Polling with proper cleanup and memory leak prevention
-  usePolling(fetchQueueData, {
-    interval: 2000,
+  // Adaptive polling: fast when jobs running, slow when idle
+  const queueData = useAdaptivePolling(fetchQueueData, {
+    activeInterval: 2000,   // 2s when job is running (1,800 req/hour)
+    mediumInterval: 10000,  // 10s when jobs queued (360 req/hour - 80% reduction)
+    baseInterval: 30000,    // 30s when idle (120 req/hour - 93% reduction)
     enabled: autoRefresh,
     pauseWhenHidden: true,
+    getActivityLevel: (data) => {
+      // Fast polling when a job is currently running
+      if (data?.current) return 'active'
+      // Medium polling when jobs are queued
+      if (data?.queue && data.queue.length > 0) return 'medium'
+      // Slow polling when completely idle
+      return 'idle'
+    },
   })
 
-  const formatDate = (dateString?: string | null): string => {
+  const formatDate = useCallback((dateString?: string | null): string => {
     if (!dateString) return '-'
     const date = new Date(dateString)
     return date.toLocaleString()
-  }
+  }, [])
 
-  const formatDuration = (startTime?: string | null, endTime?: string | null): string => {
+  const formatDuration = useCallback((startTime?: string | null, endTime?: string | null): string => {
     if (!startTime || !endTime) return '-'
     const start = new Date(startTime)
     const end = new Date(endTime)
     const seconds = Math.floor((end.getTime() - start.getTime()) / 1000)
     return `${seconds}s`
-  }
+  }, [])
 
-  const getStatusBadge = (status: string): JSX.Element => {
+  const getStatusBadge = useCallback((status: string): JSX.Element => {
     const statusClass = `status-badge status-${status}`
     return <span className={statusClass}>{status}</span>
-  }
+  }, [])
+
+  const handleAutoRefreshChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setAutoRefresh(e.target.checked)
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    void fetchQueueData()
+  }, [fetchQueueData])
 
   if (authError) {
     return (
@@ -69,7 +84,7 @@ const QueueTab: React.FC = () => {
         <div className="auth-error-banner">
           <h3>🔒 Admin Authentication Required</h3>
           <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
-          <Button onClick={fetchQueueData} variant="outline">
+          <Button onClick={handleRefresh} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -91,11 +106,11 @@ const QueueTab: React.FC = () => {
             <input
               type="checkbox"
               checked={autoRefresh}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoRefresh(e.target.checked)}
+              onChange={handleAutoRefreshChange}
             />
             Auto-refresh
           </label>
-          <Button onClick={fetchQueueData} variant="outline">
+          <Button onClick={handleRefresh} variant="outline">
             <RotateCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -233,6 +248,8 @@ const QueueTab: React.FC = () => {
       </section>
     </div>
   )
-}
+})
+
+QueueTab.displayName = 'QueueTab'
 
 export default QueueTab

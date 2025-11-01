@@ -55,6 +55,7 @@ outputs/
 checkpoints/
 data/training/*
 !data/training/README.md
+data/legacy/
 
 # Backups
 *.backup-*

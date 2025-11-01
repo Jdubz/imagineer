@@ -1,23 +1,13 @@
 import React from 'react'
 import GenerateForm from './GenerateForm'
-import type { Config, GenerateParams, Job } from '../types/models'
+import { useGeneration } from '../contexts/AppContext'
 
 interface GenerateTabProps {
-  config: Config | null
-  loading: boolean
-  queuePosition: number | null
-  currentJob: Job | null
-  onGenerate: (params: GenerateParams) => Promise<void>
   isAdmin: boolean
 }
 
-const GenerateTab: React.FC<GenerateTabProps> = ({
-  config,
-  loading,
-  queuePosition,
-  onGenerate,
-  isAdmin,
-}) => {
+const GenerateTab: React.FC<GenerateTabProps> = ({ isAdmin }) => {
+  const { config, loading, queuePosition, handleGenerate } = useGeneration()
   return (
     <div className="generate-tab">
       {loading && (
@@ -34,7 +24,7 @@ const GenerateTab: React.FC<GenerateTabProps> = ({
 
       {!loading && (
         <GenerateForm
-          onGenerate={onGenerate}
+          onGenerate={handleGenerate}
           loading={loading}
           config={config}
           isAdmin={isAdmin}

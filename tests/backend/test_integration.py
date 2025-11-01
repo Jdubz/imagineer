@@ -123,7 +123,7 @@ class TestCompleteWorkflow:
             assert result and result["status"] == "success"
 
             # Verify database updates
-            updated_image = Image.query.get(image_id)
+            updated_image = db.session.get(Image, image_id)
             assert updated_image.is_nsfw is False  # SAFE rating
 
             # Verify labels were created

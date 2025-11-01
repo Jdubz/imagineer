@@ -64,7 +64,7 @@ sudo systemctl status cloudflared-imagineer-api
 curl http://localhost:10050/api/health
 
 # Wait 1-2 minutes for DNS propagation, then test public API
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 ```
 
 ---
@@ -76,7 +76,7 @@ curl https://imagineer.joshwentworth.com/api/health
 **Local Backend:** `http://127.0.0.1:10050`
 
 **What gets created:**
-- DNS CNAME: `imagineer.joshwentworth.com` → Cloudflare Tunnel
+- DNS CNAME: `api.imagineer.joshwentworth.com` → Cloudflare Tunnel
 - Rate limiting rules
 - WAF protection
 - Security headers
@@ -114,7 +114,7 @@ curl http://localhost:10050/api/health
 sudo systemctl status cloudflared-imagineer-api
 
 # 3. Test public endpoint (after DNS propagates)
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 
 # 4. Test from browser
 # Visit: https://imagineer-generator.web.app
@@ -129,7 +129,7 @@ The frontend configuration has been updated to use your domain:
 
 **File:** `web/.env.production`
 ```bash
-VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
 ```
 
 After deploying the frontend, it will automatically connect to your API through the tunnel.
@@ -197,9 +197,9 @@ make prod-restart
 ## 🌐 Your URLs
 
 **API Endpoint:**
-- https://imagineer.joshwentworth.com/api/health
-- https://imagineer.joshwentworth.com/api/generate
-- https://imagineer.joshwentworth.com/api/jobs
+- https://api.imagineer.joshwentworth.com/api/health
+- https://api.imagineer.joshwentworth.com/api/generate
+- https://api.imagineer.joshwentworth.com/api/jobs
 
 **Frontend:**
 - https://imagineer-generator.web.app
@@ -234,5 +234,5 @@ sudo systemctl status cloudflared-imagineer-api
 sudo journalctl -u cloudflared-imagineer-api -f
 
 # Test
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 ```

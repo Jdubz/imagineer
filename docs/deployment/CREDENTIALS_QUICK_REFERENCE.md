@@ -47,7 +47,7 @@ DEPLOY_BRANCH=main
 
 ### `web/.env.production` (Frontend)
 ```bash
-VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
 VITE_APP_PASSWORD=[REDACTED]
 ```
 

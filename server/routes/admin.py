@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, abort, jsonify, request
 from flask_login import current_user
 
 from server.auth import ROLE_ADMIN, load_users, require_admin, save_users
@@ -17,6 +17,13 @@ from server.utils.disk_stats import collect_disk_statistics
 logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
+
+
+def _get_image_or_abort(image_id: int) -> Image:
+    image = db.session.get(Image, image_id)
+    if image is None:
+        abort(404, description="Image not found")
+    return image
 
 
 @admin_bp.route("/config/cache", methods=["GET"])
@@ -169,7 +176,7 @@ def update_image_visibility(image_id: int):
         if not data or "is_public" not in data:
             return jsonify({"error": "is_public field is required"}), 400
 
-        image = Image.query.get_or_404(image_id)
+        image = _get_image_or_abort(image_id)
         image.is_public = bool(data["is_public"])
         db.session.commit()
 

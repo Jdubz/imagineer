@@ -1,27 +1,16 @@
-import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react'
+import React, { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './styles/App.css'
 import SkipNav from './components/SkipNav'
 import Tabs from './components/Tabs'
 import ErrorBoundaryWithReporting from './components/ErrorBoundaryWithReporting'
-import ToastContainer from './components/Toast'
+import { Toaster } from './components/ui/toaster'
 import Spinner from './components/Spinner'
-import { ToastProvider } from './contexts/ToastContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { useToast } from './hooks/useToast'
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut'
-import { logger } from './lib/logger'
-import { api } from './lib/api'
-import { JobSchema } from './lib/schemas'
-import type {
-  Config,
-  GeneratedImage,
-  BatchSummary,
-  Job,
-  GenerateParams,
-  Tab,
-} from './types/models'
+import type { Tab } from './types/models'
 import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
+import { AppProvider, useApp } from './contexts/AppContext'
 import SettingsMenu from './components/SettingsMenu'
 
 // Lazy load tab components for code splitting
@@ -34,28 +23,11 @@ const LorasTab = lazy(() => import('./components/LorasTab'))
 const QueueTab = lazy(() => import('./components/QueueTab'))
 const ShadcnTest = lazy(() => import('./components/ShadcnTest'))
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
 const AppContent: React.FC = () => {
-  const toast = useToast()
   const location = useLocation()
   const { user, logout } = useAuth()
   const { openBugReport, registerCollector } = useBugReporter()
-  const [config, setConfig] = useState<Config | null>(null)
-  const [images, setImages] = useState<GeneratedImage[]>([])
-  const [loading, setLoading] = useState<boolean>(false)
-  const [loadingImages, setLoadingImages] = useState<boolean>(false)
-  const [loadingBatches, setLoadingBatches] = useState<boolean>(false)
-  const [currentJob, setCurrentJob] = useState<Job | null>(null)
-  const [queuePosition, setQueuePosition] = useState<number | null>(null)
-  const [batches, setBatches] = useState<BatchSummary[]>([])
-  const [nsfwEnabled, setNsfwEnabled] = useState<boolean>(false)
-  const [configAuthAlerted, setConfigAuthAlerted] = useState<boolean>(false)
-  const toastRef = useRef(toast)
-
-  useEffect(() => {
-    toastRef.current = toast
-  }, [toast])
+  const { generation, gallery, nsfwEnabled, setNsfwEnabled } = useApp()
 
   // Tab configuration
   const tabs: Tab[] = [
@@ -80,232 +52,71 @@ const AppContent: React.FC = () => {
     callback: openBugReport,
   })
 
-  const fetchConfig = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const config = await api.getConfig(signal)
-      setConfig(config)
-      if (config !== null) {
-        setConfigAuthAlerted(false)
-      }
-
-      // Config is null when 401/403 (admin auth required) - already handled by api.getConfig
-      if (config === null && user?.role !== 'admin') {
-        // Only show message if user is not admin - helps them understand why config isn't loading
-        logger.info('Config requires admin authentication')
-        if (!configAuthAlerted) {
-          toastRef.current.info('Admin login required to load configuration settings.')
-          setConfigAuthAlerted(true)
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch config', error as Error)
-      setConfig(null)
-      if (!configAuthAlerted) {
-        toastRef.current.error('Unable to load configuration. Please verify admin access.')
-        setConfigAuthAlerted(true)
-      }
-    }
-  }, [configAuthAlerted, user?.role])
-
-  const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    setLoadingImages(true)
-    try {
-      const images = await api.images.getAll({ signal })
-      setImages(images)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch images', error as Error)
-    } finally {
-      setLoadingImages(false)
-    }
-  }, [])
-
-  const fetchBatches = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    setLoadingBatches(true)
-    try {
-      const batches = await api.batches.getAll(signal)
-      setBatches(batches)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      logger.error('Failed to fetch batches', error as Error)
-    } finally {
-      setLoadingBatches(false)
-    }
-  }, [])
-
-  // Load config on mount
-  useEffect(() => {
-    const abortController = new AbortController()
-    const { signal } = abortController
-
-    void fetchConfig(signal)
-    void fetchImages(signal)
-    void fetchBatches(signal)
-
-    return () => abortController.abort()
-  }, [fetchConfig, fetchImages, fetchBatches])
-
+  // Register bug report data collector
   useEffect(() => {
     const unregister = registerCollector('application_state', () => {
-      const imagePreview = images.slice(0, 5).map(({ filename, created, metadata }) => ({
+      const imagePreview = gallery.images.slice(0, 5).map(({ filename, created, metadata }) => ({
         filename,
         created,
         model: metadata?.model,
         seed: metadata?.seed,
       }))
 
-      const batchPreview = batches.slice(0, 5).map(({ batch_id, image_count, created }) => ({
+      const batchPreview = gallery.batches.slice(0, 5).map(({ batch_id, image_count, created }) => ({
         batch_id,
         image_count,
         created,
       }))
 
-      const jobSnapshot = currentJob
+      const jobSnapshot = generation.currentJob
         ? {
-            id: currentJob.id,
-            status: currentJob.status,
-            queue_position: currentJob.queue_position,
-            submitted_at: currentJob.submitted_at ?? currentJob.created ?? null,
-            error: currentJob.error ?? null,
+            id: generation.currentJob.id,
+            status: generation.currentJob.status,
+            queue_position: generation.currentJob.queue_position,
+            submitted_at: generation.currentJob.submitted_at ?? generation.currentJob.created ?? null,
           }
         : null
 
       return {
-        route: {
-          pathname: location.pathname,
-          search: location.search,
-          hash: location.hash,
+        config_loaded: generation.config !== null,
+        config_version: generation.config?.version,
+        images_loaded: gallery.images.length,
+        batches_loaded: gallery.batches.length,
+        current_tab: activeTab,
+        loading_state: {
+          generation: generation.loading,
+          images: gallery.loadingImages,
+          batches: gallery.loadingBatches,
         },
-        activeTab,
-        loading: {
-          generate: loading,
-          images: loadingImages,
-          batches: loadingBatches,
-        },
-        queuePosition,
-        counts: {
-          batches: batches.length,
-          images: images.length,
-        },
-        currentJob: jobSnapshot,
-        config,
-        user,
-        imagePreview,
-        batchPreview,
+        current_job: jobSnapshot,
+        queue_position: generation.queuePosition,
+        nsfw_enabled: nsfwEnabled,
+        images_preview: imagePreview,
+        batches_preview: batchPreview,
       }
     })
 
-    return unregister
+    return () => {
+      unregister()
+    }
   }, [
-    activeTab,
-    batches,
-    config,
-    currentJob,
-    images,
-    loading,
-    loadingBatches,
-    loadingImages,
-    location.hash,
-    location.pathname,
-    location.search,
-    queuePosition,
     registerCollector,
-    user,
+    generation.config,
+    generation.loading,
+    generation.currentJob,
+    generation.queuePosition,
+    gallery.images,
+    gallery.batches,
+    gallery.loadingImages,
+    gallery.loadingBatches,
+    nsfwEnabled,
+    activeTab,
   ])
-
-  const handleGenerate = async (params: GenerateParams): Promise<void> => {
-    setLoading(true)
-    setQueuePosition(null)
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(params)
-      })
-
-      if (response.status === 201) {
-        const payload = await response.json()
-
-        // Validate response with Zod schema
-        const validationResult = JobSchema.safeParse(payload)
-        if (!validationResult.success) {
-          logger.error('Invalid job response', validationResult.error)
-          throw new Error('Invalid job response from API')
-        }
-
-        const job = validationResult.data
-        setCurrentJob(job)
-        setQueuePosition(job.queue_position ?? null)
-
-        pollJobStatus(job.id)
-      } else {
-        const payload = (await response.json()) as unknown
-        const errorMessage =
-          isRecord(payload) && typeof payload.error === 'string'
-            ? payload.error
-            : 'Unknown error'
-        toast.error(`Failed to submit job: ${errorMessage}`)
-        setLoading(false)
-      }
-    } catch (error) {
-      logger.error('Failed to generate', error as Error)
-      toast.error('Error submitting job')
-      setLoading(false)
-    }
-  }
-
-  const pollJobStatus = (jobId: number | string): void => {
-    const checkStatus = async (): Promise<void> => {
-      try {
-        const job = await api.jobs.getById(jobId)
-
-        // Update queue position
-        const queuePosition = typeof job.queue_position === 'number' ? job.queue_position : null
-        setQueuePosition(queuePosition)
-
-        if (job.status === 'completed') {
-          setLoading(false)
-          setCurrentJob(null)
-          setQueuePosition(null)
-          toast.success('Image generated successfully!')
-          fetchImages().catch((err) => logger.error('Failed to refresh images', err as Error))
-          fetchBatches().catch((err) => logger.error('Failed to refresh batches', err as Error))
-        } else if (job.status === 'failed') {
-          setLoading(false)
-          setCurrentJob(null)
-          setQueuePosition(null)
-          toast.error(`Generation failed: ${job.error ?? 'Unknown error'}`)
-        } else if (job.status === 'cancelled') {
-          setLoading(false)
-          setCurrentJob(null)
-          setQueuePosition(null)
-          toast.warning('Job was cancelled')
-        } else {
-          setTimeout(checkStatus, 2000)
-        }
-      } catch (error: unknown) {
-        logger.error('Error checking job status', error as Error)
-        setLoading(false)
-        setCurrentJob(null)
-        setQueuePosition(null)
-      }
-    }
-
-    void checkStatus()
-  }
 
   return (
     <div className="App">
       <SkipNav />
-      <ToastContainer />
+      <Toaster />
       <header className="header">
         <div className="header-content">
           <div className="header-title">
@@ -353,14 +164,7 @@ const AppContent: React.FC = () => {
                 path="/generate"
                 element={
                   <ErrorBoundaryWithReporting boundaryName="Generate Tab">
-                    <GenerateTab
-                      config={config}
-                      loading={loading}
-                      queuePosition={queuePosition}
-                      currentJob={currentJob}
-                      onGenerate={handleGenerate}
-                      isAdmin={user?.role === 'admin'}
-                    />
+                    <GenerateTab isAdmin={user?.role === 'admin'} />
                   </ErrorBoundaryWithReporting>
                 }
               />
@@ -368,14 +172,7 @@ const AppContent: React.FC = () => {
                 path="/gallery"
                 element={
                   <ErrorBoundaryWithReporting boundaryName="Gallery Tab">
-                    <GalleryTab
-                      batches={batches}
-                      images={images}
-                      onRefreshImages={fetchImages}
-                      onRefreshBatches={fetchBatches}
-                      loadingImages={loadingImages}
-                      loadingBatches={loadingBatches}
-                    />
+                    <GalleryTab />
                   </ErrorBoundaryWithReporting>
                 }
               />
@@ -438,13 +235,13 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <AuthProvider>
-          <BugReportProvider>
+      <AuthProvider>
+        <BugReportProvider>
+          <AppProvider>
             <AppContent />
-          </BugReportProvider>
-        </AuthProvider>
-      </ToastProvider>
+          </AppProvider>
+        </BugReportProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

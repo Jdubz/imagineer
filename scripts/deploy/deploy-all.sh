@@ -179,7 +179,7 @@ check_configuration() {
     if [ -f "$WEB_DIR/.env.production" ]; then
         print_success "Found web/.env.production"
 
-        if grep -q "VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api" "$WEB_DIR/.env.production"; then
+        if grep -q "VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api" "$WEB_DIR/.env.production"; then
             print_success "  VITE_API_BASE_URL is configured"
         else
             print_warning "  VITE_API_BASE_URL may need updating"
@@ -440,11 +440,11 @@ run_health_checks() {
 
     # Check public API (may need DNS propagation time)
     print_status "Checking public API endpoint..."
-    if curl -f https://imagineer.joshwentworth.com/api/health &> /dev/null 2>&1; then
+    if curl -f https://api.imagineer.joshwentworth.com/api/health &> /dev/null 2>&1; then
         print_success "Public API is accessible"
     else
         print_warning "Public API not accessible yet (DNS may still be propagating)"
-        print_status "  Wait 1-2 minutes and try: curl https://imagineer.joshwentworth.com/api/health"
+        print_status "  Wait 1-2 minutes and try: curl https://api.imagineer.joshwentworth.com/api/health"
     fi
 
     # Check frontend
@@ -463,7 +463,7 @@ print_summary() {
     echo -e "${GREEN}Deployment completed!${NC}\n"
 
     echo "URLs:"
-    echo "  API:      https://imagineer.joshwentworth.com/api"
+    echo "  API:      https://api.imagineer.joshwentworth.com/api"
     echo "  Frontend: https://imagineer-generator.web.app"
     echo ""
 
@@ -482,7 +482,7 @@ print_summary() {
 
     echo "Testing:"
     echo "  Local:    curl http://localhost:10050/api/health"
-    echo "  Public:   curl https://imagineer.joshwentworth.com/api/health"
+    echo "  Public:   curl https://api.imagineer.joshwentworth.com/api/health"
     echo "  Frontend: open https://imagineer-generator.web.app"
     echo ""
 
