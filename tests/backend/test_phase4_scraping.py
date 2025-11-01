@@ -252,6 +252,9 @@ class TestScrapingOutputPath:
 
     def test_get_scraped_output_path_falls_back_when_unwritable(self, monkeypatch, tmp_path):
         monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
+        # Set development mode to enable fallback behavior
+        # (production mode raises RuntimeError instead)
+        monkeypatch.setenv("FLASK_ENV", "development")
 
         bad_path = Path("/root/unwritable/scraped")
         fallback_base = tmp_path / "fallback"

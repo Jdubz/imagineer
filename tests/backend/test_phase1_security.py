@@ -68,6 +68,9 @@ class TestAuthentication:
     def test_get_secret_key_dev_mode(self):
         """Test getting secret key in development mode"""
         with patch.dict(os.environ, {"FLASK_ENV": "development"}):
+            # Remove FLASK_SECRET_KEY to test auto-generation in dev mode
+            # (load_dotenv may have loaded it from .env)
+            os.environ.pop("FLASK_SECRET_KEY", None)
             key = get_secret_key()
             assert key is not None
             assert len(key) == 64  # Hex token length (32 bytes = 64 hex chars)

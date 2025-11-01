@@ -13,11 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
