@@ -1,14 +1,20 @@
 import { z } from 'zod'
 import { logger } from './logger'
+import { getApiUrl } from './apiConfig'
 import type {
+  Album,
+  BatchSummary,
   Config,
   GeneratedImage,
-  BatchSummary,
+  ImageMetadata,
   Job,
   JobsResponse,
-  Album,
   LabelAnalytics,
-  ImageMetadata,
+  ScrapingJob,
+  ScrapingStats,
+  TrainingAlbum,
+  TrainingJob,
+  TrainingLogResponse,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
@@ -203,6 +209,31 @@ export type GenerateBatchError = {
 
 export type GenerateBatchResult = GenerateBatchSuccess | GenerateBatchError
 
+export interface StartScrapingJobParams {
+  url: string
+  name?: string
+  description?: string
+  depth?: number
+  max_images?: number
+}
+
+export interface CreateTrainingRunParams {
+  name: string
+  description: string
+  album_ids: Array<string | number>
+  config: {
+    steps: number
+    rank: number
+    learning_rate: number
+    batch_size: number
+  }
+}
+
+export interface TrainingLogRequestOptions {
+  tail?: number
+  signal?: AbortSignal
+}
+
 /**
  * Makes a typed API request with Zod validation
  *
@@ -320,7 +351,7 @@ export const api = {
      * Check current authentication status
      */
     async checkAuth(signal?: AbortSignal): Promise<AuthStatus> {
-      return apiRequest('/api/auth/me', schemas.AuthStatusSchema, {
+      return apiRequest(getApiUrl('/auth/me'), schemas.AuthStatusSchema, {
         credentials: 'include',
         signal,
       })
@@ -336,7 +367,7 @@ export const api = {
    */
   async getConfig(signal?: AbortSignal): Promise<Config | null> {
     try {
-      return await apiRequest('/api/config', schemas.ConfigSchema, {
+      return await apiRequest(getApiUrl('/config'), schemas.ConfigSchema, {
         credentials: 'include',
         signal,
       })
@@ -375,7 +406,7 @@ export const api = {
         return response.images.map(normalizeGeneratedImage)
       } catch (error) {
         logger.warn('Falling back to legacy outputs API for images list', error as Error)
-        const legacyResponse = await apiRequest('/api/outputs', schemas.ImagesResponseSchema, { signal })
+        const legacyResponse = await apiRequest(getApiUrl('/outputs'), schemas.ImagesResponseSchema, { signal })
         return legacyResponse.images.map(normalizeGeneratedImage)
       }
     },
@@ -390,7 +421,7 @@ export const api = {
      * Fetch all batch summaries
      */
     async getAll(signal?: AbortSignal): Promise<BatchSummary[]> {
-      const response = await apiRequest('/api/batches', schemas.BatchesResponseSchema, { signal })
+      const response = await apiRequest(getApiUrl('/batches'), schemas.BatchesResponseSchema, { signal })
       return response.batches || []
     },
 
@@ -437,13 +468,149 @@ export const api = {
    * @returns The created job with ID and status
    */
   async submitJob(params: { prompt: string; negative_prompt?: string; steps?: number; guidance_scale?: number; seed?: number }, signal?: AbortSignal): Promise<Job> {
-    return apiRequest('/api/generate', schemas.JobSchema, {
+    return apiRequest(getApiUrl('/generate'), schemas.JobSchema, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(params),
       signal,
     })
+  },
+
+  // ============================================
+  // Scraping
+  // ============================================
+
+  scraping: {
+    async getJobs(signal?: AbortSignal): Promise<ScrapingJob[]> {
+      const response = await apiRequest(getApiUrl('/scraping/jobs'), schemas.ScrapingJobsResponseSchema, { signal })
+      const normalizeScrapingJob = (job: (typeof response.jobs)[number]): ScrapingJob => {
+        const {
+          id,
+          status,
+          url,
+          name,
+          source_url,
+          output_dir,
+          output_directory,
+          progress,
+          progress_message,
+          description,
+          runtime,
+          created_at,
+          completed_at,
+          error,
+          images_scraped,
+          config,
+        } = job
+
+        return {
+          id,
+          status,
+          url: url ?? undefined,
+          name: name ?? undefined,
+          source_url: source_url ?? undefined,
+          output_dir: output_dir ?? undefined,
+          output_directory: output_directory ?? undefined,
+          progress: typeof progress === 'number' ? progress : progress ?? null,
+          progress_message: progress_message ?? undefined,
+          description: description ?? undefined,
+          runtime: runtime ?? undefined,
+          created_at,
+          completed_at: completed_at ?? undefined,
+          error: error ?? undefined,
+          images_scraped: images_scraped ?? undefined,
+          config: config ?? undefined,
+        }
+      }
+
+      return (response.jobs ?? []).map(normalizeScrapingJob)
+    },
+
+    async getStats(signal?: AbortSignal): Promise<ScrapingStats> {
+      return apiRequest(getApiUrl('/scraping/stats'), schemas.ScrapingStatsSchema, { signal })
+    },
+
+    async startJob(params: StartScrapingJobParams, signal?: AbortSignal): Promise<void> {
+      await apiRequest(getApiUrl('/scraping/start'), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal,
+      })
+    },
+
+    async cancelJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/cancel`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cleanupJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/cleanup`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+  },
+
+  // ============================================
+  // Training
+  // ============================================
+
+  training: {
+    async getRuns(signal?: AbortSignal): Promise<TrainingJob[]> {
+      const response = await apiRequest(getApiUrl('/training'), schemas.TrainingRunsResponseSchema, { signal })
+      return response.training_runs || []
+    },
+
+    async getAlbums(signal?: AbortSignal): Promise<TrainingAlbum[]> {
+      const response = await apiRequest(getApiUrl('/training/albums'), schemas.TrainingAlbumsResponseSchema, { signal })
+      return response.albums || []
+    },
+
+    async getLogs(runId: string | number, options: TrainingLogRequestOptions = {}): Promise<TrainingLogResponse> {
+      const tail = options.tail ?? 500
+      const id = encodeURIComponent(runId.toString())
+      const url = getApiUrl(`/training/${id}/logs?tail=${tail}`)
+      return apiRequest(url, schemas.TrainingLogResponseSchema, { signal: options.signal })
+    },
+
+    async createRun(params: CreateTrainingRunParams, signal?: AbortSignal): Promise<void> {
+      await apiRequest(getApiUrl('/training'), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal,
+      })
+    },
+
+    async startRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/start`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cancelRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/cancel`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async cleanupRun(runId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(runId.toString())
+      await apiRequest(getApiUrl(`/training/${id}/cleanup`), schemas.TrainingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
   },
 
   /**
@@ -464,7 +631,7 @@ export const api = {
      * Fetch all available LoRAs
      */
     async getAll(signal?: AbortSignal): Promise<Array<{ folder: string; filename: string }>> {
-      const response = await apiRequest('/api/loras', schemas.LorasResponseSchema, {
+      const response = await apiRequest(getApiUrl('/loras'), schemas.LorasResponseSchema, {
         signal,
         credentials: 'include',
       })
@@ -481,7 +648,7 @@ export const api = {
      * Fetch a random theme
      */
     async getRandom(signal?: AbortSignal): Promise<string> {
-      const response = await apiRequest('/api/themes/random', schemas.ThemeResponseSchema, { signal })
+      const response = await apiRequest(getApiUrl('/themes/random'), schemas.ThemeResponseSchema, { signal })
       return response.theme || ''
     },
   },
@@ -495,7 +662,7 @@ export const api = {
      * Fetch all albums
      */
     async getAll(signal?: AbortSignal): Promise<Album[]> {
-      const response = await apiRequest('/api/albums', schemas.AlbumsResponseSchema, { signal })
+      const response = await apiRequest(getApiUrl('/albums'), schemas.AlbumsResponseSchema, { signal })
 
       if (Array.isArray(response)) {
         return response
@@ -533,7 +700,7 @@ export const api = {
       signal?: AbortSignal
     ): Promise<{ success: boolean; error?: string }> {
       try {
-        const response = await fetch('/api/albums', {
+        const response = await fetch(getApiUrl('/albums'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -572,7 +739,7 @@ export const api = {
      */
     async delete(albumId: string, signal?: AbortSignal): Promise<{ success: boolean; error?: string }> {
       try {
-        const response = await fetch(`/api/albums/${albumId}`, {
+        const response = await fetch(getApiUrl(`/albums/${albumId}`), {
           method: 'DELETE',
           credentials: 'include',
           signal,
@@ -618,7 +785,7 @@ export const api = {
       signal?: AbortSignal
     ): Promise<GenerateBatchResult> {
       try {
-        const response = await fetch(`/api/albums/${albumId}/generate/batch`, {
+        const response = await fetch(getApiUrl(`/albums/${albumId}/generate/batch`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -701,7 +868,7 @@ export const api = {
 
   bugReports: {
     async submit(payload: BugReportOptions): Promise<BugReportSubmissionResponse> {
-      return apiRequest('/api/bug-reports', schemas.BugReportResponseSchema, {
+      return apiRequest(getApiUrl('/bug-reports'), schemas.BugReportResponseSchema, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

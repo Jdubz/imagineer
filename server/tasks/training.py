@@ -14,6 +14,8 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from flask import current_app
+
 from server.celery_app import celery
 from server.database import Album, AlbumImage, Image, TrainingRun, db
 from server.utils.file_ops import safe_remove_path
@@ -32,6 +34,26 @@ TRAINING_TERMINATE_GRACE_SECONDS = int(
 )
 TRAINING_LOG_BUFFER_SIZE = int(os.environ.get("IMAGINEER_TRAINING_LOG_BUFFER", "2000"))
 TRAINING_RETENTION_DAYS = int(os.environ.get("IMAGINEER_TRAINING_RETENTION_DAYS", "30"))
+
+
+def _in_testing_mode() -> bool:
+    """Detect whether we're executing within pytest to soften logging noise."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return True
+    try:
+        return bool(current_app.testing)  # type: ignore[attr-defined]
+    except Exception:
+        return False
+
+
+def _log_training_failure(message: str, *, exc_info: bool = False) -> None:
+    """Log training failures with reduced severity during test runs."""
+    if _in_testing_mode():
+        logger.warning("%s (testing mode)", message)
+        if exc_info:
+            logger.debug("Suppressed training stack trace for testing-only failure", exc_info=True)
+    else:
+        logger.error(message, exc_info=exc_info)
 
 
 def get_model_cache_dir() -> Path:
@@ -382,7 +404,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
                 run.last_error_at = datetime.now(timezone.utc)
                 db.session.commit()
 
-                logger.error(f"Training failed: {run.name} - {run.error_message}")
+                _log_training_failure(f"Training failed: {run.name} - {run.error_message}")
                 result = {
                     "status": "failed",
                     "message": run.error_message,
@@ -395,7 +417,7 @@ def train_lora_task(self, training_run_id):  # noqa: C901
             run.last_error_at = datetime.now(timezone.utc)
             db.session.commit()
 
-            logger.error(f"Training error: {run.name} - {e}", exc_info=True)
+            _log_training_failure(f"Training error: {run.name} - {e}", exc_info=True)
             result = {"status": "failed", "message": str(e)}
 
         finally:

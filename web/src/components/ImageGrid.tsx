@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { SkeletonImageCard } from './Skeleton'
+import ImageCard from './common/ImageCard'
 import type { GeneratedImage } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import { useApp } from '../contexts/AppContext'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import '../styles/ImageCard.css'
 
 interface ImageGridProps {
   images: GeneratedImage[]
@@ -16,9 +19,9 @@ interface ImageGridProps {
 }
 
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = false }) => {
+  const { nsfwPreference } = useApp()
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const selectedImageSources = useMemo(
     () => (selectedImage ? resolveImageSources(selectedImage) : null),
     [selectedImage]
@@ -41,15 +44,40 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     setSelectedImage(null)
   }
 
-  const handleImageLoad = (filename: string): void => {
-    setLoadedImages((prev) => new Set(prev).add(filename))
-  }
-
   useEffect(() => {
     if (selectedImageSources?.full) {
       preloadImage(selectedImageSources.full)
     }
   }, [selectedImageSources?.full])
+
+  const renderFooter = (image: GeneratedImage) => {
+    const prompt = image.metadata?.prompt ?? ''
+    const createdDate = image.created ? new Date(image.created).toLocaleDateString() : null
+    const hasPrompt = prompt.length > 0
+    const truncatedPrompt = hasPrompt && prompt.length > 60 ? `${prompt.substring(0, 60)}...` : prompt
+    const metaItems = createdDate ? [createdDate] : []
+
+    if (!hasPrompt && metaItems.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="gallery-card-footer">
+        {hasPrompt && (
+          <p className="gallery-card-prompt" title={prompt}>
+            {truncatedPrompt}
+          </p>
+        )}
+        {metaItems.length > 0 && (
+          <div className="gallery-card-meta">
+            {metaItems.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="image-grid-container">
@@ -77,44 +105,28 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
         </div>
       ) : (
         <div className="image-grid">
-          {images.map((image) => {
-            const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
-            const imageKey = image.filename ?? (image.id ? `image-${image.id}` : thumbnail)
+          {images.map((image, index) => {
+            const isNsfw = image.is_nsfw === true
+            if (isNsfw && nsfwPreference === 'hide') {
+              return null
+            }
+
+            const imageKey =
+              image.filename ??
+              (image.id ? `image-${image.id}` : image.relative_path ?? image.thumbnail_url ?? `image-${index}`)
+            const labelCount = image.labels?.length ?? 0
 
             return (
-              <div
-                key={imageKey}
-                className="image-card"
-                onClick={() => openModal(image)}
-                onMouseEnter={() => preloadImage(full)}
-                onFocus={() => preloadImage(full)}
-              >
-                <picture className="image-picture">
-                  {thumbnail.endsWith('.webp') && (
-                    <source srcSet={srcSet} type="image/webp" />
-                  )}
-                  <img
-                    src={thumbnail}
-                    srcSet={srcSet}
-                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
-                    alt={alt || 'Generated image'}
-                    loading="lazy"
-                    decoding="async"
-                    className={`preview-image ${loadedImages.has(imageKey) ? 'loaded' : 'loading'}`}
-                    onLoad={() => handleImageLoad(imageKey)}
-                  />
-                </picture>
-                <div className="image-overlay">
-                  <p className="image-prompt">
-                    {image.metadata?.prompt?.substring(0, 60)}
-                    {image.metadata?.prompt && image.metadata.prompt.length > 60 ? '...' : ''}
-                  </p>
-                  {image.created && (
-                    <p className="image-date">
-                      {new Date(image.created).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
+              <div key={imageKey} className="gallery-grid-item">
+                <ImageCard
+                  image={image}
+                  nsfwPreference={nsfwPreference}
+                  onImageClick={openModal}
+                  labelCount={labelCount}
+                  showLabelBadge={labelCount > 0}
+                  showPrompt={false}
+                />
+                {renderFooter(image)}
               </div>
             )
           })}

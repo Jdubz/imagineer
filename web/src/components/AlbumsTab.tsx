@@ -666,7 +666,7 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
 
               <ImageCard
                 image={generatedImage}
-                hideNsfw={false}
+                nsfwPreference="show"
                 labelCount={labels.length}
                 showNsfwBadge={true}
                 showLabelBadge={true}

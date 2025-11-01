@@ -21,6 +21,16 @@ logger = logging.getLogger(__name__)
 ROLE_ADMIN = "admin"
 
 
+def _reset_users_file(reason: str) -> None:
+    """Rewrite an empty or corrupt users.json with a safe default."""
+    try:
+        USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        USERS_FILE.write_text("{}\n", encoding="utf-8")
+        logger.warning("Reset users.json after %s", reason)
+    except OSError as exc:  # pragma: no cover - only logged in exceptional cases
+        logger.error("Failed to reset users.json after %s: %s", reason, exc)
+
+
 class User(UserMixin):
     """Simple user model for Flask-Login - simplified to public + admin only"""
 
@@ -40,21 +50,42 @@ def load_users():
     """Load user roles from JSON file"""
     if not USERS_FILE.exists():
         return {}
+
     try:
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading users: {e}")
+        raw = USERS_FILE.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.error("Error reading users file %s: %s", USERS_FILE, exc)
         return {}
+
+    if not raw.strip():
+        logger.warning("Users file %s is empty; resetting to default mapping", USERS_FILE)
+        _reset_users_file("encountering empty content")
+        return {}
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error("Error parsing users file %s: %s", USERS_FILE, exc)
+        _reset_users_file("invalid JSON content")
+        return {}
+
+    if not isinstance(data, dict):
+        logger.warning("Users file %s does not contain a mapping; resetting to default", USERS_FILE)
+        _reset_users_file("non-dict JSON content")
+        return {}
+
+    return data
 
 
 def save_users(users):
     """Save user roles to JSON file"""
     try:
-        with open(USERS_FILE, "w") as f:
-            json.dump(users, f, indent=2)
-    except Exception as e:
-        logger.error(f"Error saving users: {e}")
+        USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with USERS_FILE.open("w", encoding="utf-8") as handle:
+            json.dump(users or {}, handle, indent=2)
+            handle.write("\n")
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Error saving users to %s: %s", USERS_FILE, exc)
 
 
 def get_user_role(email):

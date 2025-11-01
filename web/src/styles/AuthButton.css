@@ -11,35 +11,6 @@
   gap: 8px;
 }
 
-.auth-button {
-  padding: 6px 16px;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  background: hsl(var(--card) / 0.1);
-  color: hsl(var(--card-foreground));
-  border: 1px solid hsl(var(--border));
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.auth-button:hover {
-  background: hsl(var(--card) / 0.2);
-  border-color: hsl(var(--foreground) / 0.5);
-}
-
-.auth-button:active {
-  transform: scale(0.98);
-}
-
-.auth-button--primary {
-  text-transform: capitalize;
-}
-
-.auth-button--secondary {
-  background: hsl(var(--muted));
-}
-
 .auth-error {
   font-size: 0.8rem;
   color: hsl(var(--destructive));

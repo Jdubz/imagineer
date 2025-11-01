@@ -1,0 +1,257 @@
+name: Bug Report AutoFix
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+jobs:
+  autofix:
+    if: >
+      github.event.label.name == 'auto-fix' &&
+      github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare auto-fix context
+        id: context
+        run: |
+          set -euo pipefail
+          mkdir -p .autofix/context .autofix/work .autofix/out
+          python3 <<'PY'
+import json
+import os
+import pathlib
+
+event_path = os.environ["GITHUB_EVENT_PATH"]
+with open(event_path, "r", encoding="utf-8") as fh:
+    event = json.load(fh)
+
+issue = event["issue"]
+labels = [label["name"] for label in issue.get("labels", [])]
+
+component_labels = [
+    label.split(":", 1)[1]
+    for label in labels
+    if label.lower().startswith("component:")
+]
+severity = next(
+    (label.split(":", 1)[1] for label in labels if label.lower().startswith("severity:")),
+    "unknown",
+)
+
+body = issue.get("body") or ""
+
+context_lines = [
+    f"# Bug Report #{issue['number']}: {issue['title']}",
+    "",
+    f"- URL: {issue['html_url']}",
+    f"- Reporter: {issue['user']['login']}",
+    f"- Severity: {severity}",
+    f"- Labels: {', '.join(labels) if labels else 'none'}",
+    "",
+    "## Description",
+    body,
+]
+
+context_path = pathlib.Path(".autofix/context/context.md")
+context_path.write_text("\n".join(context_lines), encoding="utf-8")
+
+output_path = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+with output_path.open("a", encoding="utf-8") as fh:
+    fh.write(f"component_labels={' '.join(component_labels)}\n")
+    fh.write(f"severity={severity}\n")
+PY
+
+      - name: Guard severity
+        if: ${{ steps.context.outputs.severity == 'critical' }}
+        run: |
+          echo "Skipping auto-fix: severity labelled critical." >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare credentials
+        if: ${{ steps.context.outputs.severity != 'critical' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .autofix/secrets
+
+          CLAUDE_HOST_FILE="$HOME/.claude/.credentials.json"
+          GH_HOSTS_FILE="$HOME/.config/gh/hosts.yml"
+
+          if [ -n "${{ secrets.CLAUDE_CREDENTIALS_JSON }}" ]; then
+            printf '%s' '${{ secrets.CLAUDE_CREDENTIALS_JSON }}' > .autofix/secrets/claude_credentials.json
+            CLAUDE_HOST_FILE="$(pwd)/.autofix/secrets/claude_credentials.json"
+          elif [ ! -f "${CLAUDE_HOST_FILE}" ]; then
+            echo "Warning: Claude credentials not found; automation will likely fail." >&2
+          fi
+
+          if [ -n "${{ secrets.GH_HOSTS_YML }}" ]; then
+            printf '%s' '${{ secrets.GH_HOSTS_YML }}' > .autofix/secrets/gh_hosts.yml
+            GH_HOSTS_FILE="$(pwd)/.autofix/secrets/gh_hosts.yml"
+          elif [ ! -f "${GH_HOSTS_FILE}" ]; then
+            echo "Warning: GitHub CLI hosts.yml not found; gh commands may fail." >&2
+          fi
+
+          echo "CLAUDE_CREDS_PATH=${CLAUDE_HOST_FILE}" >> "$GITHUB_ENV"
+          echo "GH_HOSTS_PATH=${GH_HOSTS_FILE}" >> "$GITHUB_ENV"
+
+      - name: Determine push mode
+        id: flags
+        run: |
+          if [ "${{ secrets.ENABLE_AUTOFIX }}" = "true" ]; then
+            echo "dry_run=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "dry_run=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Claude auto-fix
+        if: ${{ steps.context.outputs.severity != 'critical' }}
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GH_TOKEN_AUTOFIX: ${{ secrets.GH_TOKEN_AUTOFIX }}
+          AUTOFIX_REPO_URL: https://github.com/${{ github.repository }}.git
+          AUTOFIX_BRANCH: develop
+          AUTOFIX_WORKSPACE: /workspace/autofix
+          AUTOFIX_CONTEXT_PATH: /tmp/autofix/context.md
+          AUTOFIX_PLAN_PATH: /tmp/autofix/plan.json
+          AUTOFIX_SUMMARY_PATH: /tmp/autofix/summary.json
+          AUTOFIX_CONFIG_MANIFEST: scripts/autofix/config_manifest.txt
+          AUTOFIX_TEST_MATRIX: scripts/autofix/test_matrix.json
+          AUTOFIX_SOURCE_ROOT: /workspace/source
+          AUTOFIX_COMPONENT_LABELS: ${{ steps.context.outputs.component_labels }}
+          AUTOFIX_DRY_RUN: ${{ steps.flags.outputs.dry_run }}
+          AUTOFIX_COMMITTER_NAME: Imagineer AutoFix Bot
+          AUTOFIX_COMMITTER_EMAIL: infra+autofix@joshwentworth.com
+          CLAUDE_CREDS_PATH: ${{ env.CLAUDE_CREDS_PATH }}
+          GH_HOSTS_PATH: ${{ env.GH_HOSTS_PATH }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLAUDE_API_KEY:-}" ] || [ -z "${GH_TOKEN_AUTOFIX:-}" ]; then
+            echo "Required secrets CLAUDE_API_KEY or GH_TOKEN_AUTOFIX missing." >&2
+            exit 1
+          fi
+
+          mkdir -p .autofix/context .autofix/work .autofix/out
+
+          DOCKER_ARGS=(
+            docker run --rm
+            -e CLAUDE_API_KEY
+            -e GH_TOKEN_AUTOFIX
+            -e AUTOFIX_REPO_URL
+            -e AUTOFIX_BRANCH
+            -e AUTOFIX_WORKSPACE
+            -e AUTOFIX_CONTEXT_PATH
+            -e AUTOFIX_PLAN_PATH
+            -e AUTOFIX_SUMMARY_PATH
+            -e AUTOFIX_CONFIG_MANIFEST
+            -e AUTOFIX_TEST_MATRIX
+            -e AUTOFIX_SOURCE_ROOT
+            -e AUTOFIX_COMPONENT_LABELS
+            -e AUTOFIX_DRY_RUN
+            -e AUTOFIX_COMMITTER_NAME
+            -e AUTOFIX_COMMITTER_EMAIL
+            -v "${PWD}":/workspace/source:ro
+            -v "${PWD}/.autofix/work":/workspace/autofix
+            -v "${PWD}/.autofix/context":/tmp/autofix
+          )
+
+          if [ -f "${CLAUDE_CREDS_PATH}" ]; then
+            DOCKER_ARGS+=(--tmpfs "/home/node/.claude:uid=1000,gid=1000")
+            DOCKER_ARGS+=(-v "${CLAUDE_CREDS_PATH}:/tmp/claude-credentials.json:ro")
+          fi
+
+          if [ -f "${GH_HOSTS_PATH}" ]; then
+            DOCKER_ARGS+=(-v "${GH_HOSTS_PATH}:/tmp/gh-hosts.yml:ro")
+          fi
+
+          DOCKER_ARGS+=(ghcr.io/anthropic/claude-coder:latest)
+
+          DOCKER_COMMAND=$'set -euo pipefail\n'
+          DOCKER_COMMAND+=$'if [ -f /tmp/claude-credentials.json ]; then\n'
+          DOCKER_COMMAND+=$'  mkdir -p /home/node/.claude\n'
+          DOCKER_COMMAND+=$'  cp /tmp/claude-credentials.json /home/node/.claude/.credentials.json\n'
+          DOCKER_COMMAND+=$'fi\n'
+          DOCKER_COMMAND+=$'if [ -f /tmp/gh-hosts.yml ]; then\n'
+          DOCKER_COMMAND+=$'  mkdir -p /home/node/.config/gh\n'
+          DOCKER_COMMAND+=$'  cp /tmp/gh-hosts.yml /home/node/.config/gh/hosts.yml\n'
+          DOCKER_COMMAND+=$'fi\n'
+          DOCKER_COMMAND+=$'/workspace/source/scripts/autofix/run_autofix.sh\n'
+
+          DOCKER_ARGS+=("bash" "-lc" "${DOCKER_COMMAND}")
+
+          "${DOCKER_ARGS[@]}"
+
+      - name: Upload auto-fix artifacts
+        if: ${{ always() && steps.context.outputs.severity != 'critical' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: autofix-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .autofix/context/context.md
+            .autofix/context/plan.json
+            .autofix/context/summary.json
+          if-no-files-found: warn
+
+      - name: Comment with success summary
+        if: ${{ success() && steps.context.outputs.severity != 'critical' }}
+        env:
+          GH_TOKEN_AUTOFIX: ${{ secrets.GH_TOKEN_AUTOFIX }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+import json
+import os
+from pathlib import Path
+
+summary_path = Path(".autofix/context/summary.json")
+if not summary_path.exists():
+    raise SystemExit("summary.json not found for comment step")
+summary = json.loads(summary_path.read_text(encoding="utf-8"))
+repo = os.environ["REPO"]
+commit = summary["commit"]
+comment = f"""✅ Auto-fix applied via Claude
+
+- Branch: `{summary['branch']}`
+- Commit: [{commit}](https://github.com/{repo}/commit/{commit})
+- Tests: `{summary['test_command']}` → **{summary['test_result'].upper()}**
+
+> {summary['summary']}
+
+Please review the changes and follow up if additional work is needed.
+"""
+Path(".autofix/out/comment.md").write_text(comment, encoding="utf-8")
+PY
+          python3 scripts/autofix/comment_issue.py \
+            --repo "${REPO}" \
+            --issue-number "${ISSUE}" \
+            --comment-file .autofix/out/comment.md \
+            --add-labels autofix-pushed \
+            --remove-labels auto-fix
+
+      - name: Comment on failure
+        if: ${{ failure() && steps.context.outputs.severity != 'critical' }}
+        env:
+          GH_TOKEN_AUTOFIX: ${{ secrets.GH_TOKEN_AUTOFIX }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          echo "⚠️ Auto-fix pipeline failed. See workflow logs for details." > .autofix/out/failure.md
+          python3 \\
+            scripts/autofix/comment_issue.py \\
+            --repo "${REPO}" \\
+            --issue-number "${ISSUE}" \\
+            --comment-file .autofix/out/failure.md

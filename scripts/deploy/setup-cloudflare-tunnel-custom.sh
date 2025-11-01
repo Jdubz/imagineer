@@ -1,16 +1,16 @@
 #!/bin/bash
-# Setup Cloudflare Tunnel for imagineer.joshwentworth.com
+# Setup Cloudflare Tunnel for api.imagineer.joshwentworth.com
 # Custom setup script for this specific domain
 
 set -e
 
-echo "🌐 Setting up Cloudflare Tunnel for imagineer.joshwentworth.com..."
+echo "🌐 Setting up Cloudflare Tunnel for api.imagineer.joshwentworth.com..."
 echo ""
 
 # Configuration
 PROJECT_DIR="/home/jdubz/Development/imagineer"
 TUNNEL_NAME="imagineer-api"
-DOMAIN="imagineer.joshwentworth.com"
+DOMAIN="api.imagineer.joshwentworth.com"
 TUNNEL_CONFIG="${PROJECT_DIR}/terraform/cloudflare-tunnel.yml"
 CLOUDFLARED_DIR="$HOME/.cloudflared"
 SERVICE_NAME="cloudflared-${TUNNEL_NAME}"

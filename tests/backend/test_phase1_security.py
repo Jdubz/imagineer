@@ -15,7 +15,10 @@ class TestAuthentication:
 
     def test_load_users_empty_file(self):
         """Test loading users from empty file"""
-        with patch("builtins.open", mock_open(read_data="{}")):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.read_text.return_value = "{}"
+        with patch("server.auth.USERS_FILE", mock_path):
             users = load_users()
             assert users == {}
 
@@ -27,15 +30,20 @@ class TestAuthentication:
         }
         mock_path = MagicMock()
         mock_path.exists.return_value = True
-        with patch("server.auth.USERS_FILE", mock_path), patch(
-            "builtins.open", mock_open(read_data=json.dumps(users_data))
-        ):
+        mock_path.read_text.return_value = json.dumps(users_data)
+        with patch("server.auth.USERS_FILE", mock_path):
             users = load_users()
             assert users == users_data
 
     def test_load_users_invalid_json(self):
         """Test loading users from invalid JSON file"""
-        with patch("builtins.open", mock_open(read_data="invalid json")):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.read_text.return_value = "invalid json"
+        mock_path.parent.mkdir = MagicMock()
+        mock_path.open.return_value.__enter__ = MagicMock()
+        mock_path.open.return_value.__exit__ = MagicMock()
+        with patch("server.auth.USERS_FILE", mock_path):
             users = load_users()
             assert users == {}
 
@@ -43,12 +51,18 @@ class TestAuthentication:
         """Test saving users to file"""
         users_data = {"admin": {"password_hash": "hashed_password", "role": "admin"}}
 
+        mock_path = MagicMock()
+        mock_parent = MagicMock()
+        mock_path.parent = mock_parent
         mock_file = mock_open()
-        with patch("builtins.open", mock_file):
+        mock_path.open.return_value = mock_file()
+        with patch("server.auth.USERS_FILE", mock_path):
             save_users(users_data)
-            mock_file.assert_called_once()
+            mock_parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
+            mock_path.open.assert_called_once_with("w", encoding="utf-8")
             # Check that JSON was written
-            written_data = "".join(call.args[0] for call in mock_file().write.call_args_list)
+            written_calls = mock_file().write.call_args_list
+            written_data = "".join(call.args[0] for call in written_calls if call.args)
             assert json.loads(written_data) == users_data
 
     def test_get_secret_key_dev_mode(self):
@@ -69,23 +83,28 @@ class TestAuthentication:
         users_data = {"admin@example.com": {"role": "admin"}}
         mock_path = MagicMock()
         mock_path.exists.return_value = True
-        with patch("server.auth.USERS_FILE", mock_path), patch(
-            "builtins.open", mock_open(read_data=json.dumps(users_data))
-        ):
+        mock_path.read_text.return_value = json.dumps(users_data)
+        with patch("server.auth.USERS_FILE", mock_path):
             role = get_user_role("admin@example.com")
             assert role == "admin"
 
     def test_get_user_role_public(self):
         """Test getting public user role (no role)"""
         users_data = {"user@example.com": {"role": "user"}}  # Not admin role
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.read_text.return_value = json.dumps(users_data)
+        with patch("server.auth.USERS_FILE", mock_path):
             role = get_user_role("user@example.com")
             assert role is None  # Should return None for non-admin
 
     def test_get_user_role_nonexistent(self):
         """Test getting role for nonexistent user"""
         users_data = {}
-        with patch("builtins.open", mock_open(read_data=json.dumps(users_data))):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.read_text.return_value = json.dumps(users_data)
+        with patch("server.auth.USERS_FILE", mock_path):
             role = get_user_role("nonexistent@example.com")
             assert role is None
 

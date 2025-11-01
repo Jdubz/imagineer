@@ -15,7 +15,7 @@ interface ImageGalleryProps {
 }
 
 const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
-  const { nsfwEnabled } = useApp()
+  const { nsfwPreference } = useApp()
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const selectedSources = useMemo(
     () => (selectedImage ? resolveImageSources(selectedImage) : null),
@@ -53,7 +53,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
             <ImageCard
               key={imageKey}
               image={image}
-              hideNsfw={nsfwEnabled}
+              nsfwPreference={nsfwPreference}
               onImageClick={openModal}
               showNsfwBadge={true}
               showLabelBadge={false}

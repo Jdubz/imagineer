@@ -1,9 +1,10 @@
 # Production Deployment Guide
 
 This guide walks through deploying Imagineer to production with:
-- Single domain (imagineer.joshwentworth.com) for both frontend and API
+- Frontend (SPA) served from Firebase Hosting and cached behind Cloudflare (`imagineer.joshwentworth.com`)
+- Backend API reachable at `api.imagineer.joshwentworth.com` through a Cloudflare Tunnel to the Flask service
 - Automatic deployment from GitHub on push to main
-- Cloudflare Tunnel for secure HTTPS access
+- Cloudflare Tunnel for secure HTTPS access to the API
 - systemd services for process management
 
 ## Architecture Overview
@@ -11,12 +12,15 @@ This guide walks through deploying Imagineer to production with:
 ```
 User Request
     ↓
-https://imagineer.joshwentworth.com
+https://imagineer.joshwentworth.com (Firebase Hosting behind Cloudflare)
+
+API Request
+    ↓
+https://api.imagineer.joshwentworth.com
     ↓
 Cloudflare Tunnel (db1a99dd-3d12-4315-b241-da2a55a5c30f)
     ↓
-    ├─ /api/* → http://localhost:10050 (Flask API)
-    └─ /*     → http://localhost:8080 (nginx serving React)
+http://localhost:10050 (Flask API)
 ```
 
 ## Prerequisites
@@ -63,7 +67,9 @@ sudo journalctl -u imagineer-api -f
 sudo journalctl -u cloudflared-imagineer-api -f
 ```
 
-### Step 3: Initial Frontend Build
+> **Heads-up:** The production SPA is deployed from CI to Firebase Hosting. The nginx workflow below is retained for disaster recovery only.
+
+### Step 3: (Optional) Local Frontend Build for nginx fallback
 
 Build and deploy the frontend for the first time:
 
@@ -73,22 +79,20 @@ cd /home/jdubz/Development/imagineer
 # Build React app
 cd web && npm install && npm run build && cd ..
 
-# Copy to public directory
+# Copy to public directory (only if you need the nginx fallback)
 rm -rf public && cp -r web/dist public
 
-# Verify files
+# Verify files (optional)
 ls -la public/
 ```
 
 Test locally:
 ```bash
-curl http://localhost:8080/health
 curl http://localhost:10050/api/health
 ```
 
 Test via tunnel:
 ```bash
-curl https://imagineer.joshwentworth.com/health
 curl https://api.imagineer.joshwentworth.com/api/health
 ```
 

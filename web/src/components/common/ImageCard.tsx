@@ -1,5 +1,5 @@
 import { useCallback, memo } from 'react'
-import type { GeneratedImage } from '../../types/models'
+import type { GeneratedImage, NsfwPreference } from '../../types/models'
 import { resolveImageSources, preloadImage } from '../../lib/imageSources'
 import '../../styles/ImageCard.css'
 
@@ -10,11 +10,10 @@ export interface ImageCardProps {
   image: GeneratedImage
 
   /**
-   * Whether to hide NSFW images
-   * When true, images with is_nsfw will not be rendered
-   * @default true
+   * How NSFW images should be handled (`show`, `blur`, or `hide`)
+   * @default 'hide'
    */
-  hideNsfw?: boolean
+  nsfwPreference?: NsfwPreference
 
   /**
    * Callback when image is clicked
@@ -60,7 +59,7 @@ export interface ImageCardProps {
  * Common reusable image card component with NSFW filtering and badges
  *
  * Features:
- * - NSFW filtering (hide when hideNsfw=true and is_nsfw=true)
+ * - NSFW handling (hide or blur NSFW images based on preference)
  * - NSFW badge (18+) display
  * - Label badge (🏷️) display
  * - Responsive images with srcSet
@@ -73,7 +72,7 @@ export interface ImageCardProps {
  * ```tsx
  * <ImageCard
  *   image={image}
- *   hideNsfw={nsfwEnabled}
+ *   nsfwPreference={nsfwPreference}
  *   onImageClick={handleOpenModal}
  *   labelCount={image.labels?.length}
  * />
@@ -81,7 +80,7 @@ export interface ImageCardProps {
  */
 const ImageCard = memo<ImageCardProps>(({
   image,
-  hideNsfw = true,
+  nsfwPreference = 'hide',
   onImageClick,
   labelCount = 0,
   showNsfwBadge = true,
@@ -105,14 +104,16 @@ const ImageCard = memo<ImageCardProps>(({
   const hasLabels = labelCount > 0
   const isNsfw = image.is_nsfw === true
 
-  // Hide NSFW images when filter is enabled
-  if (hideNsfw && isNsfw) {
+  const shouldHide = nsfwPreference === 'hide' && isNsfw
+  const shouldBlur = nsfwPreference === 'blur' && isNsfw
+
+  if (shouldHide) {
     return null
   }
 
   return (
     <div
-      className={`image-card ${isNsfw ? 'nsfw' : ''} ${className}`}
+      className={`image-card ${isNsfw ? 'nsfw' : ''} ${shouldBlur ? 'nsfw-blurred' : ''} ${className}`}
       onMouseEnter={handlePreload}
     >
       <picture className="image-picture">
@@ -125,9 +126,16 @@ const ImageCard = memo<ImageCardProps>(({
           loading="lazy"
           decoding="async"
           onClick={handleClick}
-          className={`image-thumbnail ${onImageClick ? 'clickable' : ''}`}
+          className={`image-thumbnail ${onImageClick ? 'clickable' : ''} ${shouldBlur ? 'blurred' : ''}`}
         />
       </picture>
+
+      {/* Blur overlay */}
+      {shouldBlur && (
+        <div className="nsfw-blur-overlay" aria-label="NSFW content blurred">
+          <span className="nsfw-blur-label">Blurred</span>
+        </div>
+      )}
 
       {/* NSFW Badge */}
       {isNsfw && showNsfwBadge && (

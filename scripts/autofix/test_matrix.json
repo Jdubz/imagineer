@@ -1,0 +1,8 @@
+{
+  "frontend": "npm test -- --runInBand",
+  "backend": "pytest tests/backend",
+  "training": "pytest tests/backend/test_phase5_training.py",
+  "infra": "terraform validate",
+  "docs": "npm run lint:docs",
+  "default": "make test"
+}

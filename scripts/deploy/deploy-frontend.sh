@@ -50,7 +50,7 @@ case $ENVIRONMENT in
     ;;
   prod)
     echo "🔧 Building for production..."
-    export VITE_API_BASE_URL="${VITE_API_BASE_URL_PROD:-https://api.your-domain.com/api}"
+    export VITE_API_BASE_URL="${VITE_API_BASE_URL_PROD:-https://api.imagineer.joshwentworth.com/api}"
     FIREBASE_TARGET="prod"
     ;;
   *)
@@ -60,14 +60,14 @@ case $ENVIRONMENT in
     ;;
 esac
 
-# Build frontend
+# Build frontend with versioning
 echo "🏗️  Building frontend..."
-npm run build
+npm run deploy:build
 
 # Deploy to Firebase
 echo "🚀 Deploying to Firebase..."
-# Deploy to imagineer target
-firebase deploy --only hosting:imagineer
+# Deploy to imagineer-generator site (specified in firebase.json)
+firebase deploy --only hosting --project static-sites-257923
 
 echo ""
 echo "✅ Deployment complete!"

@@ -109,6 +109,31 @@ describe('App', () => {
     expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
   })
 
+  it('shows the viewer auth button when signed out', async () => {
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
+    })
+  })
+
+  it('renders settings actions when the user is authenticated', async () => {
+    handlers['/api/auth/me'] = () =>
+      Promise.resolve(
+        createResponse({
+          authenticated: true,
+          email: 'admin@example.com',
+          role: 'admin',
+        }),
+      )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/open settings menu/i)).toBeInTheDocument()
+    })
+  })
+
   it('submits generation request', async () => {
     const user = userEvent.setup()
     const mockJobResponse = {

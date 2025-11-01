@@ -24,43 +24,20 @@ The `deployment/` subdirectory contains all files needed for production deployme
 **Location:** Copied to `/etc/cloudflared/config.yml` during setup
 
 **What it does:**
-- Routes `/api/*` requests to Flask API (localhost:10050)
-- Routes all other requests to nginx/React (localhost:8080)
+- Routes traffic for `api.imagineer.joshwentworth.com` to the Flask API (localhost:10050)
+- Provides a 404 fallback for any other host/path
 - Uses tunnel ID: `db1a99dd-3d12-4315-b241-da2a55a5c30f`
 
 **Key settings:**
 ```yaml
 ingress:
-  - hostname: imagineer.joshwentworth.com
-    path: /api/*
+  - hostname: api.imagineer.joshwentworth.com
     service: http://localhost:10050    # Flask API
-
-  - hostname: imagineer.joshwentworth.com
-    service: http://localhost:8080     # nginx (React)
 ```
 
 ---
 
-### nginx-imagineer.conf
-
-**Purpose:** nginx web server configuration for serving React static files
-
-**Location:** Copied to `/etc/nginx/sites-available/imagineer` during setup
-
-**What it does:**
-- Serves React app from `/home/jdubz/Development/imagineer/public/`
-- Listens on port 8080 (internal only, not exposed)
-- Handles SPA routing (all routes → index.html)
-- Adds security headers
-- Enables gzip compression
-- Configures caching (1 year for assets, no-cache for index.html)
-
-**Key settings:**
-- Port: 8080
-- Root: `/home/jdubz/Development/imagineer/public/`
-- Health check endpoint: `/health`
-
----
+> **Note:** The legacy nginx proxy (`nginx-imagineer.conf`) is no longer part of the production path because Firebase Hosting serves the SPA directly behind Cloudflare. Keep the file only if you plan to self-host the frontend again.
 
 ### imagineer-api.service
 

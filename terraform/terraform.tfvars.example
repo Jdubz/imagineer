@@ -9,8 +9,8 @@ cloudflare_api_token = "your-cloudflare-api-token-here"
 # Your domain name
 domain = "example.com"
 
-# API subdomain (will create api.example.com)
-api_subdomain = "api"
+# API subdomain (supports nested values, e.g., api.app.example.com)
+api_subdomain = "api.imagineer"
 
 # Cloudflare Tunnel ID
 # Get from: cloudflared tunnel list

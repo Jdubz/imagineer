@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { logger } from '../lib/logger'
-import { api } from '../lib/api'
-import { isAuthError } from '../lib/errorUtils'
+import { getApiUrl } from '../lib/apiConfig'
 import type { AuthStatus } from '../types/shared'
 
 interface AuthContextValue {
@@ -32,20 +31,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuth = useCallback(async (): Promise<void> => {
     try {
-      // Use the api.auth.checkAuth method which validates with AuthStatusSchema
-      const data = await api.auth.checkAuth()
+      const response = await fetch(getApiUrl('/auth/me'), {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
+      })
 
-      if (data?.authenticated) {
+      if (response.status === 204 || response.status === 401 || response.status === 403) {
+        setUser(null)
+        return
+      }
+
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setUser(null)
+        return
+      }
+
+      const data: AuthStatus = await response.json()
+
+      if (response.ok && data?.authenticated) {
         setUser(data)
       } else {
         setUser(null)
       }
     } catch (error) {
-      // Handle auth errors (401/403) gracefully
-      if (isAuthError(error)) {
-        setUser(null)
-        return
-      }
       logger.error('Failed to check auth', error as Error)
       setUser(null)
     } finally {
@@ -55,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch('/api/auth/logout', {
+      const response = await fetch(getApiUrl('/auth/logout'), {
         credentials: 'include',
         headers: {
           Accept: 'application/json',

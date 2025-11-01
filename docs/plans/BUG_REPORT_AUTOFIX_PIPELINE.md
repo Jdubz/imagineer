@@ -111,8 +111,8 @@
   - *Mitigation:* Run in ephemeral GitHub Actions runners; mount configs read-only; scrub logs.
 
 ## Next Actions
-1. Author `.github/workflows/bug-report-autofix.yml` per above.
-2. Build `scripts/autofix/run_autofix.sh`, `config_manifest.txt`, `test_matrix.json`, `comment_issue.py`.
-3. Update documentation (`docs/guides/AUTOFIX.md`).
-4. Create service account + token rotation procedure.
-5. Pilot with staged bug report and validate end-to-end.
+1. ✅ Author `.github/workflows/bug-report-autofix.yml` per above.
+2. ✅ Build `scripts/autofix/run_autofix.sh`, `config_manifest.txt`, `test_matrix.json`, `comment_issue.py`.
+3. ✅ Update documentation (`docs/guides/AUTOFIX.md`).
+4. Create service account + token rotation procedure (GH token + Claude credentials rotation policy).
+5. Pilot with staged bug report and validate end-to-end; capture notes for improving test matrix choices.

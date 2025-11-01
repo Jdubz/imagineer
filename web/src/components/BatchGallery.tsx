@@ -1,22 +1,42 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import type { GeneratedImage, ImageMetadata } from '../types/models'
+import ImageCard from './common/ImageCard'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import { api } from '@/lib/api'
+import { useApp } from '../contexts/AppContext'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import '../styles/ImageCard.css'
 
-interface BatchImage {
+type ExtendedImageMetadata = ImageMetadata & {
+  nsfw?: boolean
+  is_nsfw?: boolean
+  [key: string]: unknown
+}
+
+interface RawBatchImage {
   filename: string
   relative_path: string
   created: string
-  metadata?: ImageMetadata
+  metadata?: unknown
 }
 
-interface BatchData {
+interface BatchImage extends Omit<RawBatchImage, 'metadata'> {
+  metadata?: ExtendedImageMetadata
+}
+
+interface RawBatchData {
+  batch_id: string
+  image_count: number
+  images?: RawBatchImage[]
+}
+
+interface BatchData extends Omit<RawBatchData, 'images'> {
   batch_id: string
   image_count: number
   images?: BatchImage[]
@@ -27,97 +47,75 @@ interface BatchGalleryProps {
   onBack: () => void
 }
 
-// Memoized batch image card component
-interface BatchImageCardProps {
-  image: BatchImage
-  imageKey: string
-  onOpen: (image: BatchImage) => void
-  onImageLoad: (path: string) => void
-  isLoaded: boolean
-}
+const isBatchImageNsfw = (image: BatchImage): boolean =>
+  image.metadata?.nsfw === true ||
+  image.metadata?.is_nsfw === true ||
+  (image as { is_nsfw?: boolean }).is_nsfw === true
 
-const BatchImageCard = memo<BatchImageCardProps>(({ image, imageKey, onOpen, onImageLoad, isLoaded }) => {
-  const generatedImage: GeneratedImage = useMemo(() => ({
-    filename: image.filename,
-    relative_path: image.relative_path,
-    metadata: image.metadata,
-    download_url: `/api/outputs/${image.relative_path}`,
-  }), [image])
-
-  const { thumbnail, full, alt, srcSet } = useMemo(() =>
-    resolveImageSources(generatedImage, {
-      fallbackAlt: image.metadata?.prompt || 'Generated image',
-    }),
-    [generatedImage, image.metadata?.prompt]
-  )
-
-  const handleClick = useCallback(() => {
-    onOpen(image)
-  }, [image, onOpen])
-
-  const handlePreload = useCallback(() => {
-    preloadImage(full)
-  }, [full])
-
-  const handleLoad = useCallback(() => {
-    onImageLoad(image.relative_path)
-  }, [image.relative_path, onImageLoad])
-
-  return (
-    <div
-      key={imageKey}
-      className="image-card"
-      onClick={handleClick}
-      onMouseEnter={handlePreload}
-      onFocus={handlePreload}
-    >
-      <picture className="image-picture">
-        {thumbnail.endsWith('.webp') && (
-          <source srcSet={srcSet} type="image/webp" />
-        )}
-        <img
-          src={thumbnail}
-          srcSet={srcSet}
-          sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          className={`preview-image ${isLoaded ? 'loaded' : 'loading'}`}
-          onLoad={handleLoad}
-        />
-      </picture>
-      <div className="image-info">
-        <p className="image-prompt">{image.metadata?.prompt || 'No prompt'}</p>
-        {image.metadata && (
-          <div className="image-metadata">
-            <span>Steps: {image.metadata.steps}</span>
-            {image.metadata.seed && <span>Seed: {image.metadata.seed}</span>}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+const toGeneratedImage = (image: BatchImage): GeneratedImage => ({
+  filename: image.filename,
+  relative_path: image.relative_path,
+  metadata: image.metadata,
+  download_url: `/api/outputs/${image.relative_path}`,
+  created: image.created,
+  is_nsfw: isBatchImageNsfw(image),
 })
 
-BatchImageCard.displayName = 'BatchImageCard'
+const renderFooter = (image: BatchImage) => {
+  const prompt = image.metadata?.prompt ?? ''
+  const hasPrompt = prompt.length > 0
+  const truncatedPrompt = hasPrompt && prompt.length > 60 ? `${prompt.substring(0, 60)}...` : prompt
+  const steps = image.metadata?.steps
+  const seed = image.metadata?.seed
+  const hasMeta = steps != null || seed != null
+
+  if (!hasPrompt && !hasMeta) {
+    return null
+  }
+
+  return (
+    <div className="gallery-card-footer">
+      {hasPrompt && (
+        <p className="gallery-card-prompt" title={prompt}>
+          {truncatedPrompt}
+        </p>
+      )}
+      {hasMeta && (
+        <div className="gallery-card-meta">
+          {steps != null && <span>Steps: {steps}</span>}
+          {seed != null && <span>Seed: {seed}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const isExtendedMetadata = (value: unknown): value is ExtendedImageMetadata =>
+  typeof value === 'object' && value !== null
+
+const normalizeBatchImage = (image: RawBatchImage): BatchImage => ({
+  ...image,
+  metadata: isExtendedMetadata(image.metadata) ? image.metadata : undefined,
+})
+
+const normalizeBatchData = (data: RawBatchData): BatchData => ({
+  batch_id: data.batch_id,
+  image_count: data.image_count,
+  images: data.images?.map(normalizeBatchImage),
+})
 
 const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<BatchImage | null>(null)
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+  const { nsfwPreference } = useApp()
 
   const selectedGeneratedImage = useMemo<GeneratedImage | null>(() => {
     if (!selectedImage) {
       return null
     }
 
-    return {
-      filename: selectedImage.filename,
-      relative_path: selectedImage.relative_path,
-      metadata: selectedImage.metadata,
-      download_url: `/api/outputs/${selectedImage.relative_path}`,
-    }
+    return toGeneratedImage(selectedImage)
   }, [selectedImage])
 
   const selectedAlt = selectedImage?.metadata?.prompt || 'Generated image'
@@ -139,11 +137,10 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
   const fetchBatch = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/batches/${batchId}`)
-      const data = await response.json()
-      setBatch(data)
+      const data = await api.batches.getById(batchId)
+      setBatch(normalizeBatchData(data))
     } catch (error) {
-      logger.error('Failed to fetch batch:', error)
+      logger.error('Failed to fetch batch:', error as Error)
     } finally {
       setLoading(false)
     }
@@ -159,10 +156,6 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
 
   const closeModal = useCallback((): void => {
     setSelectedImage(null)
-  }, [])
-
-  const handleImageLoad = useCallback((filename: string): void => {
-    setLoadedImages((prev) => new Set(prev).add(filename))
   }, [])
 
   if (loading) {
@@ -197,15 +190,26 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
         {batch.images && batch.images.length > 0 ? (
           batch.images.map((image, index) => {
             const imageKey = image.filename || image.relative_path || String(index)
+            const isNsfw = isBatchImageNsfw(image)
+            if (isNsfw && nsfwPreference === 'hide') {
+              return null
+            }
+
+            const generatedImage = toGeneratedImage(image)
+            const labelCount = generatedImage.labels?.length ?? 0
+
             return (
-              <BatchImageCard
-                key={imageKey}
-                image={image}
-                imageKey={imageKey}
-                onOpen={openModal}
-                onImageLoad={handleImageLoad}
-                isLoaded={loadedImages.has(image.relative_path)}
-              />
+              <div key={imageKey} className="gallery-grid-item">
+                <ImageCard
+                  image={generatedImage}
+                  nsfwPreference={nsfwPreference}
+                  onImageClick={() => openModal(image)}
+                  showPrompt={false}
+                  labelCount={labelCount}
+                  showLabelBadge={labelCount > 0}
+                />
+                {renderFooter(image)}
+              </div>
             )
           })
         ) : (

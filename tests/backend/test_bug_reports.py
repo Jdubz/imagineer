@@ -209,3 +209,122 @@ def test_submit_bug_report_handles_write_failure(admin_client, monkeypatch, tmp_
     assert response.status_code == 500
     body = response.get_json()
     assert body["error"] == "Failed to save bug report"
+
+
+# -----------------------------------------------------------------------------
+# Admin maintenance endpoints
+# -----------------------------------------------------------------------------
+
+
+def _write_bug_report(tmp_path: Path, report_id: str, **overrides: Any) -> Path:
+    payload = {
+        "report_id": report_id,
+        "status": "open",
+        "submitted_at": "2025-10-31T12:00:00Z",
+        "submitted_by": "admin@example.com",
+        "trace_id": "trace-1234",
+        "description": "Example report",
+    }
+    payload.update(overrides)
+    path = tmp_path / f"{report_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_list_bug_reports_returns_reports(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    _write_bug_report(tmp_path, "bug_20251031_a", submitted_at="2025-10-31T12:00:00Z")
+    _write_bug_report(
+        tmp_path,
+        "bug_20251030_b",
+        submitted_at="2025-10-30T08:15:00Z",
+        status="resolved",
+    )
+
+    response = admin_client.get("/api/bug-reports")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    reports = body["reports"]
+    assert len(reports) == 2
+    assert reports[0]["report_id"] == "bug_20251031_a"
+
+    # Filter by status
+    response_filtered = admin_client.get("/api/bug-reports?status=resolved")
+    assert response_filtered.status_code == 200
+    filtered_reports = response_filtered.get_json()["reports"]
+    assert len(filtered_reports) == 1
+    assert filtered_reports[0]["status"] == "resolved"
+
+
+def test_get_bug_report_detail_returns_payload(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    _write_bug_report(tmp_path, "bug_20251031_c", description="Detail check")
+
+    response = admin_client.get("/api/bug-reports/bug_20251031_c")
+
+    assert response.status_code == 200
+    payload = response.get_json()["report"]
+    assert payload["report_id"] == "bug_20251031_c"
+    assert payload["description"] == "Detail check"
+
+
+def test_update_bug_report_status_changes_file(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    report_path = _write_bug_report(tmp_path, "bug_20251031_d")
+
+    response = admin_client.patch(
+        "/api/bug-reports/bug_20251031_d",
+        json={"status": "resolved", "resolution": {"note": "Fixed in commit"}},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()["report"]
+    assert payload["status"] == "resolved"
+    stored = json.loads(report_path.read_text())
+    assert stored["status"] == "resolved"
+    assert stored["resolution"]["note"] == "Fixed in commit"
+
+
+def test_delete_bug_report_removes_file(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    report_path = _write_bug_report(tmp_path, "bug_20251031_e")
+    assert report_path.exists()
+
+    response = admin_client.delete("/api/bug-reports/bug_20251031_e")
+
+    assert response.status_code == 200
+    assert not report_path.exists()
+
+
+def test_purge_bug_reports_dry_run(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    _write_bug_report(tmp_path, "bug_old", submitted_at="2025-09-01T00:00:00Z")
+    _write_bug_report(tmp_path, "bug_recent", submitted_at="2025-10-31T00:00:00Z")
+
+    response = admin_client.post(
+        "/api/bug-reports/purge",
+        json={"older_than_days": 30, "dry_run": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["status"] == "dry_run"
+    assert payload["results"]["matched"] == 1
+    assert (tmp_path / "bug_old.json").exists()
+
+
+def test_purge_bug_reports_deletes_old_files(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
+    old_report = _write_bug_report(tmp_path, "bug_old", submitted_at="2025-09-01T00:00:00Z")
+    recent_report = _write_bug_report(tmp_path, "bug_recent", submitted_at="2025-10-31T00:00:00Z")
+
+    response = admin_client.post("/api/bug-reports/purge", json={"older_than_days": 30})
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["status"] == "success"
+    assert payload["results"]["deleted"] == 1
+    assert not old_report.exists()
+    assert recent_report.exists()

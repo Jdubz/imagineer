@@ -1,9 +1,9 @@
 # Bug Report Tool - Implementation Plan
 
 **Created:** 2025-10-29
-**Status:** Backend delivered; frontend integration pending
+**Status:** Frontend & submission flow complete (2025-10-31); review tooling pending
 **Priority:** Medium
-**Estimated Time:** 8-12 hours
+**Estimated Time Remaining:** 4-6 hours (review CLI/retention)
 
 ---
 
@@ -23,14 +23,12 @@ Complete the bug report capture tool that allows admin users to submit detailed 
 - Bug report modal UI
 - `BugReportButton` component
 - Type definitions for bug reports
-- `ErrorBoundary` component (without bug report integration)
+- `ErrorBoundary` + settings menu integration (Ctrl+Shift+B shortcut, modal launch, trace ID display)
 
-### ❌ Missing Components
-- Settings menu entry to surface the bug report modal
-- Keyboard shortcut (Ctrl+Shift+B)
-- ErrorBoundary integration hook
-- Error toast with bug report button
-- Frontend display of the server-provided trace ID
+### ✅ Backend Ops Tooling (Delivered 2025-11-01)
+- Admin REST + CLI workflow to list, inspect, resolve, and delete reports
+- Automated retention job (`POST /api/bug-reports/purge` + `celery` task)
+- Updated runbook in `docs/guides/BUG_REPORT_WORKFLOW.md`
 
 ---
 
@@ -917,16 +915,16 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 ## Implementation Checklist
 
 ### Backend
-- [ ] Create `server/middleware/trace_id.py`
-- [ ] Create `server/utils/error_handler.py`
-- [ ] Create `server/routes/bug_reports.py`
-- [ ] Register trace ID middleware in `server/api.py`
-- [ ] Update all error handlers to use structured format
-- [ ] Register bug_reports blueprint in `server/api.py`
-- [ ] Add bug_reports config to `config.yaml`
-- [ ] Add BUG_REPORTS_PATH to `.env.example`
-- [ ] Test /api/bug-reports endpoint
-- [ ] Verify trace IDs in response headers
+- [x] Create `server/middleware/trace_id.py`
+- [x] Create `server/utils/error_handler.py`
+- [x] Create `server/routes/bug_reports.py`
+- [x] Register trace ID middleware in `server/api.py`
+- [x] Update all error handlers to use structured format
+- [x] Register bug_reports blueprint in `server/api.py`
+- [x] Add bug_reports config to `config.yaml`
+- [x] Add BUG_REPORTS_PATH to `.env.example`
+- [x] Test /api/bug-reports endpoint
+- [x] Verify trace IDs in response headers
 
 ### Frontend - Settings Menu
 - [ ] Create `web/src/components/SettingsMenu.tsx`
@@ -968,6 +966,16 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 - [ ] Test manual resolution workflow
 - [ ] Verify graceful handling of missing directory
 
+### Claude CLI Workflow
+- [ ] Publish/maintain `ghcr.io/jdubz/imagineer/bug-cli:latest` with required tooling pre-installed.
+- [ ] Provide a `scripts/bug_reports/run_cli_session.sh` helper that launches the ephemeral container with all credential mounts and log volume.
+- [ ] Ensure the session bootstrap script creates `/logs/bug_reports/<report_id>/session.log` and tees all Claude CLI output into it.
+- [ ] Bake a pre-flight check that validates availability of `npm`, `npm run lint`, `npm run tsc`, `npm test -- --run --coverage`, `flake8`, `black --check`, `pytest`, and any bug-specific tools.
+- [ ] Automate the mandatory verification step list (see Phase 6.2) so failures halt the session before teardown.
+- [ ] Add a commit/push helper (`scripts/bug_reports/commit_and_push.sh`) that enforces `develop` branch, signed commits, and references the report ID.
+- [ ] Update the bug report JSON writer to set `"status": "resolved"` and append `resolution` metadata once the push succeeds.
+- [ ] Document the teardown procedure and ensure the helper script exits the container (`docker run --rm`) after logging the summary.
+
 ---
 
 
@@ -978,6 +986,124 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 - Allow simple red annotations to highlight problem areas before submission.
 - On capture failure: alert the admin, continue submission, and include failure details in the stored JSON report.
 - Store the PNG as `{report_id}/screenshot.png` alongside other artifacts.
+
+### Phase 6: Claude CLI Bug Review Workflow (1-2 hours)
+
+When a bug report is submitted, the responding agent must execute the fix inside a controlled, auditable Claude CLI session that runs within an ephemeral Docker container. This guarantees repeatable tooling, captures a review log, and ensures the fix is committed before the environment disappears.
+
+#### 6.1 Ephemeral Container Provisioning
+- Launch an ephemeral container from `ghcr.io/jdubz/imagineer/bug-cli:latest`, which bundles Node.js, npm, Python, pip, black, flake8, pytest, eslint, TypeScript, Firebase CLI, and Claude CLI.
+- Mount required volumes:
+  - `-v "$PWD":/workspace` (repository working tree, read/write).
+  - `-v "$HOME/.ssh":/root/.ssh:ro` for Git access.
+  - `-v "$HOME/.config/gcloud":/root/.config/gcloud:ro` and `-v "$HOME/.firebase":/root/.firebase:ro` for deployment credentials.
+  - `-v "$PWD/logs/bug_reports":/logs/bug_reports"` to persist session logs.
+  - Optional caches (`$HOME/.cache/pip`, `$HOME/.npm`) to speed installs.
+- Example invocation:
+  ```bash
+  docker run --rm -it \
+    -v "$PWD":/workspace \
+    -v "$HOME/.ssh":/root/.ssh:ro \
+    -v "$HOME/.config/gcloud":/root/.config/gcloud:ro \
+    -v "$HOME/.firebase":/root/.firebase:ro \
+    -v "$PWD/logs/bug_reports":/logs/bug_reports \
+    ghcr.io/jdubz/imagineer/bug-cli:latest
+  ```
+
+#### 6.2 Agent Execution Checklist (inside the container)
+1. Start Claude Code, binding the generated `report_id`, and tee all output to `/logs/bug_reports/<report_id>/session.log`.
+2. Verify the toolchain by running `node --version`, `npm --version`, `python3 --version`, `pip --version`, `pytest --version`, `flake8 --version`, `black --version`, `eslint --version`, `tsc --version`, and `firebase --version`; record results in the log.
+3. Reinstall dependencies if necessary (`npm ci`, `pip install -r requirements.txt`) and note any changes.
+4. Apply code changes guided by the agent.
+5. Perform a self-review: `git status` and `git diff` must be captured in the session log with agent commentary.
+6. Run mandatory verification commands, capturing full output:
+   - `npm run lint`
+   - `npm run tsc`
+   - `npm test -- --run --coverage`
+   - `flake8 server src tests`
+   - `black --check server src tests`
+   - `pytest --maxfail=1 --disable-warnings -v`
+7. If additional project-specific checks are required (e.g., `terraform fmt`, `docker compose config`), run and document them.
+8. Stage intentional changes only (`git add ...`) and include a summary in the log.
+
+#### 6.3 Completion, Commit, and Teardown
+1. Commit the fix to `develop` with a message referencing the report ID (e.g., `git commit -am "fix: resolve <report_id> bug"`).
+2. Push to `origin develop` and monitor the resulting GitHub Actions run; paste the run URL and status into the log.
+3. Update the stored bug report JSON: set `"status": "resolved"` and append a `resolution` payload containing the commit SHA, timestamp, and log file path.
+4. Record a final summary (changes made, tests executed, commit SHA, GH Actions URL) at the end of `/logs/bug_reports/<report_id>/session.log`.
+5. Exit Claude Code, allow the container to terminate (`docker run --rm` ensures cleanup), and confirm no secrets were written outside mounted paths.
+6. Notify stakeholders (Slack or issue tracker) with the resolution summary if applicable.
+
+
+---
+
+## Phase 7: Automated Bug-Report Agent Runner
+
+### Goals
+- Launch a Claude-based remediation agent automatically after each bug report submission.
+- Enforce a single active agent; queue additional open reports (process newest-first).
+- Copy the repository into each container (no bind mounts) and keep host checkout untouched.
+- Capture a structured session log, push commits to `develop`, and update the stored report.
+
+### Components
+1. **Agent Manager (`server/bug_reports/agent_manager.py`)**
+   - Singleton with an internal queue (`collections.deque`) and `active_worker` flag.
+   - `enqueue(report_id)` stores work items and spins up a daemon thread when idle.
+   - Worker pulls open reports via `list_reports(..., status="open")`, sorts by `submitted_at` (desc), and processes the newest.
+   - Prepares per-report context (`context.json`) and log path under `logs/bug_reports/<report_id>/`.
+   - Marks reports as resolved/failed and loops until the queue is empty.
+
+2. **Docker Runner (`server/bug_reports/docker_runner.py`)**
+   - Runs containers from `ghcr.io/jdubz/imagineer/bug-cli:latest` (configurable).
+   - Mounts credentials read-only (`~/.ssh`, `~/.claude`, `~/.config/gcloud`, `~/.firebase`) and tmpfs for `.claude`.
+   - Copies the repo into `/workspace/repo` via `docker cp` and streams stdout/stderr to the session log.
+   - Enforces runtime timeout (`BUG_REPORT_AGENT_TIMEOUT_MINUTES`) and cleans up containers on exit.
+
+3. **Bootstrap Script (`scripts/bug_reports/agent_bootstrap.sh`)**
+   - Consumes env vars (`REPORT_ID`, `TARGET_BRANCH`, `SESSION_LOG`, `CONTEXT_PATH`).
+   - Fetches latest `develop`, reinstalls deps as needed, and orchestrates Claude CLI plan/apply.
+   - Runs required checks (`npm run lint`, `npm run tsc`, `npm test -- --run --coverage`, `flake8 server src tests`, `black --check server src tests`, `pytest --maxfail=1 --disable-warnings -v`).
+   - Commits (`fix: <summary> (bug <report_id>)`), pushes to `origin develop`, and writes `session_summary.json` (commit SHA, tests executed, timestamps).
+
+4. **Report Updater**
+   - Success path: `update_report(report_id, status="resolved", resolution={commit, finished_at, log_path, tests})`.
+   - Failure path: leave status `open`, append `resolution.failure` metadata for manual follow-up.
+
+### Workflow
+1. `submit_bug_report` persists the report, returns `201`, then asynchronously calls `agent_manager.enqueue(report_id)`.
+2. Background worker prepares context/logs and invokes the Docker runner for the newest open report.
+3. Bootstrap script performs remediation within the container and emits summary artifacts.
+4. Manager ingests `session_summary.json`, updates the report JSON, appends a final log entry, and continues until no open reports remain.
+5. When the queue drains, the worker clears `active_worker` and exits.
+
+### Configuration
+Add configuration stanza (env-overridable):
+```yaml
+bug_reports:
+  agent:
+    enabled: true
+    docker_image: "ghcr.io/jdubz/imagineer/bug-cli:latest"
+    target_branch: "develop"
+    log_dir: "logs/bug_reports"
+    timeout_minutes: 60
+```
+Environment variables: `BUG_REPORT_AGENT_ENABLED`, `BUG_REPORT_AGENT_IMAGE`, `BUG_REPORT_AGENT_BRANCH`, `BUG_REPORT_AGENT_TIMEOUT`.
+
+### Logging & Artifacts
+- Session log stored at `logs/bug_reports/<report_id>/session.log`.
+- `session_summary.json` saved alongside the log for quick parsing.
+- Bootstrap script uses step markers (e.g., `=== [timestamp] npm run lint ===`) for easier audits.
+
+### Testing
+- **Unit**: queue/worker flow with mocked Docker interactions; configuration parsing; report update helpers.
+- **Integration (mock runner)**: verify success/failure paths update reports and queue progression.
+- **Manual QA**: dry-run mode (skip push) plus a full cycle on a disposable branch.
+
+### Risks & Mitigations
+- Git push failure → record error, leave report open, surface log path for investigation.
+- Long-running sessions → enforce timeout and terminate container.
+- Repo divergence → bootstrap fetch/merge guard aborts on conflicts.
+- Credential exposure → mounts remain read-only; review logs for sensitive data.
 
 ## Future Enhancements (V2)
 

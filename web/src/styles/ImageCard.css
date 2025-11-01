@@ -48,6 +48,34 @@
   opacity: 0.9;
 }
 
+.image-card.nsfw-blurred .image-thumbnail,
+.image-card .image-thumbnail.blurred {
+  filter: blur(14px);
+}
+
+.image-card .nsfw-blur-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.6));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 2;
+  text-transform: uppercase;
+}
+
+.image-card .nsfw-blur-label {
+  padding: 0.35rem 0.75rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
 /* NSFW Badge (top-right) */
 .image-card .nsfw-badge {
   position: absolute;
@@ -112,6 +140,11 @@
   .image-card .label-badge {
     font-size: 0.65rem;
     padding: 2px 4px;
+  }
+
+  .image-card .nsfw-blur-label {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.6rem;
   }
 
   .image-card .image-prompt {
