@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SpyInstance } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { BugReportProvider, useBugReporter } from './BugReportContext'
@@ -57,8 +57,17 @@ const CollectorComponent: React.FC = () => {
   )
 }
 
-const renderWithProvider = (ui: React.ReactElement): void => {
-  render(<BugReportProvider>{ui}</BugReportProvider>)
+const renderWithProvider = async (ui: React.ReactElement): Promise<void> => {
+  await act(async () => {
+    render(<BugReportProvider>{ui}</BugReportProvider>)
+    await Promise.resolve()
+  })
+}
+
+const flushAsync = async (): Promise<void> => {
+  await act(async () => {
+    await Promise.resolve()
+  })
 }
 
 describe('BugReportProvider', () => {
@@ -75,9 +84,13 @@ describe('BugReportProvider', () => {
   it('opens the modal with a prefilled description when openBugReport is invoked', async () => {
     const user = userEvent.setup()
 
-    renderWithProvider(<CollectorComponent />)
+    await renderWithProvider(<CollectorComponent />)
+    await flushAsync()
 
-    await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    })
+    await flushAsync()
 
     const modal = await screen.findByRole('dialog', { name: /report a bug/i })
     expect(modal).toBeInTheDocument()
@@ -95,23 +108,38 @@ describe('BugReportProvider', () => {
       stored_at: '/tmp/bug.json',
     })
 
-    renderWithProvider(<CollectorComponent />)
+    await renderWithProvider(<CollectorComponent />)
+    await flushAsync()
 
-    logger.info('first log entry')
+    act(() => {
+      logger.info('first log entry')
+    })
 
-    await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open bug report/i }))
+    })
+    await flushAsync()
 
-    await fetch('/api/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' },
-      body: JSON.stringify({ foo: 'bar' }),
+    await act(async () => {
+      await fetch('/api/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' },
+        body: JSON.stringify({ foo: 'bar' }),
+      })
     })
 
     const textarea = await screen.findByLabelText<HTMLTextAreaElement>(/what went wrong/i)
-    await user.clear(textarea)
-    await user.type(textarea, 'New description')
+    await act(async () => {
+      await user.clear(textarea)
+    })
+    await act(async () => {
+      await user.type(textarea, 'New description')
+    })
 
-    await user.click(screen.getByRole('button', { name: /submit report/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /submit report/i }))
+    })
+    await flushAsync()
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(1))
 

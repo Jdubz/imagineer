@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
 import type { Config } from '../types/models'
@@ -125,14 +125,22 @@ describe('GenerateForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.click(screen.getByLabelText(/fixed/i))
+    await act(async () => {
+      await user.click(screen.getByLabelText(/fixed/i))
+    })
 
     const seedInput = screen.getByPlaceholderText(/enter seed or generate random/i)
-    await user.type(seedInput, '12345')
+    await act(async () => {
+      await user.type(seedInput, '12345')
+    })
 
     const promptInput = screen.getByPlaceholderText(/describe the image/i)
-    await user.type(promptInput, 'test prompt')
-    await user.click(screen.getByRole('button', { name: /generate image/i }))
+    await act(async () => {
+      await user.type(promptInput, 'test prompt')
+    })
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /generate image/i }))
+    })
 
     expect(mockOnGenerate).toHaveBeenCalledWith(
       expect.objectContaining({
