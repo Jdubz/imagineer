@@ -135,6 +135,12 @@ Verification of backend/frontend type contract alignment.
 
 - [archive/SHARED_TYPES_VALIDATION_FIX_2025-11-01.md](./archive/SHARED_TYPES_VALIDATION_FIX_2025-11-01.md) — Zod/Auth contract alignment notes (fully shipped; retained for historical reference).
 - [archive/ACTUAL_REMAINING_WORK_2025-11-01.md](./archive/ACTUAL_REMAINING_WORK_2025-11-01.md) — Frontend gap tracker resolved by NSFW preference and gallery consolidation work.
+- [archive/ADAPTIVE_POLLING_COMPLETE_2025-11-01.md](./archive/ADAPTIVE_POLLING_COMPLETE_2025-11-01.md) — Records the completion of unified adaptive polling.
+- [archive/CONTEXT_API_COMPLETE_2025-11-01.md](./archive/CONTEXT_API_COMPLETE_2025-11-01.md) — Context API rewrite completion notes.
+- [archive/IMAGECARD_CONSOLIDATION_COMPLETE_2025-11-01.md](./archive/IMAGECARD_CONSOLIDATION_COMPLETE_2025-11-01.md) — Final report on the ImageCard adoption push.
+- [archive/TEST_IMPLEMENTATION_COMPLETE_2025-11-01.md](./archive/TEST_IMPLEMENTATION_COMPLETE_2025-11-01.md) — Summary of the test suite overhaul.
+- [archive/TOAST_MIGRATION_COMPLETE_2025-11-01.md](./archive/TOAST_MIGRATION_COMPLETE_2025-11-01.md) — Toast/notification migration retrospective.
+- [archive/FRONTEND_TASKS_COMPLETION_AUDIT_2025-11-01.md](./archive/FRONTEND_TASKS_COMPLETION_AUDIT_2025-11-01.md) — Snapshot showing all audit P0/P1 items delivered.
 
 ### Frontend-Specific
 
