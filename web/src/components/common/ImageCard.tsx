@@ -90,11 +90,6 @@ const ImageCard = memo<ImageCardProps>(({
   className = '',
   sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw',
 }) => {
-  // Hide NSFW images when filter is enabled
-  if (hideNsfw && image.is_nsfw) {
-    return null
-  }
-
   const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
 
   const handlePreload = useCallback(() => {
@@ -109,6 +104,11 @@ const ImageCard = memo<ImageCardProps>(({
 
   const hasLabels = labelCount > 0
   const isNsfw = image.is_nsfw === true
+
+  // Hide NSFW images when filter is enabled
+  if (hideNsfw && isNsfw) {
+    return null
+  }
 
   return (
     <div
