@@ -53,6 +53,7 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=${PROJECT_DIR}
+EnvironmentFile=-${PROJECT_DIR}/.env
 ExecStart=${VENV_DIR}/bin/gunicorn \\
     --bind 127.0.0.1:10050 \\
     --workers 2 \\

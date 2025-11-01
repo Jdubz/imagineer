@@ -21,6 +21,7 @@ authlib>=1.3.0
 gunicorn>=21.2.0
 pyyaml>=6.0.0
 requests>=2.31.0
+python-dotenv>=1.0.0
 
 # AI Labeling
 # Uses Claude CLI via Docker (no direct API dependency)

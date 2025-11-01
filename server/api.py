@@ -13,11 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -131,6 +135,7 @@ from server.celery_app import make_celery  # noqa: E402
 celery = make_celery(app)
 
 # Register blueprints
+from server.bug_reports.agent_manager import refresh_bug_report_agent_config  # noqa: E402
 from server.routes.admin import admin_bp  # noqa: E402
 from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
@@ -147,6 +152,9 @@ app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(generation_bp)
+
+# Refresh bug report agent configuration on startup so env overrides apply.
+refresh_bug_report_agent_config()
 
 # ============================================================================
 # Build / Version Metadata
