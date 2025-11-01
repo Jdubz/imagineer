@@ -22,7 +22,6 @@ const ScrapingTab = lazy(() => import('./components/ScrapingTab'))
 const TrainingTab = lazy(() => import('./components/TrainingTab'))
 const LorasTab = lazy(() => import('./components/LorasTab'))
 const QueueTab = lazy(() => import('./components/QueueTab'))
-const ShadcnTest = lazy(() => import('./components/ShadcnTest'))
 
 const AppContent: React.FC = () => {
   const location = useLocation()
@@ -201,14 +200,6 @@ const AppContent: React.FC = () => {
                 element={
                   <ErrorBoundaryWithReporting boundaryName="LoRAs Tab">
                     <LorasTab />
-                  </ErrorBoundaryWithReporting>
-                }
-              />
-              <Route
-                path="/shadcn-test"
-                element={
-                  <ErrorBoundaryWithReporting boundaryName="Shadcn Test">
-                    <ShadcnTest />
                   </ErrorBoundaryWithReporting>
                 }
               />

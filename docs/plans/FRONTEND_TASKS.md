@@ -77,15 +77,9 @@ This backlog reflects the outstanding frontend work after verifying the codebase
   3. Extend hook tests to cover adaptive intervals, pause-on-hidden, and immediate-run scenarios.
 
 ### F-8: Retire the Shadcn Test Route from the Production Bundle
-- **Status:** ⏳ Not started
-- **Why it matters:** The `/shadcn-test` route exposes a developer-only showcase in production builds, increases bundle size, and duplicates component demos better suited for Storybook.
-- **Current state:**
-  - `web/src/App.tsx:214-223` still defines a route pointing at `ShadcnTest`.
-  - `web/src/components/ShadcnTest.tsx` pulls in multiple UI primitives solely for the demo page.
-- **Definition of done:**
-  1. Remove the route (or guard it behind `import.meta.env.DEV`) so it never ships to end users.
-  2. Move any useful examples into Storybook/docs and delete the component when redundant.
-  3. Update routing tests to reflect the reduced surface area.
+- **Status:** ✅ Completed 2025-11-01
+- **Outcome:** Removed the lazy import and route guard from `App.tsx`, deleted `ShadcnTest.tsx`, and reran type-check/tests to confirm the build stays green.
+
 
 ### F-9: Harmonise Layout Shell
 - **Status:** ⏳ Not started
