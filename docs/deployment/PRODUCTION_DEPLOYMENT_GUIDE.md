@@ -89,7 +89,7 @@ curl http://localhost:10050/api/health
 Test via tunnel:
 ```bash
 curl https://imagineer.joshwentworth.com/health
-curl https://imagineer.joshwentworth.com/api/health
+curl https://api.imagineer.joshwentworth.com/api/health
 ```
 
 ## Part 2: GitHub Configuration
@@ -273,7 +273,7 @@ curl https://imagineer.joshwentworth.com
 ```bash
 # All health checks should return 200 OK
 curl -I https://imagineer.joshwentworth.com/health
-curl -I https://imagineer.joshwentworth.com/api/health
+curl -I https://api.imagineer.joshwentworth.com/api/health
 ```
 
 ### Performance Monitoring

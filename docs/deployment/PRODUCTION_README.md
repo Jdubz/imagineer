@@ -2,6 +2,12 @@
 
 **Complete production setup with auto-deployment from GitHub main branch**
 
+> **2025-10 Update**
+>
+> - Frontend builds now deploy from GitHub Actions directly to Firebase Hosting (`static-sites-257923`), so the production workstation no longer needs Node.js for releases.
+> - Backend promotion runs via `scripts/deploy/backend-release.sh`, invoked over SSH from CI. Docker remains optional; the default path is the systemd service configured by `scripts/deploy/setup-backend.sh`.
+> - Grant your CI user passwordless sudo for `systemctl restart imagineer-api`, `systemctl status imagineer-api`, and `journalctl -u imagineer-api` (e.g., `/etc/sudoers.d/imagineer-ci`) or the release script will abort.
+
 ## ✅ What's Been Created
 
 ### 🐳 Docker Configuration
@@ -132,7 +138,7 @@ make prod-logs
 # Verify
 make prod-status
 # Confirm deployed version & commit
-curl -s https://imagineer.joshwentworth.com/api/health | jq '{status,version,git_commit,started_at}'
+curl -s https://api.imagineer.joshwentworth.com/api/health | jq '{status,version,git_commit,started_at}'
 ```
 
 ---

@@ -339,7 +339,7 @@ Perfect for:
 After deployment, automatically checks:
 - Local backend: `http://localhost:10050/api/health`
 - Tunnel service: systemd status
-- Public API: `https://imagineer.joshwentworth.com/api/health`
+- Public API: `https://api.imagineer.joshwentworth.com/api/health`
 - Frontend: `https://imagineer-generator.web.app`
 
 ### 6. Detailed Logging
@@ -432,9 +432,9 @@ The orchestration script integrates with all existing deployment tools:
 - Alternative: https://imagineer-generator.firebaseapp.com
 
 **API:**
-- Public: https://imagineer.joshwentworth.com/api
-- Health: https://imagineer.joshwentworth.com/api/health
-- Generate: https://imagineer.joshwentworth.com/api/generate
+- Public: https://api.imagineer.joshwentworth.com/api
+- Health: https://api.imagineer.joshwentworth.com/api/health
+- Generate: https://api.imagineer.joshwentworth.com/api/generate
 - Local: http://localhost:10050/api
 
 **Dashboards:**

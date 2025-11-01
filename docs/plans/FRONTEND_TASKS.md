@@ -93,59 +93,50 @@ This document consolidates outstanding frontend work across the October 2025 pla
 ### Task #37: URGENT - Stop Aggressive Polling Memory Leak
 - **Priority:** P0 (CRITICAL)
 - **Estimated Time:** 4-6 hours (Small)
-- **Status:** Not Started
+- **Status:** ✅ COMPLETE (2025-10-31)
 - **Files:**
-  - UPDATE: `web/src/components/JobQueue.tsx`
-  - NEW: `web/src/hooks/useSmartPolling.ts` OR implement WebSocket
-  - Consider: Backend WebSocket endpoint
-- **Issue:** JobQueue polls API every 2 seconds = **1,800 requests/hour**. Runs continuously even when tab inactive, no error backoff, causes memory leaks and contributed to OOM crashes (see codex crash investigation 2025-10-31).
-- **Solution:** Option A (Preferred - WebSocket):
-  - Add WebSocket support to backend (server/api.py with flask-socketio)
-  - Create useJobSocket hook in frontend
-  - Emit job updates from backend on status changes
-  - Replace polling with real-time updates
-  - Add connection status indicator
-
-  Option B (Smart Polling):
-  - Create useSmartPolling hook with:
-    - Page Visibility API (pause when tab hidden)
-    - Exponential backoff on errors (2s → 4s → 8s → max 30s)
-    - Stop polling on 401/403
-    - Abort controller for cleanup
-  - Replace setInterval with smart polling
-- **Impact:** Reduces API calls from 1,800/hour to ~10-20/hour (WebSocket) or ~120/hour (smart polling), prevents memory leaks, reduces server load
-- **Reference:** Best practices analysis 2025-10-31, Critical Issue #3, Related to codex OOM crash investigation
+  - UPDATE: `web/src/components/QueueTab.tsx`
+  - NEW: `web/src/hooks/useAdaptivePolling.ts`
+- **Issue:** QueueTab polls API every 2 seconds = **1,800 requests/hour**. Runs continuously even when tab inactive, no error backoff, causes memory leaks and contributed to OOM crashes (see codex crash investigation 2025-10-31).
+- **Solution Implemented:** Adaptive Polling (Option B Enhanced)
+  - Created `useAdaptivePolling` hook with intelligent interval adjustment
+  - **Active polling (2s)** when job is running - 1,800 req/hour
+  - **Medium polling (10s)** when jobs queued - 360 req/hour (80% reduction)
+  - **Idle polling (30s)** when no activity - 120 req/hour (93% reduction)
+  - Page Visibility API pauses when tab hidden
+  - Immediate fetch when tab regains focus
+  - Proper cleanup prevents memory leaks
+  - Error handling with fallback to slow polling
+- **Impact:** Reduces API calls by 70-93% depending on activity level (typical: 81% reduction). In typical usage (10% active, 20% medium, 70% idle): 1,800 req/hour → 336 req/hour. Prevents memory leaks, reduces server load, improves battery life on mobile.
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #3, ADAPTIVE_POLLING_COMPLETE.md
+- **Future:** Consider WebSocket implementation for v2.0 if true real-time needed
 
 ### Task #38: URGENT - Eliminate Props Drilling with Context
 - **Priority:** P0 (CRITICAL)
 - **Estimated Time:** 8-10 hours (Medium)
-- **Status:** Not Started (BLOCKS Task #31)
+- **Status:** ✅ COMPLETE (2025-10-31)
 - **Files:**
-  - NEW: `web/src/contexts/AppContext.tsx`
-  - NEW: `web/src/hooks/useApp.ts`
-  - NEW: `web/src/hooks/useGeneration.ts`
-  - UPDATE: `web/src/App.tsx`
-  - UPDATE: All components receiving drilled props (GenerateForm, ImageGallery, JobQueue, SetSelector)
-- **Issue:** App.tsx passes 15+ props through multiple component layers causing:
-  - Unnecessary re-renders (every state change re-renders all children)
-  - Tight coupling between components
-  - Difficult maintenance and refactoring
-  - Poor performance (no memoization possible with this pattern)
-- **Solution:**
-  - Create AppContext with AppProvider containing:
-    - Job state (jobs, generating, setJobs, setGenerating)
-    - Set selection state (sets, selectedSet, theme)
-    - Gallery state (selectedBatchId, selectedBatch, selectedImage)
-    - Memoized actions (addJob, updateJob, selectBatch)
-  - Create specialized hooks:
-    - useGeneration() - for generation-specific actions
-    - useGallery() - for gallery-specific actions
-    - useJobQueue() - for queue-specific actions
-  - Update App.tsx to wrap with AppProvider
-  - Refactor all components to use context hooks instead of props
-  - Remove all prop drilling
-- **Impact:** Eliminates 15+ prop parameters, enables performance optimization, improves maintainability, UNBLOCKS Task #31
-- **Reference:** Best practices analysis 2025-10-31, Critical Issue #4, DUPLICATE of Task #14 but elevated to P0
+  - NEW: `web/src/contexts/AppContext.tsx` (315 lines)
+  - UPDATE: `web/src/App.tsx` (444 → 250 lines, -44% reduction)
+  - UPDATE: `web/src/components/GenerateTab.tsx` (6 props → 1 prop)
+  - UPDATE: `web/src/components/GalleryTab.tsx` (6 props → 0 props)
+- **Issue:** App.tsx passes 12 props through component layers causing tight coupling, difficult maintenance, and poor performance. GenerateTab received 6 props, GalleryTab received 6 props.
+- **Solution Implemented:**
+  - Created `AppContext` with centralized state management:
+    - **Generation State:** config, loading, currentJob, queuePosition
+    - **Gallery State:** images, batches, loadingImages, loadingBatches
+    - **Actions:** handleGenerate, fetchConfig, fetchImages, fetchBatches
+    - **NSFW Filter:** nsfwEnabled state
+  - Created convenience hooks:
+    - `useApp()` - Full context access
+    - `useGeneration()` - Generation-specific state/actions
+    - `useGallery()` - Gallery-specific state/actions
+  - Simplified App.tsx from 444 to 250 lines (-194 lines, -44%)
+  - Eliminated all props drilling to tab components
+  - Preserved bug report collector with context values
+  - Initial data fetching on mount with proper cleanup
+- **Impact:** Eliminated 11 props, reduced App.tsx by 44%, improved maintainability, enabled future performance optimizations. Bundle size increase: +0.03 KB gzipped (negligible).
+- **Reference:** Best practices analysis 2025-10-31, Critical Issue #4, CONTEXT_API_COMPLETE.md
 
 ### Task #39: Add Basic Performance Optimizations
 - **Priority:** P0 (HIGH IMPACT)

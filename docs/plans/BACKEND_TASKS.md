@@ -71,7 +71,15 @@ data/legacy/
 
 **Benefits:** Restores historic visibility, enables model retraining on legacy sets, and centralises provenance data.
 
-**Open Work:** Finalise ingestion CLI, backfill database rows, and wire UI discovery once the data import lands.
+**Current Progress (Oct 31, 2025):**
+- Implemented collector utilities to normalise outputs/assets (`server/legacy_import/collectors.py`).
+- Added staging helpers & manifest writer for `data/legacy/` (`server/legacy_import/stager.py`).
+- New CLI `scripts/import_legacy_media.py` performs dry-runs, stages assets via symlinks/copies, and optionally ingests into the database.
+- Importer ensures album schema migrations are applied automatically and inserts legacy images/albums (`server/legacy_import/importer.py`).
+- Unit tests exercise collectors/staging flows (`tests/backend/test_legacy_collectors.py`, `tests/backend/test_legacy_stager.py`).
+- Initial ingest completed Oct 31, 2025 (`scripts/import_legacy_media.py --ingest`): 165 images staged, 8 albums created, 165 album-image links attached.
+
+**Open Work:** Surface imported albums in the frontend, add verification dashboards/reporting, and document the ops runbook for re-running the importer in different environments.
 
 ---
 

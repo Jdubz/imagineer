@@ -87,7 +87,7 @@ ingress:
 
 **`web/.env.production`**
 - **Changed**: `VITE_API_BASE_URL` from absolute to relative path
-- **Before**: `https://imagineer.joshwentworth.com/api`
+- **Before**: `https://api.imagineer.joshwentworth.com/api`
 - **After**: `/api` (relative path)
 - Works because frontend and backend are on same domain
 
@@ -222,7 +222,7 @@ After deployment, test these endpoints:
 - [ ] `http://localhost:8080/health` - nginx health check
 - [ ] `http://localhost:10050/api/health` - API health check
 - [ ] `https://imagineer.joshwentworth.com` - Public frontend
-- [ ] `https://imagineer.joshwentworth.com/api/health` - Public API
+- [ ] `https://api.imagineer.joshwentworth.com/api/health` - Public API
 - [ ] `https://imagineer.joshwentworth.com/auth/login` - OAuth login
 
 ## Rollback Plan

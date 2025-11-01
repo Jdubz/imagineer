@@ -970,13 +970,27 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 
 ---
 
+
+### Screenshot Feature Clarifications (Oct 30, 2025)
+- Capture occurs automatically when the admin submits the report (no extra action).
+- Use `html2canvas` to capture the entire page while hiding the bug-report modal during capture.
+- Provide a preview and single "Include screenshot" checkbox (default checked) with no retake option.
+- Allow simple red annotations to highlight problem areas before submission.
+- On capture failure: alert the admin, continue submission, and include failure details in the stored JSON report.
+- Store the PNG as `{report_id}/screenshot.png` alongside other artifacts.
+
 ## Future Enhancements (V2)
 
-### Screenshot Capture
-- Add screenshot capture with `html2canvas`
-- Exclude bug report modal from screenshot
-- Store as separate PNG file: `{report_id}/screenshot.png`
-- Add screenshot path to JSON report
+### Screenshot Capture (Planned)
+- Capture screenshot automatically when admin submits a report (no extra button).
+- Use `html2canvas` to grab the entire page viewport.
+- Exclude the bug-report modal window from the captured image.
+- Allow admin to preview the captured image and opt-in via a single “Include screenshot” checkbox (default on).
+- No retake option; capture happens once per submission.
+- Support simple red annotations (e.g., freehand highlight) before submission if possible.
+- Store screenshot as `{report_id}/screenshot.png` alongside other report artifacts.
+- On capture failure: alert the admin, continue submission, and record the failure details in the JSON payload.
+- Record the screenshot path (or failure note) in the JSON report.
 
 ### Feature Requests with Annotations
 - Separate modal for feature requests
