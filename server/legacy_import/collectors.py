@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 TIMESTAMP_PATTERN = re.compile(
-    r"(?P<date>\d{4})(?P<month>\d{2})(?P<day>\d{2})[_-]?"
+    r"(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})[_-]?"
     r"(?P<hour>\d{2})?(?P<minute>\d{2})?(?P<second>\d{2})?"
 )
 
@@ -106,7 +106,7 @@ def _extract_timestamp(value: Optional[str]) -> Optional[datetime]:
     groups = match.groupdict(default="00")
     try:
         return datetime(
-            int(groups["date"]),
+            int(groups["year"]),
             int(groups["month"]),
             int(groups["day"]),
             int(groups.get("hour", "00")),

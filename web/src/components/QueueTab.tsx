@@ -21,15 +21,16 @@ const QueueTab: React.FC = memo(() => {
       return data
     } catch (error) {
       if (isAuthError(error)) {
-        // Admin authentication required
+        // Admin authentication required - return empty state instead of throwing
         setAuthError(true)
         logger.warn('Queue access requires admin authentication')
-        throw error
+        return { current: null, queue: [], history: [] }
       }
       logger.error('Failed to fetch queue data:', error)
       const errorMessage = formatErrorMessage(error, 'Failed to load job queue')
       toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
-      throw error
+      // Return empty data for non-auth errors to allow adaptive polling to reset
+      return { current: null, queue: [], history: [] }
     }
   }, [toast])
 
