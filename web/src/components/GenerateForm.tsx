@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
+import { formatErrorMessage } from '../lib/errorUtils'
 import type { Config, GenerateParams, Album } from '../types/models'
 import {
   validateForm,
@@ -57,7 +58,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
       setTemplates(templateAlbums)
     } catch (error) {
       logger.error('Failed to fetch templates:', error)
-      toast({ title: 'Error', description: 'Failed to load batch templates', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Failed to load batch templates')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
     } finally {
       setLoadingTemplates(false)
     }

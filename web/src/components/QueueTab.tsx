@@ -5,6 +5,7 @@ import { ApiError } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
 import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
 import type { JobsResponse } from '../types/models'
+import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
 import '../styles/QueueTab.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw } from 'lucide-react'
@@ -20,14 +21,15 @@ const QueueTab: React.FC = memo(() => {
       setAuthError(false)  // Clear auth error on successful fetch
       return data
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      if (isAuthError(error)) {
         // Admin authentication required
         setAuthError(true)
         logger.warn('Queue access requires admin authentication')
         throw error
       }
       logger.error('Failed to fetch queue data:', error)
-      toast({ title: 'Error', description: 'Failed to load job queue', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Failed to load job queue')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
       throw error
     }
   }, [toast])

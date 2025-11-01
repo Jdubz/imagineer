@@ -7,6 +7,7 @@ import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib
 import { useToast } from '../hooks/use-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
+import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 import {
   AlertDialog,
@@ -229,7 +230,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
-      toast({ title: 'Error', description: 'Error creating album', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Error creating album')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
     }
   }, [isAdmin, toast, fetchAlbums])
 
@@ -256,7 +258,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      toast({ title: 'Error', description: 'Error deleting album', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Error deleting album')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
     } finally {
       setDeleteConfirmAlbum(null)
     }
@@ -877,7 +880,8 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      toast({ title: 'Error', description: 'Error starting batch generation', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Error starting batch generation')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
     } finally {
       setIsSubmitting(false)
     }
