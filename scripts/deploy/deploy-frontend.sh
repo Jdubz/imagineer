@@ -50,7 +50,7 @@ case $ENVIRONMENT in
     ;;
   prod)
     echo "🔧 Building for production..."
-    export VITE_API_BASE_URL="${VITE_API_BASE_URL_PROD:-https://api.imagineer.joshwentworth.com/api}"
+    export VITE_API_BASE_URL="${VITE_API_BASE_URL_PROD:-https://imagineer.joshwentworth.com/api}"
     FIREBASE_TARGET="prod"
     ;;
   *)
