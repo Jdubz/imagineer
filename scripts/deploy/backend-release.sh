@@ -29,10 +29,6 @@ if [[ ! -d "${APP_DIR}" ]]; then
   abort "Application directory ${APP_DIR} not found."
 fi
 
-if ! sudo -n true 2>/dev/null; then
-  abort "Passwordless sudo required for systemctl/journalctl. Configure NOPASSWD for ${USER}."
-fi
-
 cd "${APP_DIR}"
 
 log "Fetching latest changes from origin..."
