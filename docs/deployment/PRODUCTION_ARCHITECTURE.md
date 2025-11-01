@@ -115,7 +115,7 @@ Additional Routing
 - Frontend: `https://imagineer-generator.web.app`
 - API: `https://imagineer.joshwentworth.com/api/*`
 
-### Option 2: Use API Subdomain (Current Frontend Config)
+### Option 2: Use API Subdomain (Current Frontend Config) ✅ *In progress*
 
 **What to change:**
 
@@ -154,7 +154,7 @@ Additional Routing
    - Can keep `imagineer.joshwentworth.com` pointing to Firebase
    - This gives you a branded URL for the frontend
 
-5. **No Frontend Changes Needed** (already configured for `api.imagineer.joshwentworth.com`)
+5. **Frontend Configuration**: Ensure builds use `https://api.imagineer.joshwentworth.com/api`
 
 **Result:**
 - Frontend: `https://imagineer.joshwentworth.com` (via Firebase)

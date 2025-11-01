@@ -1,4 +1,4 @@
-# Cloudflare Tunnel Setup - imagineer.joshwentworth.com
+# Cloudflare Tunnel Setup - api.imagineer.joshwentworth.com
 
 Quick guide for setting up your Cloudflare Tunnel.
 
@@ -15,7 +15,7 @@ This will:
 1. Install `cloudflared` (if needed)
 2. Authenticate with Cloudflare
 3. Create tunnel named `imagineer-api`
-4. Configure tunnel for `imagineer.joshwentworth.com`
+4. Configure tunnel for `api.imagineer.joshwentworth.com`
 5. Create and start systemd service
 
 **Save the Tunnel ID** that's displayed at the end!
@@ -44,7 +44,7 @@ tunnel_id = "YOUR_TUNNEL_ID_HERE"
 
 # Domain is already configured
 domain = "joshwentworth.com"
-api_subdomain = "imagineer"
+api_subdomain = "api.imagineer"
 ```
 
 ### Step 4: Deploy Cloudflare Infrastructure
@@ -71,7 +71,8 @@ curl https://api.imagineer.joshwentworth.com/api/health
 
 ## 🔧 Configuration Details
 
-**Domain:** `imagineer.joshwentworth.com`
+**Domain:** `api.imagineer.joshwentworth.com`
+**Frontend:** `imagineer.joshwentworth.com` (Firebase Hosting via Cloudflare)
 **Tunnel Name:** `imagineer-api`
 **Local Backend:** `http://127.0.0.1:10050`
 
@@ -117,8 +118,8 @@ sudo systemctl status cloudflared-imagineer-api
 curl https://api.imagineer.joshwentworth.com/api/health
 
 # 4. Test from browser
-# Visit: https://imagineer-generator.web.app
-# Should connect to API at https://imagineer.joshwentworth.com
+# Visit: https://imagineer.joshwentworth.com (SPA)
+# App should call API at https://api.imagineer.joshwentworth.com
 ```
 
 ---
@@ -154,7 +155,7 @@ sudo systemctl restart cloudflared-imagineer-api
 **DNS not resolving:**
 ```bash
 # Check DNS
-dig imagineer.joshwentworth.com
+dig api.imagineer.joshwentworth.com
 
 # Verify Terraform created the record
 cd terraform

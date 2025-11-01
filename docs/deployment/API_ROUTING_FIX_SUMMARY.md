@@ -85,38 +85,19 @@ curl https://api.imagineer.joshwentworth.com/api/health
 
 ## The Fix (3 Options)
 
-### Option 1: Single Domain (Simplest) ⭐ RECOMMENDED
+### Option 1: Single Domain (Historical Plan)
 
-Use `imagineer.joshwentworth.com` for API only.
+Previously suggested moving the API to `imagineer.joshwentworth.com` and leaving the SPA on Firebase's default URL. This is **no longer the preferred approach** because the SPA is already branded on the root domain via Firebase + Cloudflare.
 
-**Steps:**
-1. Remove `imagineer.joshwentworth.com` from Firebase Custom Domains
-2. Update DNS to point to Cloudflare Tunnel
-3. Configure tunnel to route `/api/*` to Flask (port 10050)
-4. Update frontend to use `https://imagineer.joshwentworth.com/api`
-5. Redeploy frontend to Firebase
+### Option 2: API Subdomain (Current Path) ⭐ RECOMMENDED
 
-**Result:**
-- Frontend: `https://imagineer-generator.web.app` (Firebase direct)
-- API: `https://imagineer.joshwentworth.com/api/*` (via Cloudflare Tunnel)
-
-**Pros:**
-- Simple configuration
-- One domain for API
-- Clear separation
-
-**Cons:**
-- No branded frontend URL (uses Firebase subdomain)
-
-### Option 2: API Subdomain (Match Current Frontend)
-
-Create `api.imagineer.joshwentworth.com` subdomain.
+Use a dedicated `api.imagineer.joshwentworth.com` record for backend traffic while keeping the SPA on `imagineer.joshwentworth.com`.
 
 **Steps:**
 1. Create DNS CNAME: `api.imagineer.joshwentworth.com` → tunnel
 2. Update tunnel config to use `api.imagineer.joshwentworth.com`
-3. Keep `imagineer.joshwentworth.com` on Firebase (optional)
-4. No frontend changes needed (already configured for this)
+3. Keep `imagineer.joshwentworth.com` on Firebase for the SPA
+4. Ensure frontend builds target `https://api.imagineer.joshwentworth.com/api`
 
 **Result:**
 - Frontend: `https://imagineer.joshwentworth.com` (Firebase, branded)
@@ -129,7 +110,7 @@ Create `api.imagineer.joshwentworth.com` subdomain.
 
 **Cons:**
 - Requires DNS changes
-- More complex setup
+- Tunnel becomes critical part of API path (ensure monitoring)
 
 ### Option 3: Hybrid Routing (Most Flexible)
 
