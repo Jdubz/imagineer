@@ -105,31 +105,39 @@ jobs:
           set -euo pipefail
           CREDS_PATH="${RUNNER_TEMP}/firebase-service-account.json"
           python <<'PYCODE'
-          import base64
-          import json
-          import os
-          import sys
+          import textwrap
 
-          raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").strip()
-          if not raw:
-              sys.exit("FIREBASE_SERVICE_ACCOUNT secret is empty")
+          exec(
+              textwrap.dedent(
+                  """
+                  import base64
+                  import json
+                  import os
+                  import sys
 
-          def write_credentials(data: str) -> None:
-              path = os.environ["RUNNER_TEMP"] + "/firebase-service-account.json"
-              with open(path, "w", encoding="utf-8") as fh:
-                  fh.write(data)
+                  raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").strip()
+                  if not raw:
+                      sys.exit("FIREBASE_SERVICE_ACCOUNT secret is empty")
 
-          try:
-              json.loads(raw)
-          except json.JSONDecodeError:
-              try:
-                  decoded = base64.b64decode(raw).decode("utf-8")
-                  json.loads(decoded)
-                  write_credentials(decoded)
-              except Exception as exc:  # pylint: disable=broad-except
-                  raise SystemExit(f"Unable to decode FIREBASE_SERVICE_ACCOUNT: {exc}")
-          else:
-              write_credentials(raw)
+                  def write_credentials(data: str) -> None:
+                      path = os.environ["RUNNER_TEMP"] + "/firebase-service-account.json"
+                      with open(path, "w", encoding="utf-8") as fh:
+                          fh.write(data)
+
+                  try:
+                      json.loads(raw)
+                  except json.JSONDecodeError:
+                      try:
+                          decoded = base64.b64decode(raw).decode("utf-8")
+                          json.loads(decoded)
+                          write_credentials(decoded)
+                      except Exception as exc:  # pylint: disable=broad-except
+                          raise SystemExit(f"Unable to decode FIREBASE_SERVICE_ACCOUNT: {exc}")
+                  else:
+                      write_credentials(raw)
+                  """
+              )
+          )
           PYCODE
           echo "GOOGLE_APPLICATION_CREDENTIALS=${CREDS_PATH}" >> "${GITHUB_ENV}"
 
