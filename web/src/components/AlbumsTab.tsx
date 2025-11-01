@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, memo } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
+import ImageCard from './common/ImageCard'
 import { logger } from '../lib/logger'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
@@ -639,9 +640,13 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const activeEdit =
             editingLabel && editingLabel.imageId === image.id ? editingLabel : null
 
+          // Skip rendering if NSFW and hide filter is active
+          if (nsfwSetting === 'hide' && image.is_nsfw) {
+            return null
+          }
+
           const handleImageClick = () => isAdmin && actions.toggleImageSelection(image.id)
           const handleToggleSelection = () => actions.toggleImageSelection(image.id)
-          const handleImageLoaded = () => handleImageLoad(image.id)
           const handleAddLabelSubmit = (event: React.FormEvent<HTMLFormElement>) => {
             event.preventDefault()
             void actions.addLabel(image.id)
@@ -656,18 +661,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
             download_url: `/api/images/${image.id}/file`,
             is_nsfw: image.is_nsfw,
           }
-          const { thumbnail, full, alt, srcSet } = resolveImageSources(generatedImage, {
-            fallbackAlt: image.filename,
-          })
 
           return (
-            <div
-              key={image.id}
-              className={`image-card ${image.is_nsfw ? 'nsfw' : ''} ${nsfwSetting}`}
-              onClick={handleImageClick}
-              onMouseEnter={() => preloadImage(full)}
-              onFocus={() => preloadImage(full)}
-            >
+            <div key={image.id} className="album-image-container" onClick={handleImageClick}>
               {isAdmin && (
                 <input
                   type="checkbox"
@@ -677,25 +673,17 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                 />
               )}
 
-              <picture className="image-picture">
-                {thumbnail.endsWith('.webp') && (
-                  <source srcSet={srcSet} type="image/webp" />
-                )}
-                <img
-                  src={thumbnail}
-                  srcSet={srcSet}
-                  sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
-                  alt={alt || image.filename}
-                  loading="lazy"
-                  decoding="async"
-                  className={`preview-image ${loadedImages.has(image.id) ? 'loaded' : 'loading'} ${image.is_nsfw && nsfwSetting === 'blur' ? 'blurred' : ''}`}
-                  onLoad={handleImageLoaded}
-                />
-              </picture>
-
-              {image.is_nsfw && <div className="nsfw-badge">18+</div>}
-
-              {labels.length > 0 && <div className="has-labels-badge">🏷️</div>}
+              <ImageCard
+                image={generatedImage}
+                imageKey={imageKey}
+                hideNsfw={false}
+                labelCount={labels.length}
+                showNsfwBadge={true}
+                showLabelBadge={true}
+                showPrompt={false}
+                className={nsfwSetting}
+                sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
+              />
 
               {isAdmin && (
                 <>
