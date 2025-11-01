@@ -1,0 +1,121 @@
+/**
+ * Common ImageCard Component Styles
+ *
+ * Provides reusable styles for image cards with:
+ * - NSFW badges
+ * - Label badges
+ * - Responsive images
+ * - Hover effects
+ */
+
+/* Base image card */
+.image-card {
+  position: relative;
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  transition: transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
+}
+
+.image-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Image picture container */
+.image-card .image-picture {
+  display: block;
+  width: 100%;
+  position: relative;
+}
+
+/* Image thumbnail */
+.image-card .image-thumbnail {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+  display: block;
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--border)) 100%);
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.image-card .image-thumbnail.clickable {
+  cursor: pointer;
+}
+
+.image-card .image-thumbnail.clickable:hover {
+  opacity: 0.9;
+}
+
+/* NSFW Badge (top-right) */
+.image-card .nsfw-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Label Badge (bottom-right) */
+.image-card .label-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: hsl(var(--foreground) / 0.7);
+  color: hsl(var(--background));
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.image-card .label-badge .label-count {
+  font-size: 0.65rem;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+/* Image Prompt (below image) */
+.image-card .image-prompt {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.3;
+  background: hsl(var(--background));
+}
+
+.image-card .image-prompt p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+  .image-card .image-thumbnail {
+    height: 150px;
+  }
+
+  .image-card .nsfw-badge,
+  .image-card .label-badge {
+    font-size: 0.65rem;
+    padding: 2px 4px;
+  }
+
+  .image-card .image-prompt {
+    font-size: 0.75rem;
+    padding: 0.4rem;
+  }
+}

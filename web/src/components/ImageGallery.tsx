@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect, useCallback, memo } from 'react'
 import type { GeneratedImage } from '../types/models'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
+import ImageCard from './common/ImageCard'
+import { useApp } from '../contexts/AppContext'
 import {
   Dialog,
   DialogContent,
@@ -12,55 +14,8 @@ interface ImageGalleryProps {
   images?: GeneratedImage[]
 }
 
-// Memoized image card component to prevent unnecessary re-renders
-interface ImageCardProps {
-  image: GeneratedImage
-  imageKey: string
-  onOpen: (image: GeneratedImage) => void
-}
-
-const ImageCard = memo<ImageCardProps>(({ image, imageKey, onOpen }) => {
-  const { thumbnail, full, alt, srcSet } = resolveImageSources(image)
-
-  const handlePreload = useCallback(() => {
-    preloadImage(full)
-  }, [full])
-
-  const handleClick = useCallback(() => {
-    onOpen(image)
-  }, [image, onOpen])
-
-  return (
-    <div key={imageKey} className="image-item" onMouseEnter={handlePreload}>
-      <picture>
-        {thumbnail.endsWith('.webp') && <source srcSet={srcSet} type="image/webp" />}
-        <img
-          src={thumbnail}
-          srcSet={srcSet}
-          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 100vw"
-          alt={alt || image.filename}
-          loading="lazy"
-          decoding="async"
-          onClick={handleClick}
-          className="gallery-image"
-        />
-      </picture>
-      <div className="image-prompt">
-        {image.metadata?.prompt ? (
-          <p>
-            {image.metadata.prompt.length > 50
-              ? `${image.metadata.prompt.substring(0, 50)}...`
-              : image.metadata.prompt}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  )
-})
-
-ImageCard.displayName = 'ImageCard'
-
 const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
+  const { nsfwEnabled } = useApp()
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const selectedSources = useMemo(
     () => (selectedImage ? resolveImageSources(selectedImage) : null),
@@ -99,7 +54,11 @@ const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
               key={imageKey}
               image={image}
               imageKey={imageKey}
-              onOpen={openModal}
+              hideNsfw={nsfwEnabled}
+              onImageClick={openModal}
+              showNsfwBadge={true}
+              showLabelBadge={false}
+              className="gallery-image-card"
             />
           )
         })}
