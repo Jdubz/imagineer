@@ -142,22 +142,19 @@ jobs:
         run: firebase deploy --only hosting --project static-sites-257923
 
   deploy-backend:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, gpu]
     needs:
       - deploy-frontend
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - name: Deploy backend via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -euo pipefail
-            cd /home/jdubz/Development/imagineer
-            if [ ! -x scripts/deploy/backend-release.sh ]; then
-              echo "backend-release.sh missing or not executable" >&2
-              exit 1
-            fi
-            ./scripts/deploy/backend-release.sh
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy backend
+        run: |
+          set -euo pipefail
+          if [ ! -x scripts/deploy/backend-release.sh ]; then
+            echo "backend-release.sh missing or not executable" >&2
+            exit 1
+          fi
+          ./scripts/deploy/backend-release.sh
