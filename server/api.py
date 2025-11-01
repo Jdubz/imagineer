@@ -103,7 +103,9 @@ logger = configure_logging(app)
 if os.environ.get("FLASK_ENV") == "production":
     Talisman(
         app,
-        force_https=True,
+        # Don't force HTTPS redirect - Cloudflare handles SSL termination
+        # and sends HTTP to backend. ProxyFix handles X-Forwarded-Proto.
+        force_https=False,
         strict_transport_security=True,
         strict_transport_security_max_age=31536000,
         content_security_policy={
