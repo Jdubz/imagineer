@@ -12,6 +12,7 @@ import type { Tab } from './types/models'
 import { BugReportProvider, useBugReporter } from './contexts/BugReportContext'
 import { AppProvider, useApp } from './contexts/AppContext'
 import SettingsMenu from './components/SettingsMenu'
+import AuthButton from './components/AuthButton'
 
 // Lazy load tab components for code splitting
 const GenerateTab = lazy(() => import('./components/GenerateTab'))
@@ -25,7 +26,7 @@ const ShadcnTest = lazy(() => import('./components/ShadcnTest'))
 
 const AppContent: React.FC = () => {
   const location = useLocation()
-  const { user, logout } = useAuth()
+  const { user, logout, setUser } = useAuth()
   const { openBugReport, registerCollector } = useBugReporter()
   const { generation, gallery, nsfwEnabled, setNsfwEnabled } = useApp()
 
@@ -125,27 +126,14 @@ const AppContent: React.FC = () => {
           </div>
           <div className="header-actions">
             {user ? (
-              <>
-                <SettingsMenu
-                  user={user}
-                  onLogout={logout}
-                  onNsfwToggle={setNsfwEnabled}
-                  nsfwEnabled={nsfwEnabled}
-                />
-              </>
+              <SettingsMenu
+                user={user}
+                onLogout={logout}
+                onNsfwToggle={setNsfwEnabled}
+                nsfwEnabled={nsfwEnabled}
+              />
             ) : (
-              <button
-                type="button"
-                className="auth-button auth-button--primary"
-                onClick={() => {
-                  const sanitizedState = window.location.pathname + window.location.search + window.location.hash || '/'
-                  const loginUrl = new URL('/api/auth/login', window.location.origin)
-                  loginUrl.searchParams.set('state', sanitizedState)
-                  window.location.href = loginUrl.toString()
-                }}
-              >
-                Login
-              </button>
+              <AuthButton onAuthChange={setUser} />
             )}
           </div>
         </div>

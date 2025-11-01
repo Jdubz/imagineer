@@ -1,9 +1,9 @@
 # Bug Report Tool - Implementation Plan
 
 **Created:** 2025-10-29
-**Status:** Backend delivered; frontend integration pending
+**Status:** Frontend & submission flow complete (2025-10-31); review tooling pending
 **Priority:** Medium
-**Estimated Time:** 8-12 hours
+**Estimated Time Remaining:** 4-6 hours (review CLI/retention)
 
 ---
 
@@ -23,14 +23,12 @@ Complete the bug report capture tool that allows admin users to submit detailed 
 - Bug report modal UI
 - `BugReportButton` component
 - Type definitions for bug reports
-- `ErrorBoundary` component (without bug report integration)
+- `ErrorBoundary` + settings menu integration (Ctrl+Shift+B shortcut, modal launch, trace ID display)
 
-### ❌ Missing Components
-- Settings menu entry to surface the bug report modal
-- Keyboard shortcut (Ctrl+Shift+B)
-- ErrorBoundary integration hook
-- Error toast with bug report button
-- Frontend display of the server-provided trace ID
+### ❌ Outstanding (Backend Ops Tooling)
+- Admin workflow to list & triage stored reports
+- Automated retention (delete reports older than `retention_days`)
+- Runbook documenting the review/cleanup steps
 
 ---
 
@@ -968,6 +966,16 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 - [ ] Test manual resolution workflow
 - [ ] Verify graceful handling of missing directory
 
+### Claude CLI Workflow
+- [ ] Publish/maintain `ghcr.io/jdubz/imagineer/bug-cli:latest` with required tooling pre-installed.
+- [ ] Provide a `scripts/bug_reports/run_cli_session.sh` helper that launches the ephemeral container with all credential mounts and log volume.
+- [ ] Ensure the session bootstrap script creates `/logs/bug_reports/<report_id>/session.log` and tees all Claude CLI output into it.
+- [ ] Bake a pre-flight check that validates availability of `npm`, `npm run lint`, `npm run tsc`, `npm test -- --run --coverage`, `flake8`, `black --check`, `pytest`, and any bug-specific tools.
+- [ ] Automate the mandatory verification step list (see Phase 6.2) so failures halt the session before teardown.
+- [ ] Add a commit/push helper (`scripts/bug_reports/commit_and_push.sh`) that enforces `develop` branch, signed commits, and references the report ID.
+- [ ] Update the bug report JSON writer to set `"status": "resolved"` and append `resolution` metadata once the push succeeds.
+- [ ] Document the teardown procedure and ensure the helper script exits the container (`docker run --rm`) after logging the summary.
+
 ---
 
 
@@ -978,6 +986,53 @@ Update the "Gaps / Work Remaining" section to reflect new implementation plan an
 - Allow simple red annotations to highlight problem areas before submission.
 - On capture failure: alert the admin, continue submission, and include failure details in the stored JSON report.
 - Store the PNG as `{report_id}/screenshot.png` alongside other artifacts.
+
+### Phase 6: Claude CLI Bug Review Workflow (1-2 hours)
+
+When a bug report is submitted, the responding agent must execute the fix inside a controlled, auditable Claude CLI session that runs within an ephemeral Docker container. This guarantees repeatable tooling, captures a review log, and ensures the fix is committed before the environment disappears.
+
+#### 6.1 Ephemeral Container Provisioning
+- Launch an ephemeral container from `ghcr.io/jdubz/imagineer/bug-cli:latest`, which bundles Node.js, npm, Python, pip, black, flake8, pytest, eslint, TypeScript, Firebase CLI, and Claude CLI.
+- Mount required volumes:
+  - `-v "$PWD":/workspace` (repository working tree, read/write).
+  - `-v "$HOME/.ssh":/root/.ssh:ro` for Git access.
+  - `-v "$HOME/.config/gcloud":/root/.config/gcloud:ro` and `-v "$HOME/.firebase":/root/.firebase:ro` for deployment credentials.
+  - `-v "$PWD/logs/bug_reports":/logs/bug_reports"` to persist session logs.
+  - Optional caches (`$HOME/.cache/pip`, `$HOME/.npm`) to speed installs.
+- Example invocation:
+  ```bash
+  docker run --rm -it \
+    -v "$PWD":/workspace \
+    -v "$HOME/.ssh":/root/.ssh:ro \
+    -v "$HOME/.config/gcloud":/root/.config/gcloud:ro \
+    -v "$HOME/.firebase":/root/.firebase:ro \
+    -v "$PWD/logs/bug_reports":/logs/bug_reports \
+    ghcr.io/jdubz/imagineer/bug-cli:latest
+  ```
+
+#### 6.2 Agent Execution Checklist (inside the container)
+1. Start Claude Code, binding the generated `report_id`, and tee all output to `/logs/bug_reports/<report_id>/session.log`.
+2. Verify the toolchain by running `node --version`, `npm --version`, `python3 --version`, `pip --version`, `pytest --version`, `flake8 --version`, `black --version`, `eslint --version`, `tsc --version`, and `firebase --version`; record results in the log.
+3. Reinstall dependencies if necessary (`npm ci`, `pip install -r requirements.txt`) and note any changes.
+4. Apply code changes guided by the agent.
+5. Perform a self-review: `git status` and `git diff` must be captured in the session log with agent commentary.
+6. Run mandatory verification commands, capturing full output:
+   - `npm run lint`
+   - `npm run tsc`
+   - `npm test -- --run --coverage`
+   - `flake8 server src tests`
+   - `black --check server src tests`
+   - `pytest --maxfail=1 --disable-warnings -v`
+7. If additional project-specific checks are required (e.g., `terraform fmt`, `docker compose config`), run and document them.
+8. Stage intentional changes only (`git add ...`) and include a summary in the log.
+
+#### 6.3 Completion, Commit, and Teardown
+1. Commit the fix to `develop` with a message referencing the report ID (e.g., `git commit -am "fix: resolve <report_id> bug"`).
+2. Push to `origin develop` and monitor the resulting GitHub Actions run; paste the run URL and status into the log.
+3. Update the stored bug report JSON: set `"status": "resolved"` and append a `resolution` payload containing the commit SHA, timestamp, and log file path.
+4. Record a final summary (changes made, tests executed, commit SHA, GH Actions URL) at the end of `/logs/bug_reports/<report_id>/session.log`.
+5. Exit Claude Code, allow the container to terminate (`docker run --rm` ensures cleanup), and confirm no secrets were written outside mounted paths.
+6. Notify stakeholders (Slack or issue tracker) with the resolution summary if applicable.
 
 ## Future Enhancements (V2)
 

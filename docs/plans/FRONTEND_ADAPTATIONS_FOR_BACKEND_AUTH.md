@@ -1,7 +1,12 @@
 # Frontend Adaptations for Backend Auth Changes
 
-Updated: October 29, 2025  
-Owner: Web Platform · Status: Draft
+Updated: November 1, 2025  
+Owner: Web Platform · Status: ✅ Completed (verified on develop)
+
+**Verification Notes (2025-11-01):**
+- `web/src/lib/api.ts` centralises `credentials: 'include'`, retry-after support, trace ID propagation, and `ApiError` handling.
+- `AppContext` and feature tabs use `isAuthError` to show re-auth messaging without crashing anonymous viewers.
+- Queue/config/LoRA controls check `useAuth()` before rendering admin actions, preventing non-admin access.
 
 ## Context
 Backend hardening (October 29, 2025) now enforces admin authentication on several endpoints used by the web app:

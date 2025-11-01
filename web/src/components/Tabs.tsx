@@ -1,7 +1,7 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Tab } from '../types/models'
-import '../styles/Tabs.css'
+import { Tabs as TabsRoot, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface TabsProps {
   tabs: Tab[]
@@ -9,19 +9,36 @@ interface TabsProps {
 }
 
 const Tabs: React.FC<TabsProps> = ({ tabs, activeTab }) => {
+  const navigate = useNavigate()
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      if (value !== activeTab) {
+        navigate(`/${value}`)
+      }
+    },
+    [activeTab, navigate],
+  )
+
   return (
-    <div className="tabs">
-      {tabs.map((tab) => (
-        <Link
-          key={tab.id}
-          to={`/${tab.id}`}
-          className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-        >
-          {tab.icon && <span className="tab-icon">{tab.icon}</span>}
-          <span className="tab-label">{tab.label}</span>
-        </Link>
-      ))}
-    </div>
+    <TabsRoot
+      value={activeTab}
+      onValueChange={handleTabChange}
+      className="w-full"
+    >
+      <TabsList className="flex w-full flex-wrap justify-start gap-2 bg-muted p-2 md:gap-3">
+        {tabs.map((tab) => (
+          <TabsTrigger
+            key={tab.id}
+            value={tab.id}
+            className="flex-1 gap-2 px-4 py-2 text-base md:flex-none md:px-5"
+          >
+            {tab.icon && <span aria-hidden="true">{tab.icon}</span>}
+            <span>{tab.label}</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </TabsRoot>
   )
 }
 

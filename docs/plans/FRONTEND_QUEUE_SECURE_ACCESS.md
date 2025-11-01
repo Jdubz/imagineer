@@ -1,7 +1,12 @@
 # Frontend Task: Secure Job Queue UX
 
-Updated: October 29, 2025  
-Owner: Web Platform · Status: Open
+Updated: November 1, 2025  
+Owner: Web Platform · Status: ✅ Completed (landed in QueueTab refactor 2025-10-30)
+
+**Verification Notes (2025-11-01):**
+- `web/src/components/QueueTab.tsx` now short-circuits with an admin-auth banner when `/api/jobs` returns 401 and stops polling via `useAdaptivePolling`.
+- All queue fetches go through the typed API client with `credentials: 'include'` and `Retry-After` handling (`web/src/lib/api.ts`).
+- Queue UI reads sanitized fields (`output_filename`, `output_directory`) and never renders queue data for viewers.
 
 ## Background
 Backend changes now require admin authentication for `/api/jobs` and `/api/jobs/{id}` and return sanitized payloads (`output_filename`, `output_directory`, shortened `lora_paths`). Anonymous calls receive `401 Unauthorized`.
