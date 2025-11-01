@@ -1,7 +1,6 @@
 import React, { useState, useCallback, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
-import { ApiError } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
 import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
 import type { JobsResponse } from '../types/models'

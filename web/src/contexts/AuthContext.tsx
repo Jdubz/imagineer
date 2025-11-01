@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { logger } from '../lib/logger'
-import { api, ApiError } from '../lib/api'
+import { api } from '../lib/api'
 import { isAuthError } from '../lib/errorUtils'
 import type { AuthStatus } from '../types/shared'
 

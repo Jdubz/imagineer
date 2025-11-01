@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
-import { api, ApiError } from '../lib/api'
+import { api } from '../lib/api'
 import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
 import '../styles/LorasTab.css'
 import { Button } from '@/components/ui/button'
