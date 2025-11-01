@@ -519,7 +519,7 @@ def prepare_training_data(training_run):
 
 
 @celery.task(name="server.tasks.training.purge_stale_training_artifacts")
-def purge_stale_training_artifacts(retention_days: int | None = None):
+def purge_stale_training_artifacts(retention_days: int | None = None, *, dry_run: bool = False):
     """Delete stale training datasets and logs that fall outside the retention window."""
 
     from server.api import app
@@ -532,6 +532,7 @@ def purge_stale_training_artifacts(retention_days: int | None = None):
     updated_runs = 0
     logs_removed = 0
     datasets_removed = 0
+    matches: list[tuple[int, Path | None, Path | None]] = []
 
     with app.app_context():
         candidates = TrainingRun.query.filter(
@@ -539,25 +540,57 @@ def purge_stale_training_artifacts(retention_days: int | None = None):
         )
         for run in candidates:
             reference_ts = run.completed_at or run.last_error_at or run.created_at
-            if not reference_ts or reference_ts >= cutoff:
+            if not reference_ts:
+                continue
+            if reference_ts.tzinfo is None:
+                reference_ts = reference_ts.replace(tzinfo=timezone.utc)
+            if reference_ts >= cutoff:
                 continue
 
-            dataset_removed = False
+            dataset_path: Path | None = None
             if run.dataset_path:
-                dataset_path = Path(run.dataset_path)
-                dataset_removed = safe_remove_path(dataset_path)
-                if dataset_removed:
-                    datasets_removed += 1
-                    run.dataset_path = ""
+                candidate_dataset = Path(run.dataset_path)
+                if candidate_dataset.exists():
+                    dataset_path = candidate_dataset
 
-            log_removed = safe_remove_path(training_log_path(run))
-            if log_removed:
-                logs_removed += 1
+            log_path = training_log_path(run)
+            log_exists = log_path.exists()
 
-            if dataset_removed or log_removed:
-                updated_runs += 1
+            if dataset_path or log_exists:
+                matches.append((run.id, dataset_path, log_path if log_exists else None))
 
-        db.session.commit()
+                if dry_run:
+                    continue
+
+                dataset_removed = False
+                if dataset_path:
+                    dataset_removed = safe_remove_path(dataset_path)
+                    if dataset_removed:
+                        datasets_removed += 1
+                        run.dataset_path = ""
+
+                log_removed = False
+                if log_exists:
+                    log_removed = safe_remove_path(log_path)
+                    if log_removed:
+                        logs_removed += 1
+
+                if dataset_removed or log_removed:
+                    updated_runs += 1
+
+        if dry_run:
+            db.session.rollback()
+        else:
+            db.session.commit()
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "retention_days": days,
+            "runs_matched": len(matches),
+            "datasets_marked": sum(1 for _, dataset, _ in matches if dataset),
+            "logs_marked": sum(1 for _, _, log in matches if log),
+        }
 
     return {
         "status": "success",

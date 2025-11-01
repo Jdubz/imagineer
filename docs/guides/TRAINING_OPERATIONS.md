@@ -28,7 +28,8 @@ scp $SERVER:/tmp/imagineer/models/lora/logs/training_<id>.log .
 ## 3. Retention policy
 
 - **During training** – datasets are staged in `dataset_path`. They are automatically removed after each run finishes or fails (see `cleanup_training_data` task).  
-- **Manual cleanup** – if you need to reclaim disk immediately, click **Cleanup** on a completed/failed run. The UI triggers the existing Celery cleanup task, which deletes any remaining staging directories.
+- **Scheduled cleanup** – a nightly Celery Beat job (`server.tasks.training.purge_stale_training_artifacts`) now prunes datasets and logs older than the configured retention window (`TRAINING_RETENTION_DAYS`, default 30 days). Adjust the hour via `IMAGINEER_PURGE_TRAINING_HOUR` if needed.
+- **Manual cleanup** – if you need to reclaim disk immediately, click **Cleanup** on a completed/failed run or execute `python scripts/purge_training_artifacts.py --days 30` (pass `--dry-run` to preview). The CLI wraps the same purge logic used by the scheduler.
 - **Outputs** – trained weights (`output_path`) remain available until you archive or delete them; they are intentionally retained for reuse.
 
 Recommendation: after confirming that a checkpoint has been promoted or archived, press **Cleanup** so `/tmp/imagineer/data/training/*` stays small.
