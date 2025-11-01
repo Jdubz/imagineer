@@ -13,14 +13,30 @@ import {
 } from '@/components/ui/dialog'
 import '../styles/ImageCard.css'
 
-interface BatchImage {
+type ExtendedImageMetadata = ImageMetadata & {
+  nsfw?: boolean
+  is_nsfw?: boolean
+  [key: string]: unknown
+}
+
+interface RawBatchImage {
   filename: string
   relative_path: string
   created: string
-  metadata?: ImageMetadata
+  metadata?: unknown
 }
 
-interface BatchData {
+interface BatchImage extends Omit<RawBatchImage, 'metadata'> {
+  metadata?: ExtendedImageMetadata
+}
+
+interface RawBatchData {
+  batch_id: string
+  image_count: number
+  images?: RawBatchImage[]
+}
+
+interface BatchData extends Omit<RawBatchData, 'images'> {
   batch_id: string
   image_count: number
   images?: BatchImage[]
@@ -74,6 +90,20 @@ const renderFooter = (image: BatchImage) => {
   )
 }
 
+const isExtendedMetadata = (value: unknown): value is ExtendedImageMetadata =>
+  typeof value === 'object' && value !== null
+
+const normalizeBatchImage = (image: RawBatchImage): BatchImage => ({
+  ...image,
+  metadata: isExtendedMetadata(image.metadata) ? image.metadata : undefined,
+})
+
+const normalizeBatchData = (data: RawBatchData): BatchData => ({
+  batch_id: data.batch_id,
+  image_count: data.image_count,
+  images: data.images?.map(normalizeBatchImage),
+})
+
 const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -108,7 +138,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
     setLoading(true)
     try {
       const data = await api.batches.getById(batchId)
-      setBatch(data)
+      setBatch(normalizeBatchData(data))
     } catch (error) {
       logger.error('Failed to fetch batch:', error as Error)
     } finally {

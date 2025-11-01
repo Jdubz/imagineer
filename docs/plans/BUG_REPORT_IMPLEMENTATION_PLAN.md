@@ -1034,6 +1034,77 @@ When a bug report is submitted, the responding agent must execute the fix inside
 5. Exit Claude Code, allow the container to terminate (`docker run --rm` ensures cleanup), and confirm no secrets were written outside mounted paths.
 6. Notify stakeholders (Slack or issue tracker) with the resolution summary if applicable.
 
+
+---
+
+## Phase 7: Automated Bug-Report Agent Runner
+
+### Goals
+- Launch a Claude-based remediation agent automatically after each bug report submission.
+- Enforce a single active agent; queue additional open reports (process newest-first).
+- Copy the repository into each container (no bind mounts) and keep host checkout untouched.
+- Capture a structured session log, push commits to `develop`, and update the stored report.
+
+### Components
+1. **Agent Manager (`server/bug_reports/agent_manager.py`)**
+   - Singleton with an internal queue (`collections.deque`) and `active_worker` flag.
+   - `enqueue(report_id)` stores work items and spins up a daemon thread when idle.
+   - Worker pulls open reports via `list_reports(..., status="open")`, sorts by `submitted_at` (desc), and processes the newest.
+   - Prepares per-report context (`context.json`) and log path under `logs/bug_reports/<report_id>/`.
+   - Marks reports as resolved/failed and loops until the queue is empty.
+
+2. **Docker Runner (`server/bug_reports/docker_runner.py`)**
+   - Runs containers from `ghcr.io/jdubz/imagineer/bug-cli:latest` (configurable).
+   - Mounts credentials read-only (`~/.ssh`, `~/.claude`, `~/.config/gcloud`, `~/.firebase`) and tmpfs for `.claude`.
+   - Copies the repo into `/workspace/repo` via `docker cp` and streams stdout/stderr to the session log.
+   - Enforces runtime timeout (`BUG_REPORT_AGENT_TIMEOUT_MINUTES`) and cleans up containers on exit.
+
+3. **Bootstrap Script (`scripts/bug_reports/agent_bootstrap.sh`)**
+   - Consumes env vars (`REPORT_ID`, `TARGET_BRANCH`, `SESSION_LOG`, `CONTEXT_PATH`).
+   - Fetches latest `develop`, reinstalls deps as needed, and orchestrates Claude CLI plan/apply.
+   - Runs required checks (`npm run lint`, `npm run tsc`, `npm test -- --run --coverage`, `flake8 server src tests`, `black --check server src tests`, `pytest --maxfail=1 --disable-warnings -v`).
+   - Commits (`fix: <summary> (bug <report_id>)`), pushes to `origin develop`, and writes `session_summary.json` (commit SHA, tests executed, timestamps).
+
+4. **Report Updater**
+   - Success path: `update_report(report_id, status="resolved", resolution={commit, finished_at, log_path, tests})`.
+   - Failure path: leave status `open`, append `resolution.failure` metadata for manual follow-up.
+
+### Workflow
+1. `submit_bug_report` persists the report, returns `201`, then asynchronously calls `agent_manager.enqueue(report_id)`.
+2. Background worker prepares context/logs and invokes the Docker runner for the newest open report.
+3. Bootstrap script performs remediation within the container and emits summary artifacts.
+4. Manager ingests `session_summary.json`, updates the report JSON, appends a final log entry, and continues until no open reports remain.
+5. When the queue drains, the worker clears `active_worker` and exits.
+
+### Configuration
+Add configuration stanza (env-overridable):
+```yaml
+bug_reports:
+  agent:
+    enabled: true
+    docker_image: "ghcr.io/jdubz/imagineer/bug-cli:latest"
+    target_branch: "develop"
+    log_dir: "logs/bug_reports"
+    timeout_minutes: 60
+```
+Environment variables: `BUG_REPORT_AGENT_ENABLED`, `BUG_REPORT_AGENT_IMAGE`, `BUG_REPORT_AGENT_BRANCH`, `BUG_REPORT_AGENT_TIMEOUT`.
+
+### Logging & Artifacts
+- Session log stored at `logs/bug_reports/<report_id>/session.log`.
+- `session_summary.json` saved alongside the log for quick parsing.
+- Bootstrap script uses step markers (e.g., `=== [timestamp] npm run lint ===`) for easier audits.
+
+### Testing
+- **Unit**: queue/worker flow with mocked Docker interactions; configuration parsing; report update helpers.
+- **Integration (mock runner)**: verify success/failure paths update reports and queue progression.
+- **Manual QA**: dry-run mode (skip push) plus a full cycle on a disposable branch.
+
+### Risks & Mitigations
+- Git push failure → record error, leave report open, surface log path for investigation.
+- Long-running sessions → enforce timeout and terminate container.
+- Repo divergence → bootstrap fetch/merge guard aborts on conflicts.
+- Credential exposure → mounts remain read-only; review logs for sensitive data.
+
 ## Future Enhancements (V2)
 
 ### Screenshot Capture (Planned)

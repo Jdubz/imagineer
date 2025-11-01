@@ -244,13 +244,13 @@ export interface ScrapingStats {
 
 export interface ScrapingJob {
   id: string
-  status: JobStatus
+  status: JobStatus | 'pending' | 'cleaned_up'
   url?: string
   name?: string
   source_url?: string
   output_dir?: string
   output_directory?: string
-  progress?: number
+  progress?: number | null
   progress_message?: string
   description?: string
   runtime?: ScrapingJobRuntime

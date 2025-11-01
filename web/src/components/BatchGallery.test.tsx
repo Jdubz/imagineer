@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import React from 'react'
 import BatchGallery from './BatchGallery'
 
 const mockUseApp = vi.fn()
@@ -75,4 +74,3 @@ describe('BatchGallery NSFW handling', () => {
     expect(screen.getByLabelText('NSFW content blurred')).toBeInTheDocument()
   })
 })
-

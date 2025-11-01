@@ -14,6 +14,15 @@ const STATUS_COLORS: Record<string, string> = {
   cleaned_up: '#7f8c8d',
 }
 
+type ExtendedJobStatus =
+  | JobStatus
+  | 'pending'
+  | 'cleaned_up'
+  | 'active'
+  | 'success'
+  | 'error'
+  | 'canceled'
+
 /**
  * Clamp a numeric value to the 0-100 range commonly used for progress bars.
  * Returns undefined when the input is not a finite number.
@@ -53,7 +62,7 @@ export function formatGigabytes(value?: number | null): string {
 /**
  * Map job status strings to consistent semantic colours for admin dashboards.
  */
-export function getJobStatusColor(status: JobStatus | null | undefined): string {
+export function getJobStatusColor(status: ExtendedJobStatus | null | undefined): string {
   if (!status) {
     return '#95a5a6'
   }

@@ -484,7 +484,47 @@ export const api = {
   scraping: {
     async getJobs(signal?: AbortSignal): Promise<ScrapingJob[]> {
       const response = await apiRequest(getApiUrl('/scraping/jobs'), schemas.ScrapingJobsResponseSchema, { signal })
-      return response.jobs || []
+      const normalizeScrapingJob = (job: (typeof response.jobs)[number]): ScrapingJob => {
+        const {
+          id,
+          status,
+          url,
+          name,
+          source_url,
+          output_dir,
+          output_directory,
+          progress,
+          progress_message,
+          description,
+          runtime,
+          created_at,
+          completed_at,
+          error,
+          images_scraped,
+          config,
+        } = job
+
+        return {
+          id,
+          status,
+          url: url ?? undefined,
+          name: name ?? undefined,
+          source_url: source_url ?? undefined,
+          output_dir: output_dir ?? undefined,
+          output_directory: output_directory ?? undefined,
+          progress: typeof progress === 'number' ? progress : progress ?? null,
+          progress_message: progress_message ?? undefined,
+          description: description ?? undefined,
+          runtime: runtime ?? undefined,
+          created_at,
+          completed_at: completed_at ?? undefined,
+          error: error ?? undefined,
+          images_scraped: images_scraped ?? undefined,
+          config: config ?? undefined,
+        }
+      }
+
+      return (response.jobs ?? []).map(normalizeScrapingJob)
     },
 
     async getStats(signal?: AbortSignal): Promise<ScrapingStats> {
