@@ -166,7 +166,8 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      toast({ title: 'Error', description: 'Error starting batch generation', variant: 'destructive' })
+      const errorMessage = formatErrorMessage(error, 'Error starting batch generation')
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
     } finally {
       setSubmittingBatch(false)
     }
