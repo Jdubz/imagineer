@@ -1,0 +1,17 @@
+# Sudoers configuration for Imagineer deployment automation
+# This allows the jdubz user to manage the imagineer-api service without password
+# Install: sudo cp scripts/deploy/sudoers-imagineer /etc/sudoers.d/imagineer-ci
+#          sudo chmod 440 /etc/sudoers.d/imagineer-ci
+
+# Allow systemctl operations on imagineer-api service
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl start imagineer-api
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop imagineer-api
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart imagineer-api
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl status imagineer-api*
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload imagineer-api
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable imagineer-api
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable imagineer-api
+
+# Allow journalctl for reading logs (with any arguments)
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/journalctl -u imagineer-api*
+jdubz ALL=(ALL) NOPASSWD: /usr/bin/journalctl --unit=imagineer-api*
