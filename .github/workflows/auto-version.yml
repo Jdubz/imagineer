@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          token: ${{ secrets.VERSION_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Configure git user
         run: |
@@ -46,6 +47,6 @@ jobs:
 
       - name: Push version commit
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VERSION_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           git push origin HEAD:main
