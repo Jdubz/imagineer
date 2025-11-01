@@ -2,6 +2,16 @@
 
 This backlog reflects the outstanding frontend work after verifying the codebase on 2025-11-01. Items marked completed in the archived 2025-10-31 plan are now in `docs/plans/archive/FRONTEND_TASKS_2025-10-31.md`.
 
+### Status Overview
+
+| Priority | Total | Complete | In Progress | Not Started |
+|----------|-------|----------|-------------|-------------|
+| P0 (Critical) | 5 | 5 ✅ | 0 | 0 |
+| P1 (High) | 3 | 0 | 0 | 3 |
+| P2 (Medium) | 10 | 0 | 0 | 10 |
+| P3 (Low) | 10 | 0 | 0 | 10 |
+| **Total** | **28** | **5** | **0** | **23** |
+
 ## Priority P0
 
 ### F-1: Expand NSFW Filter Controls and Persistence
@@ -67,6 +77,7 @@ This backlog reflects the outstanding frontend work after verifying the codebase
   3. Extend hook tests to cover adaptive intervals, pause-on-hidden, and immediate-run scenarios.
 
 ### F-8: Retire the Shadcn Test Route from the Production Bundle
+- **Status:** ⏳ Not started
 - **Why it matters:** The `/shadcn-test` route exposes a developer-only showcase in production builds, increases bundle size, and duplicates component demos better suited for Storybook.
 - **Current state:**
   - `web/src/App.tsx:214-223` still defines a route pointing at `ShadcnTest`.
@@ -75,6 +86,24 @@ This backlog reflects the outstanding frontend work after verifying the codebase
   1. Remove the route (or guard it behind `import.meta.env.DEV`) so it never ships to end users.
   2. Move any useful examples into Storybook/docs and delete the component when redundant.
   3. Update routing tests to reflect the reduced surface area.
+
+### F-9: Harmonise Layout Shell
+- **Status:** ⏳ Not started
+- **Why it matters:** Each tab currently manages its own padding/typography, leading to inconsistent spacing once the shadcn theme is applied.
+- **Current state:** `App.css` mixes legacy `.container` styles with new components; some tabs apply custom background colours.
+- **Definition of done:**
+  1. Replace the top-level header/container with shared layout components (`AppShell`, `PageHeader`, `PageContent` or equivalent).
+  2. Remove redundant CSS once the layout wrappers are in use.
+  3. Verify dark-mode tokens are respected (no hard-coded light backgrounds).
+
+### F-10: Standardise Feedback & Loading States
+- **Status:** ⏳ Not started
+- **Why it matters:** The toaster provider exists, but a few flows still rely on `alert()`/`console.log`, and loading states mix bespoke spinners with shadcn skeletons.
+- **Current state:** Toasts are wired for Generate/Albums, while Scraping/Training still emit console output for some errors; loading UIs vary by tab.
+- **Definition of done:**
+  1. Replace legacy messaging with `toast.*` helpers (reuse existing context where possible).
+  2. Swap ad-hoc spinners for `Skeleton`/`Spinner` components from `@/components/ui`.
+  3. Add/adjust tests to cover error surface + loading indicator expectations.
 
 ---
 
