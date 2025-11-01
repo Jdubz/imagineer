@@ -521,15 +521,6 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
   })
 
   const { images, selectedImages, nsfwSetting, labelInputs, editingLabel, labelError } = state
-  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
-
-  const handleImageLoad = useCallback((imageId: number): void => {
-    setLoadedImages((prev) => {
-      const next = new Set(prev)
-      next.add(imageId)
-      return next
-    })
-  }, [])
 
   const handleNsfwChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     actions.setNsfwSetting(e.target.value as 'hide' | 'blur' | 'show')
@@ -675,7 +666,6 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
 
               <ImageCard
                 image={generatedImage}
-                imageKey={imageKey}
                 hideNsfw={false}
                 labelCount={labels.length}
                 showNsfwBadge={true}

@@ -31,7 +31,7 @@ describe('ImageCard', () => {
 
   describe('Basic Rendering', () => {
     it('renders an image card', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).toBeInTheDocument()
@@ -39,7 +39,7 @@ describe('ImageCard', () => {
     })
 
     it('displays the prompt when provided', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" showPrompt={true} />)
+      render(<ImageCard image={mockImage} showPrompt={true} />)
 
       expect(screen.getByText('A beautiful landscape')).toBeInTheDocument()
     })
@@ -51,7 +51,7 @@ describe('ImageCard', () => {
         metadata: { ...mockImage.metadata, prompt: longPrompt },
       }
 
-      render(<ImageCard image={imageWithLongPrompt} imageKey="test-1" showPrompt={true} />)
+      render(<ImageCard image={imageWithLongPrompt} showPrompt={true} />)
 
       const truncatedText = screen.getByText(/A+\.\.\./)
       expect(truncatedText).toBeInTheDocument()
@@ -59,7 +59,7 @@ describe('ImageCard', () => {
     })
 
     it('hides prompt when showPrompt is false', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" showPrompt={false} />)
+      render(<ImageCard image={mockImage} showPrompt={false} />)
 
       expect(screen.queryByText('A beautiful landscape')).not.toBeInTheDocument()
     })
@@ -73,21 +73,21 @@ describe('ImageCard', () => {
 
     it('hides NSFW images when hideNsfw is true (default)', () => {
       const { container } = render(
-        <ImageCard image={nsfwImage} imageKey="test-nsfw" />
+        <ImageCard image={nsfwImage} />
       )
 
       expect(container.firstChild).toBeNull()
     })
 
     it('shows NSFW images when hideNsfw is false', () => {
-      render(<ImageCard image={nsfwImage} imageKey="test-nsfw" hideNsfw={false} />)
+      render(<ImageCard image={nsfwImage} hideNsfw={false} />)
 
       const img = screen.getByRole('img')
       expect(img).toBeInTheDocument()
     })
 
     it('shows NSFW badge on NSFW images when visible', () => {
-      render(<ImageCard image={nsfwImage} imageKey="test-nsfw" hideNsfw={false} />)
+      render(<ImageCard image={nsfwImage} hideNsfw={false} />)
 
       expect(screen.getByText('18+')).toBeInTheDocument()
       expect(screen.getByLabelText('NSFW content')).toBeInTheDocument()
@@ -97,7 +97,6 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={nsfwImage}
-          imageKey="test-nsfw"
           hideNsfw={false}
           showNsfwBadge={false}
         />
@@ -107,7 +106,7 @@ describe('ImageCard', () => {
     })
 
     it('does not show NSFW badge on non-NSFW images', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       expect(screen.queryByText('18+')).not.toBeInTheDocument()
     })
@@ -115,7 +114,7 @@ describe('ImageCard', () => {
 
   describe('Label Badge', () => {
     it('shows label badge when labelCount > 0', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" labelCount={3} />)
+      render(<ImageCard image={mockImage} labelCount={3} />)
 
       expect(screen.getByText('🏷️')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
@@ -123,14 +122,14 @@ describe('ImageCard', () => {
     })
 
     it('does not show label count when labelCount is 1', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" labelCount={1} />)
+      render(<ImageCard image={mockImage} labelCount={1} />)
 
       expect(screen.getByText('🏷️')).toBeInTheDocument()
       expect(screen.queryByText('1')).not.toBeInTheDocument()
     })
 
     it('does not show label badge when labelCount is 0', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" labelCount={0} />)
+      render(<ImageCard image={mockImage} labelCount={0} />)
 
       expect(screen.queryByText('🏷️')).not.toBeInTheDocument()
     })
@@ -139,7 +138,6 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={mockImage}
-          imageKey="test-1"
           labelCount={3}
           showLabelBadge={false}
         />
@@ -157,7 +155,6 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={mockImage}
-          imageKey="test-1"
           onImageClick={handleClick}
         />
       )
@@ -170,7 +167,7 @@ describe('ImageCard', () => {
     })
 
     it('does not apply clickable class when onImageClick is not provided', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).not.toHaveClass('clickable')
@@ -180,7 +177,6 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={mockImage}
-          imageKey="test-1"
           onImageClick={vi.fn()}
         />
       )
@@ -195,7 +191,6 @@ describe('ImageCard', () => {
       const { container } = render(
         <ImageCard
           image={mockImage}
-          imageKey="test-1"
           className="custom-class"
         />
       )
@@ -209,7 +204,6 @@ describe('ImageCard', () => {
       const { container } = render(
         <ImageCard
           image={{ ...mockImage, is_nsfw: true }}
-          imageKey="test-1"
           hideNsfw={false}
         />
       )
@@ -221,7 +215,7 @@ describe('ImageCard', () => {
 
   describe('Responsive Images', () => {
     it('uses default sizes attribute', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).toHaveAttribute(
@@ -234,7 +228,6 @@ describe('ImageCard', () => {
       render(
         <ImageCard
           image={mockImage}
-          imageKey="test-1"
           sizes="(min-width: 1280px) 20vw, 50vw"
         />
       )
@@ -244,21 +237,21 @@ describe('ImageCard', () => {
     })
 
     it('includes srcSet for responsive images', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).toHaveAttribute('srcSet')
     })
 
     it('uses lazy loading', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).toHaveAttribute('loading', 'lazy')
     })
 
     it('uses async decoding', () => {
-      render(<ImageCard image={mockImage} imageKey="test-1" />)
+      render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
       expect(img).toHaveAttribute('decoding', 'async')

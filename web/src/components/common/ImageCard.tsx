@@ -1,4 +1,4 @@
-import React, { useCallback, memo } from 'react'
+import { useCallback, memo } from 'react'
 import type { GeneratedImage } from '../../types/models'
 import { resolveImageSources, preloadImage } from '../../lib/imageSources'
 import '../../styles/ImageCard.css'
@@ -8,11 +8,6 @@ export interface ImageCardProps {
    * The image data to display
    */
   image: GeneratedImage
-
-  /**
-   * Unique key for the image (used for DOM key attribute)
-   */
-  imageKey: string
 
   /**
    * Whether to hide NSFW images
@@ -78,7 +73,6 @@ export interface ImageCardProps {
  * ```tsx
  * <ImageCard
  *   image={image}
- *   imageKey={image.id}
  *   hideNsfw={nsfwEnabled}
  *   onImageClick={handleOpenModal}
  *   labelCount={image.labels?.length}
@@ -87,7 +81,6 @@ export interface ImageCardProps {
  */
 const ImageCard = memo<ImageCardProps>(({
   image,
-  imageKey,
   hideNsfw = true,
   onImageClick,
   labelCount = 0,

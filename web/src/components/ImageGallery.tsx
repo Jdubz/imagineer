@@ -53,7 +53,6 @@ const ImageGallery: React.FC<ImageGalleryProps> = memo(({ images = [] }) => {
             <ImageCard
               key={imageKey}
               image={image}
-              imageKey={imageKey}
               hideNsfw={nsfwEnabled}
               onImageClick={openModal}
               showNsfwBadge={true}
