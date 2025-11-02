@@ -25,7 +25,7 @@ describe('ScrapingTab', () => {
 
   it('requires admin access when viewer is not an admin', () => {
     render(<ScrapingTab isAdmin={false} />)
-    expect(screen.getByText(/admin access required/i)).toBeInTheDocument()
+    expect(screen.getByText(/admin access is required/i)).toBeInTheDocument()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 

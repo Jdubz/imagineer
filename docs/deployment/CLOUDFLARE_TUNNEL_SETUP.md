@@ -1,4 +1,4 @@
-# Cloudflare Tunnel Setup - api.imagineer.joshwentworth.com
+# Cloudflare Tunnel Setup - imagineer-api.joshwentworth.com
 
 Quick guide for setting up your Cloudflare Tunnel.
 
@@ -15,7 +15,7 @@ This will:
 1. Install `cloudflared` (if needed)
 2. Authenticate with Cloudflare
 3. Create tunnel named `imagineer-api`
-4. Configure tunnel for `api.imagineer.joshwentworth.com`
+4. Configure tunnel for `imagineer-api.joshwentworth.com`
 5. Create and start systemd service
 
 **Save the Tunnel ID** that's displayed at the end!
@@ -44,7 +44,7 @@ tunnel_id = "YOUR_TUNNEL_ID_HERE"
 
 # Domain is already configured
 domain = "joshwentworth.com"
-api_subdomain = "api.imagineer"
+api_subdomain = "imagineer-api"
 ```
 
 ### Step 4: Deploy Cloudflare Infrastructure
@@ -64,20 +64,20 @@ sudo systemctl status cloudflared-imagineer-api
 curl http://localhost:10050/api/health
 
 # Wait 1-2 minutes for DNS propagation, then test public API
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```
 
 ---
 
 ## 🔧 Configuration Details
 
-**Domain:** `api.imagineer.joshwentworth.com`
+**Domain:** `imagineer-api.joshwentworth.com`
 **Frontend:** `imagineer.joshwentworth.com` (Firebase Hosting via Cloudflare)
 **Tunnel Name:** `imagineer-api`
 **Local Backend:** `http://127.0.0.1:10050`
 
 **What gets created:**
-- DNS CNAME: `api.imagineer.joshwentworth.com` → Cloudflare Tunnel
+- DNS CNAME: `imagineer-api.joshwentworth.com` → Cloudflare Tunnel
 - Rate limiting rules
 - WAF protection
 - Security headers
@@ -115,11 +115,11 @@ curl http://localhost:10050/api/health
 sudo systemctl status cloudflared-imagineer-api
 
 # 3. Test public endpoint (after DNS propagates)
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # 4. Test from browser
 # Visit: https://imagineer.joshwentworth.com (SPA)
-# App should call API at https://api.imagineer.joshwentworth.com
+# App should call API at https://imagineer-api.joshwentworth.com
 ```
 
 ---
@@ -130,7 +130,7 @@ The frontend configuration has been updated to use your domain:
 
 **File:** `web/.env.production`
 ```bash
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 ```
 
 After deploying the frontend, it will automatically connect to your API through the tunnel.
@@ -155,7 +155,7 @@ sudo systemctl restart cloudflared-imagineer-api
 **DNS not resolving:**
 ```bash
 # Check DNS
-dig api.imagineer.joshwentworth.com
+dig imagineer-api.joshwentworth.com
 
 # Verify Terraform created the record
 cd terraform
@@ -198,9 +198,9 @@ make prod-restart
 ## 🌐 Your URLs
 
 **API Endpoint:**
-- https://api.imagineer.joshwentworth.com/api/health
-- https://api.imagineer.joshwentworth.com/api/generate
-- https://api.imagineer.joshwentworth.com/api/jobs
+- https://imagineer-api.joshwentworth.com/api/health
+- https://imagineer-api.joshwentworth.com/api/generate
+- https://imagineer-api.joshwentworth.com/api/jobs
 
 **Frontend:**
 - https://imagineer-generator.web.app
@@ -235,5 +235,5 @@ sudo systemctl status cloudflared-imagineer-api
 sudo journalctl -u cloudflared-imagineer-api -f
 
 # Test
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```

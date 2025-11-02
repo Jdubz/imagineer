@@ -18,14 +18,14 @@ curl -I https://imagineer.joshwentworth.com/
 - Content-Type: `text/html`
 - Server headers showing Cloudflare/Firebase
 
-### API Domain (api.imagineer.joshwentworth.com)
+### API Domain (imagineer-api.joshwentworth.com)
 ```bash
-dig api.imagineer.joshwentworth.com
+dig imagineer-api.joshwentworth.com
 ```
 **Expected:** Should resolve to Cloudflare Tunnel address (`*.cfargotunnel.com`)
 
 ```bash
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```
 **Expected:**
 ```json
@@ -53,7 +53,7 @@ cat /home/jdubz/.cloudflared/config.yml
 ```yaml
 tunnel: db1a99dd-3d12-4315-b241-da2a55a5c30f
 ingress:
-  - hostname: api.imagineer.joshwentworth.com
+  - hostname: imagineer-api.joshwentworth.com
     service: http://localhost:10050
   - service: http_status:404
 ```
@@ -63,7 +63,7 @@ ingress:
 2. Select domain: `joshwentworth.com`
 3. Check DNS records:
    - `imagineer` CNAME → `imagineer-generator.web.app` (Proxied ☁️)
-   - `api.imagineer` CNAME → `db1a99dd-3d12-4315-b241-da2a55a5c30f.cfargotunnel.com` (DNS only)
+   - `imagineer-api` CNAME → `db1a99dd-3d12-4315-b241-da2a55a5c30f.cfargotunnel.com` (DNS only)
 
 ## Firebase Configuration
 
@@ -93,12 +93,12 @@ curl -I https://imagineer-generator.firebaseapp.com/
 ```bash
 cat web/.env.production | grep VITE_API_BASE_URL
 ```
-**Expected:** `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+**Expected:** `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
 
 ### Verify Built Files
 After building:
 ```bash
-grep -r "api.imagineer.joshwentworth.com" public/assets/*.js
+grep -r "imagineer-api.joshwentworth.com" public/assets/*.js
 ```
 **Expected:** Should find the API URL in bundled JavaScript
 
@@ -137,7 +137,7 @@ ALLOWED_ORIGINS=https://imagineer.joshwentworth.com,https://imagineer-generator.
 ### 2. API Connectivity
 1. Open browser console
 2. Check Network tab
-3. **Expected:** API requests to `https://api.imagineer.joshwentworth.com/api/*` succeed
+3. **Expected:** API requests to `https://imagineer-api.joshwentworth.com/api/*` succeed
 
 ### 3. Authentication Flow
 1. Click "Login" on frontend
@@ -148,7 +148,7 @@ ALLOWED_ORIGINS=https://imagineer.joshwentworth.com,https://imagineer-generator.
 ### 4. API Functionality
 Test a simple API endpoint:
 ```bash
-curl https://api.imagineer.joshwentworth.com/api/database/stats
+curl https://imagineer-api.joshwentworth.com/api/database/stats
 ```
 **Expected:** JSON response with database statistics
 
@@ -158,7 +158,7 @@ curl https://api.imagineer.joshwentworth.com/api/database/stats
 **Check:**
 1. Cloudflare tunnel is running: `sudo systemctl status cloudflared`
 2. Flask API is running: `sudo systemctl status imagineer-api`
-3. DNS resolves correctly: `dig api.imagineer.joshwentworth.com`
+3. DNS resolves correctly: `dig imagineer-api.joshwentworth.com`
 
 ### Issue: CORS errors in browser
 **Check:**
@@ -168,7 +168,7 @@ curl https://api.imagineer.joshwentworth.com/api/database/stats
 
 ### Issue: OAuth redirect fails
 **Check:**
-1. Google Cloud Console has correct redirect URI: `https://api.imagineer.joshwentworth.com/api/auth/google/callback`
+1. Google Cloud Console has correct redirect URI: `https://imagineer-api.joshwentworth.com/api/auth/google/callback`
 2. Backend environment variables set correctly
 3. Session cookies working (HTTPS required)
 
@@ -196,8 +196,8 @@ fi
 
 echo
 
-echo "2. Testing API Health (api.imagineer.joshwentworth.com)..."
-if curl -sf https://api.imagineer.joshwentworth.com/api/health | grep -q "healthy"; then
+echo "2. Testing API Health (imagineer-api.joshwentworth.com)..."
+if curl -sf https://imagineer-api.joshwentworth.com/api/health | grep -q "healthy"; then
     echo "✅ API healthy"
 else
     echo "❌ API not healthy"
@@ -206,7 +206,7 @@ fi
 echo
 
 echo "3. Testing API Stats Endpoint..."
-if curl -sf https://api.imagineer.joshwentworth.com/api/database/stats | grep -q "images"; then
+if curl -sf https://imagineer-api.joshwentworth.com/api/database/stats | grep -q "images"; then
     echo "✅ API endpoint working"
 else
     echo "❌ API endpoint not working"
@@ -215,7 +215,7 @@ fi
 echo
 
 echo "4. Checking DNS Resolution..."
-if dig +short api.imagineer.joshwentworth.com | grep -q ".cfargotunnel.com"; then
+if dig +short imagineer-api.joshwentworth.com | grep -q ".cfargotunnel.com"; then
     echo "✅ DNS points to Cloudflare Tunnel"
 else
     echo "❌ DNS not pointing to tunnel"
@@ -230,7 +230,7 @@ Run with: `bash test-infra.sh`
 ## Manual Verification Steps
 
 1. ✅ Frontend loads at `https://imagineer.joshwentworth.com`
-2. ✅ API responds at `https://api.imagineer.joshwentworth.com/api/health`
+2. ✅ API responds at `https://imagineer-api.joshwentworth.com/api/health`
 3. ✅ Cloudflare tunnel is running
 4. ✅ Flask API is running
 5. ✅ DNS records are correct
@@ -253,5 +253,5 @@ sudo systemctl restart cloudflared
 sleep 10
 
 # Test again
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```

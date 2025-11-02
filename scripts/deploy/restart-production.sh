@@ -60,7 +60,7 @@ fi
 # Test public endpoint
 echo ""
 echo "Testing public endpoint (via Cloudflare)..."
-if curl -f https://api.imagineer.joshwentworth.com/api/health 2>&1 | grep -q "healthy"; then
+if curl -f https://imagineer-api.joshwentworth.com/api/health 2>&1 | grep -q "healthy"; then
     echo "✅ Public API is accessible"
 else
     echo "⚠️  Public API not accessible (may need a moment for tunnel to update)"
@@ -81,7 +81,7 @@ echo "=========================================="
 echo ""
 echo "URLs:"
 echo "  Frontend: https://imagineer.joshwentworth.com/"
-echo "  API:      https://api.imagineer.joshwentworth.com/api/health"
+echo "  API:      https://imagineer-api.joshwentworth.com/api/health"
 echo ""
 echo "Service logs:"
 echo "  sudo journalctl -u imagineer-api -f"

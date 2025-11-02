@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-Investigated production infrastructure for Imagineer project and identified root cause of API routing failure. The domain `imagineer.joshwentworth.com` is misconfigured - it points to Firebase Hosting (serving the React frontend) instead of the Cloudflare Tunnel (which should serve the Flask API). Additionally, the frontend is configured to use a non-existent subdomain `api.imagineer.joshwentworth.com`.
+Investigated production infrastructure for Imagineer project and identified root cause of API routing failure. The domain `imagineer.joshwentworth.com` is misconfigured - it points to Firebase Hosting (serving the React frontend) instead of the Cloudflare Tunnel (which should serve the Flask API). Additionally, the frontend was configured to use a non-existent subdomain `api.imagineer.joshwentworth.com`, which we are replacing with the single-label host `imagineer-api.joshwentworth.com` to align with the existing wildcard certificate.
 
 **Impact**: All API calls fail, making the production application non-functional for users.
 
@@ -56,7 +56,7 @@ Backend API:
 |--------|------------|-----------------|--------------|
 | `imagineer-generator.web.app` | Firebase | Frontend (React) | Frontend ✅ |
 | `imagineer.joshwentworth.com` | Cloudflare IPs → Firebase | Frontend (React) | API ❌ |
-| `api.imagineer.joshwentworth.com` | **DOES NOT EXIST** | N/A | API (or unused) |
+| `imagineer-api.joshwentworth.com` | **DOES NOT EXIST** | N/A | API (or unused) |
 
 ### 1.4 Service Status
 
@@ -90,7 +90,7 @@ $ curl https://imagineer.joshwentworth.com/api/health
 → Status: 200 OK but WRONG CONTENT TYPE
 → Assessment: BROKEN - returns frontend instead of API
 
-$ curl https://api.imagineer.joshwentworth.com/api/health
+$ curl https://imagineer-api.joshwentworth.com/api/health
 → Returns: DNS resolution error
 → Status: DOMAIN NOT FOUND
 → Assessment: BROKEN - subdomain doesn't exist
@@ -113,7 +113,7 @@ $ curl https://api.imagineer.joshwentworth.com/api/health
 
 **File**: `web/.env.production`
 ```bash
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 ```
 
 **Problem**: This subdomain doesn't exist, causing all API calls to fail.
@@ -146,7 +146,7 @@ ALLOWED_ORIGINS=https://imagineer-generator.web.app,https://imagineer-generator.
 
 ### 2.2 Secondary Issue: Non-Existent Subdomain
 
-**Problem**: Frontend configured to use `api.imagineer.joshwentworth.com` which was never created.
+**Problem**: Frontend configured to use `imagineer-api.joshwentworth.com` which was never created.
 
 **Impact**: All API calls fail with DNS resolution errors.
 
@@ -155,7 +155,7 @@ ALLOWED_ORIGINS=https://imagineer-generator.web.app,https://imagineer-generator.
 ### 2.3 Contributing Factor: Documentation Drift
 
 Multiple deployment docs describe different architectures:
-- `CLOUDFLARE_TUNNEL_SETUP.md`: Says API at `api.imagineer.joshwentworth.com`
+- `CLOUDFLARE_TUNNEL_SETUP.md`: Says API at `imagineer-api.joshwentworth.com`
 - `PRODUCTION_DEPLOYMENT_GUIDE.md`: Describes nginx serving frontend on same domain
 - `web/.env.example`: Comments suggest main domain for API
 
@@ -265,7 +265,7 @@ bash scripts/deploy/fix-api-routing.sh
 
 | File | Change Needed | Location |
 |------|---------------|----------|
-| `web/.env.production` | Update API URL from `api.imagineer.*` to `imagineer.*` | `/home/jdubz/Development/imagineer/web/` |
+| `web/.env.production` | Update API URL from `imagineer.joshwentworth.com` base to `imagineer-api.joshwentworth.com` | `/home/jdubz/Development/imagineer/web/` |
 | `~/.cloudflared/config.yml` | Update tunnel routing (done by script) | On server |
 
 ---

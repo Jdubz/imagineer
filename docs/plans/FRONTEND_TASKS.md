@@ -84,7 +84,7 @@ This backlog reflects the outstanding frontend work after verifying the codebase
 ### F-9: Harmonise Layout Shell
 - **Status:** ⏳ Not started
 - **Why it matters:** Each tab currently manages its own padding/typography, leading to inconsistent spacing once the shadcn theme is applied.
-- **Current state:** `App.css` mixes legacy `.container` styles with new components; some tabs apply custom background colours.
+- **Current state:** `ScrapingTab`, `TrainingTab`, and `QueueTab` now use the shared `AppShell`/card layout without bespoke styles. Remaining tabs still pull `.container` and header styles from `App.css`, and several screens apply bespoke backgrounds.
 - **Definition of done:**
   1. Replace the top-level header/container with shared layout components (`AppShell`, `PageHeader`, `PageContent` or equivalent).
   2. Remove redundant CSS once the layout wrappers are in use.
@@ -93,7 +93,7 @@ This backlog reflects the outstanding frontend work after verifying the codebase
 ### F-10: Standardise Feedback & Loading States
 - **Status:** ⏳ Not started
 - **Why it matters:** The toaster provider exists, but a few flows still rely on `alert()`/`console.log`, and loading states mix bespoke spinners with shadcn skeletons.
-- **Current state:** Toasts are wired for Generate/Albums, while Scraping/Training still emit console output for some errors; loading UIs vary by tab.
+- **Current state:** Generate/Albums plus the refactored Scraping/Training/Queue flows route messaging through the toast system and share Spinner components. Remaining admin utilities still rely on bespoke banners/spinners.
 - **Definition of done:**
   1. Replace legacy messaging with `toast.*` helpers (reuse existing context where possible).
   2. Swap ad-hoc spinners for `Skeleton`/`Spinner` components from `@/components/ui`.

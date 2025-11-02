@@ -3,7 +3,7 @@ credentials-file: /home/jdubz/.cloudflared/db1a99dd-3d12-4315-b241-da2a55a5c30f.
 
 ingress:
   # API endpoints go to Flask backend via dedicated subdomain
-  - hostname: api.imagineer.joshwentworth.com
+  - hostname: imagineer-api.joshwentworth.com
     service: http://localhost:10050
 
   # Fallback

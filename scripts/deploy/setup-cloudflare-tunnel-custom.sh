@@ -1,16 +1,16 @@
 #!/bin/bash
-# Setup Cloudflare Tunnel for api.imagineer.joshwentworth.com
+# Setup Cloudflare Tunnel for imagineer-api.joshwentworth.com
 # Custom setup script for this specific domain
 
 set -e
 
-echo "🌐 Setting up Cloudflare Tunnel for api.imagineer.joshwentworth.com..."
+echo "🌐 Setting up Cloudflare Tunnel for imagineer-api.joshwentworth.com..."
 echo ""
 
 # Configuration
 PROJECT_DIR="/home/jdubz/Development/imagineer"
 TUNNEL_NAME="imagineer-api"
-DOMAIN="api.imagineer.joshwentworth.com"
+DOMAIN="imagineer-api.joshwentworth.com"
 TUNNEL_CONFIG="${PROJECT_DIR}/terraform/cloudflare-tunnel.yml"
 CLOUDFLARED_DIR="$HOME/.cloudflared"
 SERVICE_NAME="cloudflared-${TUNNEL_NAME}"
@@ -147,7 +147,7 @@ echo "   curl http://localhost:10050/api/health"
 echo "   # Should work locally"
 echo ""
 echo "5. After DNS is configured via Terraform:"
-echo "   curl https://api.imagineer.joshwentworth.com/api/health"
+echo "   curl https://imagineer-api.joshwentworth.com/api/health"
 echo "   # Should work publicly"
 echo ""
 echo "Useful Commands:"

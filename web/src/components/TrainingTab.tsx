@@ -1,13 +1,34 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
-import '../styles/TrainingTab.css'
 import type { TrainingJob, JobStatus, TrainingAlbum } from '../types/models'
+import Spinner from './Spinner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { FormField } from '@/components/form'
 import { Plus, X, Play, StopCircle, Trash2, FileText, Copy } from 'lucide-react'
+import { useToast } from '../hooks/use-toast'
 import { api, ApiError } from '@/lib/api'
 import { formatErrorMessage } from '@/lib/errorUtils'
 import { clampPercentOrDefault, getJobStatusColor } from '@/lib/adminJobs'
+import { cn } from '@/lib/utils'
 
 interface TrainingConfig {
   steps: number
@@ -71,6 +92,17 @@ const parseTrainingConfig = (
 }
 
 const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
+  const { toast } = useToast()
+  const notifyError = useCallback(
+    (title: string, message: string) => {
+      toast({
+        variant: 'destructive',
+        title,
+        description: message,
+      })
+    },
+    [toast],
+  )
   const [trainingRuns, setTrainingRuns] = useState<TrainingJob[]>([])
   const [albums, setAlbums] = useState<TrainingAlbum[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -87,6 +119,16 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
   })
   const copyTimeoutRef = useRef<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
+  const toggleAlbumSelection = useCallback((albumId: string | number) => {
+    const id = String(albumId)
+    setFormData((prev) => {
+      const exists = prev.album_ids.includes(id)
+      return {
+        ...prev,
+        album_ids: exists ? prev.album_ids.filter((value) => value !== id) : [...prev.album_ids, id],
+      }
+    })
+  }, [])
 
   // Form state for creating training runs
   const [formData, setFormData] = useState<TrainingFormData>({
@@ -115,12 +157,13 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
       } else {
         const message = formatErrorMessage(err, 'Failed to fetch training runs')
         setError(message)
+        notifyError('Failed to fetch training runs', message)
       }
       logger.error('Error fetching training runs:', err)
     } finally {
       setLoading(false)
     }
-  }, [isAdmin])
+  }, [isAdmin, notifyError])
 
   const fetchAlbums = useCallback(async (): Promise<void> => {
     if (!isAdmin) return
@@ -280,10 +323,18 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
           batch_size: 1,
         },
       })
+      setError(null)
+      toast({
+        title: 'Training run created',
+        description: formData.name
+          ? `Queued "${formData.name}" for training.`
+          : 'Queued new training run.',
+      })
       await fetchTrainingRuns()
     } catch (err) {
       const message = formatErrorMessage(err, 'Failed to create training run')
       setError(message)
+      notifyError('Failed to create training run', message)
       logger.error('Error creating training run:', err)
     }
   }
@@ -293,9 +344,14 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     try {
       await api.training.startRun(runId)
       await fetchTrainingRuns()
+      toast({
+        title: 'Training run started',
+        description: `Run ${runId} is now running.`,
+      })
     } catch (err) {
       const message = formatErrorMessage(err, 'Failed to start training')
       setError(message)
+      notifyError('Failed to start training', message)
       logger.error('Error starting training:', err)
     }
   }
@@ -305,9 +361,14 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     try {
       await api.training.cancelRun(runId)
       await fetchTrainingRuns()
+      toast({
+        title: 'Training run cancelled',
+        description: `Run ${runId} has been cancelled.`,
+      })
     } catch (err) {
       const message = formatErrorMessage(err, 'Failed to cancel training')
       setError(message)
+      notifyError('Failed to cancel training', message)
       logger.error('Error cancelling training:', err)
     }
   }
@@ -317,9 +378,14 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     try {
       await api.training.cleanupRun(runId)
       await fetchTrainingRuns()
+      toast({
+        title: 'Training artifacts cleaned',
+        description: `Removed artifacts for run ${runId}.`,
+      })
     } catch (err) {
       const message = formatErrorMessage(err, 'Failed to cleanup training')
       setError(message)
+      notifyError('Failed to clean up training', message)
       logger.error('Error cleaning up training:', err)
     }
   }
@@ -329,53 +395,71 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
     return new Date(dateString).toLocaleString()
   }
 
+  const logDialogOpen = logState.runId !== null
+
   if (!isAdmin) {
     return (
-      <div className="training-tab">
-        <div className="training-access-message">
-          <h2>LoRA Training</h2>
-          <p>Sign in with an admin account to manage training runs.</p>
-        </div>
+      <div className="mx-auto w-full max-w-3xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>LoRA Training</CardTitle>
+            <CardDescription>Sign in with an admin account to manage training runs.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Contact an administrator if you need access to launch or monitor training jobs.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div className="training-tab">
-        <div className="loading">Loading training runs...</div>
+      <div className="flex min-h-[240px] w-full items-center justify-center py-16">
+        <Spinner size="large" message="Loading training runs..." />
       </div>
     )
   }
 
   return (
-    <div className="training-tab">
-      <div className="training-header">
-        <h2>LoRA Training Pipeline</h2>
-        {isAdmin && (
-          <Button
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Training Run
-          </Button>
-        )}
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">LoRA Training Pipeline</h2>
+          <p className="text-sm text-muted-foreground">
+            Launch new LoRA training runs, monitor progress, and review generated artifacts.
+          </p>
+        </div>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Training Run
+        </Button>
       </div>
 
-      {error && (
-        <div className="error-message">
-          {error}
-          <Button onClick={() => setError(null)} aria-label="Dismiss error" variant="ghost" size="icon">
+      {error ? (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span>{error}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setError(null)}
+            aria-label="Dismiss error"
+            className="text-destructive hover:text-destructive"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      ) : null}
 
-      <div className="training-runs">
+      <div className="grid gap-4">
         {trainingRuns.length === 0 ? (
-          <div className="no-runs">
-            <p>No training runs found. {isAdmin && 'Create your first training run to get started!'}</p>
-          </div>
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center text-muted-foreground">
+              No training runs found. Create your first training run to get started!
+            </CardContent>
+          </Card>
         ) : (
           trainingRuns.map((run) => {
             const config = parseTrainingConfig(run.training_config)
@@ -383,366 +467,418 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ isAdmin = false }) => {
             const runIdStr = String(run.id)
             const errorMessage = run.error_message ?? run.error ?? null
             const progressPercent = clampPercentOrDefault(run.progress)
+            const statusColor = getJobStatusColor(run.status)
 
             return (
-              <div key={run.id} className="training-run-card">
-                <div className="run-header">
-                  <h3>{run.name || `Training run ${runIdStr}`}</h3>
+              <Card key={run.id} className="border border-border/60">
+                <CardHeader className="gap-4 border-b border-border/60 bg-muted/40 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <CardTitle className="text-lg font-semibold leading-tight text-foreground">
+                      {run.name || `Training run ${runIdStr}`}
+                    </CardTitle>
+                    {run.description ? (
+                      <CardDescription className="text-sm text-muted-foreground">
+                        {run.description}
+                      </CardDescription>
+                    ) : null}
+                  </div>
                   <span
-                    className="status-badge"
-                    style={{ backgroundColor: getJobStatusColor(run.status) }}
+                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
+                    style={{ backgroundColor: statusColor }}
                   >
-                    {run.status.toUpperCase()}
+                    {run.status.replace(/_/g, ' ')}
                   </span>
-                </div>
+                </CardHeader>
 
-                {run.description && (
-                  <p className="run-description">{run.description}</p>
-                )}
-
-                <div className="run-details">
-                  <div className="detail-item">
-                    <strong>Progress:</strong> {progressPercent}%
-                  </div>
-                  <div className="detail-item">
-                    <strong>Created:</strong> {formatDate(run.created_at)}
-                  </div>
-                  {run.started_at && (
-                    <div className="detail-item">
-                      <strong>Started:</strong> {formatDate(run.started_at)}
+                <CardContent className="space-y-4 pt-4 text-sm">
+                  <div className="grid gap-4 text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1">
+                      <p className="font-medium text-foreground">Progress</p>
+                      <p>{progressPercent}%</p>
                     </div>
-                  )}
-                  {run.completed_at && (
-                    <div className="detail-item">
-                      <strong>Completed:</strong> {formatDate(run.completed_at)}
+                    <div className="space-y-1">
+                      <p className="font-medium text-foreground">Created</p>
+                      <p>{formatDate(run.created_at)}</p>
                     </div>
-                  )}
-                </div>
-
-                {run.status === 'running' && typeof run.progress === 'number' && (
-                  <div className="progress-bar">
-                    <div
-                      className="progress-fill"
-                      style={{ width: `${progressPercent}%` }}
-                    ></div>
-                  </div>
-                )}
-
-                <div className="asset-section">
-                  <div className="asset-item">
-                    <div className="asset-header">
-                      <strong>Dataset directory</strong>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopy(run.dataset_path ?? '', run.id, 'dataset')}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </Button>
-                      {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'dataset' && (
-                        <span className="copy-feedback">Copied!</span>
-                      )}
-                    </div>
-                    <code>{run.dataset_path || 'Unavailable'}</code>
+                    {run.started_at ? (
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">Started</p>
+                        <p>{formatDate(run.started_at)}</p>
+                      </div>
+                    ) : null}
+                    {run.completed_at ? (
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">Completed</p>
+                        <p>{formatDate(run.completed_at)}</p>
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="asset-item">
-                    <div className="asset-header">
-                      <strong>Output directory</strong>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopy(run.output_path ?? '', run.id, 'output')}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </Button>
-                      {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'output' && (
-                        <span className="copy-feedback">Copied!</span>
-                      )}
+                  {run.status === 'running' ? (
+                    <div className="space-y-2">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={progressPercent}
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
                     </div>
-                    <code>{run.output_path || 'Unavailable'}</code>
-                  </div>
+                  ) : null}
 
-                  <div className="asset-item">
-                    <div className="asset-header">
-                      <strong>Final checkpoint</strong>
-                      {run.final_checkpoint && (
-                        <>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCopy(run.final_checkpoint || '', run.id, 'checkpoint')}
-                          >
-                            <Copy className="h-3 w-3 mr-1" />
-                            Copy
-                          </Button>
-                          {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'checkpoint' && (
-                            <span className="copy-feedback">Copied!</span>
+                  <div className="space-y-3">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-foreground">Dataset directory</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopy(run.dataset_path ?? '', run.id, 'dataset')}
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          Copy
+                        </Button>
+                        {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'dataset' ? (
+                          <span className="text-xs font-medium text-primary">Copied!</span>
+                        ) : null}
+                      </div>
+                      <code className="mt-2 block break-all text-xs text-muted-foreground">
+                        {run.dataset_path || 'Unavailable'}
+                      </code>
+                    </div>
+
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-foreground">Output directory</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopy(run.output_path ?? '', run.id, 'output')}
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          Copy
+                        </Button>
+                        {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'output' ? (
+                          <span className="text-xs font-medium text-primary">Copied!</span>
+                        ) : null}
+                      </div>
+                      <code className="mt-2 block break-all text-xs text-muted-foreground">
+                        {run.output_path || 'Unavailable'}
+                      </code>
+                    </div>
+
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-foreground">Final checkpoint</span>
+                        {run.final_checkpoint ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopy(run.final_checkpoint ?? '', run.id, 'checkpoint')}
+                            >
+                              <Copy className="mr-1 h-3 w-3" />
+                              Copy
+                            </Button>
+                            {copyFeedback?.runId === runIdStr && copyFeedback?.field === 'checkpoint' ? (
+                              <span className="text-xs font-medium text-primary">Copied!</span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                      <code className="mt-2 block break-all text-xs text-muted-foreground">
+                        {run.final_checkpoint ?? 'Generated after completion'}
+                      </code>
+                    </div>
+
+                    {config ? (
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <p className="font-semibold text-foreground">Training configuration</p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                          {typeof config.steps === 'number' && <span>Steps: {config.steps}</span>}
+                          {typeof config.rank === 'number' && <span>Rank: {config.rank}</span>}
+                          {typeof config.learning_rate === 'number' && (
+                            <span>Learning rate: {config.learning_rate}</span>
                           )}
-                        </>
-                      )}
-                    </div>
-                    <code>{run.final_checkpoint ?? 'Generated after completion'}</code>
+                          {typeof config.batch_size === 'number' && <span>Batch size: {config.batch_size}</span>}
+                          {maybeAlbumIds && maybeAlbumIds.length > 0 && (
+                            <span>Albums: {maybeAlbumIds.join(', ')}</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
-                  {config && (
-                    <div className="asset-item">
-                      <div className="asset-header">
-                        <strong>Training configuration</strong>
-                      </div>
-                      <div className="config-summary">
-                        {typeof config.steps === 'number' && <span>Steps: {config.steps}</span>}
-                        {typeof config.rank === 'number' && <span>Rank: {config.rank}</span>}
-                        {typeof config.learning_rate === 'number' && (
-                          <span>Learning rate: {config.learning_rate}</span>
-                        )}
-                        {typeof config.batch_size === 'number' && <span>Batch size: {config.batch_size}</span>}
-                        {maybeAlbumIds && maybeAlbumIds.length > 0 && (
-                          <span>Albums: {maybeAlbumIds.join(', ')}</span>
-                        )}
-                      </div>
+                  {errorMessage ? (
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      <strong className="font-semibold">Error:</strong> {errorMessage}
                     </div>
-                  )}
-                </div>
+                  ) : null}
+                </CardContent>
 
-                {errorMessage && (
-                  <div className="error-details">
-                    <strong>Error:</strong> {errorMessage}
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="run-actions">
-                    {run.status === 'queued' && (
-                      <Button
-                        variant="default"
-                        onClick={() => handleStartTraining(run.id)}
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        Start Training
-                      </Button>
-                    )}
-
-                    {(run.status === 'queued' || run.status === 'running') && (
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleCancelTraining(run.id)}
-                      >
-                        <StopCircle className="h-4 w-4 mr-2" />
-                        Cancel
-                      </Button>
-                    )}
-
-                    {(run.status === 'completed' || run.status === 'failed') && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleCleanupTraining(run.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Cleanup
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={() => openLogViewer(run.id)}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Logs
+                <CardFooter className="flex flex-wrap gap-2">
+                  {run.status === 'queued' ? (
+                    <Button onClick={() => handleStartTraining(run.id)}>
+                      <Play className="mr-2 h-4 w-4" />
+                      Start Training
                     </Button>
-                  </div>
-                )}
-              </div>
+                  ) : null}
+
+                  {(run.status === 'queued' || run.status === 'running') ? (
+                    <Button variant="destructive" onClick={() => handleCancelTraining(run.id)}>
+                      <StopCircle className="mr-2 h-4 w-4" />
+                      Cancel
+                    </Button>
+                  ) : null}
+
+                  {(run.status === 'completed' || run.status === 'failed') ? (
+                    <Button variant="outline" onClick={() => handleCleanupTraining(run.id)}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Cleanup
+                    </Button>
+                  ) : null}
+
+                  <Button variant="outline" onClick={() => openLogViewer(run.id)}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Logs
+                  </Button>
+                </CardFooter>
+              </Card>
             )
           })
         )}
       </div>
 
-      {/* Create Training Dialog */}
-      {showCreateDialog && (
-        <div className="dialog-overlay">
-          <div className="dialog">
-            <div className="dialog-header">
-              <h3>Create Training Run</h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowCreateDialog(false)}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create Training Run</DialogTitle>
+            <DialogDescription>
+              Configure a new LoRA training job. All fields can be adjusted later if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateTraining} className="space-y-6">
+            <FormField
+              label="Name"
+              htmlFor="training-name"
+              description="Human-friendly label for the run."
+            >
+              <Input
+                id="training-name"
+                value={formData.name}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setFormData((prev) => ({ ...prev, name: event.target.value }))
+                }
+                required
+              />
+            </FormField>
+
+            <FormField label="Description" htmlFor="training-description">
+              <Textarea
+                id="training-description"
+                rows={3}
+                value={formData.description}
+                onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setFormData((prev) => ({ ...prev, description: event.target.value }))
+                }
+              />
+            </FormField>
+
+            <FormField
+              label="Training Albums"
+              description={
+                albums.length === 0
+                  ? 'No training albums available yet.'
+                  : 'Select one or more albums to use as the training dataset.'
+              }
+            >
+              <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+                {albums.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Add albums before starting a training run.
+                  </p>
+                ) : (
+                  albums.map((album) => {
+                    const albumId = String(album.id)
+                    const selected = formData.album_ids.includes(albumId)
+                    return (
+                      <label
+                        key={albumId}
+                        className={cn(
+                          'flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors',
+                          selected ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-background',
+                        )}
+                      >
+                        <span className="font-medium">{album.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {(album.image_count ?? 0).toLocaleString()} images
+                          </span>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-primary"
+                            checked={selected}
+                            onChange={() => toggleAlbumSelection(albumId)}
+                          />
+                        </div>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+            </FormField>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                label="Training Steps"
+                htmlFor="training-steps"
+                description="More steps yield higher quality but take longer."
               >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <form onSubmit={handleCreateTraining} className="training-form">
-              <div className="form-group">
-                <label htmlFor="name">Name *</label>
-                <input
-                  type="text"
-                  id="name"
-                  value={formData.name}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, name: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="description">Description</label>
-                <textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({...formData, description: e.target.value})}
-                  rows={3}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Training Albums *</label>
-                <div className="album-selection">
-                  {albums.map((album) => (
-                    <label key={album.id} className="album-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={formData.album_ids.includes(album.id)}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          if (e.target.checked) {
-                            setFormData({
-                              ...formData,
-                              album_ids: [...formData.album_ids, album.id]
-                            })
-                          } else {
-                            setFormData({
-                              ...formData,
-                              album_ids: formData.album_ids.filter(id => id !== album.id)
-                            })
-                          }
-                        }}
-                      />
-                      <span>{album.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="steps">Training Steps</label>
-                <input
+                <Input
+                  id="training-steps"
                   type="number"
-                  id="steps"
+                  min={100}
+                  max={10000}
                   value={formData.config.steps}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {...formData.config, steps: parseInt(e.target.value)}
-                  })}
-                  min="100"
-                  max="10000"
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const next = Number.parseInt(event.target.value, 10)
+                    setFormData((prev) => ({
+                      ...prev,
+                      config: {
+                        ...prev.config,
+                        steps: Number.isNaN(next) ? prev.config.steps : next,
+                      },
+                    }))
+                  }}
                 />
-              </div>
+              </FormField>
 
-              <div className="form-group">
-                <label htmlFor="rank">LoRA Rank</label>
-                <input
+              <FormField
+                label="LoRA Rank"
+                htmlFor="training-rank"
+                description="Lower ranks train faster; higher ranks capture more detail."
+              >
+                <Input
+                  id="training-rank"
                   type="number"
-                  id="rank"
+                  min={1}
+                  max={64}
                   value={formData.config.rank}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {...formData.config, rank: parseInt(e.target.value)}
-                  })}
-                  min="1"
-                  max="64"
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const next = Number.parseInt(event.target.value, 10)
+                    setFormData((prev) => ({
+                      ...prev,
+                      config: {
+                        ...prev.config,
+                        rank: Number.isNaN(next) ? prev.config.rank : next,
+                      },
+                    }))
+                  }}
                 />
-              </div>
+              </FormField>
 
-              <div className="form-group">
-                <label htmlFor="learning_rate">Learning Rate</label>
-                <input
+              <FormField label="Learning Rate" htmlFor="training-learning-rate">
+                <Input
+                  id="training-learning-rate"
                   type="number"
-                  id="learning_rate"
-                  value={formData.config.learning_rate}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {...formData.config, learning_rate: parseFloat(e.target.value)}
-                  })}
                   step="0.0001"
                   min="0.0001"
                   max="0.01"
+                  value={formData.config.learning_rate}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const next = Number.parseFloat(event.target.value)
+                    setFormData((prev) => ({
+                      ...prev,
+                      config: {
+                        ...prev.config,
+                        learning_rate: Number.isNaN(next) ? prev.config.learning_rate : next,
+                      },
+                    }))
+                  }}
                 />
-              </div>
+              </FormField>
 
-              <div className="form-group">
-                <label htmlFor="batch_size">Batch Size</label>
-                <input
+              <FormField label="Batch Size" htmlFor="training-batch-size">
+                <Input
+                  id="training-batch-size"
                   type="number"
-                  id="batch_size"
+                  min={1}
+                  max={8}
                   value={formData.config.batch_size}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {...formData.config, batch_size: parseInt(e.target.value)}
-                  })}
-                  min="1"
-                  max="8"
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const next = Number.parseInt(event.target.value, 10)
+                    setFormData((prev) => ({
+                      ...prev,
+                      config: {
+                        ...prev.config,
+                        batch_size: Number.isNaN(next) ? prev.config.batch_size : next,
+                      },
+                    }))
+                  }}
                 />
-              </div>
+              </FormField>
+            </div>
 
-              <div className="form-actions">
-                <Button type="button" onClick={() => setShowCreateDialog(false)} variant="outline">
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={formData.album_ids.length === 0}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Training Run
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {logState.runId && (
-        <div className="dialog-overlay" role="dialog" aria-modal="true">
-          <div className="dialog log-dialog">
-            <div className="dialog-header">
-              <h3>Training Logs</h3>
-              <Button variant="ghost" size="icon" onClick={closeLogViewer} aria-label="Close logs">
-                <X className="h-4 w-4" />
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
               </Button>
-            </div>
+              <Button type="submit" disabled={formData.album_ids.length === 0}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Training Run
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <div className="log-meta">
-              <div>
-                <strong>Run ID:</strong> {logState.runId}
-              </div>
-              {logState.status && (
-                <div>
-                  <strong>Status:</strong> {logState.status.toUpperCase()}
-                </div>
-              )}
-              {logState.logPath && (
-                <div className="log-path">
-                  <strong>Log file:</strong> {logState.logPath}
-                </div>
-              )}
-            </div>
-
-            <div className="log-body">
-              {logState.loading ? (
-                <div className="log-loading">Loading logs...</div>
-              ) : logState.error ? (
-                <div className="log-error">{logState.error}</div>
-              ) : logState.logAvailable ? (
-                <pre className="log-content">{logState.content || 'No log output yet.'}</pre>
-              ) : (
-                <div className="log-empty">Logs are not available yet for this run.</div>
-              )}
-            </div>
+      <Dialog open={logDialogOpen} onOpenChange={(open) => { if (!open) closeLogViewer() }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Training Logs</DialogTitle>
+            <DialogDescription>
+              {logState.runId ? `Most recent output for training run ${logState.runId}.` : 'No run selected.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            {logState.status ? (
+              <span>
+                <span className="font-medium text-foreground">Status:</span> {logState.status.toUpperCase()}
+              </span>
+            ) : null}
+            {logState.logPath ? (
+              <span className="break-all">
+                <span className="font-medium text-foreground">Log file:</span> {logState.logPath}
+              </span>
+            ) : null}
           </div>
-        </div>
-      )}
+          <div className="max-h-[480px] overflow-y-auto rounded-md border border-border/60 bg-background p-4 text-xs leading-relaxed text-muted-foreground">
+            {logState.loading ? (
+              <Spinner size="small" message="Loading logs..." />
+            ) : logState.error ? (
+              <div className="text-destructive">{logState.error}</div>
+            ) : logState.logAvailable ? (
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs text-foreground">
+                {logState.content || 'No log output yet.'}
+              </pre>
+            ) : (
+              <div>Logs are not available yet for this run.</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeLogViewer}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
