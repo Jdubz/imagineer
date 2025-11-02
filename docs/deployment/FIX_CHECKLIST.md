@@ -193,7 +193,7 @@ vim web/.env.production
 **Change this line**:
 ```bash
 # FROM:
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 
 # TO:
 VITE_API_BASE_URL=https://imagineer.joshwentworth.com/api

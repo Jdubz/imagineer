@@ -16,7 +16,7 @@
 - Phase 1 (foundation + theme) ✅ – shadcn is installed, tokens configured.
 - Phase 2 (component migration) ✅ – core primitives and toasts migrated.
 - `/shadcn-test` demo route removed 2025-11-01.
-- Scraping and training tabs now use the shared shell + cards; other admin tabs still rely on legacy container padding and bespoke banners.
+- Scraping, training, and queue tabs now use the shared shell + cards; other admin tabs still rely on legacy container padding and bespoke banners.
 
 ---
 

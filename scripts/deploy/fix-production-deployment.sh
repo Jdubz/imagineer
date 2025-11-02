@@ -408,7 +408,7 @@ fi
 
 print_status "Testing public endpoint (via Cloudflare Tunnel)..."
 sleep 2
-if curl -f https://api.imagineer.joshwentworth.com/api/health &> /dev/null 2>&1; then
+if curl -f https://imagineer-api.joshwentworth.com/api/health &> /dev/null 2>&1; then
     print_success "✅ Public API is accessible"
 else
     print_warning "⚠️  Public API not accessible yet (may need DNS propagation)"
@@ -462,7 +462,7 @@ ${YELLOW}Security Notes:${NC}
   - Keep .env.production secure and never commit it
 
 ${BLUE}Next Steps:${NC}
-  1. Test the deployment: curl https://api.imagineer.joshwentworth.com/api/health
+  1. Test the deployment: curl https://imagineer-api.joshwentworth.com/api/health
   2. Test the frontend: open https://imagineer.joshwentworth.com/
   3. Add .db_credentials to .gitignore
   4. Consider backing up the database regularly

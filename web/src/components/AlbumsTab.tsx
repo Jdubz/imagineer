@@ -2,6 +2,16 @@ import React, { useState, useCallback, useMemo, memo } from 'react'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import ImageCard from './common/ImageCard'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { logger } from '../lib/logger'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
@@ -10,6 +20,7 @@ import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
 import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -319,43 +330,51 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   }
 
   return (
-    <div className="albums-tab">
-      <div className="albums-header">
-        <h2>Albums</h2>
-        <div className="albums-header-actions">
-          <div className="album-filter-buttons">
-            <button
-              className={`filter-btn ${albumFilter === 'all' ? 'active' : ''}`}
-              onClick={handleFilterAll}
-            >
-              All Albums
-            </button>
-            <button
-              className={`filter-btn ${albumFilter === 'sets' ? 'active' : ''}`}
-              onClick={handleFilterSets}
-            >
-              Set Templates
-            </button>
-            <button
-              className={`filter-btn ${albumFilter === 'regular' ? 'active' : ''}`}
-              onClick={handleFilterRegular}
-            >
-              Regular Albums
-            </button>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-3xl font-semibold tracking-tight">Albums</h2>
+            <p className="text-sm text-muted-foreground">
+              Browse generated collections and set templates.
+            </p>
           </div>
-          {isAdmin && (
-            <button
-              className="create-album-btn"
-              onClick={handleShowCreateDialog}
-            >
+          {isAdmin ? (
+            <Button onClick={handleShowCreateDialog}>
               Create Album
-            </button>
-          )}
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={albumFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleFilterAll}
+            aria-pressed={albumFilter === 'all'}
+          >
+            All Albums
+          </Button>
+          <Button
+            variant={albumFilter === 'sets' ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleFilterSets}
+            aria-pressed={albumFilter === 'sets'}
+          >
+            Set Templates
+          </Button>
+          <Button
+            variant={albumFilter === 'regular' ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleFilterRegular}
+            aria-pressed={albumFilter === 'regular'}
+          >
+            Regular Albums
+          </Button>
         </div>
       </div>
 
-      <div className="albums-grid">
-        {filteredAlbums.map(album => {
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {filteredAlbums.map((album) => {
           const handleSelectAlbum = () => selectAlbum(album.id)
           const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
@@ -376,86 +395,114 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             : null
 
           return (
-            <div
+            <Card
               key={album.id}
-              className="album-card"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open album ${album.name}`}
               onClick={handleSelectAlbum}
-            >
-            <div
-              className="album-cover"
-              onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
-              onFocus={() => coverSources && preloadImage(coverSources.full)}
-            >
-              {coverSources ? (
-                <picture>
-                  {coverSources.thumbnail.endsWith('.webp') && (
-                    <source srcSet={coverSources.srcSet} type="image/webp" />
-                  )}
-                  <img
-                    src={coverSources.thumbnail}
-                    srcSet={coverSources.srcSet}
-                    sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 100vw"
-                    alt={coverSources.alt || album.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="album-cover-image blur-up"
-                  />
-                </picture>
-              ) : (
-                <div className="album-placeholder">
-                  {album.image_count || 0} images
-                </div>
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  selectAlbum(album.id)
+                }
+              }}
+              className={cn(
+                'group flex h-full flex-col overflow-hidden border transition',
+                'hover:border-primary/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70'
               )}
-            </div>
-
-            <div className="album-info">
-              <div className="album-title-row">
-                <h3>{album.name}</h3>
-                {album.is_set_template && (
-                  <span className="set-template-badge">Set Template</span>
+            >
+              <div
+                className="relative aspect-[4/3] w-full overflow-hidden bg-muted"
+                onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
+                onFocus={() => coverSources && preloadImage(coverSources.full)}
+              >
+                {coverSources ? (
+                  <picture>
+                    {coverSources.thumbnail.endsWith('.webp') && (
+                      <source srcSet={coverSources.srcSet} type="image/webp" />
+                    )}
+                    <img
+                      src={coverSources.thumbnail}
+                      srcSet={coverSources.srcSet}
+                      sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 100vw"
+                      alt={coverSources.alt || album.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-105"
+                    />
+                  </picture>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    {album.image_count || 0} images
+                  </div>
                 )}
               </div>
-              <p>{album.description || 'No description'}</p>
-              {album.is_set_template && album.template_item_count && (
-                <p className="template-info">{album.template_item_count} template items</p>
-              )}
-              <div className="album-meta">
-                <span>{album.image_count || 0} images</span>
-                <span className="album-type">{album.album_type || 'manual'}</span>
-              </div>
-              {isAdmin && (
-                <div className="album-actions">
-                  {album.is_set_template && (
-                    <button
-                      className="generate-batch-btn"
+
+              <CardHeader className="gap-3 p-6 pb-4">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="line-clamp-2 text-base font-semibold">
+                    {album.name}
+                  </CardTitle>
+                  {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
+                </div>
+                <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
+                  {album.description || 'No description provided'}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3 px-6 pb-6 pt-0">
+                {album.is_set_template && album.template_item_count ? (
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {album.template_item_count} template items
+                  </p>
+                ) : null}
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
+                  <span>{album.image_count || 0} images</span>
+                  <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
+                    {album.album_type || 'manual'}
+                  </Badge>
+                </div>
+              </CardContent>
+
+              {isAdmin ? (
+                <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/30 px-6 py-4">
+                  {album.is_set_template ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
                       onClick={handleBatchClick}
                     >
                       Generate Batch
-                    </button>
-                  )}
-                  <button
-                    className="delete-album-btn"
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="destructive"
                     onClick={handleDeleteAlbum}
                   >
                     Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+                  </Button>
+                </CardFooter>
+              ) : null}
+            </Card>
           )
         })}
       </div>
 
       {filteredAlbums.length === 0 && albums.length > 0 && (
-        <div className="empty-state">
-          <p>No {albumFilter === 'sets' ? 'set template' : albumFilter === 'regular' ? 'regular' : ''} albums found.</p>
+        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 px-6 py-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            No {albumFilter === 'sets' ? 'set template' : albumFilter === 'regular' ? 'regular' : ''} albums found.
+          </p>
         </div>
       )}
 
       {albums.length === 0 && (
-        <div className="empty-state">
-          <p>No albums yet. {isAdmin ? 'Create your first album!' : 'Albums will appear here.'}</p>
+        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 px-6 py-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            No albums yet. {isAdmin ? 'Create your first album!' : 'Albums will appear here.'}
+          </p>
         </div>
       )}
 

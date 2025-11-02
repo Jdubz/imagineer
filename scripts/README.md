@@ -131,7 +131,7 @@ curl http://localhost:10050/api/health     # API
 Public (wait 30 seconds for tunnel):
 ```bash
 curl https://imagineer.joshwentworth.com/health
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```
 
 ### 3. View Logs

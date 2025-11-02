@@ -15,7 +15,7 @@
 - Backend: Firebase Hosting
 - Behavior: Returns React SPA (working correctly)
 
-**API Subdomain: api.imagineer.joshwentworth.com**
+**API Subdomain: imagineer-api.joshwentworth.com**
 - DNS: **Does NOT exist**
 - Status: Not configured
 
@@ -23,7 +23,7 @@
 
 The frontend (deployed to Firebase) is configured to make API calls to:
 ```
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 ```
 
 But this subdomain doesn't exist, causing API calls to fail.
@@ -32,7 +32,7 @@ Additionally, `imagineer.joshwentworth.com` is configured in Firebase Hosting as
 
 ### Root Cause
 
-1. **DNS Misconfiguration**: `api.imagineer.joshwentworth.com` was never created
+1. **DNS Misconfiguration**: `imagineer-api.joshwentworth.com` was never created
 2. **Firebase Custom Domain**: `imagineer.joshwentworth.com` was added to Firebase Hosting, overriding the intended Cloudflare Tunnel routing
 3. **Documentation Drift**: Multiple deployment docs describe different architectures
 
@@ -120,7 +120,7 @@ Additional Routing
 **What to change:**
 
 1. **Create DNS Record**:
-   - Record: `api.imagineer.joshwentworth.com`
+   - Record: `imagineer-api.joshwentworth.com`
    - Type: CNAME
    - Value: `<tunnel-id>.cfargotunnel.com`
    - Proxy: Enabled
@@ -139,7 +139,7 @@ Additional Routing
    credentials-file: /home/jdubz/.cloudflared/db1a99dd-3d12-4315-b241-da2a55a5c30f.json
 
    ingress:
-     - hostname: api.imagineer.joshwentworth.com
+     - hostname: imagineer-api.joshwentworth.com
        service: http://localhost:10050
      - service: http_status:404
    ```
@@ -154,11 +154,11 @@ Additional Routing
    - Can keep `imagineer.joshwentworth.com` pointing to Firebase
    - This gives you a branded URL for the frontend
 
-5. **Frontend Configuration**: Ensure builds use `https://api.imagineer.joshwentworth.com/api`
+5. **Frontend Configuration**: Ensure builds use `https://imagineer-api.joshwentworth.com/api`
 
 **Result:**
 - Frontend: `https://imagineer.joshwentworth.com` (via Firebase)
-- API: `https://api.imagineer.joshwentworth.com/api/*`
+- API: `https://imagineer-api.joshwentworth.com/api/*`
 
 ### Option 3: Hybrid (Recommended for Scalability)
 
@@ -202,7 +202,7 @@ After implementing any option:
 # Should return JSON health status
 curl https://imagineer.joshwentworth.com/api/health
 # or
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # Expected response:
 {"status":"ok","timestamp":"2025-10-31T..."}
@@ -270,11 +270,11 @@ The following files contain incorrect architecture information:
 
 2. **docs/deployment/CLOUDFLARE_TUNNEL_SETUP.md**
    - Line 76: Says backend is at `http://127.0.0.1:10050`
-   - Line 199: Lists API at `api.imagineer.joshwentworth.com`
+   - Line 199: Lists API at `imagineer-api.joshwentworth.com`
    - Reality: Subdomain doesn't exist
 
 3. **web/.env.production**
-   - Line 10: `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+   - Line 10: `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
    - Reality: Should match actual deployment (Option 1, 2, or 3 above)
 
 ## Next Steps
@@ -295,7 +295,7 @@ dig imagineer.joshwentworth.com
 nslookup imagineer.joshwentworth.com
 
 # Check API subdomain
-dig api.imagineer.joshwentworth.com
+dig imagineer-api.joshwentworth.com
 ```
 
 ### Check Firebase Custom Domains

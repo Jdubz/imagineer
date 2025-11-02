@@ -63,7 +63,7 @@ After running the restart script, you should see:
 
 **Then visit:**
 - **Frontend:** https://imagineer.joshwentworth.com/
-- **API:** https://api.imagineer.joshwentworth.com/api/health
+- **API:** https://imagineer-api.joshwentworth.com/api/health
 
 ---
 

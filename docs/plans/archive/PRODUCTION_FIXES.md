@@ -16,7 +16,7 @@
 
 **Action Required:**
 - Update Google OAuth authorized redirect URIs to:
-  - `https://api.imagineer.joshwentworth.com/api/auth/google/callback`
+  - `https://imagineer-api.joshwentworth.com/api/auth/google/callback`
 
 ### 2. Missing Favicon Fix
 **Files:**

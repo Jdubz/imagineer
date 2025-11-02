@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Align Cloudflare Tunnel with api.imagineer.joshwentworth.com
+# Align Cloudflare Tunnel with imagineer-api.joshwentworth.com
 #
 # This script reconfigures the production Cloudflare Tunnel so the dedicated API
-# subdomain `api.imagineer.joshwentworth.com` proxies requests to the local
+# subdomain `imagineer-api.joshwentworth.com` proxies requests to the local
 # Flask service on port 10050. The Firebase-hosted SPA continues to serve the
 # root domain (`imagineer.joshwentworth.com`) via Cloudflare without using this tunnel.
 #
@@ -10,7 +10,7 @@
 # 1. SSH access to the production server
 # 2. Cloudflare tunnel already created with ID db1a99dd-3d12-4315-b241-da2a55a5c30f
 # 3. Sudo access for systemctl commands
-# 4. DNS (Cloudflare) record for api.imagineer.joshwentworth.com pointing at the tunnel
+# 4. DNS (Cloudflare) record for imagineer-api.joshwentworth.com pointing at the tunnel
 #
 # USAGE:
 #   ssh jdubz@<server-ip>
@@ -23,7 +23,7 @@ APP_DIR="/home/jdubz/Development/imagineer"
 TUNNEL_CONFIG="${HOME}/.cloudflared/config.yml"
 TUNNEL_SERVICE="cloudflared-imagineer-api"
 API_SERVICE="imagineer-api"
-API_HOSTNAME="api.imagineer.joshwentworth.com"
+API_HOSTNAME="imagineer-api.joshwentworth.com"
 CREDENTIALS_FILE="${HOME}/.cloudflared/db1a99dd-3d12-4315-b241-da2a55a5c30f.json"
 
 log() {

@@ -2,7 +2,7 @@
 
 This guide walks through deploying Imagineer to production with:
 - Frontend (SPA) served from Firebase Hosting and cached behind Cloudflare (`imagineer.joshwentworth.com`)
-- Backend API reachable at `api.imagineer.joshwentworth.com` through a Cloudflare Tunnel to the Flask service
+- Backend API reachable at `imagineer-api.joshwentworth.com` through a Cloudflare Tunnel to the Flask service
 - Automatic deployment from GitHub on push to main
 - Cloudflare Tunnel for secure HTTPS access to the API
 - systemd services for process management
@@ -16,7 +16,7 @@ https://imagineer.joshwentworth.com (Firebase Hosting behind Cloudflare)
 
 API Request
     ↓
-https://api.imagineer.joshwentworth.com
+https://imagineer-api.joshwentworth.com
     ↓
 Cloudflare Tunnel (db1a99dd-3d12-4315-b241-da2a55a5c30f)
     ↓
@@ -93,7 +93,7 @@ curl http://localhost:10050/api/health
 
 Test via tunnel:
 ```bash
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 ```
 
 ## Part 2: GitHub Configuration
@@ -277,7 +277,7 @@ curl https://imagineer.joshwentworth.com
 ```bash
 # All health checks should return 200 OK
 curl -I https://imagineer.joshwentworth.com/health
-curl -I https://api.imagineer.joshwentworth.com/api/health
+curl -I https://imagineer-api.joshwentworth.com/api/health
 ```
 
 ### Performance Monitoring

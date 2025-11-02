@@ -9,7 +9,7 @@
 **Root Cause**: Domain misconfiguration with multiple contributing factors:
 
 1. **DNS Points to Firebase**: `imagineer.joshwentworth.com` was added as a custom domain in Firebase Hosting
-2. **Frontend Config Mismatch**: Frontend expects API at `https://api.imagineer.joshwentworth.com/api` but this subdomain doesn't exist in DNS
+2. **Frontend Config Mismatch**: Frontend expects API at `https://imagineer-api.joshwentworth.com/api` but this subdomain doesn't exist in DNS
 3. **Cloudflare Tunnel Not Active**: Even though tunnel is configured on server, the domain isn't routing to it
 4. **Documentation Drift**: Multiple deployment docs describe different architectures
 
@@ -22,7 +22,7 @@ imagineer.joshwentworth.com
   → Routes to: Firebase Hosting (serving React app)
   → Response: HTML for ALL paths including /api/*
 
-api.imagineer.joshwentworth.com
+imagineer-api.joshwentworth.com
   → DNS record: DOES NOT EXIST
   → Status: Never created
 ```
@@ -42,14 +42,14 @@ Backend:
 #### Frontend Configuration
 ```bash
 # web/.env.production
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 
 # This subdomain doesn't exist, so all API calls fail!
 ```
 
 ### What's Broken
 
-1. **API Calls Fail**: Frontend tries to reach `api.imagineer.joshwentworth.com` which doesn't exist
+1. **API Calls Fail**: Frontend tries to reach `imagineer-api.joshwentworth.com` which doesn't exist
 2. **Wrong Domain Usage**: `imagineer.joshwentworth.com` serves frontend instead of proxying API
 3. **Architecture Mismatch**: Deployed setup doesn't match any documentation
 
@@ -77,7 +77,7 @@ curl https://imagineer.joshwentworth.com/api/health
 → Status: WRONG RESPONSE TYPE
 
 # API via subdomain - FAILS (DNS doesn't exist)
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 → Returns: DNS resolution error
 → Expected: {"status":"ok"}
 → Status: DOMAIN NOT FOUND
@@ -91,17 +91,17 @@ Previously suggested moving the API to `imagineer.joshwentworth.com` and leaving
 
 ### Option 2: API Subdomain (Current Path) ⭐ RECOMMENDED
 
-Use a dedicated `api.imagineer.joshwentworth.com` record for backend traffic while keeping the SPA on `imagineer.joshwentworth.com`.
+Use a dedicated `imagineer-api.joshwentworth.com` record for backend traffic while keeping the SPA on `imagineer.joshwentworth.com`.
 
 **Steps:**
-1. Create DNS CNAME: `api.imagineer.joshwentworth.com` → tunnel
-2. Update tunnel config to use `api.imagineer.joshwentworth.com`
+1. Create DNS CNAME: `imagineer-api.joshwentworth.com` → tunnel
+2. Update tunnel config to use `imagineer-api.joshwentworth.com`
 3. Keep `imagineer.joshwentworth.com` on Firebase for the SPA
-4. Ensure frontend builds target `https://api.imagineer.joshwentworth.com/api`
+4. Ensure frontend builds target `https://imagineer-api.joshwentworth.com/api`
 
 **Result:**
 - Frontend: `https://imagineer.joshwentworth.com` (Firebase, branded)
-- API: `https://api.imagineer.joshwentworth.com/api/*` (via Cloudflare Tunnel)
+- API: `https://imagineer-api.joshwentworth.com/api/*` (via Cloudflare Tunnel)
 
 **Pros:**
 - Matches current frontend config
@@ -252,7 +252,7 @@ curl https://imagineer.joshwentworth.com/api/sets           # JSON
 
 ### Files to Modify
 1. `web/.env.production`
-   - Change API URL from `api.imagineer.joshwentworth.com` to `imagineer.joshwentworth.com`
+   - Change API URL from `imagineer-api.joshwentworth.com` to `imagineer.joshwentworth.com`
 
 2. `~/.cloudflared/config.yml` (on server)
    - Update tunnel routing configuration
@@ -391,7 +391,7 @@ After fix is implemented, update these files:
 
 ### What Was Wrong
 - `imagineer.joshwentworth.com` pointing to Firebase (frontend) instead of Cloudflare Tunnel (API)
-- Frontend configured for non-existent `api.imagineer.joshwentworth.com` subdomain
+- Frontend configured for non-existent `imagineer-api.joshwentworth.com` subdomain
 - Cloudflare Tunnel configured but not receiving traffic
 
 ### What Needs to Be Fixed

@@ -24,7 +24,7 @@ const isDevelopment = import.meta.env.DEV
  * getApiUrl('/auth/login') // => '/api/auth/login'
  *
  * // Production (uses full URL)
- * getApiUrl('/auth/login') // => 'https://api.imagineer.joshwentworth.com/api/auth/login'
+ * getApiUrl('/auth/login') // => 'https://imagineer-api.joshwentworth.com/api/auth/login'
  */
 export function getApiUrl(endpoint: string): string {
   // Normalize endpoint to start with /
@@ -67,7 +67,7 @@ export function getApiUrl(endpoint: string): string {
  * getApiBaseUrl() // => 'http://localhost:10050/api'
  *
  * // Production
- * getApiBaseUrl() // => 'https://api.imagineer.joshwentworth.com/api'
+ * getApiBaseUrl() // => 'https://imagineer-api.joshwentworth.com/api'
  */
 export function getApiBaseUrl(): string {
   if (isDevelopment) {

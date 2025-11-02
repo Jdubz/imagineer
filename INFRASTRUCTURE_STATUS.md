@@ -7,18 +7,18 @@
 
 All infrastructure configuration has been verified and aligned to ensure:
 - **Frontend:** `https://imagineer.joshwentworth.com` (Cloudflare → Firebase)
-- **API:** `https://api.imagineer.joshwentworth.com` (Cloudflare Tunnel → Flask)
+- **API:** `https://imagineer-api.joshwentworth.com` (Cloudflare Tunnel → Flask)
 
 ## Verified Components
 
 ### ✅ Frontend Configuration
 - **File:** `web/.env.production`
-- **API URL:** `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+- **API URL:** `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
 - **Status:** Correct ✅
 
 ### ✅ Cloudflare Tunnel Configuration
 - **File:** `config/deployment/cloudflared-config.yml`
-- **Hostname:** `api.imagineer.joshwentworth.com`
+- **Hostname:** `imagineer-api.joshwentworth.com`
 - **Service:** `http://localhost:10050` (Flask API)
 - **Tunnel ID:** `db1a99dd-3d12-4315-b241-da2a55a5c30f`
 - **Status:** Correct ✅
@@ -31,7 +31,7 @@ All infrastructure configuration has been verified and aligned to ensure:
 
 ### ✅ Deployment Scripts
 - **Script:** `scripts/deploy/deploy-frontend.sh`
-- **API URL:** `https://api.imagineer.joshwentworth.com/api`
+- **API URL:** `https://imagineer-api.joshwentworth.com/api`
 - **Status:** Correct ✅
 
 ### ✅ Backend CORS Configuration
@@ -55,7 +55,7 @@ Proxy: ☁️ Proxied (Orange Cloud)
 ### API Domain
 ```
 Type: CNAME
-Name: api.imagineer.joshwentworth.com
+Name: imagineer-api.joshwentworth.com
 Target: db1a99dd-3d12-4315-b241-da2a55a5c30f.cfargotunnel.com
 Proxy: DNS only (Grey Cloud)
 ```
@@ -72,7 +72,7 @@ User → imagineer.joshwentworth.com
 
 ### API Request
 ```
-React SPA → api.imagineer.joshwentworth.com/api/*
+React SPA → imagineer-api.joshwentworth.com/api/*
          → Cloudflare DNS
          → Cloudflare Tunnel
          → localhost:10050
@@ -86,7 +86,7 @@ React SPA → api.imagineer.joshwentworth.com/api/*
 - Created `VERIFICATION_CHECKLIST.md` with testing procedures
 
 ### Commit 2: Configuration Alignment (1414652)
-- Updated Cloudflared config to use `api.imagineer.joshwentworth.com`
+- Updated Cloudflared config to use `imagineer-api.joshwentworth.com`
 - Cleaned up ALLOWED_ORIGINS (removed redundant api subdomain)
 - Updated all documentation to match actual infrastructure
 - Aligned deployment scripts with api subdomain
@@ -118,7 +118,7 @@ React SPA → api.imagineer.joshwentworth.com/api/*
 
 ### Verify DNS (Cloudflare Dashboard)
 
-1. Check `api.imagineer.joshwentworth.com` CNAME points to tunnel
+1. Check `imagineer-api.joshwentworth.com` CNAME points to tunnel
 2. Check `imagineer.joshwentworth.com` CNAME points to Firebase
 3. Ensure proxy status is correct (frontend: proxied, api: DNS only)
 
@@ -130,7 +130,7 @@ cd /home/jdubz/Development/imagineer
 ```
 
 This will:
-- Build with `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+- Build with `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
 - Deploy to Firebase Hosting (imagineer-generator site)
 - Frontend accessible at `https://imagineer.joshwentworth.com`
 
@@ -143,7 +143,7 @@ curl -I https://imagineer.joshwentworth.com/
 # Should return: 200 OK, text/html
 
 # API
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 # Should return: {"status": "healthy", ...}
 ```
 
@@ -176,7 +176,7 @@ See `docs/deployment/VERIFICATION_CHECKLIST.md` for comprehensive testing proced
 - Direct URLs: `imagineer-generator.web.app`, `imagineer-generator.firebaseapp.com` ✅
 
 **Backend API:**
-- Domain: `api.imagineer.joshwentworth.com` ✅
+- Domain: `imagineer-api.joshwentworth.com` ✅
 - Tunnel: Cloudflare Tunnel (db1a99dd-3d12-4315-b241-da2a55a5c30f) ✅
 - Service: Flask on localhost:10050 ✅
 - Config: Aligned in repository ✅

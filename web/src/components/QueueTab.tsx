@@ -1,77 +1,88 @@
-import React, { useState, useCallback, memo } from 'react'
+import React, { memo, useCallback, useState } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
-import { useToast } from '../hooks/use-toast'
 import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
 import type { JobsResponse } from '../types/models'
 import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
-import '../styles/QueueTab.css'
+import Spinner from './Spinner'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { RotateCw } from 'lucide-react'
+import { useToast } from '../hooks/use-toast'
+
+const STATUS_STYLES: Record<string, string> = {
+  running: 'bg-emerald-500 text-emerald-50',
+  queued: 'bg-amber-500 text-amber-50',
+  completed: 'bg-emerald-500 text-emerald-50',
+  failed: 'bg-rose-500 text-rose-50',
+  cancelled: 'bg-muted text-muted-foreground',
+}
+
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
+  <span
+    className={cn(
+      'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize',
+      STATUS_STYLES[status] ?? 'bg-muted text-foreground',
+    )}
+  >
+    {status.replace(/_/g, ' ')}
+  </span>
+)
 
 const QueueTab: React.FC = memo(() => {
   const { toast } = useToast()
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
-  const [authError, setAuthError] = useState<boolean>(false)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [authError, setAuthError] = useState(false)
 
   const fetchQueueData = useCallback(async (): Promise<JobsResponse> => {
     try {
       const data = await api.jobs.getAll()
-      setAuthError(false)  // Clear auth error on successful fetch
+      setAuthError(false)
       return data
     } catch (error) {
       if (isAuthError(error)) {
-        // Admin authentication required - return empty state instead of throwing
         setAuthError(true)
         logger.warn('Queue access requires admin authentication')
         return { current: null, queue: [], history: [] }
       }
       logger.error('Failed to fetch queue data:', error)
       const errorMessage = formatErrorMessage(error, 'Failed to load job queue')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
-      // Return empty data for non-auth errors to allow adaptive polling to reset
+      toast({ title: 'Error loading queue', description: errorMessage, variant: 'destructive' })
       return { current: null, queue: [], history: [] }
     }
   }, [toast])
 
-  // Adaptive polling: fast when jobs running, slow when idle
   const queueData = useAdaptivePolling(fetchQueueData, {
-    activeInterval: 2000,   // 2s when job is running (1,800 req/hour)
-    mediumInterval: 10000,  // 10s when jobs queued (360 req/hour - 80% reduction)
-    baseInterval: 30000,    // 30s when idle (120 req/hour - 93% reduction)
+    activeInterval: 2000,
+    mediumInterval: 10000,
+    baseInterval: 30000,
     enabled: autoRefresh,
     pauseWhenHidden: true,
     getActivityLevel: (data) => {
-      // Fast polling when a job is currently running
       if (data?.current) return 'active'
-      // Medium polling when jobs are queued
       if (data?.queue && data.queue.length > 0) return 'medium'
-      // Slow polling when completely idle
       return 'idle'
     },
   })
 
-  const formatDate = useCallback((dateString?: string | null): string => {
+  const formatDate = useCallback((dateString?: string | null) => {
     if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString()
+    return new Date(dateString).toLocaleString()
   }, [])
 
-  const formatDuration = useCallback((startTime?: string | null, endTime?: string | null): string => {
+  const formatDuration = useCallback((startTime?: string | null, endTime?: string | null) => {
     if (!startTime || !endTime) return '-'
     const start = new Date(startTime)
     const end = new Date(endTime)
     const seconds = Math.floor((end.getTime() - start.getTime()) / 1000)
     return `${seconds}s`
-  }, [])
-
-  const getStatusBadge = useCallback((status: string): JSX.Element => {
-    const statusClass = `status-badge status-${status}`
-    return <span className={statusClass}>{status}</span>
-  }, [])
-
-  const handleAutoRefreshChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setAutoRefresh(e.target.checked)
   }, [])
 
   const handleRefresh = useCallback(() => {
@@ -80,172 +91,210 @@ const QueueTab: React.FC = memo(() => {
 
   if (authError) {
     return (
-      <div className="queue-tab">
-        <div className="auth-error-banner">
-          <h3>🔒 Admin Authentication Required</h3>
-          <p>The job queue requires admin privileges to view. Please sign in with an admin account.</p>
-          <Button onClick={handleRefresh} variant="outline">
-            <RotateCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </div>
+      <div className="mx-auto w-full max-w-3xl">
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader className="space-y-3">
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <span role="img" aria-label="Locked">
+                🔒
+              </span>
+              Admin authentication required
+            </CardTitle>
+            <CardDescription>
+              The job queue is restricted to administrators. Sign in with an admin account and try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleRefresh} variant="outline">
+              <RotateCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   if (!queueData) {
-    return <div className="queue-tab loading">Loading queue data...</div>
+    return (
+      <div className="flex min-h-[240px] w-full items-center justify-center py-16">
+        <Spinner size="large" message="Loading queue data..." />
+      </div>
+    )
   }
 
+  const queuedJobs = queueData.queue ?? []
+  const historyJobs = queueData.history ?? []
+
   return (
-    <div className="queue-tab">
-      <div className="queue-header">
-        <h2>Job Queue</h2>
-        <div className="queue-controls">
-          <label className="auto-refresh-toggle">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">Job Queue</h2>
+          <p className="text-sm text-muted-foreground">
+            Monitor the real-time generation pipeline, view queued tasks, and audit recent history.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
+              className="h-4 w-4 accent-primary"
               checked={autoRefresh}
-              onChange={handleAutoRefreshChange}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAutoRefresh(event.target.checked)}
             />
             Auto-refresh
           </label>
-          <Button onClick={handleRefresh} variant="outline">
-            <RotateCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleRefresh}>
+            <RotateCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
         </div>
       </div>
 
-      {/* Current Job */}
-      <section className="queue-section">
-        <h3>Currently Running</h3>
-        {queueData.current ? (
-          <div className="job-card current-job">
-            <div className="job-header">
-              <span className="job-id">Job #{queueData.current.id}</span>
-              {getStatusBadge('running')}
-            </div>
-            <div className="job-details">
-              <div className="job-field">
-                <strong>Prompt:</strong>
-                <span>{queueData.current.prompt}</span>
-              </div>
-              {queueData.current.lora_paths && queueData.current.lora_paths.length > 0 && (
-                <div className="job-field">
-                  <strong>LoRAs:</strong>
-                  <span>{queueData.current.lora_paths.length} loaded</span>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Currently running</CardTitle>
+            {queueData.current ? <StatusBadge status="running" /> : null}
+          </CardHeader>
+          <CardContent>
+            {queueData.current ? (
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="font-medium text-foreground">Prompt</p>
+                    <p>{queueData.current.prompt}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Started</p>
+                    <p>{formatDate(queueData.current.started_at)}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Settings</p>
+                    <p>
+                      {queueData.current.width}×{queueData.current.height}, {queueData.current.steps} steps
+                    </p>
+                  </div>
+                  {queueData.current.lora_paths && queueData.current.lora_paths.length > 0 ? (
+                    <div>
+                      <p className="font-medium text-foreground">LoRAs</p>
+                      <p>{queueData.current.lora_paths.length} loaded</p>
+                    </div>
+                  ) : null}
                 </div>
-              )}
-              <div className="job-field">
-                <strong>Started:</strong>
-                <span>{formatDate(queueData.current.started_at)}</span>
               </div>
-              <div className="job-field">
-                <strong>Settings:</strong>
-                <span>
-                  {queueData.current.width}×{queueData.current.height}, {queueData.current.steps} steps
-                </span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="empty-state">No job currently running</div>
-        )}
-      </section>
+            ) : (
+              <p className="text-sm text-muted-foreground">No job currently running.</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Queued Jobs */}
-      <section className="queue-section">
-        <h3>
-          Queued Jobs
-          {queueData.queue && queueData.queue.length > 0 && (
-            <span className="count-badge">{queueData.queue.length}</span>
-          )}
-        </h3>
-        {queueData.queue && queueData.queue.length > 0 ? (
-          <div className="job-list">
-            {queueData.queue.map((job, index) => (
-              <div key={job.id} className="job-card queued-job">
-                <div className="job-header">
-                  <span className="job-id">
-                    #{index + 1} - Job #{job.id}
-                  </span>
-                  {getStatusBadge('queued')}
-                </div>
-                <div className="job-details">
-                  <div className="job-field">
-                    <strong>Prompt:</strong>
-                    <span>{job.prompt}</span>
+        <Card>
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Queued jobs</CardTitle>
+              <CardDescription>Jobs waiting to be processed.</CardDescription>
+            </div>
+            {queuedJobs.length > 0 ? (
+              <span className="inline-flex min-w-[2.5rem] items-center justify-center rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
+                {queuedJobs.length}
+              </span>
+            ) : null}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {queuedJobs.length > 0 ? (
+              queuedJobs.map((job, index) => (
+                <div
+                  key={job.id}
+                  className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground"
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-semibold text-foreground">
+                      #{index + 1} · Job {job.id}
+                    </span>
+                    <StatusBadge status="queued" />
                   </div>
-                  {job.lora_paths && job.lora_paths.length > 0 && (
-                    <div className="job-field">
-                      <strong>LoRAs:</strong>
-                      <span>{job.lora_paths.length} loaded</span>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="font-medium text-foreground">Prompt</p>
+                      <p>{job.prompt}</p>
                     </div>
-                  )}
-                  <div className="job-field">
-                    <strong>Submitted:</strong>
-                    <span>{formatDate(job.submitted_at)}</span>
+                    <div>
+                      <p className="font-medium text-foreground">Submitted</p>
+                      <p>{formatDate(job.submitted_at)}</p>
+                    </div>
+                    {job.lora_paths && job.lora_paths.length > 0 ? (
+                      <div>
+                        <p className="font-medium text-foreground">LoRAs</p>
+                        <p>{job.lora_paths.length} loaded</p>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">No jobs in queue</div>
-        )}
-      </section>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No jobs in queue.</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Job History */}
-      <section className="queue-section">
-        <h3>
-          Recent History
-          {queueData.history && queueData.history.length > 0 && (
-            <span className="count-badge">{queueData.history.length}</span>
-          )}
-        </h3>
-        {queueData.history && queueData.history.length > 0 ? (
-          <div className="job-list history-list">
-            {queueData.history.slice(0, 10).map((job) => (
-              <div key={`${job.id}-${job.completed_at}`} className={`job-card history-job status-${job.status}`}>
-                <div className="job-header">
-                  <span className="job-id">Job #{job.id}</span>
-                  {getStatusBadge(job.status)}
-                  <span className="job-duration">
-                    {formatDuration(job.started_at, job.completed_at)}
-                  </span>
-                </div>
-                <div className="job-details">
-                  <div className="job-field">
-                    <strong>Prompt:</strong>
-                    <span>{job.prompt}</span>
+        <Card>
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Recent history</CardTitle>
+              <CardDescription>The last 10 completed or failed jobs.</CardDescription>
+            </div>
+            {historyJobs.length > 0 ? (
+              <span className="inline-flex min-w-[2.5rem] items-center justify-center rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
+                {historyJobs.length}
+              </span>
+            ) : null}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {historyJobs.length > 0 ? (
+              historyJobs.slice(0, 10).map((job) => (
+                <div
+                  key={`${job.id}-${job.completed_at ?? job.status}`}
+                  className="rounded-lg border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground"
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-semibold text-foreground">Job {job.id}</span>
+                    <StatusBadge status={job.status} />
+                    <span className="text-xs text-muted-foreground">
+                      {formatDuration(job.started_at, job.completed_at)}
+                    </span>
                   </div>
-                  {job.status === 'completed' && (job.output_filename || job.output_path) && (
-                    <div className="job-field">
-                      <strong>Output:</strong>
-                      <span className="output-path">
-                        {job.output_filename || job.output_path?.split('/').pop() || 'completed'}
-                      </span>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="font-medium text-foreground">Prompt</p>
+                      <p>{job.prompt}</p>
                     </div>
-                  )}
-                  {job.error && (
-                    <div className="job-field error">
-                      <strong>Error:</strong>
-                      <span>{job.error}</span>
+                    <div>
+                      <p className="font-medium text-foreground">Completed</p>
+                      <p>{formatDate(job.completed_at)}</p>
                     </div>
-                  )}
-                  <div className="job-field">
-                    <strong>Completed:</strong>
-                    <span>{formatDate(job.completed_at)}</span>
+                    {job.status === 'completed' && (job.output_filename || job.output_path) ? (
+                      <div>
+                        <p className="font-medium text-foreground">Output</p>
+                        <p>{job.output_filename || job.output_path?.split('/').pop() || 'completed'}</p>
+                      </div>
+                    ) : null}
+                    {job.error ? (
+                      <div className="sm:col-span-2">
+                        <p className="font-medium text-foreground">Error</p>
+                        <p className="text-destructive">{job.error}</p>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">No completed jobs yet</div>
-        )}
-      </section>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No completed jobs yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 })

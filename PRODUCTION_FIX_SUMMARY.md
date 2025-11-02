@@ -145,7 +145,7 @@ curl http://localhost:8080/
 ### Public Endpoints:
 ```bash
 # API
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # Frontend
 curl https://imagineer.joshwentworth.com/

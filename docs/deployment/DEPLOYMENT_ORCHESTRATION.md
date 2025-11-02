@@ -200,7 +200,7 @@ nano web/.env.production
 ```
 
 Required settings:
-- `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+- `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
 - `VITE_APP_PASSWORD` (should be in GitHub Secrets, not committed)
 
 ### 3. Terraform Variables (`terraform/terraform.tfvars`)
@@ -277,7 +277,7 @@ The orchestration script follows this order:
 7. **Health Checks** 🏥
    - Local backend: `http://localhost:10050/api/health`
    - Tunnel service: systemd status
-   - Public API: `https://api.imagineer.joshwentworth.com/api/health`
+   - Public API: `https://imagineer-api.joshwentworth.com/api/health`
    - Frontend: `https://imagineer-generator.web.app`
 
 8. **Summary** 📊
@@ -470,7 +470,7 @@ make prod-restart
 **Public API fails:**
 ```bash
 # DNS may still be propagating (wait 1-2 minutes)
-watch -n 10 curl -s https://api.imagineer.joshwentworth.com/api/health
+watch -n 10 curl -s https://imagineer-api.joshwentworth.com/api/health
 
 # Check tunnel status
 sudo systemctl status cloudflared-imagineer-api
@@ -530,7 +530,7 @@ curl http://localhost:10050/api/health
 sudo systemctl status cloudflared-imagineer-api
 
 # 3. Check public API (may need DNS propagation time)
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # 4. Check frontend
 curl -I https://imagineer-generator.web.app
@@ -587,8 +587,8 @@ make deploy-restart               # Restart all services
 - Alternative: https://imagineer-generator.firebaseapp.com
 
 **API:**
-- Public: https://api.imagineer.joshwentworth.com/api
-- Health: https://api.imagineer.joshwentworth.com/api/health
+- Public: https://imagineer-api.joshwentworth.com/api
+- Health: https://imagineer-api.joshwentworth.com/api/health
 - Local: http://localhost:10050/api
 
 **Dashboards:**

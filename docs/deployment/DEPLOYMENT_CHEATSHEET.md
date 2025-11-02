@@ -72,7 +72,7 @@ terraform/cloudflare-tunnel.yml    # Tunnel routing
 curl http://localhost:10050/api/health
 
 # Public
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # Frontend
 curl -I https://imagineer-generator.web.app
@@ -85,7 +85,7 @@ curl -I https://imagineer-generator.web.app
 - https://imagineer-generator.firebaseapp.com
 
 **API:**
-- https://api.imagineer.joshwentworth.com/api
+- https://imagineer-api.joshwentworth.com/api
 
 **Dashboards:**
 - https://dash.cloudflare.com

@@ -99,7 +99,7 @@ class TestAuthRoutes:
         monkeypatch.setattr(api_module.google, "authorize_access_token", lambda: fake_token)
 
         response = client.get(
-            "/api/auth/google/%2Fhttps://api.imagineer.joshwentworth.com/api/auth/google/%2F",
+            "/api/auth/google/%2Fhttps://imagineer-api.joshwentworth.com/api/auth/google/%2F",
             query_string={"code": "dummy", "state": "%2F"},
         )
 
@@ -115,7 +115,7 @@ class TestAuthRoutes:
     def test_oauth_callback_anomalous_path_without_code_returns_400(self, client):
         """Unexpected paths without OAuth code should not be processed."""
         response = client.get(
-            "/api/auth/google/%2Fhttps://api.imagineer.joshwentworth.com/api/auth/google/%2F",
+            "/api/auth/google/%2Fhttps://imagineer-api.joshwentworth.com/api/auth/google/%2F",
             query_string={"state": "%2F"},
         )
 

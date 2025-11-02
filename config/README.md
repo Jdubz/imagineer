@@ -24,14 +24,14 @@ The `deployment/` subdirectory contains all files needed for production deployme
 **Location:** Copied to `/etc/cloudflared/config.yml` during setup
 
 **What it does:**
-- Routes traffic for `api.imagineer.joshwentworth.com` to the Flask API (localhost:10050)
+- Routes traffic for `imagineer-api.joshwentworth.com` to the Flask API (localhost:10050)
 - Provides a 404 fallback for any other host/path
 - Uses tunnel ID: `db1a99dd-3d12-4315-b241-da2a55a5c30f`
 
 **Key settings:**
 ```yaml
 ingress:
-  - hostname: api.imagineer.joshwentworth.com
+  - hostname: imagineer-api.joshwentworth.com
     service: http://localhost:10050    # Flask API
 ```
 

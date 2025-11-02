@@ -63,7 +63,7 @@
 
 1. **Cloudflare DNS & Tunnel Update**
    - Add the Firebase-provided TXT verification record for `imagineer.joshwentworth.com`, then point it at Firebase Hosting once verification succeeds (TXT step still pending)
-   - Keep the API served via Cloudflare Tunnel (`api.imagineer.joshwentworth.com`)
+   - Keep the API served via Cloudflare Tunnel (`imagineer-api.joshwentworth.com`)
    - After propagation, verify HTTPS endpoints and update Terraform state/docs if needed
 
 ---
@@ -113,7 +113,7 @@ nano web/.env.production
 Required values:
 ```bash
 # API endpoint (via Cloudflare Tunnel)
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 
 # Google OAuth Client ID (same as backend)
 VITE_GOOGLE_CLIENT_ID=<from Google Cloud Console>
@@ -276,7 +276,7 @@ cloudflared --version  # Should show 2025.10.0 or newer
 
 ```bash
 # Test via Cloudflare Tunnel
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # Should return same response as localhost
 ```
@@ -447,7 +447,7 @@ After completing deployment, verify all components:
 curl http://localhost:10050/api/health
 
 # Public (via tunnel)
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 
 # Both should return:
 # {"status":"ok",...}
@@ -474,13 +474,13 @@ curl -I https://imagineer.joshwentworth.com
 ### API Endpoints Working
 ```bash
 # Test config endpoint
-curl https://api.imagineer.joshwentworth.com/api/config
+curl https://imagineer-api.joshwentworth.com/api/config
 
 # Test sets endpoint
-curl https://api.imagineer.joshwentworth.com/api/sets
+curl https://imagineer-api.joshwentworth.com/api/sets
 
 # Test auth endpoint
-curl https://api.imagineer.joshwentworth.com/api/auth/me
+curl https://imagineer-api.joshwentworth.com/api/auth/me
 ```
 
 ### Frontend Integration
@@ -580,7 +580,7 @@ sudo systemctl restart imagineer-api
 # server/api.py - should include Firebase URL
 ALLOWED_ORIGINS = [
     'https://imagineer.joshwentworth.com',
-    'https://api.imagineer.joshwentworth.com',
+    'https://imagineer-api.joshwentworth.com',
     'https://imagineer-generator.web.app',
     'https://imagineer-generator.firebaseapp.com',
     'http://localhost:3000',
@@ -591,13 +591,13 @@ ALLOWED_ORIGINS = [
 **Check frontend .env:**
 ```bash
 # web/.env.production
-VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api
+VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api
 ```
 
 ### Issue: OAuth not working
 
 **Verify OAuth redirect URIs in Google Cloud Console:**
-- https://api.imagineer.joshwentworth.com/api/auth/google/callback
+- https://imagineer-api.joshwentworth.com/api/auth/google/callback
 - http://localhost:10050/api/auth/google/callback (development)
 - http://localhost:5173/api/auth/google/callback (development Vite)
 

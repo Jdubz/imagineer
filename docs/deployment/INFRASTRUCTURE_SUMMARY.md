@@ -13,7 +13,7 @@
   - `https://imagineer-generator.firebaseapp.com`
 
 ### Backend API
-- **API Domain:** `https://api.imagineer.joshwentworth.com`
+- **API Domain:** `https://imagineer-api.joshwentworth.com`
 - **Service:** Flask (Python) running on port 10050
 - **Tunnel:** Cloudflare Tunnel (`db1a99dd-3d12-4315-b241-da2a55a5c30f`)
 - **Server:** Local server accessible via Cloudflare Tunnel
@@ -25,7 +25,7 @@
 | Record Type | Name | Target | Proxy Status | Purpose |
 |-------------|------|--------|--------------|---------|
 | CNAME | `imagineer.joshwentworth.com` | `imagineer-generator.web.app` | Proxied (Orange Cloud) | Frontend hosting |
-| CNAME | `api.imagineer.joshwentworth.com` | `db1a99dd-3d12-4315-b241-da2a55a5c30f.cfargotunnel.com` | DNS only (Grey Cloud) | API tunnel |
+| CNAME | `imagineer-api.joshwentworth.com` | `db1a99dd-3d12-4315-b241-da2a55a5c30f.cfargotunnel.com` | DNS only (Grey Cloud) | API tunnel |
 
 ## Request Flow
 
@@ -46,7 +46,7 @@ React SPA served
 ```
 Frontend (React)
     ↓
-https://api.imagineer.joshwentworth.com/api/*
+https://imagineer-api.joshwentworth.com/api/*
     ↓
 Cloudflare DNS
     ↓
@@ -61,12 +61,12 @@ Flask API
 
 ### Frontend Configuration
 - **File:** `web/.env.production`
-- **API URL:** `VITE_API_BASE_URL=https://api.imagineer.joshwentworth.com/api`
+- **API URL:** `VITE_API_BASE_URL=https://imagineer-api.joshwentworth.com/api`
 
 ### Cloudflare Tunnel Configuration
 - **File:** `config/deployment/cloudflared-config.yml`
 - **Tunnel ID:** `db1a99dd-3d12-4315-b241-da2a55a5c30f`
-- **Hostname:** `api.imagineer.joshwentworth.com`
+- **Hostname:** `imagineer-api.joshwentworth.com`
 - **Service:** `http://localhost:10050`
 
 ### Firebase Configuration
@@ -103,7 +103,7 @@ curl -I https://imagineer.joshwentworth.com/
 
 ### API
 ```bash
-curl https://api.imagineer.joshwentworth.com/api/health
+curl https://imagineer-api.joshwentworth.com/api/health
 # Should return: {"status": "healthy", ...}
 ```
 
@@ -124,7 +124,7 @@ ALLOWED_ORIGINS=https://imagineer.joshwentworth.com,https://imagineer-generator.
 
 ### Redirect URIs (Google Cloud Console)
 The following redirect URIs must be configured in Google Cloud Console:
-- `https://api.imagineer.joshwentworth.com/api/auth/google/callback`
+- `https://imagineer-api.joshwentworth.com/api/auth/google/callback`
 - `http://localhost:10050/api/auth/google/callback` (development)
 
 ## Troubleshooting
@@ -143,8 +143,8 @@ The following redirect URIs must be configured in Google Cloud Console:
 
 3. Verify DNS resolution:
    ```bash
-   dig api.imagineer.joshwentworth.com
-   nslookup api.imagineer.joshwentworth.com
+   dig imagineer-api.joshwentworth.com
+   nslookup imagineer-api.joshwentworth.com
    ```
 
 ### CORS Errors
@@ -197,8 +197,8 @@ sudo journalctl -u cloudflared -f
 
 ### Production
 - Frontend: https://imagineer.joshwentworth.com
-- API: https://api.imagineer.joshwentworth.com/api
-- Health Check: https://api.imagineer.joshwentworth.com/api/health
+- API: https://imagineer-api.joshwentworth.com/api
+- Health Check: https://imagineer-api.joshwentworth.com/api/health
 
 ### Firebase Direct (Backup)
 - Frontend: https://imagineer-generator.web.app
