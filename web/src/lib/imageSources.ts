@@ -1,4 +1,5 @@
 import type { GeneratedImage } from '../types/models'
+import { getApiUrl } from './apiConfig'
 
 export interface ImageSourceSet {
   thumbnail: string
@@ -22,7 +23,7 @@ function toAbsolute(path?: string | null): string | undefined {
     return path
   }
 
-  return `/api/${path.replace(/^\/+/, '')}`
+  return getApiUrl(path)
 }
 
 function resolveFallbackFull(image: GeneratedImage): string {
@@ -32,7 +33,7 @@ function resolveFallbackFull(image: GeneratedImage): string {
   }
 
   if (image.id) {
-    return `/api/images/${image.id}/file`
+    return getApiUrl(`/images/${image.id}/file`)
   }
 
   const pathUrl = toAbsolute(image.path)
@@ -47,7 +48,7 @@ function resolveFallbackFull(image: GeneratedImage): string {
     }
   }
 
-  return '/api/images'
+  return getApiUrl('/images')
 }
 
 function resolveThumbnail(image: GeneratedImage, full: string): string {
@@ -59,7 +60,7 @@ function resolveThumbnail(image: GeneratedImage, full: string): string {
   }
 
   if (image.id) {
-    return `/api/images/${image.id}/thumbnail`
+    return getApiUrl(`/images/${image.id}/thumbnail`)
   }
 
   return full
