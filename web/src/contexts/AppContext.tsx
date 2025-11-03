@@ -149,7 +149,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setConfigAuthAlerted(true)
       }
     }
-  }, [configAuthAlerted, user?.role, showErrorToast])
+  }, [configAuthAlerted, user?.role, toast, showErrorToast])
 
   // ===== Image Fetching =====
   const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
@@ -263,7 +263,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         error,
       })
     }
-  }, [showErrorToast, fetchImages])
+  }, [toast, showErrorToast, fetchImages])
 
   // ===== Initial Data Fetch =====
   useEffect(() => {
