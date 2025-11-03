@@ -18,11 +18,18 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from server.api import app  # noqa: E402
+from server.config_loader import load_config  # noqa: E402
 from server.database import Album, MigrationHistory, db  # noqa: E402
 
 LOGGER = logging.getLogger("migrate_sets_to_albums")
-DEFAULT_SETS_ROOT = Path("/mnt/speedy/imagineer/sets")
 MIGRATION_NAME = "sets_to_albums_v1"
+
+
+def _get_default_sets_root() -> Path:
+    """Get the sets directory from config.yaml or fallback to /tmp."""
+    config = load_config()
+    sets_dir = config.get("sets", {}).get("directory", "/tmp/imagineer/sets")
+    return Path(sets_dir)
 
 
 def _resolve_config_path(root: Path) -> Path | None:
@@ -83,10 +90,15 @@ def _ensure_album(
     album_type = config.get("album_type") or "set"
     created_by = config.get("created_by") or "system"
 
+    # Handle generation_config field - preserves modern config or creates legacy fallback
+    # Modern sets have a 'generation_config' dict in config.yaml with model settings
+    # Legacy sets don't have this field, so we create a minimal config with just the
+    # legacy_slug identifier to maintain backwards compatibility with older generation code
     generation_config = config.get("generation_config")
     if isinstance(generation_config, dict):
         generation_config_json = json.dumps(generation_config)
     else:
+        # Legacy fallback: create minimal config with slug for old set templates
         legacy_slug = config.get("legacy_slug") or set_id
         generation_config_json = json.dumps({"legacy_slug": legacy_slug})
 
@@ -210,8 +222,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--sets-dir",
         type=Path,
-        default=DEFAULT_SETS_ROOT,
-        help="Root directory containing legacy set CSVs and config.yaml",
+        default=_get_default_sets_root(),
+        help=(
+            "Root directory containing legacy set CSVs and config.yaml "
+            "(default: from config.yaml)"
+        ),
     )
     parser.add_argument("--dry-run", action="store_true", help="Run without committing changes")
     parser.add_argument(
