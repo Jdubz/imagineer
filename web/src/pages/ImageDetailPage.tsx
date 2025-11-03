@@ -8,9 +8,9 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
 import { logger } from '../lib/logger'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { GeneratedImage } from '../types/models'
 
 interface ImageDetailPageProps {
@@ -21,6 +21,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   const { imageId } = useParams<{ imageId: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
 
   const [image, setImage] = useState<GeneratedImage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,15 +43,15 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       setEditedNegativePrompt(imageData.negative_prompt || '')
     } catch (error) {
       logger.error('Failed to fetch image details:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to load image'),
-        variant: 'destructive'
+      showErrorToast({
+        title: 'Image Load Failed',
+        context: 'Failed to load image',
+        error,
       })
     } finally {
       setLoading(false)
     }
-  }, [imageId, toast])
+  }, [imageId, showErrorToast])
 
   useEffect(() => {
     void fetchImageDetails()
@@ -81,15 +82,15 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       })
     } catch (error) {
       logger.error('Failed to update image:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to update image'),
-        variant: 'destructive'
+      showErrorToast({
+        title: 'Image Update Failed',
+        context: 'Failed to update image',
+        error,
       })
     } finally {
       setIsSaving(false)
     }
-  }, [image, editedPrompt, editedNegativePrompt, toast])
+  }, [image, editedPrompt, editedNegativePrompt, toast, showErrorToast])
 
   const handleDelete = useCallback(async () => {
     if (!image || !image.id) return
@@ -106,14 +107,14 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       navigate('/gallery')
     } catch (error) {
       logger.error('Failed to delete image:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to delete image'),
-        variant: 'destructive'
+      showErrorToast({
+        title: 'Image Delete Failed',
+        context: 'Failed to delete image',
+        error,
       })
       setIsDeleting(false)
     }
-  }, [image, navigate, toast])
+  }, [image, navigate, toast, showErrorToast])
 
   const handleDownload = useCallback(() => {
     if (!image || !image.download_url) return
