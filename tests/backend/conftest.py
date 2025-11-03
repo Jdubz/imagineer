@@ -326,6 +326,7 @@ def mock_admin_auth():
         "server.routes.albums.current_user",
         "server.routes.training.current_user",
         "server.routes.scraping.current_user",
+        "server.routes.scraping_simple.current_user",
         "server.routes.admin.current_user",
         "server.routes.admin.current_user",
     ]

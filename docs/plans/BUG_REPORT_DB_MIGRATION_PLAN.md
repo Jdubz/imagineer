@@ -3,6 +3,8 @@
 **Last updated:** November 3, 2025  
 **Status:** Draft ✅
 
+**2025-11-03 Update:** Queue strategy now reuses the in-process worker pattern from the image generation system instead of introducing Celery/Redis dependencies.
+
 ## Objective
 
 Replace the current flat-file bug report storage with a database-backed workflow that supports automated remediation agents while capturing richer lifecycle metadata, telemetry links, and deduplication. Deliver a thin status view for humans (CLI/table output), but keep the primary interface optimized for agents.
@@ -40,6 +42,7 @@ Replace the current flat-file bug report storage with a database-backed workflow
 |-----------|-------------|--------------|--------|
 | **M1: Schema & Migration** | Define DB schema, run migrations, backfill existing JSON reports. | ERD, SQLAlchemy models, Alembic migration, backfill script. | Nov 10 |
 | **M2: Service Layer & Telemetry Enrichment** | Implement repository/services for bug reports, link trace IDs, release versions. | CRUD services, telemetry enrichment job/hook. | Nov 14 |
+| **M2.5: Queue Integration (In-Process)** | Reuse the existing image generation worker pattern for bug remediation tasks. | Shared queue module, typed payloads, worker wiring, metrics plan. | Nov 16 |
 | **M3: Deduplication Engine** | Add normalization + hashing to group duplicates and expose relationships. | Dedup strategy doc, DB columns, automated grouping job. | Nov 18 |
 | **M4: Agent-Facing API** | Provide REST endpoints and auth guards tailored for automated agents. | `/api/bug-reports` endpoints, OpenAPI spec updates, auth policies. | Nov 21 |
 | **M5: CLI / Status View** | Extend existing CLI to read from DB, produce summaries for humans. | Updated `scripts/bug_reports.py`, documentation, smoke tests. | Nov 24 |
@@ -62,6 +65,14 @@ Replace the current flat-file bug report storage with a database-backed workflow
 - **Agent UX**: provide structured payloads with severity, trace data, dedup group, and convenience fields (repo path hints). Support optimistic locking or claim tokens to prevent duplicate work.
 - **Monitoring**: log any failed writes, set up alerts for backlog size (e.g., open > X for Y hours).
 
+## Queue Strategy (Updated November 3, 2025)
+
+- **In-process worker, no Celery**: Mirror the proven pattern from `server/routes/generation.py` that uses Python's `queue.Queue` plus a background thread for image jobs. Bug remediation work will enqueue lightweight payloads (report ID + metadata) into the same abstraction to avoid new infrastructure.
+- **Shared queue module**: Extract a reusable helper (e.g., `server/queues/work_queue.py`) that encapsulates enqueue/dequeue, thread lifecycle management, and graceful shutdown hooks so both generation and bug remediation share the same implementation.
+- **Typed payloads & metrics**: Define a `BugReportWorkItem` dataclass (report ID, priority, retry count) and surface queue depth/processing durations via the existing admin status endpoint (`/api/admin/status`). Stick with simple logging initially; add Prometheus gauges only if required.
+- **Retry semantics**: Failed items remain in the DB as `status='open'` with an error note. The worker re-enqueues them after a configurable cooldown, matching today's `BugReportAgentManager` behaviour without introducing external retry stores.
+- **Activation plan**: Once DB-backed submission lands, the worker reads `bug_reports` rows needing automation (e.g., `status IN ('new','triaged')` and `automation_enabled = true`) and hands them off to the Docker runner. Successful runs mark the record resolved and drop any outstanding queue entries.
+
 ## Risks & Mitigations
 
 - **Backfill errors**: Validate JSON before insert; run in dry-run + checkpoint batches.
@@ -76,4 +87,3 @@ Replace the current flat-file bug report storage with a database-backed workflow
 3. Update remediation agent configuration to use new API endpoints.  
 4. Document new workflow for operators and update runbooks.  
 5. Schedule removal of legacy flat-file cron jobs and storage cleanup.
-
