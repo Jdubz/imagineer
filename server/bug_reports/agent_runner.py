@@ -251,15 +251,22 @@ class BugReportDockerRunner:
         home = Path.home()
         optional_mounts = [
             (home / ".ssh", "/home/worker/.ssh", True),
-            (home / ".claude", "/home/worker/.claude", True),
             (home / ".config" / "gcloud", "/home/worker/.config/gcloud", True),
             (home / ".firebase", "/home/worker/.firebase", True),
+            (home / ".git-credentials", "/home/node/.git-credentials", True),
         ]
+
+        creds_file = home / ".claude" / ".credentials.json"
+        if creds_file.exists():
+            optional_mounts.append((creds_file, "/tmp/host-claude-credentials.json", True))
 
         for host_path, container_path, read_only in volumes + optional_mounts:
             if not host_path.exists():
                 continue
-            host_path.mkdir(parents=True, exist_ok=True)
+            if host_path.is_dir():
+                host_path.mkdir(parents=True, exist_ok=True)
+            else:
+                host_path.parent.mkdir(parents=True, exist_ok=True)
             yield "-v"
             ro_suffix = ":ro" if read_only else ""
             yield f"{str(host_path.resolve())}:{container_path}{ro_suffix}"
