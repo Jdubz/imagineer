@@ -33,6 +33,10 @@ if _FLASK_ENV == "production":
     dotenv_loaded = load_dotenv(".env.production", override=False)
     if not dotenv_loaded:
         # Fall back to the default .env file if the production one is absent.
+        logging.warning(
+            "Could not find .env.production in production mode. "
+            "Falling back to .env. This may indicate a deployment configuration issue."
+        )
         load_dotenv(override=False)
 else:
     load_dotenv(override=False)

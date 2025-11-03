@@ -166,21 +166,16 @@ def init_auth(app):
         if not value:
             return True
         normalized = value.strip().lower()
-        return (
-            normalized
-            in {
-                "your_client_id_here",
-                "your-client-id-here",
-                "your_google_client_id_here",
-                "your-google-client-id",
-                "your_client_secret_here",
-                "your-client-secret-here",
-                "your_google_client_secret_here",
-                "your-google-client-secret",
-            }
-            or normalized.startswith("your_client_id")
-            or normalized.startswith("your_client_secret")
-        )
+        return normalized in {
+            "your_client_id_here",
+            "your-client-id-here",
+            "your_google_client_id_here",
+            "your-google-client-id",
+            "your_client_secret_here",
+            "your-client-secret-here",
+            "your_google_client_secret_here",
+            "your-google-client-secret",
+        }
 
     if os.environ.get("FLASK_ENV") == "production":
         if _is_placeholder(client_id) or _is_placeholder(client_secret):
