@@ -82,6 +82,26 @@ describe('api client uses getApiUrl for absolute requests', () => {
       expect.objectContaining({ credentials: 'include' })
     )
   })
+
+  it('images.getAll requests the configured API origin with query params', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        images: [],
+        total: 0,
+        page: 1,
+        per_page: 60,
+        pages: 1,
+      })
+    )
+
+    await api.images.getAll()
+
+    expect(getApiUrlMock).toHaveBeenCalledWith('/images?visibility=public&page=1&per_page=60')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.example.com/images?visibility=public&page=1&per_page=60',
+      expect.objectContaining({ credentials: 'include' })
+    )
+  })
 })
 
 afterAll(() => {
