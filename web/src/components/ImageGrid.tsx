@@ -11,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import '../styles/ImageCard.css'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
 
 interface ImageGridProps {
   images: GeneratedImage[]
@@ -37,11 +38,6 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     }
   }
 
-  // Modal removed in favor of detail page routing
-  // const openModal = (image: GeneratedImage): void => {
-  //   setSelectedImage(image)
-  // }
-
   const closeModal = (): void => {
     setSelectedImage(null)
   }
@@ -64,14 +60,14 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     }
 
     return (
-      <div className="gallery-card-footer">
+      <div className="space-y-1 rounded-md border border-border bg-card p-2">
         {hasPrompt && (
-          <p className="gallery-card-prompt" title={prompt}>
+          <p className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-muted-foreground" title={prompt}>
             {truncatedPrompt}
           </p>
         )}
         {metaItems.length > 0 && (
-          <div className="gallery-card-meta">
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             {metaItems.map((item) => (
               <span key={item}>{item}</span>
             ))}
@@ -82,31 +78,35 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
   }
 
   return (
-    <div className="image-grid-container">
-      <div className="grid-header">
-        <h2>Generated Images ({loading ? '...' : images.length})</h2>
-        <button
+    <div className="space-y-6">
+      <div className="flex items-center justify-between border-b-2 border-border pb-2">
+        <h2 className="text-xl font-semibold text-primary">
+          Generated Images ({loading ? '...' : images.length})
+        </h2>
+        <Button
           onClick={handleRefresh}
-          className="refresh-btn"
           disabled={isRefreshing || loading}
+          variant="default"
+          size="sm"
         >
+          <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        </Button>
       </div>
 
       {loading ? (
-        <div className="image-grid">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <SkeletonImageCard key={index} />
           ))}
         </div>
       ) : images.length === 0 ? (
-        <div className="no-images">
-          <p>No images generated yet.</p>
+        <div className="py-12 text-center text-muted-foreground">
+          <p className="mb-2">No images generated yet.</p>
           <p>Use the form above to create your first image!</p>
         </div>
       ) : (
-        <div className="image-grid">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {images.map((image, index) => {
             const isNsfw = image.is_nsfw === true
             if (isNsfw && nsfwPreference === 'hide') {
@@ -119,7 +119,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
             const labelCount = image.labels?.length ?? 0
 
             return (
-              <Link key={imageKey} to={`/image/${image.id}`} className="gallery-grid-item block">
+              <Link key={imageKey} to={`/image/${image.id}`} className="flex flex-col gap-2">
                 <ImageCard
                   image={image}
                   nsfwPreference={nsfwPreference}
@@ -135,7 +135,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
       )}
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Image Details</DialogTitle>
           </DialogHeader>

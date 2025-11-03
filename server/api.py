@@ -63,6 +63,7 @@ from server.database import (  # noqa: E402
 )
 from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
+from server.services.template_seeder import ensure_default_set_templates  # noqa: E402
 
 # Frontend is now served by Firebase Hosting, not Flask
 # Remove static_folder and static_url_path to prevent serving public directory
@@ -145,6 +146,12 @@ oauth, google = init_auth(app)
 
 # Initialize database
 init_database(app)
+
+# Ensure default template albums exist
+try:
+    ensure_default_set_templates(app)
+except Exception as exc:  # pragma: no cover - defensive guardrail
+    logger.error("Failed to ensure default set templates: %s", exc, exc_info=True)
 
 # Initialize trace ID middleware
 from server.middleware.trace_id import trace_id_middleware  # noqa: E402

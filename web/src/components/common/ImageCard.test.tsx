@@ -90,7 +90,8 @@ describe('ImageCard', () => {
       render(<ImageCard image={nsfwImage} nsfwPreference="blur" />)
 
       const img = screen.getByRole('img')
-      expect(img).toHaveClass('blurred')
+      // Check for Tailwind blur class instead of old 'blurred' class
+      expect(img.className).toMatch(/blur-\[14px\]/)
       expect(screen.getByLabelText(/nsfw content blurred/i)).toBeInTheDocument()
       expect(screen.getByText(/blurred/i)).toBeInTheDocument()
     })
@@ -179,7 +180,8 @@ describe('ImageCard', () => {
       render(<ImageCard image={mockImage} />)
 
       const img = screen.getByRole('img')
-      expect(img).not.toHaveClass('clickable')
+      // Check for absence of cursor-pointer instead of old 'clickable' class
+      expect(img.className).not.toMatch(/cursor-pointer/)
     })
 
     it('applies clickable class when onImageClick is provided', () => {
@@ -191,7 +193,8 @@ describe('ImageCard', () => {
       )
 
       const img = screen.getByRole('img')
-      expect(img).toHaveClass('clickable')
+      // Check for cursor-pointer Tailwind class instead of old 'clickable' class
+      expect(img.className).toMatch(/cursor-pointer/)
     })
   })
 
@@ -205,20 +208,22 @@ describe('ImageCard', () => {
       )
 
       const card = container.firstChild as HTMLElement
-      expect(card).toHaveClass('image-card')
+      // Check for base Tailwind classes instead of old 'image-card' class
+      expect(card.className).toMatch(/relative/)
+      expect(card.className).toMatch(/rounded-lg/)
       expect(card).toHaveClass('custom-class')
     })
 
     it('applies nsfw class to NSFW images', () => {
-      const { container } = render(
+      render(
         <ImageCard
           image={{ ...mockImage, is_nsfw: true }}
           nsfwPreference="show"
         />
       )
 
-      const card = container.firstChild as HTMLElement
-      expect(card).toHaveClass('nsfw')
+      // Check for NSFW badge presence instead of old 'nsfw' class
+      expect(screen.getByText('18+')).toBeInTheDocument()
     })
   })
 

@@ -42,7 +42,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
 
   // Batch generation state
   const [templates, setTemplates] = useState<Album[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(undefined)
   const [batchTheme, setBatchTheme] = useState<string>('')
   const [batchSteps, setBatchSteps] = useState<string>('')
   const [batchSeed, setBatchSeed] = useState<string>('')
@@ -415,7 +415,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
             <div className="form-group">
               <Label htmlFor="template">Select Template</Label>
               <Select
-                value={selectedTemplate}
+                value={selectedTemplate ?? undefined}
                 onValueChange={handleTemplateChange}
                 disabled={loadingTemplates || submittingBatch}
                 required
@@ -424,7 +424,6 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                   <SelectValue placeholder="-- Choose a template --" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">-- Choose a template --</SelectItem>
                   {templates.map(template => (
                     <SelectItem key={template.id} value={template.id}>
                       {template.name} ({template.template_item_count || 0} items)
