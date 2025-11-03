@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ScrapingTab from './ScrapingTab'
+import { BugReportProvider } from '../contexts/BugReportContext'
 
 const flushPromises = async (): Promise<void> => {
   await act(async () => {
@@ -24,7 +25,11 @@ describe('ScrapingTab', () => {
   })
 
   it('requires admin access when viewer is not an admin', () => {
-    render(<ScrapingTab isAdmin={false} />)
+    render(
+      <BugReportProvider>
+        <ScrapingTab isAdmin={false} />
+      </BugReportProvider>
+    )
     expect(screen.getByText(/admin access is required/i)).toBeInTheDocument()
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -74,7 +79,11 @@ describe('ScrapingTab', () => {
           }),
       })
 
-    render(<ScrapingTab isAdmin />)
+    render(
+      <BugReportProvider>
+        <ScrapingTab isAdmin />
+      </BugReportProvider>
+    )
 
     await flushPromises()
     await waitFor(() => {
@@ -160,7 +169,11 @@ describe('ScrapingTab', () => {
           }),
       })
 
-    render(<ScrapingTab isAdmin />)
+    render(
+      <BugReportProvider>
+        <ScrapingTab isAdmin />
+      </BugReportProvider>
+    )
     await flushPromises()
 
     await user.click(screen.getByRole('button', { name: /start new scrape/i }))
