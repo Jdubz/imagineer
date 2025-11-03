@@ -1,11 +1,18 @@
 import '@testing-library/jest-dom'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
 // Cleanup after each test
 afterEach(() => {
   cleanup()
 })
+
+// Mock ResizeObserver (used by Radix UI Dialog)
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -21,3 +28,16 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: () => true,
   }),
 })
+
+// Mock html2canvas to avoid CSS parsing errors in tests
+vi.mock('html2canvas', () => ({
+  default: vi.fn(() => {
+    // Create a minimal mock canvas with toDataURL support
+    const canvas = document.createElement('canvas')
+    canvas.width = 100
+    canvas.height = 100
+    // Mock toDataURL to return a minimal valid data URL
+    canvas.toDataURL = vi.fn(() => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
+    return Promise.resolve(canvas)
+  }),
+}))
