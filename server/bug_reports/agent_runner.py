@@ -266,7 +266,6 @@ class BugReportDockerRunner:
 
     def _copy_workspace(self, container_id: str) -> None:
         exclusions = [
-            "--exclude=.git",
             "--exclude=node_modules",
             "--exclude=venv",
             "--exclude=.venv",
