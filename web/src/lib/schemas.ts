@@ -324,7 +324,9 @@ export const LoRAConfigSchema = z.object({
 })
 
 export const AlbumSchema = z.object({
-  id: z.string(),
+  id: z
+    .union([z.string(), z.number()])
+    .transform((value) => value.toString()),
   name: z.string(),
   description: z.string().optional(),
   image_count: z.number(),
