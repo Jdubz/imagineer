@@ -16,13 +16,6 @@ from jsonschema import Draft202012Validator, ValidationError
 from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
-from server.config_loader import PROJECT_ROOT, load_config
-from server.shared_types import (
-    BugReportSubmissionRequestTypedDict,
-    BugReportSubmissionResponseTypedDict,
-)
-from server.utils.error_handler import APIError, format_error_response
-
 from server.bug_reports.storage import (
     BugReportStorageError,
     delete_report,
@@ -31,6 +24,12 @@ from server.bug_reports.storage import (
     purge_reports_older_than,
     update_report,
 )
+from server.config_loader import PROJECT_ROOT, load_config
+from server.shared_types import (
+    BugReportSubmissionRequestTypedDict,
+    BugReportSubmissionResponseTypedDict,
+)
+from server.utils.error_handler import APIError, format_error_response
 
 logger = logging.getLogger(__name__)
 

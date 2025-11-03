@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 from scripts import generate_shared_types as generator
+from server.database import Image, db
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_DIR = ROOT / "shared" / "schema"
@@ -122,65 +122,50 @@ def test_auth_me_public_response_matches_schema(client) -> None:
     _validate_against_schema(payload, schema)
 
 
-def test_outputs_metadata_matches_schema(client, tmp_path, monkeypatch) -> None:
+def test_images_metadata_matches_schema(client) -> None:
     """
-    /api/outputs metadata payload must match the ImageMetadata schema.
+    /api/images metadata fields must satisfy the ImageMetadata schema.
     """
 
     schema = _load_schema("image_metadata")
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
 
-    outputs_dir = config_dir / "outputs"
-    outputs_dir.mkdir(parents=True, exist_ok=True)
+    with client.application.app_context():
+        image = Image(
+            filename="contract-test.png",
+            file_path="/tmp/contract-test.png",
+            prompt="High-definition mountain landscape at sunrise",
+            negative_prompt="low quality, blurry",
+            seed=123456,
+            steps=30,
+            guidance_scale=7.5,
+            width=1024,
+            height=768,
+        )
+        db.session.add(image)
+        db.session.commit()
 
-    image_path = outputs_dir / "contract-test.png"
-    metadata_path = image_path.with_suffix(".json")
-
-    image_path.write_bytes(b"\x89PNG\r\n\x1a\n")
-    metadata = {
-        "prompt": "High-definition mountain landscape at sunrise",
-        "negative_prompt": "low quality, blurry",
-        "seed": 123456,
-        "steps": 30,
-        "guidance_scale": 7.5,
-        "width": 1024,
-        "height": 768,
-        "model": "stable-diffusion-xl",
-        "lora_path": "loras/style.safetensors",
-        "lora_weight": 0.75,
-        "loras": [
-            {"path": "loras/style.safetensors", "weight": 0.75},
-            {"path": "loras/detail.safetensors", "weight": 0.5},
-        ],
-    }
-    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
-
-    config_path = config_dir / "config.yaml"
-    config_data = {
-        "output": {"directory": str(outputs_dir)},
-        "outputs": {"base_dir": str(outputs_dir)},
-        "model": {"cache_dir": str(config_dir / "models")},
-        "sets": {"directory": str(config_dir / "sets")},
-    }
-    with config_path.open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(config_data, fh, default_flow_style=False, sort_keys=False)
-
-    import server.api as api_module
-
-    monkeypatch.setattr(api_module, "CONFIG_PATH", config_path)
-
-    response = client.get("/api/outputs")
+    response = client.get("/api/images")
     assert response.status_code == 200
     payload = response.get_json()
-
     assert isinstance(payload, dict)
     images = payload.get("images")
     assert isinstance(images, list)
 
-    target = next((image for image in images if image.get("filename") == "contract-test.png"), None)
-    assert target is not None, "Expected contract-test.png in outputs listing"
+    target = next((entry for entry in images if entry.get("filename") == "contract-test.png"), None)
+    assert target is not None, "Expected contract-test.png in images listing"
 
-    metadata_payload = target.get("metadata")
-    assert isinstance(metadata_payload, dict)
+    metadata_payload = {
+        key: target[key]
+        for key in (
+            "prompt",
+            "negative_prompt",
+            "seed",
+            "steps",
+            "guidance_scale",
+            "width",
+            "height",
+        )
+        if target.get(key) is not None
+    }
+
     _validate_against_schema(metadata_payload, schema)

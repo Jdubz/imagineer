@@ -40,7 +40,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       setImage(imageData)
       setEditedPrompt(imageData.prompt || '')
       setEditedNegativePrompt(imageData.negative_prompt || '')
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Failed to fetch image details:', error)
       toast({
         title: 'Error',
@@ -79,7 +79,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
         title: 'Success',
         description: 'Image updated successfully'
       })
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Failed to update image:', error)
       toast({
         title: 'Error',
@@ -104,7 +104,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       })
 
       navigate('/gallery')
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Failed to delete image:', error)
       toast({
         title: 'Error',

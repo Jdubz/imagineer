@@ -44,6 +44,15 @@ const createResponse = (data: unknown, init: ResponseInit = {}): MockResponse =>
   }
 }
 
+const createImagesResponse = (images: unknown[] = []): MockResponse =>
+  createResponse({
+    images,
+    total: images.length,
+    page: 1,
+    per_page: 60,
+    pages: images.length > 0 ? 1 : 0,
+  })
+
 type Handler = (options?: RequestInit) => Promise<MockResponse>
 type Handlers = Record<string, Handler>
 
@@ -57,7 +66,7 @@ const defaultHandlers = (): Handlers => ({
       guidance_scale: 7.5
     }
   })),
-  '/api/outputs': () => Promise.resolve(createResponse({ images: [] })),
+  '/api/images': () => Promise.resolve(createImagesResponse()),
   '/api/batches': () => Promise.resolve(createResponse({ batches: [] })),
   '/api/loras': () => Promise.resolve(createResponse({ loras: [] })),
   '/api/sets': () => Promise.resolve(createResponse({ sets: [] })),
@@ -145,7 +154,7 @@ describe('App', () => {
       created_at: new Date().toISOString()
     }
 
-    handlers['/api/outputs'] = () => Promise.resolve(createResponse({ images: [] }))
+    handlers['/api/images'] = () => Promise.resolve(createImagesResponse())
     handlers['/api/generate'] = () =>
       Promise.resolve(createResponse(mockJobResponse, { status: 201 }))
     handlers['/api/jobs/1'] = (() => {
@@ -185,7 +194,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    handlers['/api/outputs'] = () => Promise.resolve(createResponse({ images: [] }))
+    handlers['/api/images'] = () => Promise.resolve(createImagesResponse())
     handlers['/api/generate'] = () => Promise.reject(new Error('Generation failed'))
 
     render(<App />)
@@ -208,7 +217,7 @@ describe('App', () => {
   it('handles images loading error', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    handlers['/api/outputs'] = () => Promise.reject(new Error('Images failed'))
+    handlers['/api/images'] = () => Promise.reject(new Error('Images failed'))
 
     render(<App />)
 

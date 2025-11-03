@@ -151,7 +151,8 @@ External Directories (configured in config.yaml):
 | `/api/jobs/<id>` | GET/DELETE | Manage specific job |
 | `/api/batches` | GET | List batch outputs |
 | `/api/batches/<id>` | GET | View batch images |
-| `/api/outputs/<path>` | GET | Serve generated images |
+| `/api/images` | GET | List generated images |
+| `/api/images/<id>/file` | GET | Serve generated image |
 | `/api/themes/random` | GET | Generate random theme |
 | `/api/health` | GET | Health check |
 
@@ -488,7 +489,7 @@ Worker: Update job status → Add to history
   ↓
 User → API: GET /api/jobs/<id> (poll for completion)
   ↓
-User → API: GET /api/outputs/<filename>
+User → API: GET /api/images/<id>/file
 ```
 
 ### Batch Generation

@@ -212,9 +212,9 @@ Since we already have Cloudflare Tunnel providing HTTPS to our backend:
 - `server/api.py` - Add delete endpoints
 
 **New API Endpoints (Editor Only):**
-- `DELETE /api/outputs/:filename` - Delete single image
+- `DELETE /api/images/:id` - Delete single image
 - `DELETE /api/batches/:batch_id` - Delete entire batch
-- `DELETE /api/batches/:batch_id/images/:filename` - Delete image from batch
+- `DELETE /api/batches/:batch_id/images/:image_id` - Delete image from batch
 
 #### Phase 7: Documentation (1 hour)
 

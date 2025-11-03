@@ -17,8 +17,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from server.api import app
-from server.database import Album, MigrationHistory, db
+from server.api import app  # noqa: E402
+from server.database import Album, MigrationHistory, db  # noqa: E402
 
 LOGGER = logging.getLogger("migrate_sets_to_albums")
 DEFAULT_SETS_ROOT = Path("/mnt/speedy/imagineer/sets")

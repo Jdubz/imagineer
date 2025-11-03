@@ -28,14 +28,16 @@ describe('BatchGallery NSFW handling', () => {
     image_count: 1,
     images: [
       {
+        id: 101,
         filename: 'batch-image.png',
-        relative_path: 'outputs/batch-image.png',
+        download_url: '/api/images/101/file',
+        thumbnail_url: '/api/images/101/thumbnail',
+        is_nsfw: true,
         created: new Date().toISOString(),
         metadata: {
           prompt: 'Batch prompt',
           steps: 20,
           seed: 42,
-          is_nsfw: true,
         },
       },
     ],

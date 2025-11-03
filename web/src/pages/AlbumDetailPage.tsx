@@ -81,7 +81,7 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
         title: 'Success',
         description: 'Album updated successfully'
       })
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Failed to update album:', error)
       toast({
         title: 'Error',

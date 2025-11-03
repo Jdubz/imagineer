@@ -92,7 +92,7 @@ Tests all REST API endpoints:
 - **Configuration** - `/api/config` (GET/PUT)
 - **Generation** - `/api/generate` (POST)
 - **Jobs** - `/api/jobs` (GET)
-- **Outputs** - `/api/outputs` (GET)
+- **Images** - `/api/images` (GET)
 
 **Example:**
 ```python
@@ -318,15 +318,10 @@ Critical security tests are included:
 ### Path Traversal Prevention
 
 ```python
-def test_serve_path_traversal_blocked(client):
-    """Test path traversal attempts are blocked"""
-    test_paths = [
-        '../../../etc/passwd',
-        '..%2F..%2F..%2Fetc%2Fpasswd',
-    ]
-    for path in test_paths:
-        response = client.get(f'/api/outputs/{path}')
-        assert response.status_code in [403, 404]
+def test_get_image_file_nonexistent(client):
+    """Requesting a missing image file returns 404"""
+    response = client.get('/api/images/99999/file')
+    assert response.status_code == 404
 ```
 
 ### Input Validation

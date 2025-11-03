@@ -189,8 +189,10 @@ PUT  /api/config              # Update configuration
 POST /api/generate            # Submit generation job
 GET  /api/jobs                # List all jobs
 GET  /api/jobs/{id}           # Get job status
-GET  /api/outputs             # List generated images
-GET  /api/outputs/{filename}  # Serve image file
+GET  /api/images             # List generated images
+GET  /api/images/{id}/file   # Serve image file
+GET  /api/batches            # List generation batches
+GET  /api/batches/{slug}     # Batch details
 GET  /api/health              # Health check
 ```
 
