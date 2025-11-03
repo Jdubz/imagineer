@@ -28,7 +28,7 @@ describe('AlbumsTab admin listing', () => {
       updated_at: '2025-10-20T12:00:00Z',
       images: [
         {
-          id: '100',
+          id: 100,
           filename: 'cover.png',
           is_nsfw: false,
         },

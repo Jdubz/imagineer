@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 interface AlbumImage {
-  id: number
+  id?: number
   filename: string
   thumbnail_path?: string | null
   is_nsfw?: boolean
@@ -680,37 +680,39 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
       </div>
 
       <div className="album-images-grid">
-        {images.map((image) => {
+        {images.filter((image) => image.id !== undefined).map((image) => {
+          // At this point, TypeScript knows image.id is defined due to the filter
+          const imageId = image.id!
           const labels = image.labels ?? []
-          const imageKey = String(image.id)
-          const inputValue = labelInputs[image.id] ?? ''
+          const imageKey = String(imageId)
+          const inputValue = labelInputs[imageId] ?? ''
           const activeEdit =
-            editingLabel && editingLabel.imageId === image.id ? editingLabel : null
+            editingLabel && editingLabel.imageId === imageId ? editingLabel : null
 
           // Skip rendering if NSFW and hide filter is active
           if (nsfwSetting === 'hide' && image.is_nsfw) {
             return null
           }
 
-          const handleImageClick = () => isAdmin && actions.toggleImageSelection(image.id)
-          const handleToggleSelection = () => actions.toggleImageSelection(image.id)
+          const handleImageClick = () => isAdmin && actions.toggleImageSelection(imageId)
+          const handleToggleSelection = () => actions.toggleImageSelection(imageId)
           const handleAddLabelSubmit = (event: React.FormEvent<HTMLFormElement>) => {
             event.preventDefault()
-            void actions.addLabel(image.id)
+            void actions.addLabel(imageId)
           }
           const handleUpdateLabelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-            actions.updateLabelInput(image.id, e.target.value)
+            actions.updateLabelInput(imageId, e.target.value)
           }
           const generatedImage: GeneratedImage = {
-            id: image.id,
+            id: imageId,
             filename: image.filename,
-            thumbnail_url: `/api/images/${image.id}/thumbnail`,
-            download_url: `/api/images/${image.id}/file`,
+            thumbnail_url: `/api/images/${imageId}/thumbnail`,
+            download_url: `/api/images/${imageId}/file`,
             is_nsfw: image.is_nsfw,
           }
 
           return (
-            <div key={image.id} className="album-image-container" onClick={handleImageClick}>
+            <div key={imageId} className="album-image-container" onClick={handleImageClick}>
               {isAdmin && (
                 <input
                   type="checkbox"
@@ -746,10 +748,10 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         const isEditing = activeEdit && activeEdit.labelId === label.id
                         const labelType = (label.label_type || 'unknown').toLowerCase()
                         const isCaption = labelType === 'caption'
-                        const isDeletingThisLabel = isLoading.deletingLabel(image.id, label.id)
+                        const isDeletingThisLabel = isLoading.deletingLabel(imageId, label.id)
 
-                        const handleStartEdit = () => actions.startEditingLabel(image.id, label)
-                        const handleDeleteLabel = () => actions.deleteLabel(image.id, label.id)
+                        const handleStartEdit = () => actions.startEditingLabel(imageId, label)
+                        const handleDeleteLabel = () => actions.deleteLabel(imageId, label.id)
 
                         return (
                           <div
@@ -820,13 +822,13 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         placeholder="Add manual tag"
                         value={inputValue}
                         onChange={handleUpdateLabelInput}
-                        disabled={isLoading.addingLabel(image.id)}
+                        disabled={isLoading.addingLabel(imageId)}
                       />
                       <button
                         type="submit"
-                        disabled={isLoading.addingLabel(image.id) || !inputValue.trim()}
+                        disabled={isLoading.addingLabel(imageId) || !inputValue.trim()}
                       >
-                        {isLoading.addingLabel(image.id) ? 'Adding...' : 'Add'}
+                        {isLoading.addingLabel(imageId) ? 'Adding...' : 'Add'}
                       </button>
                     </form>
                   </div>

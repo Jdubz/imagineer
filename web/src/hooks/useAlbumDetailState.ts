@@ -5,7 +5,7 @@ import { logger } from '../lib/logger'
  * Album image structure
  */
 export interface AlbumImage {
-  id: number
+  id?: number
   filename: string
   thumbnail_path?: string | null
   is_nsfw?: boolean
