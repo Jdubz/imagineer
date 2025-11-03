@@ -12,16 +12,19 @@ Completed items from the previous backlog have been moved to `docs/plans/archive
 
 ## Priority P2
 
-### B-2: Finalise Sets → Albums Migration Operational Script
-- **Why it matters:** The database schema and API already model set templates, but there is no runnable migration script to import existing CSV-based sets. Operators still rely on manual steps.
-- **Current state:**
-  - Docs describe `scripts/migrate_sets_to_albums.py`, yet no script exists in `scripts/`.
-  - `server/database.py` and `server/routes/albums.py` expose the necessary fields.
-- **Definition of done:**
-  1. Implement the migration CLI that reads legacy CSV manifests and creates matching albums plus template rows.
-  2. Provide dry-run and idempotent behaviour so the script can be re-run safely.
-  3. Add integration coverage (or at minimum unit tests with a temporary SQLite database) to confirm data is imported as expected.
-  4. Update operator docs with execution instructions and rollback guidance.
+### B-2: Album Integration for Generated Images ✅ (Delivered 2025-11-03)
+- **Status:** Complete - All generated images now automatically link to albums, legacy images imported
+- **What was delivered:**
+  1. **Automatic Album Linking** - Added `_create_image_record()` in `server/routes/generation.py` that creates Image and AlbumImage records after successful generation
+  2. **Legacy Import Script** - Created `scripts/import_legacy_generations.py` with dry-run mode, idempotent operation, and metadata preservation
+  3. **Test Coverage** - Added `tests/backend/test_album_integration.py` with 4 comprehensive tests (all passing)
+  4. **Data Migration Complete** - Verified 165 legacy images already imported into 8 albums with full metadata
+- **Files modified:**
+  - `server/routes/generation.py` (+107 lines) - Album integration logic
+  - `scripts/import_legacy_generations.py` (new, 312 lines) - Import utility
+  - `tests/backend/test_album_integration.py` (new, 190 lines) - Test coverage
+- **Database state:** 166 total images, 11 albums, 165 album-image links
+- **Architecture clarification:** CSV sets remain as generation templates; albums are the OUTPUT of batch generation
 
 ### B-3: Expand Shared Contract Coverage Beyond Core Auth/Jobs
 - **Why it matters:** Contract tests currently cover `auth_status`, `job`, `jobs_response`, and bug-report submissions. High-traffic payloads such as album detail responses remain unchecked, increasing drift risk between backend and frontend.
