@@ -32,9 +32,31 @@ pip install -r requirements.txt
 pip install -e ".[dev]"  # Installs pytest, black, flake8, isort
 ```
 
+## Deployment Architecture
+
+**Production Setup:**
+- **Frontend:** Firebase Hosting (https://imagineer-generator.web.app)
+- **Backend API:** Gunicorn on localhost:10050
+- **Tunnel:** Cloudflare Tunnel (imagineer-api.joshwentworth.com)
+- **Public Directory:** NO LONGER SERVED by Flask/nginx - Use Firebase only
+
+**Architecture Diagram:**
+```
+Internet
+   │
+   ├─> Firebase Hosting ──────> React SPA (static files)
+   │   (imagineer-generator.web.app)
+   │
+   └─> Cloudflare Tunnel ─────> Flask API (localhost:10050)
+       (imagineer-api.joshwentworth.com)
+```
+
+**See:** `docs/deployment/FIREBASE_CLOUDFLARE_DEPLOYMENT.md` for full deployment guide
+
 ## Common Commands
 
-### Start Services
+### Development Mode
+
 ```bash
 # Terminal 1: API Server (Port 10050)
 source venv/bin/activate
@@ -42,6 +64,23 @@ python server/api.py
 
 # Terminal 2: Web UI Dev Server (Port 3000)
 cd web && npm run dev
+```
+
+### Production Services
+
+```bash
+# Backend API (Gunicorn)
+sudo systemctl status imagineer-api
+sudo systemctl restart imagineer-api
+sudo journalctl -u imagineer-api -f
+
+# Cloudflare Tunnel
+sudo systemctl status cloudflared-imagineer-api
+sudo journalctl -u cloudflared-imagineer-api -f
+
+# Frontend Deployment
+cd web && npm run build
+firebase deploy --only hosting
 ```
 
 ### Image Generation
@@ -147,6 +186,20 @@ pytest
 **/mnt/speedy/imagineer/sets/config.yaml** - Set definitions
 - Per-set prompts, dimensions, LoRAs, negative prompts
 - Multi-LoRA stacking configuration
+
+**firebase.json** - Firebase Hosting configuration
+- SPA routing rules
+- Cache headers for static assets
+- Security headers
+
+**/etc/cloudflared/config.yml** - Cloudflare Tunnel configuration
+- Routes imagineer-api.joshwentworth.com → localhost:10050
+- Tunnel credentials and ingress rules
+
+**Nginx (DEPRECATED):**
+- `/etc/nginx/sites-available/imagineer` exists but is NOT used in production
+- Port 8080 config for local testing only
+- Production uses Cloudflare Tunnel + Firebase Hosting instead
 
 ### Data Organization
 

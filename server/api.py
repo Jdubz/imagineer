@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, request, send_from_directory, session, url_for
+from flask import Flask, abort, jsonify, request, session, url_for
 from flask_cors import CORS
 from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
@@ -64,7 +64,9 @@ from server.database import (  # noqa: E402
 from server.logging_config import configure_logging  # noqa: E402
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
-app = Flask(__name__, static_folder="../public", static_url_path="")
+# Frontend is now served by Firebase Hosting, not Flask
+# Remove static_folder and static_url_path to prevent serving public directory
+app = Flask(__name__)
 
 # Configure ProxyFix to trust proxy headers (for HTTPS detection behind reverse proxy)
 # This ensures url_for(_external=True) generates https:// URLs in production
@@ -159,13 +161,12 @@ from server.routes.admin import admin_bp  # noqa: E402
 from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 from server.routes.generation import generation_bp, get_generation_health  # noqa: E402
-from server.routes.images import images_bp, outputs_bp  # noqa: E402
+from server.routes.images import images_bp  # noqa: E402
 from server.routes.scraping import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(images_bp)
 app.register_blueprint(albums_bp)
-app.register_blueprint(outputs_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)
@@ -485,8 +486,16 @@ def auth_me():
 
 @app.route("/")
 def index():
-    """Serve the web UI"""
-    return send_from_directory("../public", "index.html")
+    """Root endpoint - API status information"""
+    return jsonify(
+        {
+            "message": "Imagineer API Server",
+            "version": "1.0.1",
+            "frontend_url": "https://imagineer-generator.web.app",
+            "api_documentation": "/api/health",
+            "note": "Frontend is hosted on Firebase Hosting. Use the frontend_url above.",
+        }
+    )
 
 
 @app.route("/api/config", methods=["GET"])
