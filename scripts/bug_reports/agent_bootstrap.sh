@@ -146,7 +146,10 @@ push_changes() {
   fi
   git status >&2
   git commit -m "fix: automated remediation (bug ${REPORT_ID})" >&2
-  git push origin "HEAD:${TARGET_BRANCH}" >&2
+  if ! git push origin "HEAD:${TARGET_BRANCH}" >&2; then
+    log "Git push failed for remediation branch. Check credentials or remote configuration."
+    return 1
+  fi
   local sha
   sha=$(git rev-parse HEAD)
   printf '%s\n' "${sha}"

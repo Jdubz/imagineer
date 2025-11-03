@@ -473,7 +473,9 @@ async getAll(signal?: AbortSignal): Promise<BatchSummary[]> {
      */
 
 async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string; album_id: number; name: string; album_type?: string; image_count: number; created?: string | null; updated?: string | null; images?: GeneratedImage[] }> {
-  const response = await apiRequest(`/api/batches/${batchId}`, schemas.BatchDetailSchema, { signal })
+  const response = await apiRequest(getApiUrl(`/batches/${batchId}`), schemas.BatchDetailSchema, {
+    signal,
+  })
   return {
     ...response,
     images: response.images?.map(normalizeGeneratedImage),
@@ -492,7 +494,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
      */
     async getById(jobId: number | string, signal?: AbortSignal): Promise<Job> {
       const id = encodeURIComponent(jobId.toString())
-      return apiRequest(`/api/jobs/${id}`, schemas.JobSchema, {
+      return apiRequest(getApiUrl(`/jobs/${id}`), schemas.JobSchema, {
         credentials: 'include',
         signal,
       })
@@ -503,7 +505,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
      * Requires admin authentication
      */
     async getAll(signal?: AbortSignal): Promise<JobsResponse> {
-      return apiRequest(`/api/jobs`, schemas.JobsResponseSchema, {
+      return apiRequest(getApiUrl('/jobs'), schemas.JobsResponseSchema, {
         credentials: 'include',
         signal,
       })
@@ -732,7 +734,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
       signal?: AbortSignal
     ): Promise<Album> {
       const includeParam = includeLabels ? '?include_labels=1' : ''
-      return apiRequest(`/api/albums/${albumId}${includeParam}`, schemas.AlbumSchema, {
+      return apiRequest(getApiUrl(`/albums/${albumId}${includeParam}`), schemas.AlbumSchema, {
         credentials: 'include',
         signal,
       })
@@ -839,10 +841,14 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
      * Fetch album analytics
      */
     async getAnalytics(albumId: string, signal?: AbortSignal): Promise<LabelAnalytics> {
-      return apiRequest(`/api/albums/${albumId}/labeling/analytics`, schemas.LabelAnalyticsSchema, {
-        credentials: 'include',
-        signal,
-      })
+      return apiRequest(
+        getApiUrl(`/albums/${albumId}/labeling/analytics`),
+        schemas.LabelAnalyticsSchema,
+        {
+          credentials: 'include',
+          signal,
+        }
+      )
     },
 
     /**
