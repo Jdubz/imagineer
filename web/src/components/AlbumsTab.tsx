@@ -17,9 +17,9 @@ import { logger } from '../lib/logger'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 import { cn } from '@/lib/utils'
 import {
@@ -98,6 +98,7 @@ type AlbumFilter = 'all' | 'sets' | 'regular'
 
 const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
@@ -238,14 +239,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        toast({ title: 'Error', description: 'Failed to create album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
+        showErrorToast({
+          title: 'Album Creation Failed',
+          context: 'Failed to create album',
+          error: new Error(result.error ?? 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
-      const errorMessage = formatErrorMessage(error, 'Error creating album')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Album Creation Error',
+        context: 'Error creating album',
+        error,
+      })
     }
-  }, [isAdmin, toast, fetchAlbums])
+  }, [isAdmin, toast, showErrorToast, fetchAlbums])
 
   const deleteAlbum = useCallback((albumId: string): void => {
     if (!isAdmin) return
@@ -266,16 +274,23 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           setAlbumAnalytics(null)
         }
       } else {
-        toast({ title: 'Error', description: 'Failed to delete album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
+        showErrorToast({
+          title: 'Album Deletion Failed',
+          context: 'Failed to delete album',
+          error: new Error(result.error ?? 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      const errorMessage = formatErrorMessage(error, 'Error deleting album')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Album Deletion Error',
+        context: 'Error deleting album',
+        error,
+      })
     } finally {
       setDeleteConfirmAlbum(null)
     }
-  }, [deleteConfirmAlbum, toast, fetchAlbums, selectedAlbum])
+  }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
@@ -840,7 +855,7 @@ interface BatchGenerateDialogProps {
 }
 
 const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
-  const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const [userTheme, setUserTheme] = useState<string>('')
   const [steps, setSteps] = useState<string>('')
   const [seed, setSeed] = useState<string>('')
@@ -869,7 +884,11 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
-      toast({ title: 'Error', description: 'User theme is required', variant: 'destructive' })
+      showErrorToast({
+        title: 'Validation Error',
+        context: 'User theme is required',
+        error: new Error('User theme is required'),
+      })
       return
     }
 
@@ -895,16 +914,23 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
       if (result.success) {
         onSuccess(result)
       } else {
-        toast({ title: 'Error', description: result.error, variant: 'destructive' })
+        showErrorToast({
+          title: 'Batch Generation Failed',
+          context: 'Failed to start batch generation',
+          error: new Error(result.error || 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      const errorMessage = formatErrorMessage(error, 'Error starting batch generation')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Batch Generation Error',
+        context: 'Error starting batch generation',
+        error,
+      })
     } finally {
       setIsSubmitting(false)
     }
-  }, [userTheme, steps, seed, album.id, toast, onSuccess])
+  }, [userTheme, steps, seed, album.id, showErrorToast, onSuccess])
 
   return (
     <div className="dialog-overlay" onClick={handleOverlayClick}>

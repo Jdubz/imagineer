@@ -139,7 +139,7 @@ LAST_TEST_RESULTS="{}"
 run_tests() {
   local tests_json="{}"
   cd "${WORKSPACE_DIR}/web"
-  npm install --prefer-offline --omit=optional --ignore-scripts
+  npm install --prefer-offline --ignore-scripts
   npm run lint
   npm run tsc
   npm test -- --run

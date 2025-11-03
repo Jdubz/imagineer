@@ -28,7 +28,7 @@ function toAbsolute(path?: string | null): string | undefined {
     return getApiUrl(path)
   }
 
-  return getApiUrl(`/${path.replace(/^\/+/, '')}`)
+  return getApiUrl(path)
 }
 
 function resolveFallbackFull(image: GeneratedImage): string {
