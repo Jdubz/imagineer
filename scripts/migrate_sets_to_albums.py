@@ -13,6 +13,10 @@ from typing import Any, Dict, Iterable
 
 import yaml
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from server.api import app
 from server.database import Album, MigrationHistory, db
 
@@ -187,7 +191,6 @@ def migrate_sets_to_albums(sets_root: Path, *, dry_run: bool = False) -> int:
         db.session.rollback()
         return migrated
 
-    db.session.commit()
     MigrationHistory.ensure_record(
         MIGRATION_NAME,
         details=json.dumps(
@@ -197,6 +200,7 @@ def migrate_sets_to_albums(sets_root: Path, *, dry_run: bool = False) -> int:
             }
         ),
     )
+    db.session.commit()
     LOGGER.info("Migration complete. Processed %d set definitions", migrated)
     return migrated
 
