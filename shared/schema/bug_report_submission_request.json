@@ -117,6 +117,14 @@
         ],
         "additionalProperties": true
       }
+    },
+    "screenshot": {
+      "type": ["string", "null"],
+      "description": "Base64-encoded PNG screenshot (data:image/png;base64,... format)"
+    },
+    "screenshotError": {
+      "type": ["string", "null"],
+      "description": "Error message if screenshot capture failed"
     }
   },
   "required": [

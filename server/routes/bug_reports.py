@@ -4,6 +4,7 @@ Bug report submission endpoint.
 Allows admin users to submit detailed bug reports with automatic context capture.
 """
 
+import base64
 import json
 import logging
 import os
@@ -167,7 +168,34 @@ def submit_bug_report():
 
         report_path = os.path.join(reports_dir, f"{report_id}.json")
 
-        # Add metadata to report
+        # Extract and save screenshot if provided
+        screenshot_data = payload_raw.get("screenshot")
+        screenshot_path = None
+        screenshot_error = None
+
+        if screenshot_data and isinstance(screenshot_data, str):
+            try:
+                # Create report subdirectory for screenshot
+                report_subdir = os.path.join(reports_dir, report_id)
+                os.makedirs(report_subdir, exist_ok=True)
+                screenshot_path = os.path.join(report_subdir, "screenshot.png")
+
+                # Extract base64 data (handle data:image/png;base64, prefix)
+                if screenshot_data.startswith("data:"):
+                    screenshot_data = screenshot_data.split(",", 1)[1]
+
+                # Decode and save screenshot
+                screenshot_bytes = base64.b64decode(screenshot_data)
+                with open(screenshot_path, "wb") as f:
+                    f.write(screenshot_bytes)
+
+                logger.info(f"Screenshot saved for report {report_id}")
+            except Exception as e:
+                screenshot_error = str(e)
+                logger.warning(f"Failed to save screenshot for report {report_id}: {e}")
+                screenshot_path = None
+
+        # Add metadata to report (excluding raw screenshot data)
         report = {
             "report_id": report_id,
             "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
@@ -175,7 +203,9 @@ def submit_bug_report():
             "submitted_by": g.user.email if hasattr(g, "user") else None,
             "user_role": g.user.role if hasattr(g, "user") else None,
             "status": "open",
-            **payload,
+            "screenshot_path": screenshot_path,
+            "screenshot_error": screenshot_error,
+            **{k: v for k, v in payload.items() if k != "screenshot"},
         }
 
         # Write to disk

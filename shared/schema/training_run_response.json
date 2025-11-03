@@ -1,0 +1,61 @@
+{
+  "name": "TrainingRunResponse",
+  "description": "Training run status returned by /api/training endpoints.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "training_config": {
+      "type": ["string", "null"]
+    },
+    "status": {
+      "enum": ["pending", "running", "completed", "failed"]
+    },
+    "progress": {
+      "type": "integer"
+    },
+    "final_checkpoint": {
+      "type": ["string", "null"]
+    },
+    "training_loss": {
+      "type": ["number", "null"]
+    },
+    "validation_loss": {
+      "type": ["number", "null"]
+    },
+    "error_message": {
+      "type": ["string", "null"]
+    },
+    "last_error_at": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    },
+    "started_at": {
+      "type": ["string", "null"]
+    },
+    "completed_at": {
+      "type": ["string", "null"]
+    },
+    "dataset_path": {
+      "type": ["string", "null"]
+    },
+    "output_path": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "progress"
+  ]
+}
