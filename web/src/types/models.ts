@@ -128,26 +128,29 @@ export interface Tab {
 export interface Album {
   id: string
   name: string
-  description?: string
+  description?: string | null
   image_count: number
-  cover_image?: string
-  created_at: string
-  updated_at: string
-  album_type?: string
+  cover_image?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  album_type?: string | null
   is_public?: boolean
   is_training_source?: boolean
-  created_by?: string
+  created_by?: string | null
   // Set template fields
   is_set_template?: boolean
-  csv_data?: string
-  base_prompt?: string
-  prompt_template?: string
-  style_suffix?: string
-  example_theme?: string
-  lora_config?: string
+  csv_data?: string | null
+  base_prompt?: string | null
+  prompt_template?: string | null
+  style_suffix?: string | null
+  example_theme?: string | null
+  lora_config?: string | null
   template_item_count?: number
-  generation_prompt?: string
-  generation_config?: string
+  template_items_preview?: unknown[]
+  lora_count?: number
+  slug?: string
+  generation_prompt?: string | null
+  generation_config?: string | null
 }
 
 export interface Label {

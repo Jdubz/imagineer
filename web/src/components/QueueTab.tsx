@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react'
+import React, { memo, useCallback, useRef, useState } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
@@ -25,6 +25,8 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground',
 }
 
+const ERROR_TOAST_COOLDOWN_MS = 60_000
+
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
   <span
     className={cn(
@@ -40,11 +42,32 @@ const QueueTab: React.FC = memo(() => {
   const { toast } = useToast()
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [authError, setAuthError] = useState(false)
+  const lastErrorToastRef = useRef<{ message: string; timestamp: number } | null>(null)
+  const [lastErrorMessage, setLastErrorMessage] = useState<string | null>(null)
+
+  const showQueueError = useCallback(
+    (message: string) => {
+      const now = Date.now()
+      const lastToast = lastErrorToastRef.current
+      if (!lastToast || lastToast.message !== message || now - lastToast.timestamp >= ERROR_TOAST_COOLDOWN_MS) {
+        toast({
+          title: 'Error loading queue',
+          description: message,
+          variant: 'destructive',
+        })
+        lastErrorToastRef.current = { message, timestamp: now }
+      }
+      setLastErrorMessage(message)
+    },
+    [toast],
+  )
 
   const fetchQueueData = useCallback(async (): Promise<JobsResponse> => {
     try {
       const data = await api.jobs.getAll()
       setAuthError(false)
+      lastErrorToastRef.current = null
+      setLastErrorMessage(null)
       return data
     } catch (error) {
       if (isAuthError(error)) {
@@ -54,10 +77,10 @@ const QueueTab: React.FC = memo(() => {
       }
       logger.error('Failed to fetch queue data:', error)
       const errorMessage = formatErrorMessage(error, 'Failed to load job queue')
-      toast({ title: 'Error loading queue', description: errorMessage, variant: 'destructive' })
+      showQueueError(errorMessage)
       return { current: null, queue: [], history: [] }
     }
-  }, [toast])
+  }, [showQueueError])
 
   const queueData = useAdaptivePolling(fetchQueueData, {
     activeInterval: 2000,
@@ -151,6 +174,20 @@ const QueueTab: React.FC = memo(() => {
           </Button>
         </div>
       </div>
+
+      {lastErrorMessage && (
+        <div
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="font-semibold">We couldn’t refresh the queue.</p>
+          <p className="mt-1 text-destructive/80">{lastErrorMessage}</p>
+          <p className="mt-1 text-destructive/70">
+            We’ll keep retrying quietly in the background. Use Refresh to try again immediately.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-6">
         <Card>
