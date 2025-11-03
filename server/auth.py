@@ -8,6 +8,7 @@ import logging
 import os
 from functools import wraps
 from pathlib import Path
+from typing import Optional
 
 from authlib.integrations.flask_client import OAuth
 from flask import jsonify, session
@@ -157,10 +158,43 @@ def init_auth(app):
 
     # Initialize OAuth
     oauth = OAuth(app)
+
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+
+    def _is_placeholder(value: Optional[str]) -> bool:
+        if not value:
+            return True
+        normalized = value.strip().lower()
+        return normalized in {
+            "your_client_id_here",
+            "your-client-id-here",
+            "your_google_client_id_here",
+            "your-google-client-id",
+            "your_client_secret_here",
+            "your-client-secret-here",
+            "your_google_client_secret_here",
+            "your-google-client-secret",
+        }
+
+    if os.environ.get("FLASK_ENV") == "production":
+        if _is_placeholder(client_id) or _is_placeholder(client_secret):
+            raise RuntimeError(
+                "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET are not configured. "
+                "Update the production environment or .env.production with the "
+                "OAuth credentials from Google Cloud Console."
+            )
+    else:
+        if _is_placeholder(client_id) or _is_placeholder(client_secret):
+            logger.warning(
+                "Google OAuth client configuration is missing or uses placeholders. "
+                "Login will fail until valid credentials are provided."
+            )
+
     google = oauth.register(
         name="google",
-        client_id=os.environ.get("GOOGLE_CLIENT_ID"),
-        client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+        client_id=client_id,
+        client_secret=client_secret,
         server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
         client_kwargs={"scope": "openid email profile"},
     )

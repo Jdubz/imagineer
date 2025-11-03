@@ -20,8 +20,26 @@ from flask_login import current_user, login_user, logout_user
 from flask_talisman import Talisman
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from the appropriate dotenv file.
+# Default to development unless the host explicitly configured FLASK_ENV.
+if "FLASK_ENV" not in os.environ:
+    os.environ["FLASK_ENV"] = "development"
+
+# In production we prefer values from .env.production so the real OAuth
+# credentials are used instead of the development placeholders.
+_FLASK_ENV = os.environ.get("FLASK_ENV", "").lower()
+if _FLASK_ENV == "production":
+    # Do not override pre-set environment variables coming from the host.
+    dotenv_loaded = load_dotenv(".env.production", override=False)
+    if not dotenv_loaded:
+        # Fall back to the default .env file if the production one is absent.
+        logging.warning(
+            "Could not find .env.production in production mode. "
+            "Falling back to .env. This may indicate a deployment configuration issue."
+        )
+        load_dotenv(override=False)
+else:
+    load_dotenv(override=False)
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
