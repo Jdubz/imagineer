@@ -1,4 +1,5 @@
 import type { GeneratedImage } from '../types/models'
+import { getApiUrl } from './apiConfig'
 
 export interface ImageSourceSet {
   thumbnail: string
@@ -22,7 +23,8 @@ function toAbsolute(path?: string | null): string | undefined {
     return path
   }
 
-  return `/api/${path.replace(/^\/+/, '')}`
+  // Use getApiUrl to properly construct the URL (handles both dev and production)
+  return getApiUrl(`/${path.replace(/^\/+/, '')}`)
 }
 
 function resolveFallbackFull(image: GeneratedImage): string {
