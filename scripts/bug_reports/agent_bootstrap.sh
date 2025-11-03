@@ -94,20 +94,32 @@ configure_git() {
   local remote_url
   remote_url="${GIT_REMOTE_URL:-$(git remote get-url origin)}"
 
-  if [[ "${remote_url}" =~ ^https://github\.com/(.+)$ ]]; then
-    local path="${BASH_REMATCH[1]}"
-    path="${path%.git}"
-    remote_url="git@github.com:${path}.git"
-    log "Converted HTTPS remote to SSH for pushing: ${remote_url}"
-  fi
-
   git remote set-url origin "${remote_url}"
+  if [[ -f "${HOME}/.git-credentials" ]]; then
+    git config --global credential.helper "store --file=${HOME}/.git-credentials"
+    log "Configured Git credential helper to use stored credentials."
+  else
+    log "No ~/.git-credentials found; relying on existing Git credential helper."
+  fi
 }
 
 checkout_branch() {
   cd "${WORKSPACE_DIR}"
   git fetch origin "${TARGET_BRANCH}"
   git checkout -B "bugfix/${REPORT_ID}" "origin/${TARGET_BRANCH}"
+}
+
+hydrate_claude_credentials() {
+  local host_creds="/tmp/host-claude-credentials.json"
+  local dest="${HOME}/.claude/.credentials.json"
+  if [[ -f "${host_creds}" ]]; then
+    mkdir -p "$(dirname "${dest}")"
+    cp "${host_creds}" "${dest}"
+    chmod 600 "${dest}"
+    log "Hydrated Claude credentials for automation user."
+  else
+    log "No Claude credentials mount detected; proceeding without automation credentials."
+  fi
 }
 
 maybe_run_claude() {
@@ -171,6 +183,7 @@ run_step "Link cached node_modules" link_node_modules
 run_step "Configure git identity" configure_git
 run_step "Prepare remediation branch" checkout_branch
 run_step "Display workspace status" git -C "${WORKSPACE_DIR}" status
+run_step "Hydrate Claude credentials" hydrate_claude_credentials
 run_step "Execute Claude automation" maybe_run_claude
 run_step "Run verification suite" run_tests
 COMMIT_SHA="$(run_step "Commit and push changes" push_changes)"

@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
 import { logger } from '../lib/logger'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album, GeneratedImage } from '../types/models'
 
 interface AlbumDetailPageProps {
@@ -22,6 +22,7 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
   const { albumId } = useParams<{ albumId: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
 
   const [album, setAlbum] = useState<Album | null>(null)
   const [images, setImages] = useState<GeneratedImage[]>([])
@@ -50,15 +51,14 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       }
     } catch (error) {
       logger.error('Failed to fetch album details:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to load album'),
-        variant: 'destructive'
+      showErrorToast({
+        context: 'Failed to load album details',
+        error,
       })
     } finally {
       setLoading(false)
     }
-  }, [albumId, toast])
+  }, [albumId, showErrorToast])
 
   useEffect(() => {
     void fetchAlbumDetails()
@@ -83,15 +83,14 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       })
     } catch (error) {
       logger.error('Failed to update album:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to update album'),
-        variant: 'destructive'
+      showErrorToast({
+        context: 'Failed to update album',
+        error,
       })
     } finally {
       setIsSaving(false)
     }
-  }, [album, editedName, editedDescription, toast])
+  }, [album, editedName, editedDescription, toast, showErrorToast])
 
   const handleDelete = useCallback(async () => {
     if (!album) return
@@ -108,14 +107,13 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       navigate('/albums')
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      toast({
-        title: 'Error',
-        description: formatErrorMessage(error, 'Failed to delete album'),
-        variant: 'destructive'
+      showErrorToast({
+        context: 'Failed to delete album',
+        error,
       })
       setIsDeleting(false)
     }
-  }, [album, navigate, toast])
+  }, [album, navigate, toast, showErrorToast])
 
   if (loading) {
     return (

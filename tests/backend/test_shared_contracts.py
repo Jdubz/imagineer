@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from scripts import generate_shared_types as generator
-from server.database import Image, db
+from server.database import Album, Image, ScrapeJob, TrainingRun, db
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_DIR = ROOT / "shared" / "schema"
@@ -169,3 +169,241 @@ def test_images_metadata_matches_schema(client) -> None:
     }
 
     _validate_against_schema(metadata_payload, schema)
+
+
+def test_image_response_matches_schema(client) -> None:
+    """
+    Full /api/images response must match the ImageResponse schema.
+    """
+
+    schema = _load_schema("image_response")
+
+    with client.application.app_context():
+        image = Image(
+            filename="full-response-test.png",
+            file_path="/tmp/full-response-test.png",
+            prompt="Test prompt for full response validation",
+            negative_prompt="test negative",
+            seed=999,
+            steps=20,
+            guidance_scale=7.0,
+            width=512,
+            height=512,
+            is_nsfw=False,
+            is_public=True,
+        )
+        db.session.add(image)
+        db.session.commit()
+
+    response = client.get("/api/images")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    images = payload.get("images")
+    assert isinstance(images, list)
+
+    target = next(
+        (entry for entry in images if entry.get("filename") == "full-response-test.png"), None
+    )
+    assert target is not None, "Expected full-response-test.png in images listing"
+
+    _validate_against_schema(target, schema)
+
+
+def test_image_detail_response_matches_schema(client) -> None:
+    """
+    /api/images/{id} detail response must match the ImageResponse schema.
+    """
+
+    schema = _load_schema("image_response")
+
+    with client.application.app_context():
+        image = Image(
+            filename="detail-test.png",
+            file_path="/tmp/detail-test.png",
+            prompt="Detail endpoint test",
+            is_public=True,
+        )
+        db.session.add(image)
+        db.session.commit()
+        image_id = image.id
+
+    response = client.get(f"/api/images/{image_id}")
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert isinstance(payload, dict)
+    _validate_against_schema(payload, schema)
+
+
+def test_album_response_matches_schema(client) -> None:
+    """
+    /api/albums response must match the AlbumResponse schema.
+    """
+
+    schema = _load_schema("album_response")
+
+    with client.application.app_context():
+        album = Album(
+            name="Contract Test Album",
+            description="Album for contract testing",
+            album_type="batch",
+            is_public=True,
+            is_training_source=False,
+            is_set_template=False,
+        )
+        db.session.add(album)
+        db.session.commit()
+
+    response = client.get("/api/albums")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    albums = payload.get("albums")
+    assert isinstance(albums, list)
+
+    target = next((entry for entry in albums if entry.get("name") == "Contract Test Album"), None)
+    assert target is not None, "Expected Contract Test Album in albums listing"
+
+    _validate_against_schema(target, schema)
+
+
+def test_album_detail_response_matches_schema(client) -> None:
+    """
+    /api/albums/{id} detail response must match the AlbumResponse schema.
+    """
+
+    schema = _load_schema("album_response")
+
+    with client.application.app_context():
+        album = Album(
+            name="Detail Album Test",
+            description="Album detail endpoint test",
+            album_type="collection",
+            is_public=True,
+            is_training_source=True,
+            is_set_template=False,
+        )
+        db.session.add(album)
+        db.session.commit()
+        album_id = album.id
+
+    response = client.get(f"/api/albums/{album_id}")
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert isinstance(payload, dict)
+    _validate_against_schema(payload, schema)
+
+
+@pytest.mark.usefixtures("mock_admin_auth")
+def test_label_response_matches_schema(client) -> None:
+    """
+    Label creation and retrieval must match the Label schema.
+    """
+
+    schema = _load_schema("label")
+
+    with client.application.app_context():
+        image = Image(
+            filename="label-test.png",
+            file_path="/tmp/label-test.png",
+            is_public=True,
+        )
+        db.session.add(image)
+        db.session.commit()
+        image_id = image.id
+
+    # Create a label via API
+    label_data = {
+        "text": "mountain landscape",
+        "type": "caption",
+        "confidence": 0.95,
+        "source_model": "claude-test",
+    }
+    create_response = client.post(f"/api/images/{image_id}/labels", json=label_data)
+    assert create_response.status_code == 201
+    created_label = create_response.get_json()
+
+    assert isinstance(created_label, dict)
+    _validate_against_schema(created_label, schema)
+
+    # Also verify the GET endpoint
+    list_response = client.get(f"/api/images/{image_id}/labels")
+    assert list_response.status_code == 200
+    list_payload = list_response.get_json()
+    assert isinstance(list_payload, dict)
+    labels = list_payload.get("labels")
+    assert isinstance(labels, list)
+    assert len(labels) > 0
+
+    _validate_against_schema(labels[0], schema)
+
+
+@pytest.mark.usefixtures("mock_admin_auth")
+def test_training_run_response_matches_schema(client) -> None:
+    """
+    /api/training/runs response must match the TrainingRunResponse schema.
+    """
+
+    schema = _load_schema("training_run_response")
+
+    with client.application.app_context():
+        training_run = TrainingRun(
+            name="Contract Test Training",
+            description="Training run for contract testing",
+            status="pending",
+            progress=0,
+            dataset_path="/tmp/dataset",
+            output_path="/tmp/output",
+        )
+        db.session.add(training_run)
+        db.session.commit()
+
+    response = client.get("/api/training")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    training_runs = payload.get("training_runs")
+    assert isinstance(training_runs, list)
+
+    target = next(
+        (entry for entry in training_runs if entry.get("name") == "Contract Test Training"), None
+    )
+    assert target is not None, "Expected Contract Test Training in runs listing"
+
+    _validate_against_schema(target, schema)
+
+
+@pytest.mark.usefixtures("mock_admin_auth")
+def test_scrape_job_response_matches_schema(client) -> None:
+    """
+    /api/scraping/jobs response must match the ScrapeJobResponse schema.
+    """
+
+    schema = _load_schema("scrape_job_response")
+
+    with client.application.app_context():
+        scrape_job = ScrapeJob(
+            name="Contract Test Scrape",
+            description="Scrape job for contract testing",
+            source_url="https://example.com",
+            status="pending",
+            progress=0,
+            images_scraped=0,
+            scrape_config='{"runtime": {}, "config": {}}',
+        )
+        db.session.add(scrape_job)
+        db.session.commit()
+
+    response = client.get("/api/scraping/jobs")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    jobs = payload.get("jobs")
+    assert isinstance(jobs, list)
+
+    target = next((entry for entry in jobs if entry.get("name") == "Contract Test Scrape"), None)
+    assert target is not None, "Expected Contract Test Scrape in jobs listing"
+
+    _validate_against_schema(target, schema)

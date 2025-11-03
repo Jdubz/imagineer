@@ -1,0 +1,72 @@
+{
+  "name": "ImageResponse",
+  "description": "Complete image record returned by /api/images endpoints.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "filename": {
+      "type": "string"
+    },
+    "storage_name": {
+      "type": ["string", "null"]
+    },
+    "download_url": {
+      "type": "string"
+    },
+    "thumbnail_url": {
+      "type": "string"
+    },
+    "prompt": {
+      "type": ["string", "null"]
+    },
+    "negative_prompt": {
+      "type": ["string", "null"]
+    },
+    "seed": {
+      "type": ["integer", "null"]
+    },
+    "steps": {
+      "type": ["integer", "null"]
+    },
+    "guidance_scale": {
+      "type": ["number", "null"]
+    },
+    "width": {
+      "type": ["integer", "null"]
+    },
+    "height": {
+      "type": ["integer", "null"]
+    },
+    "lora_config": {
+      "type": ["string", "null"]
+    },
+    "is_nsfw": {
+      "type": "boolean"
+    },
+    "is_public": {
+      "type": "boolean"
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    },
+    "updated_at": {
+      "type": ["string", "null"]
+    },
+    "file_path": {
+      "type": ["string", "null"]
+    },
+    "thumbnail_path": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "id",
+    "filename",
+    "download_url",
+    "thumbnail_url",
+    "is_nsfw",
+    "is_public"
+  ]
+}

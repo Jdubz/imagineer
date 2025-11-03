@@ -946,14 +946,19 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
   },
 
   bugReports: {
-    async submit(payload: BugReportOptions): Promise<BugReportSubmissionResponse> {
+    async submit(payload: BugReportOptions, screenshot?: string | null): Promise<BugReportSubmissionResponse> {
+      const requestPayload = {
+        ...payload,
+        screenshot,
+      }
+
       return apiRequest(getApiUrl('/bug-reports'), schemas.BugReportResponseSchema, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
       })
     },
   },

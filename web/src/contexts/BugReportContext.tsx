@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
+import html2canvas from 'html2canvas'
 import { logger, type LogEntry } from '../lib/logger'
 import { useToast } from '../hooks/use-toast'
 import type {
@@ -30,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 
 type CollectorResult =
   | Record<string, unknown>
@@ -191,6 +193,9 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [prefilledDescription, setPrefilledDescription] = useState<string | undefined>(undefined)
+  const [screenshot, setScreenshot] = useState<string | null>(null)
+  const [screenshotError, setScreenshotError] = useState<string | null>(null)
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false)
 
   const collectorsRef = useRef<Map<string, BugReportCollector>>(new Map())
   const [logs, setLogs] = useState<LogSnapshot[]>([])
@@ -310,21 +315,62 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
     [],
   )
 
+  const captureScreenshot = useCallback(async (): Promise<string | null> => {
+    setIsCapturingScreenshot(true)
+    setScreenshotError(null)
+
+    try {
+      // Wait a brief moment to ensure modal is hidden
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const canvas = await html2canvas(document.body, {
+        allowTaint: true,
+        useCORS: true,
+        logging: false,
+        scale: 0.5, // Reduce size for faster capture and smaller file size
+      })
+
+      const dataUrl = canvas.toDataURL('image/png', 0.8)
+      return dataUrl
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Failed to capture screenshot', error as Error)
+      setScreenshotError(`Screenshot capture failed: ${errorMessage}`)
+      return null
+    } finally {
+      setIsCapturingScreenshot(false)
+    }
+  }, [])
+
   const openBugReport = useCallback(
-    (options?: { description?: string }) => {
+    async (options?: { description?: string }) => {
       if (options?.description) {
         setPrefilledDescription(options.description)
       } else {
         setPrefilledDescription(undefined)
       }
+
+      // Reset screenshot state
+      setScreenshot(null)
+      setScreenshotError(null)
+
+      // Capture screenshot BEFORE opening modal so modal isn't visible
+      const capturedScreenshot = await captureScreenshot()
+      if (capturedScreenshot) {
+        setScreenshot(capturedScreenshot)
+      }
+
+      // Now open the modal with the screenshot ready
       setIsOpen(true)
     },
-    [],
+    [captureScreenshot],
   )
 
   const closeBugReport = useCallback(() => {
     setIsOpen(false)
     setPrefilledDescription(undefined)
+    setScreenshot(null)
+    setScreenshotError(null)
   }, [])
 
   const snapshotEnvironment = useCallback((): BugReportEnvironmentSnapshot => {
@@ -378,7 +424,7 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
   }, [])
 
   const handleSubmit = useCallback(
-    async (description: string) => {
+    async (description: string, includeScreenshot: boolean, annotatedScreenshot?: string) => {
       setIsSubmitting(true)
 
       try {
@@ -394,7 +440,17 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
           networkEvents,
         }
 
-        const response: BugReportSubmissionResponse = await api.bugReports.submit(payload)
+        // Include screenshot data if enabled
+        let screenshotToSubmit: string | null = null
+        if (includeScreenshot) {
+          screenshotToSubmit = annotatedScreenshot || screenshot
+          if (screenshotError) {
+            // Record screenshot failure in the payload
+            payload.screenshotError = screenshotError
+          }
+        }
+
+        const response: BugReportSubmissionResponse = await api.bugReports.submit(payload, screenshotToSubmit)
 
         toast({ title: 'Success', description: 'Bug report saved for review. Thank you!' })
         logger.info('Bug report submitted', response)
@@ -406,7 +462,7 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
         setIsSubmitting(false)
       }
     },
-    [collectAppState, closeBugReport, logs, networkEvents, snapshotClient, snapshotEnvironment, toast],
+    [collectAppState, closeBugReport, logs, networkEvents, screenshot, screenshotError, snapshotClient, snapshotEnvironment, toast],
   )
 
   const contextValue = useMemo<BugReportContextValue>(
@@ -429,6 +485,9 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
             recentLogCount={logs.length}
             networkEventCount={networkEvents.length}
             defaultDescription={prefilledDescription}
+            screenshot={screenshot}
+            screenshotError={screenshotError}
+            isCapturingScreenshot={isCapturingScreenshot}
           />,
           document.body,
         )}
@@ -439,10 +498,13 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
 interface BugReportModalProps {
   isSubmitting: boolean
   onClose: () => void
-  onSubmit: (description: string) => Promise<void>
+  onSubmit: (description: string, includeScreenshot: boolean, annotatedScreenshot?: string) => Promise<void>
   recentLogCount: number
   networkEventCount: number
   defaultDescription?: string
+  screenshot: string | null
+  screenshotError: string | null
+  isCapturingScreenshot: boolean
 }
 
 const BugReportModal: React.FC<BugReportModalProps> = ({
@@ -452,13 +514,76 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
   recentLogCount,
   networkEventCount,
   defaultDescription,
+  screenshot,
+  screenshotError,
+  isCapturingScreenshot,
 }) => {
   const [description, setDescription] = useState(defaultDescription ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [includeScreenshot, setIncludeScreenshot] = useState(true)
+  const [isAnnotating, setIsAnnotating] = useState(false)
+  const [annotatedScreenshot, setAnnotatedScreenshot] = useState<string | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
 
   useEffect(() => {
     setDescription(defaultDescription ?? '')
   }, [defaultDescription])
+
+  // Load screenshot into canvas when annotation mode is enabled
+  useEffect(() => {
+    if (isAnnotating && screenshot && canvasRef.current) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      const img = new Image()
+      img.onload = () => {
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+      }
+      img.src = screenshot
+    }
+  }, [isAnnotating, screenshot])
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isAnnotating || !canvasRef.current) return
+    setIsDrawing(true)
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width)
+    const y = (e.clientY - rect.top) * (canvasRef.current.height / rect.height)
+
+    const ctx = canvasRef.current.getContext('2d')
+    if (ctx) {
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.strokeStyle = '#ff0000'
+      ctx.lineWidth = 3
+      ctx.lineCap = 'round'
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !canvasRef.current) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width)
+    const y = (e.clientY - rect.top) * (canvasRef.current.height / rect.height)
+
+    const ctx = canvasRef.current.getContext('2d')
+    if (ctx) {
+      ctx.lineTo(x, y)
+      ctx.stroke()
+    }
+  }
+
+  const handleMouseUp = () => {
+    if (isDrawing && canvasRef.current) {
+      setIsDrawing(false)
+      // Save the annotated screenshot
+      setAnnotatedScreenshot(canvasRef.current.toDataURL('image/png'))
+    }
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -468,12 +593,12 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
       return
     }
     setError(null)
-    await onSubmit(trimmed)
+    await onSubmit(trimmed, includeScreenshot, annotatedScreenshot || undefined)
   }
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[620px]">
+      <DialogContent className="max-w-[800px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="text-2xl">Report a Bug</DialogTitle>
@@ -500,6 +625,108 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
                 className="min-h-[160px] resize-y"
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
+
+            {/* Screenshot Section */}
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold">Screenshot</Label>
+                {isCapturingScreenshot && (
+                  <span className="text-sm text-muted-foreground">Capturing...</span>
+                )}
+              </div>
+
+              {screenshotError && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                  <p className="text-sm text-destructive">{screenshotError}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The report will still be submitted without a screenshot.
+                  </p>
+                </div>
+              )}
+
+              {screenshot && !screenshotError && (
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include-screenshot"
+                      checked={includeScreenshot}
+                      onCheckedChange={(checked: boolean) => setIncludeScreenshot(checked === true)}
+                    />
+                    <Label
+                      htmlFor="include-screenshot"
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      Include screenshot with bug report
+                    </Label>
+                  </div>
+
+                  {includeScreenshot && (
+                    <>
+                      {!isAnnotating ? (
+                        <div className="space-y-2">
+                          <img
+                            src={screenshot}
+                            alt="Screenshot preview"
+                            className="w-full border rounded-md"
+                            style={{ maxHeight: '300px', objectFit: 'contain' }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsAnnotating(true)}
+                          >
+                            ✏️ Add Annotations
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="border rounded-md overflow-hidden">
+                            <canvas
+                              ref={canvasRef}
+                              onMouseDown={handleMouseDown}
+                              onMouseMove={handleMouseMove}
+                              onMouseUp={handleMouseUp}
+                              onMouseLeave={handleMouseUp}
+                              className="w-full cursor-crosshair"
+                              style={{ maxHeight: '400px', display: 'block' }}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setIsAnnotating(false)
+                                setAnnotatedScreenshot(null)
+                              }}
+                            >
+                              Cancel Annotations
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              onClick={() => setIsAnnotating(false)}
+                            >
+                              Done Annotating
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Click and drag to draw red annotations highlighting the issue
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!screenshot && !screenshotError && !isCapturingScreenshot && (
+                <p className="text-sm text-muted-foreground">No screenshot available</p>
+              )}
             </div>
           </div>
 

@@ -1,0 +1,73 @@
+{
+  "name": "ScrapeJobResponse",
+  "description": "Scrape job status returned by /api/scraping endpoints.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "source_url": {
+      "type": ["string", "null"]
+    },
+    "url": {
+      "type": ["string", "null"]
+    },
+    "scrape_config": {
+      "type": ["string", "null"]
+    },
+    "config": {
+      "type": "object"
+    },
+    "runtime": {
+      "type": "object"
+    },
+    "status": {
+      "enum": ["pending", "running", "completed", "failed"]
+    },
+    "progress": {
+      "type": "integer"
+    },
+    "progress_message": {
+      "type": ["string", "null"]
+    },
+    "images_scraped": {
+      "type": "integer"
+    },
+    "error_message": {
+      "type": ["string", "null"]
+    },
+    "last_error_at": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    },
+    "started_at": {
+      "type": ["string", "null"]
+    },
+    "completed_at": {
+      "type": ["string", "null"]
+    },
+    "output_directory": {
+      "type": ["string", "null"]
+    },
+    "output_dir": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "progress",
+    "images_scraped",
+    "config",
+    "runtime"
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "name": "AlbumResponse",
+  "description": "Album record returned by /api/albums endpoints.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "album_type": {
+      "type": "string"
+    },
+    "is_public": {
+      "type": "boolean"
+    },
+    "is_training_source": {
+      "type": "boolean"
+    },
+    "generation_prompt": {
+      "type": ["string", "null"]
+    },
+    "generation_config": {
+      "type": ["string", "null"]
+    },
+    "created_by": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    },
+    "updated_at": {
+      "type": ["string", "null"]
+    },
+    "image_count": {
+      "type": "integer"
+    },
+    "is_set_template": {
+      "type": "boolean"
+    },
+    "csv_data": {
+      "type": ["string", "null"]
+    },
+    "base_prompt": {
+      "type": ["string", "null"]
+    },
+    "prompt_template": {
+      "type": ["string", "null"]
+    },
+    "style_suffix": {
+      "type": ["string", "null"]
+    },
+    "example_theme": {
+      "type": ["string", "null"]
+    },
+    "lora_config": {
+      "type": ["string", "null"]
+    },
+    "template_item_count": {
+      "type": "integer"
+    },
+    "template_items_preview": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "lora_count": {
+      "type": "integer"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "album_type",
+    "is_public",
+    "is_training_source",
+    "image_count",
+    "is_set_template",
+    "template_item_count",
+    "template_items_preview",
+    "lora_count",
+    "slug"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Label",
+  "description": "Label/tag associated with an image.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "image_id": {
+      "type": "integer"
+    },
+    "label_text": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": ["number", "null"]
+    },
+    "label_type": {
+      "type": "string"
+    },
+    "source_model": {
+      "type": ["string", "null"]
+    },
+    "source_prompt": {
+      "type": ["string", "null"]
+    },
+    "created_by": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "id",
+    "image_id",
+    "label_text",
+    "label_type"
+  ]
+}

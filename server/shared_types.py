@@ -8,6 +8,35 @@ from __future__ import annotations
 from typing import Any, Literal, NotRequired, Required, TypedDict
 
 
+class AlbumResponseTypedDict(TypedDict, total=False):
+    """Album record returned by /api/albums endpoints."""
+
+    id: Required[int]
+    name: Required[str]
+    description: NotRequired[str | None]
+    album_type: Required[str]
+    is_public: Required[bool]
+    is_training_source: Required[bool]
+    generation_prompt: NotRequired[str | None]
+    generation_config: NotRequired[str | None]
+    created_by: NotRequired[str | None]
+    created_at: NotRequired[str | None]
+    updated_at: NotRequired[str | None]
+    image_count: Required[int]
+    is_set_template: Required[bool]
+    csv_data: NotRequired[str | None]
+    base_prompt: NotRequired[str | None]
+    prompt_template: NotRequired[str | None]
+    style_suffix: NotRequired[str | None]
+    example_theme: NotRequired[str | None]
+    lora_config: NotRequired[str | None]
+    template_item_count: Required[int]
+    template_items_preview: Required[list[dict[str, Any]]]
+    lora_count: Required[int]
+    slug: Required[str]
+    images: NotRequired[list[dict[str, Any]]]
+
+
 class AuthStatusTypedDict(TypedDict, total=False):
     """Response payload returned by /api/auth/me."""
 
@@ -87,6 +116,8 @@ class BugReportSubmissionRequestTypedDict(TypedDict, total=False):
     appState: Required[dict[str, Any]]
     recentLogs: Required[list[BugReportSubmissionRequestRecentlogsItem]]
     networkEvents: Required[list[BugReportSubmissionRequestNetworkeventsItem]]
+    screenshot: NotRequired[str | None]
+    screenshotError: NotRequired[str | None]
 
 
 class BugReportSubmissionResponseTypedDict(TypedDict, total=False):
@@ -117,6 +148,30 @@ class ImageMetadataTypedDict(TypedDict, total=False):
     lora_path: NotRequired[str]
     lora_weight: NotRequired[float]
     loras: NotRequired[list[ImageMetadataLorasItem]]
+
+
+class ImageResponseTypedDict(TypedDict, total=False):
+    """Complete image record returned by /api/images endpoints."""
+
+    id: Required[int]
+    filename: Required[str]
+    storage_name: NotRequired[str | None]
+    download_url: Required[str]
+    thumbnail_url: Required[str]
+    prompt: NotRequired[str | None]
+    negative_prompt: NotRequired[str | None]
+    seed: NotRequired[int | None]
+    steps: NotRequired[int | None]
+    guidance_scale: NotRequired[float | None]
+    width: NotRequired[int | None]
+    height: NotRequired[int | None]
+    lora_config: NotRequired[str | None]
+    is_nsfw: Required[bool]
+    is_public: Required[bool]
+    created_at: NotRequired[str | None]
+    updated_at: NotRequired[str | None]
+    file_path: NotRequired[str | None]
+    thumbnail_path: NotRequired[str | None]
 
 
 class JobTypedDict(TypedDict, total=False):
@@ -160,3 +215,62 @@ class JobsResponseTypedDict(TypedDict, total=False):
     current: Required[JobTypedDict | None]
     queue: Required[list[JobTypedDict]]
     history: Required[list[JobTypedDict]]
+
+
+class LabelTypedDict(TypedDict, total=False):
+    """Label/tag associated with an image."""
+
+    id: Required[int]
+    image_id: Required[int]
+    label_text: Required[str]
+    confidence: NotRequired[float | None]
+    label_type: Required[str]
+    source_model: NotRequired[str | None]
+    source_prompt: NotRequired[str | None]
+    created_by: NotRequired[str | None]
+    created_at: NotRequired[str | None]
+
+
+class ScrapeJobResponseTypedDict(TypedDict, total=False):
+    """Scrape job status returned by /api/scraping endpoints."""
+
+    id: Required[int]
+    name: Required[str]
+    description: NotRequired[str | None]
+    source_url: NotRequired[str | None]
+    url: NotRequired[str | None]
+    scrape_config: NotRequired[str | None]
+    config: Required[dict[str, Any]]
+    runtime: Required[dict[str, Any]]
+    status: Required[Literal["pending", "running", "completed", "failed"]]
+    progress: Required[int]
+    progress_message: NotRequired[str | None]
+    images_scraped: Required[int]
+    error_message: NotRequired[str | None]
+    last_error_at: NotRequired[str | None]
+    created_at: NotRequired[str | None]
+    started_at: NotRequired[str | None]
+    completed_at: NotRequired[str | None]
+    output_directory: NotRequired[str | None]
+    output_dir: NotRequired[str | None]
+
+
+class TrainingRunResponseTypedDict(TypedDict, total=False):
+    """Training run status returned by /api/training endpoints."""
+
+    id: Required[int]
+    name: Required[str]
+    description: NotRequired[str | None]
+    training_config: NotRequired[str | None]
+    status: Required[Literal["pending", "running", "completed", "failed"]]
+    progress: Required[int]
+    final_checkpoint: NotRequired[str | None]
+    training_loss: NotRequired[float | None]
+    validation_loss: NotRequired[float | None]
+    error_message: NotRequired[str | None]
+    last_error_at: NotRequired[str | None]
+    created_at: NotRequired[str | None]
+    started_at: NotRequired[str | None]
+    completed_at: NotRequired[str | None]
+    dataset_path: NotRequired[str | None]
+    output_path: NotRequired[str | None]

@@ -1,3 +1,4 @@
+import base64
 import builtins
 import json
 from pathlib import Path
@@ -115,8 +116,7 @@ def test_submit_bug_report_success(admin_client, monkeypatch, tmp_path):
     assert stored_path.exists()
 
     saved_report = json.loads(stored_path.read_text())
-    request_section = {key: saved_report[key] for key in BUG_REPORT_REQUEST_KEYS}
-    BUG_REPORT_REQUEST_VALIDATOR.validate(request_section)
+    # Validate core fields (screenshot is excluded from JSON, stored as separate file)
     assert saved_report["description"] == payload["description"]
     assert saved_report["environment"] == payload["environment"]
     assert saved_report["clientMeta"] == payload["clientMeta"]
@@ -126,6 +126,9 @@ def test_submit_bug_report_success(admin_client, monkeypatch, tmp_path):
     assert saved_report["status"] == "open"
     assert saved_report["trace_id"] == headers["X-Trace-Id"]
     assert saved_report["report_id"].startswith("bug_")
+    # Screenshot-related fields
+    assert saved_report["screenshot_path"] is None  # No screenshot provided
+    assert saved_report["screenshot_error"] is None
 
 
 def test_submit_bug_report_requires_authentication(client):
@@ -328,3 +331,177 @@ def test_purge_bug_reports_deletes_old_files(admin_client, monkeypatch, tmp_path
     assert payload["results"]["deleted"] == 1
     assert not old_report.exists()
     assert recent_report.exists()
+
+
+# -----------------------------------------------------------------------------
+# Screenshot functionality tests
+# -----------------------------------------------------------------------------
+
+
+def _create_test_screenshot() -> str:
+    """Create a tiny 1x1 PNG screenshot as base64 data URL."""
+    # 1x1 red pixel PNG (67 bytes)
+    png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gA"
+        "AAABJRU5ErkJggg=="
+    )
+    png_bytes = base64.b64decode(png_b64)
+    return f"data:image/png;base64,{base64.b64encode(png_bytes).decode('utf-8')}"
+
+
+def test_submit_bug_report_with_screenshot(admin_client, monkeypatch, tmp_path):
+    """Test that screenshot is extracted, decoded, and saved as PNG file."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    payload["screenshot"] = _create_test_screenshot()
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["success"] is True
+
+    # Verify report saved without screenshot in JSON
+    report_path = Path(body["stored_at"])
+    assert report_path.exists()
+    saved_report = json.loads(report_path.read_text())
+
+    # Screenshot should not be in the JSON (too large)
+    assert "screenshot" not in saved_report
+    assert "screenshot_path" in saved_report
+    assert saved_report["screenshot_path"] is not None
+    assert saved_report["screenshot_error"] is None
+
+    # Verify screenshot saved as separate PNG file
+    screenshot_path = Path(saved_report["screenshot_path"])
+    assert screenshot_path.exists()
+    assert screenshot_path.name == "screenshot.png"
+    assert screenshot_path.parent.name == saved_report["report_id"]
+
+    # Verify PNG file is valid
+    with screenshot_path.open("rb") as f:
+        png_header = f.read(8)
+        assert png_header == b"\x89PNG\r\n\x1a\n"
+
+
+def test_submit_bug_report_screenshot_without_data_url_prefix(admin_client, monkeypatch, tmp_path):
+    """Test screenshot extraction when base64 string doesn't have data URL prefix."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    # Provide raw base64 without data:image/png;base64, prefix
+    png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gA"
+        "AAABJRU5ErkJggg=="
+    )
+    png_bytes = base64.b64decode(png_b64)
+    payload["screenshot"] = base64.b64encode(png_bytes).decode("utf-8")
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    screenshot_path = Path(saved_report["screenshot_path"])
+    assert screenshot_path.exists()
+
+
+def test_submit_bug_report_invalid_screenshot_continues_submission(
+    admin_client, monkeypatch, tmp_path
+):
+    """Test that invalid screenshot data doesn't prevent report submission."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    payload["screenshot"] = "invalid-base64-data!!!!"
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    # Report should still be saved
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["success"] is True
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    # Screenshot path should be None due to decode error
+    assert saved_report["screenshot_path"] is None
+    # Error should be recorded
+    assert saved_report["screenshot_error"] is not None
+    assert "screenshot_error" in saved_report
+
+
+def test_submit_bug_report_without_screenshot(admin_client, monkeypatch, tmp_path):
+    """Test that reports without screenshot work normally."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    # No screenshot field
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    assert saved_report["screenshot_path"] is None
+    assert saved_report["screenshot_error"] is None
+
+
+def test_submit_bug_report_screenshot_null(admin_client, monkeypatch, tmp_path):
+    """Test that null screenshot value is handled gracefully."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    payload["screenshot"] = None
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    assert saved_report["screenshot_path"] is None
+    assert saved_report["screenshot_error"] is None
+
+
+def test_submit_bug_report_screenshot_empty_string(admin_client, monkeypatch, tmp_path):
+    """Test that empty string screenshot is handled gracefully."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    payload["screenshot"] = ""
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    # Empty string should be treated as no screenshot
+    assert saved_report["screenshot_path"] is None
+
+
+def test_submit_bug_report_with_screenshot_error(admin_client, monkeypatch, tmp_path):
+    """Test screenshot error recording in payload."""
+    storage_dir = tmp_path / "bug_reports"
+    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(storage_dir))
+
+    payload = _build_payload()
+    payload["screenshotError"] = "Failed to capture: User denied permission"
+
+    response = admin_client.post("/api/bug-reports", json=payload)
+
+    assert response.status_code == 201
+    body = response.get_json()
+
+    saved_report = json.loads(Path(body["stored_at"]).read_text())
+    # Screenshot error from client should be preserved (as snake_case in JSON)
+    assert saved_report["screenshot_error"] == "Failed to capture: User denied permission"
