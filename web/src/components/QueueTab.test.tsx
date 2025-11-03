@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -24,6 +27,7 @@ const mockJobsResponse: JobsResponse = {
     id: 1,
     prompt: 'Test prompt',
     status: 'running',
+    submitted_at: '2025-11-03T11:59:00Z',
     started_at: '2025-11-03T12:00:00Z',
     width: 512,
     height: 768,
@@ -47,6 +51,7 @@ const mockJobsResponse: JobsResponse = {
       id: 3,
       prompt: 'Completed prompt',
       status: 'completed',
+      submitted_at: '2025-11-03T11:54:00Z',
       started_at: '2025-11-03T11:55:00Z',
       completed_at: '2025-11-03T11:55:30Z',
       width: 512,
@@ -58,6 +63,7 @@ const mockJobsResponse: JobsResponse = {
       id: 4,
       prompt: 'Failed prompt',
       status: 'failed',
+      submitted_at: '2025-11-03T11:49:00Z',
       started_at: '2025-11-03T11:50:00Z',
       completed_at: '2025-11-03T11:50:15Z',
       width: 512,
