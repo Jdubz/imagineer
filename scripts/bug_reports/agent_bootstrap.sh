@@ -91,7 +91,17 @@ configure_git() {
   cd "${WORKSPACE_DIR}"
   git config --global user.name "${GIT_AUTHOR_NAME:-Imagineer Bug Agent}"
   git config --global user.email "${GIT_AUTHOR_EMAIL:-agent@imagineer.local}"
-  git remote set-url origin "${GIT_REMOTE_URL:-$(git remote get-url origin)}"
+  local remote_url
+  remote_url="${GIT_REMOTE_URL:-$(git remote get-url origin)}"
+
+  if [[ "${remote_url}" =~ ^https://github\.com/(.+)$ ]]; then
+    local path="${BASH_REMATCH[1]}"
+    path="${path%.git}"
+    remote_url="git@github.com:${path}.git"
+    log "Converted HTTPS remote to SSH for pushing: ${remote_url}"
+  fi
+
+  git remote set-url origin "${remote_url}"
 }
 
 checkout_branch() {

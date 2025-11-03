@@ -392,21 +392,25 @@ export const api = {
      * Fetch all generated images
      */
 
-async getAll(options: { signal?: AbortSignal; page?: number; perPage?: number } = {}): Promise<GeneratedImage[]> {
-  const { signal, page = 1, perPage = 60 } = options
-  const params = new URLSearchParams({
-    visibility: 'public',
-    page: String(page),
-    per_page: String(perPage),
-  })
+    async getAll(
+      options: { signal?: AbortSignal; page?: number; perPage?: number } = {}
+    ): Promise<GeneratedImage[]> {
+      const { signal, page = 1, perPage = 60 } = options
+      const params = new URLSearchParams({
+        visibility: 'public',
+        page: String(page),
+        per_page: String(perPage),
+      })
 
-  const response = await apiRequest(
-    `/api/images?${params.toString()}`,
-    schemas.PaginatedImagesResponseSchema,
-    { signal }
-  )
-  return response.images.map(normalizeGeneratedImage)
-},
+      const response = await apiRequest(
+        getApiUrl(`/images?${params.toString()}`),
+        schemas.PaginatedImagesResponseSchema,
+        {
+          signal,
+        }
+      )
+      return response.images.map(normalizeGeneratedImage)
+    },
 
     /**
      * Fetch image by ID
