@@ -3,7 +3,6 @@ import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { Config, GenerateParams, Album } from '../types/models'
 import {
   validateForm,

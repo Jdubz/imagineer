@@ -20,7 +20,6 @@ import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 import { cn } from '@/lib/utils'
 import {
@@ -856,7 +855,6 @@ interface BatchGenerateDialogProps {
 }
 
 const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
-  const { toast } = useToast()
   const { showErrorToast } = useErrorToast()
   const [userTheme, setUserTheme] = useState<string>('')
   const [steps, setSteps] = useState<string>('')
