@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     rsync \
     jq \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
@@ -30,7 +31,13 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     flake8==7.1.1 \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
-    isort==5.13.2
+    isort==5.13.2 \
+    pyyaml==6.0.2
+
+# Prepare shared node_modules cache (used by remediation bootstrap)
+RUN mkdir -p /opt/imagineer/node_modules && \
+    npm install --prefix /opt/imagineer @rollup/rollup-linux-x64-gnu@latest && \
+    chown -R node:node /opt/imagineer
 
 # node:20-slim already has 'node' user with UID 1000, use it as worker
 # Create working directories
