@@ -102,10 +102,11 @@ checkout_branch() {
 
 maybe_run_claude() {
   if [[ -f "${PROMPT_PATH}" ]]; then
-    claude --non-interactive \
-      --workingDirectory "${WORKSPACE_DIR}" \
-      --maxTokens 4096 \
-      --prompt "$(cat "${PROMPT_PATH}")"
+    pushd "${WORKSPACE_DIR}" >/dev/null
+    claude --print \
+      --dangerously-skip-permissions \
+      "$(cat "${PROMPT_PATH}")"
+    popd >/dev/null
   else
     log "No prompt supplied at ${PROMPT_PATH}; skipping Claude automation."
   fi
@@ -143,9 +144,12 @@ push_changes() {
     fail_summary "Claude automation did not produce any changes"
     exit 4
   fi
-  git status
-  git commit -m "fix: automated remediation (bug ${REPORT_ID})"
-  git push origin "HEAD:${TARGET_BRANCH}"
+  git status >&2
+  git commit -m "fix: automated remediation (bug ${REPORT_ID})" >&2
+  if ! git push origin "HEAD:${TARGET_BRANCH}" >&2; then
+    log "Git push failed for remediation branch. Check credentials or remote configuration."
+    return 1
+  fi
   git rev-parse HEAD
 }
 
@@ -160,6 +164,11 @@ run_step "Display workspace status" git -C "${WORKSPACE_DIR}" status
 run_step "Execute Claude automation" maybe_run_claude
 run_step "Run verification suite" run_tests
 COMMIT_SHA="$(run_step "Commit and push changes" push_changes)"
+if [[ -z "${COMMIT_SHA}" ]]; then
+  log "Failed to determine remediation commit SHA."
+  fail_summary "Unable to determine remediation commit SHA"
+  exit 5
+fi
 
 success_summary "${COMMIT_SHA}" "${LAST_TEST_RESULTS}"
 
