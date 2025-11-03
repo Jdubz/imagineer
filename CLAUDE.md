@@ -40,6 +40,12 @@ pip install -e ".[dev]"  # Installs pytest, black, flake8, isort
 - **Tunnel:** Cloudflare Tunnel (imagineer-api.joshwentworth.com)
 - **Public Directory:** NO LONGER SERVED by Flask/nginx - Use Firebase only
 
+**Admin Authentication:**
+- Admin roles are configured in `server/users.json` (not in git)
+- Copy `server/users.json.example` to `server/users.json` and add your email
+- Format: `{"your-email@example.com": {"role": "admin"}}`
+- Restart API after changes: `sudo systemctl restart imagineer-api`
+
 **Architecture Diagram:**
 ```
 Internet
