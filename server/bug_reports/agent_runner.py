@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shlex
 import subprocess
 import textwrap
@@ -198,6 +199,15 @@ class BugReportDockerRunner:
             )
         )
 
+        bootstrap_rel_path = Path("scripts") / "bug_reports" / "agent_bootstrap.sh"
+        bootstrap_host_path = self.config.repo_root / bootstrap_rel_path
+        if not bootstrap_host_path.exists():
+            raise FileNotFoundError(f"Bootstrap script not found at {bootstrap_host_path}")
+        if not os.access(bootstrap_host_path, os.X_OK):
+            raise PermissionError(f"Bootstrap script is not executable: {bootstrap_host_path}")
+
+        bootstrap_container_path = str(Path(env["WORKSPACE_DIR"]) / bootstrap_rel_path)
+
         container_name = f"imagineer-bug-{report_id}".replace("_", "-")
         cmd = [
             "docker",
@@ -208,6 +218,8 @@ class BugReportDockerRunner:
             *env_args,
             *volume_args,
             self.config.docker_image,
+            "/bin/bash",
+            bootstrap_container_path,
         ]
 
         logger.info(
