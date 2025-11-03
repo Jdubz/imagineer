@@ -16,6 +16,7 @@ import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { JobSchema } from '../lib/schemas'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { useAuth } from './AuthContext'
 import type {
   Config,
@@ -87,6 +88,7 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const { user } = useAuth()
 
   // ===== Generation State =====
@@ -139,11 +141,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       logger.error('Failed to fetch config', error as Error)
       setConfig(null)
       if (!configAuthAlerted) {
-        toast({ title: 'Error', description: 'Unable to load configuration. Please verify admin access.', variant: 'destructive' })
+        showErrorToast({
+          title: 'Configuration Error',
+          context: 'Unable to load configuration. Please verify admin access.',
+          error,
+        })
         setConfigAuthAlerted(true)
       }
     }
-  }, [configAuthAlerted, user?.role, toast])
+  }, [configAuthAlerted, user?.role, showErrorToast])
 
   // ===== Image Fetching =====
   const fetchImages = useCallback(async (signal?: AbortSignal): Promise<void> => {
@@ -211,7 +217,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               toast({ title: 'Success', description: 'Image generated successfully!' })
               await fetchImages()
             } else if (validatedJob.status === 'failed') {
-              toast({ title: 'Generation failed', description: validatedJob.error ?? 'Unknown error', variant: 'destructive' })
+              showErrorToast({
+                title: 'Generation Failed',
+                context: 'Image generation failed',
+                error: new Error(validatedJob.error ?? 'Unknown error'),
+              })
             } else if (validatedJob.status === 'cancelled') {
               toast({ title: 'Warning', description: 'Job was cancelled' })
             }
@@ -220,12 +230,20 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             setTimeout(() => void pollJobStatus(), pollInterval)
           } else {
             setLoading(false)
-            toast({ title: 'Error', description: 'Job polling timeout', variant: 'destructive' })
+            showErrorToast({
+              title: 'Timeout Error',
+              context: 'Job polling timeout - generation took too long',
+              error: new Error('Job polling timeout'),
+            })
           }
         } catch (error) {
           logger.error('Error polling job status', error as Error)
           setLoading(false)
-          toast({ title: 'Error', description: 'Failed to check job status', variant: 'destructive' })
+          showErrorToast({
+            title: 'Status Check Failed',
+            context: 'Failed to check job status',
+            error,
+          })
         }
       }
 
@@ -239,9 +257,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         return
       }
 
-      toast({ title: 'Failed to submit job', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Job Submission Failed',
+        context: 'Failed to submit generation job',
+        error,
+      })
     }
-  }, [toast, fetchImages])
+  }, [showErrorToast, fetchImages])
 
   // ===== Initial Data Fetch =====
   useEffect(() => {

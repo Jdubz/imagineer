@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { formatErrorMessage } from '../lib/errorUtils'
 import type { Config, GenerateParams, Album } from '../types/models'
 import {
@@ -32,6 +33,7 @@ interface GenerateFormProps {
 
 const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, config, isAdmin }) => {
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
@@ -58,12 +60,15 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
       setTemplates(templateAlbums)
     } catch (error) {
       logger.error('Failed to fetch templates:', error)
-      const errorMessage = formatErrorMessage(error, 'Failed to load batch templates')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Template Load Error',
+        context: 'Failed to load batch templates',
+        error,
+      })
     } finally {
       setLoadingTemplates(false)
     }
-  }, [toast])
+  }, [showErrorToast])
 
   // Load templates on mount
   useEffect(() => {
@@ -162,16 +167,23 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
         setBatchSteps('')
         setBatchSeed('')
       } else {
-        toast({ title: 'Error', description: result.error || 'Failed to start batch generation', variant: 'destructive' })
+        showErrorToast({
+          title: 'Batch Generation Failed',
+          context: 'Failed to start batch generation',
+          error: new Error(result.error || 'Failed to start batch generation'),
+        })
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      const errorMessage = formatErrorMessage(error, 'Error starting batch generation')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Batch Generation Error',
+        context: 'Error starting batch generation',
+        error,
+      })
     } finally {
       setSubmittingBatch(false)
     }
-  }, [selectedTemplate, batchTheme, batchSteps, batchSeed, templates, toast])
+  }, [selectedTemplate, batchTheme, batchSteps, batchSeed, templates, toast, showErrorToast])
 
   // Memoize onChange handlers to prevent re-renders
   const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
