@@ -133,22 +133,28 @@ export const GeneratedImageSchema = z.object({
 // Batches
 // ============================================
 
+
 export const BatchSummarySchema = z.object({
   batch_id: z.string(),
-  path: z.string(),
+  album_id: z.number(),
+  name: z.string(),
+  album_type: z.string().optional(),
   image_count: z.number(),
-  created: z.string(),
+  created: z.string().optional().nullable(),
+  updated: z.string().optional().nullable(),
+  preview_url: z.string().optional().nullable(),
 })
+
 
 export const BatchDetailSchema = z.object({
   batch_id: z.string(),
+  album_id: z.number(),
+  name: z.string(),
+  album_type: z.string().optional(),
   image_count: z.number(),
-  images: z.array(z.object({
-    filename: z.string(),
-    relative_path: z.string(),
-    created: z.string(),
-    metadata: z.unknown().optional(),
-  })).optional(),
+  created: z.string().optional().nullable(),
+  updated: z.string().optional().nullable(),
+  images: z.array(GeneratedImageSchema).optional(),
 })
 
 // ============================================
@@ -324,7 +330,9 @@ export const LoRAConfigSchema = z.object({
 })
 
 export const AlbumSchema = z.object({
-  id: z.string(),
+  id: z
+    .union([z.string(), z.number()])
+    .transform((value) => value.toString()),
   name: z.string(),
   description: z.string().optional(),
   image_count: z.number(),

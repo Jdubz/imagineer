@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { SkeletonImageCard } from './Skeleton'
 import ImageCard from './common/ImageCard'
 import type { GeneratedImage } from '../types/models'
@@ -36,9 +37,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     }
   }
 
-  const openModal = (image: GeneratedImage): void => {
-    setSelectedImage(image)
-  }
+  // Modal removed in favor of detail page routing
+  // const openModal = (image: GeneratedImage): void => {
+  //   setSelectedImage(image)
+  // }
 
   const closeModal = (): void => {
     setSelectedImage(null)
@@ -117,17 +119,16 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
             const labelCount = image.labels?.length ?? 0
 
             return (
-              <div key={imageKey} className="gallery-grid-item">
+              <Link key={imageKey} to={`/image/${image.id}`} className="gallery-grid-item block">
                 <ImageCard
                   image={image}
                   nsfwPreference={nsfwPreference}
-                  onImageClick={openModal}
                   labelCount={labelCount}
                   showLabelBadge={labelCount > 0}
                   showPrompt={false}
                 />
                 {renderFooter(image)}
-              </div>
+              </Link>
             )
           })}
         </div>

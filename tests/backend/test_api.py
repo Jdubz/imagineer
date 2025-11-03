@@ -3,14 +3,13 @@ Tests for API endpoints
 """
 
 import json
-import os
 import queue
-import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
 
-from server.database import Album, db
+from server.database import Album, AlbumImage, Image, db
 
 
 class TestHealthEndpoint:
@@ -282,90 +281,191 @@ class TestJobsEndpoints:
         assert response.status_code == 404
 
 
-class TestOutputsEndpoints:
-    """Tests for output/image endpoints"""
+class TestImagesEndpoints:
+    """Tests for image endpoints."""
 
-    def test_list_outputs(self, client):
-        """Test GET /api/outputs returns image list"""
-        response = client.get("/api/outputs")
+    @staticmethod
+    def _create_image(app, **overrides):
+        with app.app_context():
+            image = Image(
+                filename=overrides.get("filename", "sample.png"),
+                file_path=overrides.get("file_path", "/tmp/sample.png"),
+                is_public=overrides.get("is_public", True),
+                prompt=overrides.get("prompt"),
+                negative_prompt=overrides.get("negative_prompt"),
+                seed=overrides.get("seed"),
+                steps=overrides.get("steps"),
+                guidance_scale=overrides.get("guidance_scale"),
+                width=overrides.get("width"),
+                height=overrides.get("height"),
+            )
+            db.session.add(image)
+            db.session.flush()
+            image_id = image.id
+            db.session.commit()
+            return image_id
+
+    def test_list_images_returns_public_entries(self, client):
+        image_id = self._create_image(
+            client.application,
+            filename="one.png",
+            file_path="/tmp/imagineer/one.png",
+            prompt="sunrise over mountains",
+            seed=123,
+        )
+
+        response = client.get("/api/images")
         assert response.status_code == 200
-        data = json.loads(response.data)
-        assert "images" in data
+        payload = response.get_json()
+        ids = [item["id"] for item in payload["images"]]
+        assert image_id in ids
 
-    def test_serve_nonexistent_file(self, client):
-        """Test GET /api/outputs/{filename} for nonexistent file returns 404"""
-        response = client.get("/api/outputs/nonexistent.png")
+    def test_get_image_file_returns_bytes(self, client, tmp_path):
+        file_path = tmp_path / "image.png"
+        file_bytes = b"image-bytes"
+        file_path.write_bytes(file_bytes)
+        image_id = self._create_image(
+            client.application, filename="image.png", file_path=str(file_path)
+        )
+
+        response = client.get(f"/api/images/{image_id}/file")
+        assert response.status_code == 200
+        assert response.data == file_bytes
+
+    def test_get_image_file_missing_returns_404(self, client):
+        image_id = self._create_image(
+            client.application, filename="missing.png", file_path="/tmp/does/not/exist.png"
+        )
+
+        response = client.get(f"/api/images/{image_id}/file")
         assert response.status_code == 404
 
-    def test_serve_path_traversal_blocked(self, client):
-        """Test path traversal attempts are blocked"""
-        # Try various path traversal attempts
-        test_paths = [
-            "../../../etc/passwd",
-            "..%2F..%2F..%2Fetc%2Fpasswd",
-            "subdir/../../etc/passwd",
-        ]
-        for path in test_paths:
-            response = client.get(f"/api/outputs/{path}")
-            # Should return either 403 (access denied) or 404 (not found after sanitization)
-            assert response.status_code in [403, 404]
+    def test_get_image_file_private_requires_admin(self, client, tmp_path):
+        file_path = tmp_path / "private.png"
+        file_path.write_bytes(b"secret")
+        image_id = self._create_image(
+            client.application,
+            filename="private.png",
+            file_path=str(file_path),
+            is_public=False,
+        )
+
+        response = client.get(f"/api/images/{image_id}/file")
+        assert response.status_code == 404
+
+    def test_get_image_file_allows_admin_access(self, client, mock_admin_auth, tmp_path):
+        file_path = tmp_path / "admin.png"
+        contents = b"admin-bytes"
+        file_path.write_bytes(contents)
+        image_id = self._create_image(
+            client.application,
+            filename="admin.png",
+            file_path=str(file_path),
+            is_public=False,
+        )
+
+        response = client.get(f"/api/images/{image_id}/file")
+        assert response.status_code == 200
+        assert response.data == contents
 
 
 class TestGenerationBlueprint:
     """Tests for generation blueprint endpoints that moved out of server/api.py."""
 
-    def test_list_batches_includes_recent_directories(self, client, generation_paths):
-        output_dir: Path = generation_paths["output_dir"]
+    @staticmethod
+    def _create_album_with_image(app, *, name, slug, created_at, **image_fields):
+        with app.app_context():
+            image = Image(
+                filename=image_fields.get("filename", f"{slug}.png"),
+                file_path=image_fields.get("file_path", f"/tmp/{slug}.png"),
+                prompt=image_fields.get("prompt"),
+                negative_prompt=image_fields.get("negative_prompt"),
+                seed=image_fields.get("seed"),
+                steps=image_fields.get("steps"),
+                guidance_scale=image_fields.get("guidance_scale"),
+                width=image_fields.get("width"),
+                height=image_fields.get("height"),
+                is_public=image_fields.get("is_public", True),
+            )
+            album = Album(
+                name=name,
+                album_type=image_fields.get("album_type", "batch"),
+                generation_config=json.dumps({"slug": slug}),
+            )
+            album.created_at = created_at
+            album.updated_at = created_at
+            db.session.add_all([album, image])
+            db.session.flush()
+            db.session.add(AlbumImage(album_id=album.id, image_id=image.id, sort_order=1))
+            album_id = album.id
+            album_slug = album.slug
+            image_id = image.id
+            filename = image.filename
+            db.session.commit()
+            return {
+                "album_id": album_id,
+                "album_slug": album_slug,
+                "image_id": image_id,
+                "filename": filename,
+            }
 
-        older_batch = output_dir / "20241030_001200"
-        older_batch.mkdir()
-        (older_batch / "older.png").write_bytes(b"old")
-
-        newer_batch = output_dir / "20251030_101500"
-        newer_batch.mkdir()
-        (newer_batch / "new.png").write_bytes(b"new")
-        (newer_batch / "second.png").write_bytes(b"new2")
-
-        now = time.time()
-        os.utime(older_batch, (now - 1000, now - 1000))
-        os.utime(newer_batch, (now, now))
+    def test_list_batches_orders_by_recency(self, client):
+        now = datetime.utcnow()
+        recent = self._create_album_with_image(
+            client.application,
+            name="Recent Batch",
+            slug="recent-batch",
+            created_at=now,
+            filename="recent.png",
+        )
+        older = self._create_album_with_image(
+            client.application,
+            name="Older Batch",
+            slug="older-batch",
+            created_at=now - timedelta(days=1),
+            filename="older.png",
+        )
 
         response = client.get("/api/batches")
         assert response.status_code == 200
-        payload = json.loads(response.data)
-        assert "batches" in payload
-        assert [batch["batch_id"] for batch in payload["batches"]] == [
-            newer_batch.name,
-            older_batch.name,
-        ]
-        assert payload["batches"][0]["image_count"] == 2
-        assert payload["batches"][1]["image_count"] == 1
+        payload = response.get_json()
+        slugs = [batch["batch_id"] for batch in payload["batches"]]
+        assert slugs[:2] == [recent["album_slug"], older["album_slug"]]
+        assert payload["batches"][0]["image_count"] == 1
+        assert payload["batches"][0]["preview_url"] == f"/api/images/{recent['image_id']}/thumbnail"
 
-    def test_get_batch_returns_image_metadata(self, client, generation_paths):
-        output_dir: Path = generation_paths["output_dir"]
-        batch_dir = output_dir / "batch_123"
-        batch_dir.mkdir()
+    def test_get_batch_returns_image_metadata(self, client):
+        record = self._create_album_with_image(
+            client.application,
+            name="Sunset Batch",
+            slug="sunset-batch",
+            created_at=datetime.utcnow(),
+            filename="sunset.png",
+            prompt="sunset over the ocean",
+            seed=42,
+            steps=30,
+            guidance_scale=7.5,
+            width=768,
+            height=512,
+        )
 
-        image_path = batch_dir / "sample.png"
-        image_path.write_bytes(b"image-bytes")
-        metadata = {"prompt": "sunset", "seed": 42}
-        metadata_path = image_path.with_suffix(".json")
-        metadata_path.write_text(json.dumps(metadata))
-        os.utime(image_path, (time.time(), time.time()))
-
-        response = client.get("/api/batches/batch_123")
+        response = client.get(f"/api/batches/{record['album_slug']}")
         assert response.status_code == 200
-        payload = json.loads(response.data)
-        assert payload["batch_id"] == "batch_123"
+        payload = response.get_json()
+        assert payload["batch_id"] == record["album_slug"]
         assert payload["image_count"] == 1
-        assert payload["images"][0]["filename"] == "sample.png"
-        assert payload["images"][0]["relative_path"] == "batch_123/sample.png"
-        assert payload["images"][0]["download_url"] == "/api/outputs/batch_123/sample.png"
-        assert payload["images"][0]["metadata"] == metadata
+        image_payload = payload["images"][0]
+        assert image_payload["filename"] == record["filename"]
+        assert image_payload["download_url"] == f"/api/images/{record['image_id']}/file"
+        assert image_payload["prompt"] == "sunset over the ocean"
+        assert image_payload["seed"] == 42
+        assert image_payload["width"] == 768
+        assert image_payload["height"] == 512
+        assert image_payload["labels"] == []
 
     def test_get_batch_rejects_path_traversal(self, client):
         response = client.get("/api/batches/..")
-        assert response.status_code == 400
+        assert response.status_code == 404
 
     def test_list_loras_reads_index(self, client, generation_paths):
         lora_dir: Path = generation_paths["lora_dir"]

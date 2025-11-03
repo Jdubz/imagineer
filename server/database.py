@@ -5,6 +5,7 @@ SQLAlchemy models for image management, albums, and training data
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -210,7 +211,37 @@ class Album(db.Model):
             "template_item_count": len(template_items),
             "template_items_preview": template_items[:5] if template_items else [],
             "lora_count": len(lora_payload),
+            "slug": self.slug,
         }
+
+    @property
+    def slug(self) -> str:
+        """Stable identifier derived from generation config or album name."""
+
+        def _sanitize(value: str) -> str:
+            candidate = value.lower()
+            candidate = re.sub(r"[^a-z0-9]+", "-", candidate).strip("-")
+            return candidate or f"album-{self.id}"
+
+        payload = None
+        if self.generation_config:
+            try:
+                maybe_dict = json.loads(self.generation_config)
+                if isinstance(maybe_dict, dict):
+                    payload = maybe_dict
+            except (TypeError, json.JSONDecodeError):
+                payload = None
+
+        if isinstance(payload, dict):
+            for key in ("slug", "legacy_slug"):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    return _sanitize(value)
+
+        if self.name:
+            return _sanitize(self.name)
+
+        return f"album-{self.id}"
 
 
 class AlbumImage(db.Model):

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, memo } from 'react'
+import { Link } from 'react-router-dom'
 import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import ImageCard from './common/ImageCard'
@@ -223,9 +224,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [isAdmin, fetchAlbumAnalytics])
 
-  const selectAlbum = useCallback(async (albumId: string): Promise<void> => {
-    await loadAlbum(albumId)
-  }, [loadAlbum])
+  // selectAlbum is now handled by React Router Link navigation
+  // Keeping loadAlbum for internal use
 
   const createAlbum = useCallback(async (name: string, description: string, albumType = 'manual'): Promise<void> => {
     if (!isAdmin) return
@@ -375,7 +375,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
-          const handleSelectAlbum = () => selectAlbum(album.id)
           const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             deleteAlbum(album.id)
@@ -395,23 +394,17 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             : null
 
           return (
-            <Card
+            <Link
               key={album.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Open album ${album.name}`}
-              onClick={handleSelectAlbum}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  selectAlbum(album.id)
-                }
-              }}
-              className={cn(
-                'group flex h-full flex-col overflow-hidden border transition',
-                'hover:border-primary/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70'
-              )}
+              to={`/albums/${album.id}`}
+              className="block h-full"
             >
+              <Card
+                className={cn(
+                  'group flex h-full flex-col overflow-hidden border transition',
+                  'hover:border-primary/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70'
+                )}
+              >
               <div
                 className="relative aspect-[4/3] w-full overflow-hidden bg-muted"
                 onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
@@ -486,6 +479,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
                 </CardFooter>
               ) : null}
             </Card>
+            </Link>
           )
         })}
       </div>

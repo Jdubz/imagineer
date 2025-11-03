@@ -55,13 +55,19 @@ export interface GeneratedImage {
   is_public?: boolean
   metadata?: ImageMetadata
   labels?: Label[]
+  album_id?: number | null
 }
 
 export interface BatchSummary {
   batch_id: string
-  path: string
+  album_id: number
+  name: string
+  album_type?: string
   image_count: number
-  created: string
+  created?: string | null
+  updated?: string | null
+  preview_url?: string | null
+  path?: string | null
 }
 
 export type JobStatus = JobContract['status']

@@ -26,23 +26,28 @@ function toAbsolute(path?: string | null): string | undefined {
 }
 
 function resolveFallbackFull(image: GeneratedImage): string {
-  const legacyOutput =
-    image.relative_path && image.relative_path.length > 0
-      ? `/api/outputs/${image.relative_path}`
-      : undefined
+  const downloadUrl = toAbsolute(image.download_url)
+  if (downloadUrl) {
+    return downloadUrl
+  }
 
-  const filenameFallback =
-    image.filename && !/^https?:\/\//i.test(image.filename)
-      ? `/api/outputs/${image.filename}`
-      : image.filename
+  if (image.id) {
+    return `/api/images/${image.id}/file`
+  }
 
-  return (
-    toAbsolute(image.download_url) ??
-    toAbsolute(image.path) ??
-    legacyOutput ??
-    filenameFallback ??
-    '/api/outputs'
-  )
+  const pathUrl = toAbsolute(image.path)
+  if (pathUrl) {
+    return pathUrl
+  }
+
+  if (image.filename) {
+    const filenameUrl = toAbsolute(image.filename)
+    if (filenameUrl) {
+      return filenameUrl
+    }
+  }
+
+  return '/api/images'
 }
 
 function resolveThumbnail(image: GeneratedImage, full: string): string {

@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
+import { ImageIcon, FolderOpen } from 'lucide-react'
 import BatchList from './BatchList'
 import BatchGallery from './BatchGallery'
 import ImageGrid from './ImageGrid'
 import { useGallery } from '../contexts/AppContext'
-import '../styles/GalleryTab.css'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 const GalleryTab: React.FC = () => {
   const { images, batches, loadingImages, loadingBatches, fetchImages, fetchBatches } = useGallery()
@@ -19,28 +20,42 @@ const GalleryTab: React.FC = () => {
   }
 
   return (
-    <div className="gallery-tab">
+    <div className="flex flex-col gap-8">
       {selectedBatchId ? (
         <BatchGallery batchId={selectedBatchId} onBack={handleBackToList} />
       ) : (
         <>
-          <section className="gallery-section">
-            <h2>🖼️ Recent Images</h2>
-            <ImageGrid
-              images={images}
-              onRefresh={fetchImages}
-              loading={loadingImages}
-            />
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Recent Images
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ImageGrid
+                images={images}
+                onRefresh={fetchImages}
+                loading={loadingImages}
+              />
+            </CardContent>
+          </Card>
 
-          <section className="gallery-section">
-            <h2>📁 Albums</h2>
-            <BatchList
-              batches={batches}
-              onSelectBatch={handleSelectBatch}
-              loading={loadingBatches}
-            />
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5" />
+                Albums
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BatchList
+                batches={batches}
+                onSelectBatch={handleSelectBatch}
+                loading={loadingBatches}
+              />
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

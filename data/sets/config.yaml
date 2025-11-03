@@ -1,0 +1,38 @@
+card_deck:
+  name: Card Deck Template
+  description: Legacy playing card set imported from outputs/card_deck
+  csv_path: card_deck.csv
+  base_prompt: "Playing card portrait"
+  prompt_template: "{value} of {suit}, ornate playing card"
+  style_suffix: "vintage engraving"
+  example_theme: "Antique Deck"
+  width: 512
+  height: 720
+  negative_prompt: "blurry, low quality"
+  loras: []
+
+zodiac:
+  name: Zodiac Template
+  description: Legacy zodiac illustrations imported from outputs/zodiac
+  csv_path: zodiac.csv
+  base_prompt: "Illustration of the zodiac sign"
+  prompt_template: "{sign} zodiac symbol"
+  style_suffix: "celestial art"
+  example_theme: "Night Sky"
+  width: 512
+  height: 768
+  negative_prompt: "blurry, low quality"
+  loras: []
+
+tarot_deck:
+  name: Tarot Deck Template
+  description: Legacy tarot deck imported from outputs/tarot_deck
+  csv_path: tarot_deck.csv
+  base_prompt: "Tarot card illustration"
+  prompt_template: "{card} tarot card"
+  style_suffix: "art nouveau"
+  example_theme: "Mystic Tarot"
+  width: 512
+  height: 768
+  negative_prompt: "blurry, low quality"
+  loras: []

@@ -19,10 +19,11 @@ from pathlib import Path
 import yaml
 from flask import Blueprint, jsonify, request, send_from_directory
 from flask_login import current_user
+from sqlalchemy.orm import joinedload
 
 from server.auth import require_admin
 from server.config_loader import PROJECT_ROOT, load_config
-from server.database import Album, db
+from server.database import Album, AlbumImage, Image, db
 
 logger = logging.getLogger(__name__)
 
@@ -698,67 +699,101 @@ def cancel_job(job_id):
 
 @generation_bp.route("/batches", methods=["GET"])
 def list_batches():
-    """List all batch output directories."""
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"])
+    """List available generation batches based on album metadata."""
+    config = load_config()
+    outputs_base = Path(config.get("outputs", {}).get("base_dir", "/tmp/imagineer/outputs"))
+    album_root = outputs_base / "albums"
 
-        batches = []
-        if output_dir.exists():
-            for batch_dir in sorted(output_dir.iterdir(), key=os.path.getmtime, reverse=True):
-                if batch_dir.is_dir():
-                    image_count = len(list(batch_dir.glob("*.png")))
-                    batches.append(
-                        {
-                            "batch_id": batch_dir.name,
-                            "path": str(batch_dir),
-                            "image_count": image_count,
-                            "created": datetime.fromtimestamp(
-                                batch_dir.stat().st_mtime
-                            ).isoformat(),
-                        }
-                    )
+    albums = (
+        Album.query.options(joinedload(Album.album_images).joinedload(AlbumImage.image))
+        .order_by(Album.created_at.desc())
+        .all()
+    )
 
-        return jsonify({"batches": batches})
-    except Exception as exc:  # pragma: no cover - defensive
-        return jsonify({"error": str(exc)}), 500
+    batches = []
+    for album in albums:
+        image_associations = [assoc for assoc in album.album_images if assoc.image is not None]
+        if not image_associations:
+            continue
+
+        first_image = image_associations[0].image
+        preview_url = f"/api/images/{first_image.id}/thumbnail" if first_image else None
+
+        batches.append(
+            {
+                "batch_id": album.slug,
+                "album_id": album.id,
+                "name": album.name,
+                "album_type": album.album_type,
+                "image_count": len(image_associations),
+                "created": album.created_at.isoformat() if album.created_at else None,
+                "updated": album.updated_at.isoformat() if album.updated_at else None,
+                "preview_url": preview_url,
+                "path": str((album_root / album.slug).resolve()),
+            }
+        )
+
+    return jsonify({"batches": batches})
+
+
+def _find_album_by_identifier(identifier: str) -> Album | None:
+    """Return album matching a slug or numeric identifier."""
+    if identifier.isdigit():
+        album = Album.query.filter_by(id=int(identifier)).one_or_none()
+        if album is not None:
+            return album
+
+    for candidate in Album.query.all():
+        if candidate.slug == identifier:
+            return candidate
+
+    return None
 
 
 @generation_bp.route("/batches/<batch_id>", methods=["GET"])
-def get_batch(batch_id):
+def get_batch(batch_id: str):
     """Return details for a specific generation batch."""
-    try:
-        if ".." in batch_id or "/" in batch_id or "\\" in batch_id:
-            return jsonify({"error": "Invalid batch ID"}), 400
+    album = _find_album_by_identifier(batch_id)
+    if album is None:
+        return jsonify({"error": "Batch not found"}), 404
 
-        config = load_config()
-        batch_dir = Path(config["output"]["directory"]) / batch_id
+    include_sensitive = bool(
+        getattr(current_user, "is_authenticated", False)
+        and getattr(current_user, "is_admin", lambda: False)()
+    )
 
-        if not batch_dir.exists() or not batch_dir.is_dir():
-            return jsonify({"error": "Batch not found"}), 404
+    # Ensure related images and labels are loaded
+    album = (
+        Album.query.options(
+            joinedload(Album.album_images).joinedload(AlbumImage.image).joinedload(Image.labels)
+        )
+        .filter_by(id=album.id)
+        .one()
+    )
 
-        images = []
-        for img_file in sorted(batch_dir.glob("*.png"), key=os.path.getmtime):
-            metadata_file = img_file.with_suffix(".json")
-            metadata = {}
-            if metadata_file.exists():
-                with open(metadata_file, "r") as handle:
-                    metadata = json.load(handle)
+    images_payload = []
+    for association in sorted(
+        album.album_images, key=lambda assoc: (assoc.sort_order or 0, assoc.id)
+    ):
+        image = association.image
+        if image is None:
+            continue
+        payload = image.to_dict(include_sensitive=include_sensitive)
+        labels = image.labels or []
+        payload["labels"] = [label.to_dict() for label in labels]
+        images_payload.append(payload)
 
-            images.append(
-                {
-                    "filename": img_file.name,
-                    "relative_path": f"{batch_id}/{img_file.name}",
-                    "download_url": f"/api/outputs/{batch_id}/{img_file.name}",
-                    "size": img_file.stat().st_size,
-                    "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
-                    "metadata": metadata,
-                }
-            )
-
-        return jsonify({"batch_id": batch_id, "image_count": len(images), "images": images})
-    except Exception as exc:  # pragma: no cover - defensive
-        return jsonify({"error": str(exc)}), 500
+    response = {
+        "batch_id": album.slug,
+        "album_id": album.id,
+        "name": album.name,
+        "album_type": album.album_type,
+        "image_count": len(images_payload),
+        "created": album.created_at.isoformat() if album.created_at else None,
+        "updated": album.updated_at.isoformat() if album.updated_at else None,
+        "images": images_payload,
+    }
+    return jsonify(response)
 
 
 @generation_bp.route("/loras", methods=["GET"])

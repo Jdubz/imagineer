@@ -3,7 +3,6 @@ Image management endpoints
 """
 
 import io
-import json
 import logging
 import mimetypes
 import os
@@ -18,7 +17,6 @@ from flask import (
     jsonify,
     request,
     send_file,
-    send_from_directory,
 )
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
@@ -30,8 +28,6 @@ from server.utils.rate_limiter import enforce_rate_limit
 logger = logging.getLogger(__name__)
 
 images_bp = Blueprint("images", __name__, url_prefix="/api/images")
-outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/outputs")
-
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 MAX_UPLOAD_FILE_BYTES = int(os.environ.get("IMAGINEER_UPLOAD_MAX_BYTES", str(20 * 1024 * 1024)))
 MAX_UPLOAD_TOTAL_BYTES = int(os.environ.get("IMAGINEER_UPLOAD_TOTAL_BYTES", str(200 * 1024 * 1024)))
@@ -159,6 +155,27 @@ def get_image(image_id: int):
     payload = image.to_dict(include_sensitive=_is_admin_user())
     if include_labels:
         payload["labels"] = [label.to_dict() for label in image.labels]
+    return jsonify(payload)
+
+
+@images_bp.route("/<int:image_id>", methods=["PUT"])
+@require_admin
+def update_image(image_id: int):
+    """Update image metadata (admin only)."""
+    image = _get_image_or_404(image_id)
+    data = request.json or {}
+
+    # Update prompt if provided
+    if "prompt" in data:
+        image.prompt = data["prompt"]
+
+    # Update negative_prompt if provided
+    if "negative_prompt" in data:
+        image.negative_prompt = data["negative_prompt"]
+
+    db.session.commit()
+
+    payload = image.to_dict(include_sensitive=True)
     return jsonify(payload)
 
 
@@ -442,68 +459,6 @@ def update_label(image_id: int, label_id: int):
         db.session.commit()
 
     return jsonify(label.to_dict())
-
-
-@outputs_bp.route("", methods=["GET"])
-def list_outputs():
-    """List generated images saved to the outputs directory."""
-    from server.api import load_config  # Local import to avoid circular dependency
-
-    try:
-        config = load_config()
-        output_dir = Path(config["output"]["directory"])
-    except (KeyError, TypeError):
-        output_dir = Path("/tmp/imagineer/outputs")
-
-    images: list[dict] = []
-
-    if output_dir.exists():
-        for img_file in sorted(output_dir.glob("*.png"), key=os.path.getmtime, reverse=True):
-            metadata: dict = {}
-            metadata_file = img_file.with_suffix(".json")
-
-            if metadata_file.exists():
-                try:
-                    with open(metadata_file, "r", encoding="utf-8") as f:
-                        metadata = json.load(f)
-                except (json.JSONDecodeError, OSError):
-                    metadata = {}
-
-            images.append(
-                {
-                    "filename": img_file.name,
-                    "relative_path": img_file.name,
-                    "download_url": f"/api/outputs/{img_file.name}",
-                    "size": img_file.stat().st_size,
-                    "created": datetime.fromtimestamp(img_file.stat().st_mtime).isoformat(),
-                    "metadata": metadata,
-                }
-            )
-
-    return jsonify({"images": images[:100]})
-
-
-@outputs_bp.route("/<path:filename>")
-def serve_output(filename: str):
-    """Serve a generated image from the outputs directory."""
-    from server.api import load_config  # Local import to avoid circular dependency
-
-    config = load_config()
-    output_dir = Path(config["output"]["directory"]).resolve()
-
-    # Block traversal attempts
-    if ".." in filename or filename.startswith(("/", "\\")):
-        return jsonify({"error": "Access denied"}), 403
-
-    requested_path = (output_dir / filename).resolve()
-
-    if not str(requested_path).startswith(str(output_dir)):
-        return jsonify({"error": "Access denied"}), 403
-
-    if not requested_path.exists() or not requested_path.is_file():
-        return jsonify({"error": "File not found"}), 404
-
-    return send_from_directory(requested_path.parent, requested_path.name)
 
 
 @images_bp.route("/<int:image_id>/labels/<int:label_id>", methods=["DELETE"])

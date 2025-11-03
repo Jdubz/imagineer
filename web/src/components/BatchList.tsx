@@ -54,11 +54,12 @@ const BatchList: React.FC<BatchListProps> = ({ batches, onSelectBatch, loading =
               onClick={() => onSelectBatch(batch.batch_id)}
             >
               <div className="batch-item-header">
-                <h4>{batch.batch_id}</h4>
+                <h4>{batch.name}</h4>
+                <p className="batch-slug">ID: {batch.batch_id}</p>
                 <span className="batch-count">{batch.image_count} images</span>
               </div>
               <p className="batch-date">
-                Created: {new Date(batch.created).toLocaleString()}
+                Created: {batch.created ? new Date(batch.created).toLocaleString() : 'Unknown'}
               </p>
             </div>
           ))}

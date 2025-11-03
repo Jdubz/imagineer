@@ -165,11 +165,17 @@ Cancel a queued job
 
 **Note:** Only jobs with status `queued` can be cancelled
 
-### GET `/api/outputs`
+### GET `/api/images`
 List all generated images with metadata
 
-### GET `/api/outputs/<filename>`
+### GET `/api/images/<id>/file`
 Serve a generated image file
+
+### GET `/api/batches`
+List generation batches sourced from the database
+
+### GET `/api/batches/<slug>`
+Retrieve metadata and images for a specific batch
 
 ### GET `/api/health`
 Health check

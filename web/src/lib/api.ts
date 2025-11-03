@@ -149,10 +149,12 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
   const downloadUrl =
     toAbsoluteApiPath(image.download_url) ??
     toAbsoluteApiPath(image.path) ??
-    (image.relative_path ? `/api/outputs/${image.relative_path}` : undefined) ??
-    (image.filename ? `/api/outputs/${image.filename}` : undefined)
+    (image.id ? `/api/images/${image.id}/file` : undefined)
 
-  const thumbnailUrl = toAbsoluteApiPath(image.thumbnail_url) ?? downloadUrl
+  const thumbnailUrl =
+    toAbsoluteApiPath(image.thumbnail_url) ??
+    (image.id ? `/api/images/${image.id}/thumbnail` : undefined) ??
+    downloadUrl
 
   const created = image.created ?? image.created_at ?? undefined
 
@@ -389,26 +391,66 @@ export const api = {
     /**
      * Fetch all generated images
      */
-    async getAll(options: { signal?: AbortSignal; page?: number; perPage?: number } = {}): Promise<GeneratedImage[]> {
-      const { signal, page = 1, perPage = 60 } = options
-      const params = new URLSearchParams({
-        visibility: 'public',
-        page: String(page),
-        per_page: String(perPage),
-      })
 
-      try {
-        const response = await apiRequest(
-          `/api/images?${params.toString()}`,
-          schemas.PaginatedImagesResponseSchema,
-          { signal }
-        )
-        return response.images.map(normalizeGeneratedImage)
-      } catch (error) {
-        logger.warn('Falling back to legacy outputs API for images list', error as Error)
-        const legacyResponse = await apiRequest(getApiUrl('/outputs'), schemas.ImagesResponseSchema, { signal })
-        return legacyResponse.images.map(normalizeGeneratedImage)
-      }
+async getAll(options: { signal?: AbortSignal; page?: number; perPage?: number } = {}): Promise<GeneratedImage[]> {
+  const { signal, page = 1, perPage = 60 } = options
+  const params = new URLSearchParams({
+    visibility: 'public',
+    page: String(page),
+    per_page: String(perPage),
+  })
+
+  const response = await apiRequest(
+    `/api/images?${params.toString()}`,
+    schemas.PaginatedImagesResponseSchema,
+    { signal }
+  )
+  return response.images.map(normalizeGeneratedImage)
+},
+
+    /**
+     * Fetch image by ID
+     */
+    async getById(imageId: number, signal?: AbortSignal): Promise<GeneratedImage> {
+      const response = await apiRequest(
+        getApiUrl(`/images/${imageId}`),
+        schemas.GeneratedImageSchema,
+        { signal }
+      )
+      return normalizeGeneratedImage(response)
+    },
+
+    /**
+     * Update image metadata
+     */
+    async update(
+      imageId: number,
+      data: { prompt?: string; negative_prompt?: string },
+      signal?: AbortSignal
+    ): Promise<GeneratedImage> {
+      const response = await apiRequest(
+        getApiUrl(`/images/${imageId}`),
+        schemas.GeneratedImageSchema,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data),
+          signal,
+        }
+      )
+      return normalizeGeneratedImage(response)
+    },
+
+    /**
+     * Delete an image
+     */
+    async delete(imageId: number, signal?: AbortSignal): Promise<void> {
+      await fetch(getApiUrl(`/images/${imageId}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        signal,
+      })
     },
   },
 
@@ -420,17 +462,23 @@ export const api = {
     /**
      * Fetch all batch summaries
      */
-    async getAll(signal?: AbortSignal): Promise<BatchSummary[]> {
-      const response = await apiRequest(getApiUrl('/batches'), schemas.BatchesResponseSchema, { signal })
-      return response.batches || []
-    },
+
+async getAll(signal?: AbortSignal): Promise<BatchSummary[]> {
+  const response = await apiRequest(getApiUrl('/batches'), schemas.BatchesResponseSchema, { signal })
+  return response.batches ?? []
+},
 
     /**
      * Fetch batch details by ID
      */
-    async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string; image_count: number; images?: Array<{ filename: string; relative_path: string; created: string; metadata?: unknown }> }> {
-      return apiRequest(`/api/batches/${batchId}`, schemas.BatchDetailSchema, { signal })
-    },
+
+async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string; album_id: number; name: string; album_type?: string; image_count: number; created?: string | null; updated?: string | null; images?: GeneratedImage[] }> {
+  const response = await apiRequest(`/api/batches/${batchId}`, schemas.BatchDetailSchema, { signal })
+  return {
+    ...response,
+    images: response.images?.map(normalizeGeneratedImage),
+  }
+},
   },
 
   // ============================================
@@ -679,7 +727,7 @@ export const api = {
      * Fetch album by ID
      */
     async getById(
-      albumId: string,
+      albumId: string | number,
       includeLabels: boolean = false,
       signal?: AbortSignal
     ): Promise<Album> {
@@ -688,6 +736,27 @@ export const api = {
         credentials: 'include',
         signal,
       })
+    },
+
+    /**
+     * Update album metadata
+     */
+    async update(
+      albumId: string | number,
+      data: { name?: string; description?: string },
+      signal?: AbortSignal
+    ): Promise<Album> {
+      return apiRequest(
+        getApiUrl(`/albums/${albumId}`),
+        schemas.AlbumSchema,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data),
+          signal,
+        }
+      )
     },
 
     /**

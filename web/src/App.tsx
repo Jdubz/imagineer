@@ -23,6 +23,10 @@ const TrainingTab = lazy(() => import('./components/TrainingTab'))
 const LorasTab = lazy(() => import('./components/LorasTab'))
 const QueueTab = lazy(() => import('./components/QueueTab'))
 
+// Lazy load detail pages
+const AlbumDetailPage = lazy(() => import('./pages/AlbumDetailPage'))
+const ImageDetailPage = lazy(() => import('./pages/ImageDetailPage'))
+
 const AppContent: React.FC = () => {
   const location = useLocation()
   const { user, logout, setUser } = useAuth()
@@ -200,6 +204,22 @@ const AppContent: React.FC = () => {
                 element={
                   <ErrorBoundaryWithReporting boundaryName="LoRAs Tab">
                     <LorasTab />
+                  </ErrorBoundaryWithReporting>
+                }
+              />
+              <Route
+                path="/albums/:albumId"
+                element={
+                  <ErrorBoundaryWithReporting boundaryName="Album Detail">
+                    <AlbumDetailPage isAdmin={user?.role === 'admin'} />
+                  </ErrorBoundaryWithReporting>
+                }
+              />
+              <Route
+                path="/image/:imageId"
+                element={
+                  <ErrorBoundaryWithReporting boundaryName="Image Detail">
+                    <ImageDetailPage isAdmin={user?.role === 'admin'} />
                   </ErrorBoundaryWithReporting>
                 }
               />
