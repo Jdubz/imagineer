@@ -19,8 +19,13 @@ function toAbsolute(path?: string | null): string | undefined {
     return path
   }
 
+  // Use getApiUrl to handle production vs development URLs
+  if (path.startsWith('/api/')) {
+    return getApiUrl(path)
+  }
+
   if (path.startsWith('/')) {
-    return path
+    return getApiUrl(path)
   }
 
   // Use getApiUrl to properly construct the URL (handles both dev and production)
@@ -34,7 +39,7 @@ function resolveFallbackFull(image: GeneratedImage): string {
   }
 
   if (image.id) {
-    return `/api/images/${image.id}/file`
+    return getApiUrl(`/images/${image.id}/file`)
   }
 
   const pathUrl = toAbsolute(image.path)
@@ -49,7 +54,7 @@ function resolveFallbackFull(image: GeneratedImage): string {
     }
   }
 
-  return '/api/images'
+  return getApiUrl('/images')
 }
 
 function resolveThumbnail(image: GeneratedImage, full: string): string {
@@ -61,7 +66,7 @@ function resolveThumbnail(image: GeneratedImage, full: string): string {
   }
 
   if (image.id) {
-    return `/api/images/${image.id}/thumbnail`
+    return getApiUrl(`/images/${image.id}/thumbnail`)
   }
 
   return full
