@@ -2,7 +2,10 @@
   "your-email@example.com": {
     "role": "admin"
   },
-  "another-user@example.com": {
+  "another-admin@example.com": {
+    "role": "admin"
+  },
+  "viewer@example.com": {
     "role": null
   }
 }
