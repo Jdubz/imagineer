@@ -949,7 +949,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
     async submit(payload: BugReportOptions, screenshot?: string | null): Promise<BugReportSubmissionResponse> {
       const requestPayload = {
         ...payload,
-        screenshot: screenshot || undefined,
+        screenshot,
       }
 
       return apiRequest(getApiUrl('/bug-reports'), schemas.BugReportResponseSchema, {

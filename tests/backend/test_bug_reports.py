@@ -503,5 +503,5 @@ def test_submit_bug_report_with_screenshot_error(admin_client, monkeypatch, tmp_
     body = response.get_json()
 
     saved_report = json.loads(Path(body["stored_at"]).read_text())
-    # Screenshot error from client should be preserved
-    assert saved_report["screenshotError"] == "Failed to capture: User denied permission"
+    # Screenshot error from client should be preserved (as snake_case in JSON)
+    assert saved_report["screenshot_error"] == "Failed to capture: User denied permission"

@@ -171,7 +171,8 @@ def submit_bug_report():
         # Extract and save screenshot if provided
         screenshot_data = payload_raw.get("screenshot")
         screenshot_path = None
-        screenshot_error = None
+        server_screenshot_error = None
+        client_screenshot_error = payload_raw.get("screenshotError")
 
         if screenshot_data and isinstance(screenshot_data, str):
             try:
@@ -191,11 +192,14 @@ def submit_bug_report():
 
                 logger.info(f"Screenshot saved for report {report_id}")
             except Exception as e:
-                screenshot_error = str(e)
+                server_screenshot_error = str(e)
                 logger.warning(f"Failed to save screenshot for report {report_id}: {e}")
                 screenshot_path = None
 
-        # Add metadata to report (excluding raw screenshot data)
+        # Combine client and server screenshot errors
+        screenshot_error = client_screenshot_error or server_screenshot_error
+
+        # Add metadata to report (excluding raw screenshot data and client error)
         report = {
             "report_id": report_id,
             "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
@@ -205,7 +209,7 @@ def submit_bug_report():
             "status": "open",
             "screenshot_path": screenshot_path,
             "screenshot_error": screenshot_error,
-            **{k: v for k, v in payload.items() if k != "screenshot"},
+            **{k: v for k, v in payload.items() if k not in ("screenshot", "screenshotError")},
         }
 
         # Write to disk

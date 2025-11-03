@@ -446,8 +446,7 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
           screenshotToSubmit = annotatedScreenshot || screenshot
           if (screenshotError) {
             // Record screenshot failure in the payload
-            const payloadWithError = payload as typeof payload & { screenshotError?: string }
-            payloadWithError.screenshotError = screenshotError
+            payload.screenshotError = screenshotError
           }
         }
 
