@@ -406,7 +406,6 @@ export const api = {
         getApiUrl(`/images?${params.toString()}`),
         schemas.PaginatedImagesResponseSchema,
         {
-          credentials: 'include',
           signal,
         }
       )
