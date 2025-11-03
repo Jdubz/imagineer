@@ -32,7 +32,9 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
     isort==5.13.2 \
-    pyyaml==6.0.2
+    pyyaml==6.0.2 \
+    safetensors==0.4.3 \
+    python-dotenv==1.0.1
 
 # Prepare shared node_modules cache (used by remediation bootstrap)
 RUN mkdir -p /opt/imagineer/node_modules && \
