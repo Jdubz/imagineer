@@ -150,9 +150,7 @@ push_changes() {
     log "Git push failed for remediation branch. Check credentials or remote configuration."
     return 1
   fi
-  local sha
-  sha=$(git rev-parse HEAD)
-  printf '%s\n' "${sha}"
+  git rev-parse HEAD
 }
 
 # -----------------------------------------------------------------------------
@@ -165,8 +163,7 @@ run_step "Prepare remediation branch" checkout_branch
 run_step "Display workspace status" git -C "${WORKSPACE_DIR}" status
 run_step "Execute Claude automation" maybe_run_claude
 run_step "Run verification suite" run_tests
-run_step "Commit and push changes" push_changes
-COMMIT_SHA="$(git -C "${WORKSPACE_DIR}" rev-parse HEAD 2>/dev/null || true)"
+COMMIT_SHA="$(run_step "Commit and push changes" push_changes)"
 if [[ -z "${COMMIT_SHA}" ]]; then
   log "Failed to determine remediation commit SHA."
   fail_summary "Unable to determine remediation commit SHA"
