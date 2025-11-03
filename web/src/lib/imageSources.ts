@@ -19,7 +19,7 @@ function toAbsolute(path?: string | null): string | undefined {
     return path
   }
 
-  // Use getApiUrl to handle production vs development URLs
+  // Use getApiUrl to handle development vs production URLs
   if (path.startsWith('/api/')) {
     return getApiUrl(path)
   }
