@@ -1,6 +1,5 @@
 import { Component, ReactNode, ErrorInfo } from 'react'
 import { logger } from '../lib/logger'
-import '../styles/ErrorBoundary.css'
 import { Button } from '@/components/ui/button'
 import { RotateCw, RefreshCw, Home, Bug } from 'lucide-react'
 

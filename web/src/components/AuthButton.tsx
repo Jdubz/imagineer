@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { getApiUrl } from '../lib/apiConfig'
 import type { AuthStatus } from '../types/shared'
-import '../styles/AuthButton.css'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -284,8 +283,8 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
   return (
     <>
-      <div className="auth-button-container">
-        <div className="auth-actions">
+      <div className="flex flex-col items-end gap-1.5">
+        <div className="flex items-center gap-2">
           <Button type="button" onClick={handleLogin} variant="default">
             {primaryLabel}
           </Button>
@@ -296,7 +295,11 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
             </Button>
           )}
         </div>
-        {error && <div className="auth-error">{error}</div>}
+        {error && (
+          <div className="text-xs text-destructive text-right max-w-[260px]">
+            {error}
+          </div>
+        )}
       </div>
 
       <Dialog open={isAuthModalOpen} onOpenChange={(open) => !open && closeAuthWindow('cancelled')}>

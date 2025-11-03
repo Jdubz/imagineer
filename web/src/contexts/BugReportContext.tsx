@@ -19,7 +19,17 @@ import type {
   NetworkEventSnapshot,
 } from '../types/bugReport'
 import { api } from '../lib/api'
-import '../styles/BugReport.css'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 
 type CollectorResult =
   | Record<string, unknown>
@@ -462,58 +472,56 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
   }
 
   return (
-    <div className="bug-report-backdrop" role="presentation">
-      <div
-        className="bug-report-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bug-report-title"
-      >
-        <form onSubmit={handleSubmit} className="bug-report-form">
-          <header className="bug-report-header">
-            <h2 id="bug-report-title">Report a Bug</h2>
-            <p>
-              We’ll automatically attach the latest {networkEventCount} network requests and{' '}
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-[620px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Report a Bug</DialogTitle>
+            <DialogDescription className="text-base leading-relaxed">
+              We'll automatically attach the latest {networkEventCount} network requests and{' '}
               {recentLogCount} log entries to help with troubleshooting.
-            </p>
-          </header>
+            </DialogDescription>
+          </DialogHeader>
 
-          <label className="bug-report-label" htmlFor="bug-report-description">
-            What went wrong?
-          </label>
-          <textarea
-            id="bug-report-description"
-            className="bug-report-textarea"
-            placeholder="Tell us what you were trying to do and what happened."
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            minLength={10}
-            maxLength={4000}
-            disabled={isSubmitting}
-            required
-          />
-          {error ? <p className="bug-report-error">{error}</p> : null}
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bug-report-description" className="font-semibold">
+                What went wrong?
+              </Label>
+              <Textarea
+                id="bug-report-description"
+                placeholder="Tell us what you were trying to do and what happened."
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                minLength={10}
+                maxLength={4000}
+                disabled={isSubmitting}
+                required
+                className="min-h-[160px] resize-y"
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
+          </div>
 
-          <div className="bug-report-actions">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
-              className="bug-report-button bug-report-button--secondary"
+              variant="outline"
               onClick={onClose}
               disabled={isSubmitting}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="bug-report-button bug-report-button--primary"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Saving…' : 'Submit Report'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -1,18 +1,57 @@
 FROM node:20-slim
 
-# Install Claude CLI
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    git \
+    curl \
+    ca-certificates \
+    openssh-client \
+    rsync \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create working directory and set permissions
-# node:20-slim already has 'node' user with UID 1000
-WORKDIR /workspace
-RUN chown node:node /workspace
+# Install Python development tools
+RUN pip3 install --no-cache-dir --break-system-packages \
+    black==24.10.0 \
+    flake8==7.1.1 \
+    pytest==8.3.4 \
+    pytest-cov==6.0.0 \
+    isort==5.13.2
 
-# Switch to non-root user
+# node:20-slim already has 'node' user with UID 1000, use it as worker
+# Create working directories
+RUN mkdir -p /workspace/repo /workspace/context /workspace/artifacts /workspace/logs \
+    && chown -R node:node /workspace
+
+# Set up SSH directory for node user
+RUN mkdir -p /home/node/.ssh \
+    && chown -R node:node /home/node/.ssh \
+    && chmod 700 /home/node/.ssh
+
+# Configure Git to use SSH
+RUN git config --system core.sshCommand "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+WORKDIR /workspace
+
+# Switch to node user (acts as worker)
 USER node
 
 # Health check
-HEALTHCHECK CMD claude --version || exit 1
+HEALTHCHECK CMD claude --version && python3 --version && git --version && gh --version || exit 1
 
-# Default command shows version
-CMD ["claude", "--version"]
+# Default command (will be overridden by agent_runner.py at runtime)
+CMD ["/bin/bash"]

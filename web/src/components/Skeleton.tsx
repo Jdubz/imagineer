@@ -1,5 +1,6 @@
 import React from 'react'
-import '../styles/Skeleton.css'
+import { Skeleton as ShadcnSkeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface SkeletonProps {
   variant?: 'text' | 'rectangular' | 'circular' | 'image-card'
@@ -25,10 +26,17 @@ const Skeleton: React.FC<SkeletonProps> = ({
     height: typeof height === 'number' ? `${height}px` : height,
   }
 
+  const variantClasses = {
+    text: 'h-4 mb-2 rounded',
+    rectangular: 'rounded-lg',
+    circular: 'rounded-full',
+    'image-card': 'aspect-square',
+  }
+
   const skeletonElement = (index: number) => (
-    <div
+    <ShadcnSkeleton
       key={index}
-      className={`skeleton skeleton-${variant} ${className}`}
+      className={cn(variantClasses[variant], className)}
       style={style}
       aria-label="Loading content"
       role="status"
@@ -50,9 +58,9 @@ const Skeleton: React.FC<SkeletonProps> = ({
  * Pre-configured skeleton for image grid cards
  */
 export const SkeletonImageCard: React.FC = () => (
-  <div className="skeleton-image-card">
+  <div className="bg-card border border-border rounded-lg overflow-hidden p-0">
     <Skeleton variant="rectangular" width="100%" height="200px" />
-    <div className="skeleton-image-card-text">
+    <div className="p-4 flex flex-col gap-2">
       <Skeleton variant="text" width="90%" />
       <Skeleton variant="text" width="60%" />
     </div>
@@ -63,9 +71,9 @@ export const SkeletonImageCard: React.FC = () => (
  * Pre-configured skeleton for batch list items
  */
 export const SkeletonBatchItem: React.FC = () => (
-  <div className="skeleton-batch-item">
+  <div className="flex gap-4 p-4 bg-card border border-border rounded-lg mb-2">
     <Skeleton variant="rectangular" width="80px" height="80px" />
-    <div className="skeleton-batch-item-content">
+    <div className="flex-1 flex flex-col gap-2">
       <Skeleton variant="text" width="200px" />
       <Skeleton variant="text" width="150px" />
       <Skeleton variant="text" width="100px" />

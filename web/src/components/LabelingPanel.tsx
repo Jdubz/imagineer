@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { logger } from '../lib/logger'
-import '../styles/LabelingPanel.css'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
 import { Tag } from 'lucide-react'
 
 type Identifier = number | string
@@ -199,7 +200,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
   if (variant === 'compact') {
     return (
-      <div className="labeling-panel compact">
+      <div className="absolute left-2 bottom-2">
         <Button
           variant="secondary"
           size="sm"
@@ -210,19 +211,21 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
           <Tag className="h-3 w-3 mr-1" />
           {isRunning ? 'Labeling…' : 'Label image'}
         </Button>
-        {statusMessage && <p className="status-text">{statusMessage}</p>}
+        {statusMessage && (
+          <p className="text-xs text-muted-foreground mt-1">{statusMessage}</p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="labeling-panel">
-      <h3>🏷️ AI Labeling</h3>
-      <p className="help-text">
+    <div className="bg-muted border border-border rounded-lg p-4 mt-4 max-w-[420px]">
+      <h3 className="m-0 mb-2 text-foreground text-lg">🏷️ AI Labeling</h3>
+      <p className="m-0 text-muted-foreground text-sm">
         Trigger Claude to caption, tag, and classify {targetLabel}.
       </p>
 
-      <div className="labeling-actions">
+      <div className="flex items-center gap-3 mt-4 flex-wrap">
         <Button
           onClick={() => void startLabeling()}
           disabled={isRunning}
@@ -231,17 +234,17 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
           {isRunning ? 'Labeling…' : 'Start Labeling'}
         </Button>
         {taskId && (
-          <span className="task-id" aria-live="polite">
+          <Badge variant="secondary" className="font-mono text-xs" aria-live="polite">
             Task ID: {taskId}
-          </span>
+          </Badge>
         )}
       </div>
 
-      <div className="labeling-progress">
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-        {statusMessage && <p className="status-text">{statusMessage}</p>}
+      <div className="mt-4">
+        <Progress value={progress} className="w-full h-2.5" />
+        {statusMessage && (
+          <p className="mt-2 m-0 text-foreground text-sm">{statusMessage}</p>
+        )}
       </div>
     </div>
   )

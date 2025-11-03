@@ -1,7 +1,8 @@
 import { useCallback, memo } from 'react'
 import type { GeneratedImage, NsfwPreference } from '../../types/models'
 import { resolveImageSources, preloadImage } from '../../lib/imageSources'
-import '../../styles/ImageCard.css'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 export interface ImageCardProps {
   /**
@@ -113,10 +114,13 @@ const ImageCard = memo<ImageCardProps>(({
 
   return (
     <div
-      className={`image-card ${isNsfw ? 'nsfw' : ''} ${shouldBlur ? 'nsfw-blurred' : ''} ${className}`}
+      className={cn(
+        'relative overflow-hidden rounded-lg border border-border shadow-sm transition-all hover:scale-[1.02] hover:shadow-md',
+        className
+      )}
       onMouseEnter={handlePreload}
     >
-      <picture className="image-picture">
+      <picture className="block w-full">
         {thumbnail.endsWith('.webp') && <source srcSet={srcSet} type="image/webp" />}
         <img
           src={thumbnail}
@@ -126,36 +130,53 @@ const ImageCard = memo<ImageCardProps>(({
           loading="lazy"
           decoding="async"
           onClick={handleClick}
-          className={`image-thumbnail ${onImageClick ? 'clickable' : ''} ${shouldBlur ? 'blurred' : ''}`}
+          className={cn(
+            'h-[250px] w-full bg-gradient-to-br from-muted to-border object-cover transition-all md:h-[200px]',
+            onImageClick && 'cursor-pointer hover:opacity-90',
+            shouldBlur && 'blur-[14px]'
+          )}
         />
       </picture>
 
       {/* Blur overlay */}
       {shouldBlur && (
-        <div className="nsfw-blur-overlay" aria-label="NSFW content blurred">
-          <span className="nsfw-blur-label">Blurred</span>
+        <div
+          className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center bg-gradient-to-br from-black/45 to-black/60 text-white"
+          aria-label="NSFW content blurred"
+        >
+          <span className="rounded-full border border-white/40 bg-black/50 px-3 py-1.5 text-sm font-semibold uppercase tracking-wide">
+            Blurred
+          </span>
         </div>
       )}
 
       {/* NSFW Badge */}
       {isNsfw && showNsfwBadge && (
-        <div className="nsfw-badge" aria-label="NSFW content">
+        <Badge
+          variant="destructive"
+          className="absolute right-2 top-2 z-[2] px-1.5 py-0.5 text-[0.7rem] font-bold shadow-md"
+          aria-label="NSFW content"
+        >
           18+
-        </div>
+        </Badge>
       )}
 
       {/* Label Badge */}
       {hasLabels && showLabelBadge && (
-        <div className="label-badge" aria-label={`${labelCount} labels`} title={`${labelCount} label(s)`}>
+        <Badge
+          className="absolute bottom-2 right-2 z-[2] flex items-center gap-1 bg-foreground/70 px-1.5 py-0.5 text-[0.7rem] text-background shadow-md"
+          aria-label={`${labelCount} labels`}
+          title={`${labelCount} label(s)`}
+        >
           🏷️
-          {labelCount > 1 && <span className="label-count">{labelCount}</span>}
-        </div>
+          {labelCount > 1 && <span className="text-[0.65rem] font-bold">{labelCount}</span>}
+        </Badge>
       )}
 
       {/* Prompt (optional) */}
       {showPrompt && image.metadata?.prompt && (
-        <div className="image-prompt">
-          <p>
+        <div className="bg-background p-2 text-xs leading-snug text-muted-foreground">
+          <p className="overflow-hidden text-ellipsis whitespace-nowrap">
             {image.metadata.prompt.length > 50
               ? `${image.metadata.prompt.substring(0, 50)}...`
               : image.metadata.prompt}

@@ -11,7 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import '../styles/ImageCard.css'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
+import Spinner from './Spinner'
 
 interface BatchData {
   batch_id: string
@@ -32,35 +34,6 @@ interface BatchGalleryProps {
 const isGeneratedImageNsfw = (image: GeneratedImage): boolean =>
   image.is_nsfw === true ||
   (image.metadata as { is_nsfw?: boolean } | undefined)?.is_nsfw === true
-
-const renderFooter = (image: GeneratedImage) => {
-  const prompt = image.metadata?.prompt ?? ''
-  const hasPrompt = prompt.length > 0
-  const truncatedPrompt = hasPrompt && prompt.length > 60 ? `${prompt.substring(0, 60)}...` : prompt
-  const steps = image.metadata?.steps
-  const seed = image.metadata?.seed
-  const hasMeta = steps != null || seed != null
-
-  if (!hasPrompt && !hasMeta) {
-    return null
-  }
-
-  return (
-    <div className="gallery-card-footer">
-      {hasPrompt && (
-        <p className="gallery-card-prompt" title={prompt}>
-          {truncatedPrompt}
-        </p>
-      )}
-      {hasMeta && (
-        <div className="gallery-card-meta">
-          {steps != null && <span>Steps: {steps}</span>}
-          {seed != null && <span>Seed: {seed}</span>}
-        </div>
-      )}
-    </div>
-  )
-}
 
 const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
@@ -110,33 +83,40 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
 
   if (loading) {
     return (
-      <div className="batch-gallery">
-        <div className="loading-indicator" role="status" aria-live="polite" aria-atomic="true">
-          <div className="spinner"></div>
-          <p>Loading batch...</p>
-        </div>
+      <div className="w-full">
+        <Spinner size="large" message="Loading batch..." />
       </div>
     )
   }
 
   if (!batch) {
     return (
-      <div className="batch-gallery">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
-        <p>Batch not found</p>
+      <div className="space-y-6">
+        <Button onClick={onBack} variant="ghost" size="sm">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Gallery
+        </Button>
+        <p className="text-center text-muted-foreground">Batch not found</p>
       </div>
     )
   }
 
   return (
-    <div className="batch-gallery">
-      <div className="batch-header">
-        <button onClick={onBack} className="back-button">← Back to Gallery</button>
-        <h2>{batch.name}</h2>
-        <p className="batch-info">{batch.image_count} images · ID: {batch.batch_id}</p>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <Button onClick={onBack} variant="ghost" size="sm">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Gallery
+        </Button>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">{batch.name}</h2>
+          <p className="text-sm text-muted-foreground">
+            {batch.image_count} images · ID: {batch.batch_id}
+          </p>
+        </div>
       </div>
 
-      <div className="image-grid">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {batch.images && batch.images.length > 0 ? (
           batch.images.map((image, index) => {
             const imageKey = image.id ? String(image.id) : image.filename ?? String(index)
@@ -146,9 +126,15 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
             }
 
             const labelCount = image.labels?.length ?? 0
+            const prompt = image.metadata?.prompt ?? ''
+            const hasPrompt = prompt.length > 0
+            const truncatedPrompt = hasPrompt && prompt.length > 60 ? `${prompt.substring(0, 60)}...` : prompt
+            const steps = image.metadata?.steps
+            const seed = image.metadata?.seed
+            const hasMeta = steps != null || seed != null
 
             return (
-              <div key={imageKey} className="gallery-grid-item">
+              <div key={imageKey} className="space-y-2">
                 <ImageCard
                   image={image}
                   nsfwPreference={nsfwPreference}
@@ -157,17 +143,33 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
                   labelCount={labelCount}
                   showLabelBadge={labelCount > 0}
                 />
-                {renderFooter(image)}
+                {(hasPrompt || hasMeta) && (
+                  <div className="space-y-1 rounded-md border border-border bg-card p-3 text-xs">
+                    {hasPrompt && (
+                      <p className="text-muted-foreground" title={prompt}>
+                        {truncatedPrompt}
+                      </p>
+                    )}
+                    {hasMeta && (
+                      <div className="flex flex-wrap gap-3 text-muted-foreground">
+                        {steps != null && <span>Steps: {steps}</span>}
+                        {seed != null && <span>Seed: {seed}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
         ) : (
-          <p>No images in this batch yet</p>
+          <p className="col-span-full py-12 text-center text-muted-foreground">
+            No images in this batch yet
+          </p>
         )}
       </div>
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Image Details</DialogTitle>
           </DialogHeader>
