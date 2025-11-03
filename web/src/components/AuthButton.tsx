@@ -47,6 +47,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
   const popupTimerRef = useRef<number | null>(null)
   const pollCountRef = useRef(0)
   const authCheckInFlightRef = useRef(false)
+  const coopAccessWarningRef = useRef(false)
 
   const clearPopupTimer = useCallback((): void => {
     if (popupTimerRef.current != null) {
@@ -56,6 +57,24 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
     pollCountRef.current = 0
   }, [])
 
+  const isPopupClosed = useCallback(
+    (popup: Window | null | undefined): boolean => {
+      if (!popup) {
+        return true
+      }
+      try {
+        return popup.closed ?? false
+      } catch (err) {
+        if (!coopAccessWarningRef.current) {
+          logger.warn?.('Unable to inspect OAuth popup window', err)
+          coopAccessWarningRef.current = true
+        }
+        return true
+      }
+    },
+    [],
+  )
+
   const closeAuthWindow = useCallback(
     (reason?: 'success' | 'closed' | 'cancelled'): void => {
       clearPopupTimer()
@@ -63,9 +82,9 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
       const popupWindow = popupRef.current
       popupRef.current = null
 
-      if (popupWindow && !popupWindow.closed) {
+      if (!isPopupClosed(popupWindow)) {
         try {
-          popupWindow.close()
+          popupWindow?.close()
         } catch (err) {
           logger.warn?.('Unable to close OAuth popup', err)
         }
@@ -77,7 +96,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
         setError('Login was cancelled. You can try again when you are ready.')
       }
     },
-    [clearPopupTimer],
+    [clearPopupTimer, isPopupClosed],
   )
 
   const checkAuth = useCallback(async (): Promise<void> => {
@@ -198,6 +217,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
   const handleLogin = (): void => {
     closeAuthWindow()
+    coopAccessWarningRef.current = false
 
     const sanitizedState = buildLoginState(window.location)
 
@@ -218,7 +238,7 @@ const AuthButton: React.FC<AuthButtonProps> = ({ onAuthChange }) => {
 
       popupTimerRef.current = window.setInterval(() => {
         const activePopup = popupRef.current
-        if (!activePopup || activePopup.closed) {
+        if (isPopupClosed(activePopup)) {
           closeAuthWindow('closed')
           void checkAuth()
           return
