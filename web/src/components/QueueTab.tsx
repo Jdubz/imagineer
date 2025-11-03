@@ -66,7 +66,6 @@ const QueueTab: React.FC = memo(() => {
     try {
       const data = await api.jobs.getAll()
       setAuthError(false)
-      lastErrorToastRef.current = null
       setLastErrorMessage(null)
       return data
     } catch (error) {

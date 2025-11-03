@@ -10,7 +10,7 @@ def test_ensure_default_set_templates_creates_records(app):
     with app.app_context():
         summary = ensure_default_set_templates(app)
 
-        assert set(summary["created"]) | set(summary["updated"])
+        assert summary["created"] or summary["updated"]
 
         templates = Album.query.filter(Album.is_set_template.is_(True)).order_by(Album.name).all()
         names = [album.name for album in templates]

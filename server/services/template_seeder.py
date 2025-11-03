@@ -71,7 +71,7 @@ class TemplateDefinition:
             payload["height"] = height
         if isinstance(negative_prompt, str) and negative_prompt.strip():
             payload["negative_prompt"] = negative_prompt.strip()
-        return payload
+        return {key: value for key, value in payload.items() if value is not None}
 
     @property
     def lora_payload(self) -> str | None:
@@ -222,6 +222,12 @@ def ensure_default_set_templates(app=None) -> dict[str, list[str]]:
                 db.session.add(album)
                 created.append(definition.name)
 
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
         details = json.dumps(
             {
                 "created": created,
@@ -230,8 +236,9 @@ def ensure_default_set_templates(app=None) -> dict[str, list[str]]:
             },
             sort_keys=True,
         )
-        MigrationHistory.ensure_record(MIGRATION_NAME, details=details, refresh_timestamp=True)
+
         try:
+            MigrationHistory.ensure_record(MIGRATION_NAME, details=details, refresh_timestamp=True)
             db.session.commit()
         except Exception:
             db.session.rollback()
