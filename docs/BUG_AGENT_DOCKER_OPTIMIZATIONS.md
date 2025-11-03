@@ -34,6 +34,8 @@ RUN apt-get update && apt-get install -y \
 | Problem observed | Suggested fix |
 | ---------------- | ------------- |
 | `ModuleNotFoundError: No module named 'yaml'` when running `scripts/test_trigger_words.py`. | Install `pyyaml` globally (either via `apt-get install python3-yaml` or `pip install pyyaml`).  Keeping it in the image avoids every run from failing before tests finish. |
+| `ModuleNotFoundError: No module named 'safetensors'` when running `scripts/test_trigger_words.py`. | Install `safetensors` globally via pip so pytest can import `clean_loras.py` helpers. |
+| `ModuleNotFoundError: No module named 'dotenv'` when importing `server.api` during backend tests. | Install `python-dotenv` globally via pip. |
 | Pre-commit hook attempts to `source venv/bin/activate`, but remediation containers deliberately skip virtualenvs. | Installing dependencies system-wide keeps the hook harmless—ensure the hook doesn’t require activation, or drop a stub `venv/bin/activate` script if needed. |
 
 ```dockerfile
@@ -43,7 +45,9 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
     isort==5.13.2 \
-    pyyaml==6.0.2   # ← new
+    pyyaml==6.0.2 \
+    safetensors==0.4.3 \
+    python-dotenv==1.0.1
 ```
 
 If tighter control of system packages is preferred, swap the `pip` line for:

@@ -45,13 +45,13 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       setEditedDescription(albumData.description || '')
 
       // Album API returns images as part of the album response
-      const albumWithImages = albumData as Album & { images?: GeneratedImage[] }
-      if (albumWithImages.images) {
-        setImages(albumWithImages.images)
+      if (albumData.images) {
+        setImages(albumData.images)
       }
     } catch (error) {
       logger.error('Failed to fetch album details:', error)
       showErrorToast({
+        title: 'Album Load Failed',
         context: 'Failed to load album details',
         error,
       })

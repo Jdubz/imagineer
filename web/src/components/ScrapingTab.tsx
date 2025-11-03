@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/card'
 import { Plus, StopCircle, Trash2, X } from 'lucide-react'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { api, ApiError } from '@/lib/api'
-import { formatErrorMessage } from '@/lib/errorUtils'
 import { clampPercent, formatGigabytes, getJobStatusColor } from '@/lib/adminJobs'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +36,7 @@ interface ScrapingTabProps {
 
 const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const [scrapeJobs, setScrapeJobs] = useState<ScrapingJob[]>([])
   const [showStartDialog, setShowStartDialog] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
@@ -55,16 +56,15 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         return
       }
 
-      const message = formatErrorMessage(err, 'Error fetching scrape jobs')
-      setError(message)
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load scrape jobs',
-        description: message,
+      setError('Error fetching scrape jobs')
+      showErrorToast({
+        title: 'Job Load Failed',
+        context: 'Failed to load scrape jobs',
+        error: err,
       })
       logger.error('Error fetching jobs:', err)
     }
-  }, [isAdmin, toast])
+  }, [isAdmin, showErrorToast])
 
   const fetchStats = useCallback(async (): Promise<void> => {
     if (!isAdmin) return
@@ -78,16 +78,15 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         return
       }
 
-      const message = formatErrorMessage(err, 'Error fetching scrape stats')
-      setError((prev) => prev ?? message)
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load scraping metrics',
-        description: message,
+      setError((prev) => prev ?? 'Error fetching scrape stats')
+      showErrorToast({
+        title: 'Stats Load Failed',
+        context: 'Failed to load scraping metrics',
+        error: err,
       })
       logger.error('Error fetching stats:', err)
     }
-  }, [isAdmin, toast])
+  }, [isAdmin, showErrorToast])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -139,12 +138,11 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
       await Promise.all([fetchJobs(), fetchStats()])
       setShowStartDialog(false)
     } catch (err) {
-      const message = formatErrorMessage(err, 'Failed to start scrape job')
-      setError(message)
-      toast({
-        variant: 'destructive',
-        title: 'Failed to start scrape job',
-        description: message,
+      setError('Failed to start scrape job')
+      showErrorToast({
+        title: 'Job Start Failed',
+        context: 'Failed to start scrape job',
+        error: err,
       })
       logger.error('Error starting scrape:', err)
     } finally {
@@ -162,12 +160,11 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         description: 'The job was cancelled successfully.',
       })
     } catch (err) {
-      const message = formatErrorMessage(err, 'Failed to cancel job')
-      setError((prev) => prev ?? message)
-      toast({
-        variant: 'destructive',
-        title: 'Failed to cancel job',
-        description: message,
+      setError((prev) => prev ?? 'Failed to cancel job')
+      showErrorToast({
+        title: 'Job Cancel Failed',
+        context: 'Failed to cancel job',
+        error: err,
       })
       logger.error('Error cancelling job:', err)
     }
@@ -183,12 +180,11 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         description: 'Outputs removed from the worker host.',
       })
     } catch (err) {
-      const message = formatErrorMessage(err, 'Failed to clean up job')
-      setError((prev) => prev ?? message)
-      toast({
-        variant: 'destructive',
-        title: 'Failed to clean up job',
-        description: message,
+      setError((prev) => prev ?? 'Failed to clean up job')
+      showErrorToast({
+        title: 'Job Cleanup Failed',
+        context: 'Failed to clean up job',
+        error: err,
       })
       logger.error('Error cleaning up job:', err)
     }

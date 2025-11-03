@@ -339,6 +339,12 @@ export const AlbumSchema = z.object({
   cover_image: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string(),
+  images: z.array(z.lazy(() => GeneratedImageSchema)).optional(),
+  album_type: z.string().optional(),
+  is_set_template: z.boolean().optional(),
+  template_item_count: z.number().optional(),
+  example_theme: z.string().optional(),
+  base_prompt: z.string().optional(),
 })
 
 export const LabelAnalyticsSchema = z.object({

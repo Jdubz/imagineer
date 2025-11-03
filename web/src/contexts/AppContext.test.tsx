@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import React, { act } from 'react'
+import React from 'react'
 import { AppProvider, useApp } from './AppContext'
 
 const mockRegisterCollector = vi.hoisted(() => vi.fn(() => vi.fn()))
@@ -98,14 +98,14 @@ describe('AppContext NSFW preference', () => {
 
     await renderPreferenceProbe()
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /make blur/i }))
-    })
+    const button = screen.getByRole('button', { name: /make blur/i })
+    await user.click(button)
 
+    // Wait for both the UI update and localStorage write
     await waitFor(() => {
+      expect(screen.getByTestId('nsfw-pref').textContent).toBe('blur')
       expect(localStorage.getItem(NSFW_STORAGE_KEY)).toBe('blur')
     })
-    expect(screen.getByTestId('nsfw-pref').textContent).toBe('blur')
   })
 
   it('initialises from a stored preference value', async () => {

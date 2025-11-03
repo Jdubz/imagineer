@@ -151,6 +151,8 @@ export interface Album {
   slug?: string
   generation_prompt?: string | null
   generation_config?: string | null
+  // Images array (populated when fetching album details)
+  images?: GeneratedImage[]
 }
 
 export interface Label {

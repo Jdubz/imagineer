@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
 import type { Config } from '../types/models'
 import { api } from '../lib/api'
+import { BugReportProvider } from '../contexts/BugReportContext'
 
 describe('GenerateForm', () => {
   const mockOnGenerate = vi.fn()
@@ -16,13 +17,15 @@ describe('GenerateForm', () => {
 
   const renderForm = (overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {}) =>
     render(
-      <GenerateForm
-        onGenerate={mockOnGenerate}
-        loading={false}
-        config={(mockConfig as Config) ?? null}
-        isAdmin={false}
-        {...overrides}
-      />,
+      <BugReportProvider>
+        <GenerateForm
+          onGenerate={mockOnGenerate}
+          loading={false}
+          config={(mockConfig as Config) ?? null}
+          isAdmin={false}
+          {...overrides}
+        />
+      </BugReportProvider>,
     )
 
   beforeEach(() => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AlbumsTab from './AlbumsTab'
+import { BugReportProvider } from '../contexts/BugReportContext'
 
 describe('AlbumsTab admin listing', () => {
   const originalFetch = globalThis.fetch
@@ -27,7 +28,7 @@ describe('AlbumsTab admin listing', () => {
       updated_at: '2025-10-20T12:00:00Z',
       images: [
         {
-          id: '100',
+          id: 100,
           filename: 'cover.png',
           is_nsfw: false,
         },
@@ -53,9 +54,11 @@ describe('AlbumsTab admin listing', () => {
     })
 
     render(
-      <MemoryRouter>
-        <AlbumsTab isAdmin />
-      </MemoryRouter>
+      <BugReportProvider>
+        <MemoryRouter>
+          <AlbumsTab isAdmin />
+        </MemoryRouter>
+      </BugReportProvider>
     )
 
     const albumLink = await screen.findByRole('link', { name: /sample album/i })
@@ -74,9 +77,11 @@ describe('AlbumsTab admin listing', () => {
     })
 
     render(
-      <MemoryRouter>
-        <AlbumsTab isAdmin={false} />
-      </MemoryRouter>
+      <BugReportProvider>
+        <MemoryRouter>
+          <AlbumsTab isAdmin={false} />
+        </MemoryRouter>
+      </BugReportProvider>
     )
 
     expect(await screen.findByText(/sample album/i)).toBeInTheDocument()

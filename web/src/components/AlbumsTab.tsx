@@ -17,9 +17,9 @@ import { logger } from '../lib/logger'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
+import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import { formatErrorMessage } from '../lib/errorUtils'
 import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
 import { cn } from '@/lib/utils'
 import {
@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 interface AlbumImage {
-  id: number
+  id?: number
   filename: string
   thumbnail_path?: string | null
   is_nsfw?: boolean
@@ -98,6 +98,7 @@ type AlbumFilter = 'all' | 'sets' | 'regular'
 
 const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
@@ -238,14 +239,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
         fetchAlbums()
         setShowCreateDialog(false)
       } else {
-        toast({ title: 'Error', description: 'Failed to create album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
+        showErrorToast({
+          title: 'Album Creation Failed',
+          context: 'Failed to create album',
+          error: new Error(result.error ?? 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to create album:', error)
-      const errorMessage = formatErrorMessage(error, 'Error creating album')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Album Creation Error',
+        context: 'Error creating album',
+        error,
+      })
     }
-  }, [isAdmin, toast, fetchAlbums])
+  }, [isAdmin, toast, showErrorToast, fetchAlbums])
 
   const deleteAlbum = useCallback((albumId: string): void => {
     if (!isAdmin) return
@@ -266,16 +274,23 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           setAlbumAnalytics(null)
         }
       } else {
-        toast({ title: 'Error', description: 'Failed to delete album: ' + (result.error ?? 'Unknown error'), variant: 'destructive' })
+        showErrorToast({
+          title: 'Album Deletion Failed',
+          context: 'Failed to delete album',
+          error: new Error(result.error ?? 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to delete album:', error)
-      const errorMessage = formatErrorMessage(error, 'Error deleting album')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Album Deletion Error',
+        context: 'Error deleting album',
+        error,
+      })
     } finally {
       setDeleteConfirmAlbum(null)
     }
-  }, [deleteConfirmAlbum, toast, fetchAlbums, selectedAlbum])
+  }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
     event.stopPropagation()
@@ -665,37 +680,39 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
       </div>
 
       <div className="album-images-grid">
-        {images.map((image) => {
+        {images.filter((image) => image.id !== undefined).map((image) => {
+          // At this point, TypeScript knows image.id is defined due to the filter
+          const imageId = image.id!
           const labels = image.labels ?? []
-          const imageKey = String(image.id)
-          const inputValue = labelInputs[image.id] ?? ''
+          const imageKey = String(imageId)
+          const inputValue = labelInputs[imageId] ?? ''
           const activeEdit =
-            editingLabel && editingLabel.imageId === image.id ? editingLabel : null
+            editingLabel && editingLabel.imageId === imageId ? editingLabel : null
 
           // Skip rendering if NSFW and hide filter is active
           if (nsfwSetting === 'hide' && image.is_nsfw) {
             return null
           }
 
-          const handleImageClick = () => isAdmin && actions.toggleImageSelection(image.id)
-          const handleToggleSelection = () => actions.toggleImageSelection(image.id)
+          const handleImageClick = () => isAdmin && actions.toggleImageSelection(imageId)
+          const handleToggleSelection = () => actions.toggleImageSelection(imageId)
           const handleAddLabelSubmit = (event: React.FormEvent<HTMLFormElement>) => {
             event.preventDefault()
-            void actions.addLabel(image.id)
+            void actions.addLabel(imageId)
           }
           const handleUpdateLabelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-            actions.updateLabelInput(image.id, e.target.value)
+            actions.updateLabelInput(imageId, e.target.value)
           }
           const generatedImage: GeneratedImage = {
-            id: image.id,
+            id: imageId,
             filename: image.filename,
-            thumbnail_url: `/api/images/${image.id}/thumbnail`,
-            download_url: `/api/images/${image.id}/file`,
+            thumbnail_url: `/api/images/${imageId}/thumbnail`,
+            download_url: `/api/images/${imageId}/file`,
             is_nsfw: image.is_nsfw,
           }
 
           return (
-            <div key={image.id} className="album-image-container" onClick={handleImageClick}>
+            <div key={imageId} className="album-image-container" onClick={handleImageClick}>
               {isAdmin && (
                 <input
                   type="checkbox"
@@ -731,10 +748,10 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         const isEditing = activeEdit && activeEdit.labelId === label.id
                         const labelType = (label.label_type || 'unknown').toLowerCase()
                         const isCaption = labelType === 'caption'
-                        const isDeletingThisLabel = isLoading.deletingLabel(image.id, label.id)
+                        const isDeletingThisLabel = isLoading.deletingLabel(imageId, label.id)
 
-                        const handleStartEdit = () => actions.startEditingLabel(image.id, label)
-                        const handleDeleteLabel = () => actions.deleteLabel(image.id, label.id)
+                        const handleStartEdit = () => actions.startEditingLabel(imageId, label)
+                        const handleDeleteLabel = () => actions.deleteLabel(imageId, label.id)
 
                         return (
                           <div
@@ -805,13 +822,13 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
                         placeholder="Add manual tag"
                         value={inputValue}
                         onChange={handleUpdateLabelInput}
-                        disabled={isLoading.addingLabel(image.id)}
+                        disabled={isLoading.addingLabel(imageId)}
                       />
                       <button
                         type="submit"
-                        disabled={isLoading.addingLabel(image.id) || !inputValue.trim()}
+                        disabled={isLoading.addingLabel(imageId) || !inputValue.trim()}
                       >
-                        {isLoading.addingLabel(image.id) ? 'Adding...' : 'Add'}
+                        {isLoading.addingLabel(imageId) ? 'Adding...' : 'Add'}
                       </button>
                     </form>
                   </div>
@@ -840,7 +857,7 @@ interface BatchGenerateDialogProps {
 }
 
 const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
-  const { toast } = useToast()
+  const { showErrorToast } = useErrorToast()
   const [userTheme, setUserTheme] = useState<string>('')
   const [steps, setSteps] = useState<string>('')
   const [seed, setSeed] = useState<string>('')
@@ -869,7 +886,11 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (!userTheme.trim()) {
-      toast({ title: 'Error', description: 'User theme is required', variant: 'destructive' })
+      showErrorToast({
+        title: 'Validation Error',
+        context: 'User theme is required',
+        error: new Error('User theme is required'),
+      })
       return
     }
 
@@ -895,16 +916,23 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
       if (result.success) {
         onSuccess(result)
       } else {
-        toast({ title: 'Error', description: result.error, variant: 'destructive' })
+        showErrorToast({
+          title: 'Batch Generation Failed',
+          context: 'Failed to start batch generation',
+          error: new Error(result.error || 'Unknown error'),
+        })
       }
     } catch (error) {
       logger.error('Failed to generate batch:', error)
-      const errorMessage = formatErrorMessage(error, 'Error starting batch generation')
-      toast({ title: 'Error', description: errorMessage, variant: 'destructive' })
+      showErrorToast({
+        title: 'Batch Generation Error',
+        context: 'Error starting batch generation',
+        error,
+      })
     } finally {
       setIsSubmitting(false)
     }
-  }, [userTheme, steps, seed, album.id, toast, onSuccess])
+  }, [userTheme, steps, seed, album.id, showErrorToast, onSuccess])
 
   return (
     <div className="dialog-overlay" onClick={handleOverlayClick}>
