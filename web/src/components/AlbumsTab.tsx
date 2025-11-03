@@ -224,9 +224,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [isAdmin, fetchAlbumAnalytics])
 
-  const selectAlbum = useCallback(async (albumId: string): Promise<void> => {
-    await loadAlbum(albumId)
-  }, [loadAlbum])
+  // selectAlbum is now handled by React Router Link navigation
+  // Keeping loadAlbum for internal use
 
   const createAlbum = useCallback(async (name: string, description: string, albumType = 'manual'): Promise<void> => {
     if (!isAdmin) return
@@ -376,7 +375,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
-          const handleSelectAlbum = () => selectAlbum(album.id)
           const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             deleteAlbum(album.id)

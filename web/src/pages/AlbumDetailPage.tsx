@@ -43,8 +43,10 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       setEditedName(albumData.name)
       setEditedDescription(albumData.description || '')
 
-      if (albumData.images) {
-        setImages(albumData.images as GeneratedImage[])
+      // Album API returns images as part of the album response
+      const albumWithImages = albumData as Album & { images?: GeneratedImage[] }
+      if (albumWithImages.images) {
+        setImages(albumWithImages.images)
       }
     } catch (error) {
       logger.error('Failed to fetch album details:', error)
@@ -79,7 +81,7 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
         title: 'Success',
         description: 'Album updated successfully'
       })
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to update album:', error)
       toast({
         title: 'Error',

@@ -37,9 +37,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onRefresh, loading = fals
     }
   }
 
-  const openModal = (image: GeneratedImage): void => {
-    setSelectedImage(image)
-  }
+  // Modal removed in favor of detail page routing
+  // const openModal = (image: GeneratedImage): void => {
+  //   setSelectedImage(image)
+  // }
 
   const closeModal = (): void => {
     setSelectedImage(null)

@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Save, X, Trash2, Loader2, Download, FolderOpen, Calendar, Hash, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +40,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       setImage(imageData)
       setEditedPrompt(imageData.prompt || '')
       setEditedNegativePrompt(imageData.negative_prompt || '')
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to fetch image details:', error)
       toast({
         title: 'Error',
@@ -59,6 +58,8 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
 
   const handleSave = useCallback(async () => {
     if (!image) return
+
+    if (!image.id) return
 
     setIsSaving(true)
     try {
@@ -78,7 +79,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
         title: 'Success',
         description: 'Image updated successfully'
       })
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to update image:', error)
       toast({
         title: 'Error',
@@ -91,7 +92,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   }, [image, editedPrompt, editedNegativePrompt, toast])
 
   const handleDelete = useCallback(async () => {
-    if (!image) return
+    if (!image || !image.id) return
 
     setIsDeleting(true)
     try {
@@ -103,7 +104,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       })
 
       navigate('/gallery')
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to delete image:', error)
       toast({
         title: 'Error',
@@ -115,7 +116,7 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   }, [image, navigate, toast])
 
   const handleDownload = useCallback(() => {
-    if (!image) return
+    if (!image || !image.download_url) return
 
     const link = document.createElement('a')
     link.href = image.download_url

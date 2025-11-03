@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { logger } from '../lib/logger'
-import type { GeneratedImage, ImageMetadata } from '../types/models'
+import type { GeneratedImage } from '../types/models'
 import ImageCard from './common/ImageCard'
 import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api } from '@/lib/api'
@@ -13,33 +13,15 @@ import {
 } from '@/components/ui/dialog'
 import '../styles/ImageCard.css'
 
-type ExtendedImageMetadata = ImageMetadata & {
-  nsfw?: boolean
-  is_nsfw?: boolean
-  [key: string]: unknown
-}
-
-interface RawBatchImage {
-  filename: string
-  relative_path: string
-  created: string
-  metadata?: unknown
-}
-
-interface BatchImage extends Omit<RawBatchImage, 'metadata'> {
-  metadata?: ExtendedImageMetadata
-}
-
-interface RawBatchData {
+interface BatchData {
   batch_id: string
+  album_id: number
+  name: string
+  album_type?: string
   image_count: number
-  images?: RawBatchImage[]
-}
-
-interface BatchData extends Omit<RawBatchData, 'images'> {
-  batch_id: string
-  image_count: number
-  images?: BatchImage[]
+  created?: string | null
+  updated?: string | null
+  images?: GeneratedImage[]
 }
 
 interface BatchGalleryProps {
@@ -47,21 +29,11 @@ interface BatchGalleryProps {
   onBack: () => void
 }
 
-const isBatchImageNsfw = (image: BatchImage): boolean =>
-  image.metadata?.nsfw === true ||
-  image.metadata?.is_nsfw === true ||
-  (image as { is_nsfw?: boolean }).is_nsfw === true
+const isGeneratedImageNsfw = (image: GeneratedImage): boolean =>
+  image.is_nsfw === true ||
+  (image.metadata as { is_nsfw?: boolean } | undefined)?.is_nsfw === true
 
-const toGeneratedImage = (image: BatchImage): GeneratedImage => ({
-  filename: image.filename,
-  relative_path: image.relative_path,
-  metadata: image.metadata,
-  download_url: `/api/outputs/${image.relative_path}`,
-  created: image.created,
-  is_nsfw: isBatchImageNsfw(image),
-})
-
-const renderFooter = (image: BatchImage) => {
+const renderFooter = (image: GeneratedImage) => {
   const prompt = image.metadata?.prompt ?? ''
   const hasPrompt = prompt.length > 0
   const truncatedPrompt = hasPrompt && prompt.length > 60 ? `${prompt.substring(0, 60)}...` : prompt
@@ -90,42 +62,20 @@ const renderFooter = (image: BatchImage) => {
   )
 }
 
-const isExtendedMetadata = (value: unknown): value is ExtendedImageMetadata =>
-  typeof value === 'object' && value !== null
-
-const normalizeBatchImage = (image: RawBatchImage): BatchImage => ({
-  ...image,
-  metadata: isExtendedMetadata(image.metadata) ? image.metadata : undefined,
-})
-
-const normalizeBatchData = (data: RawBatchData): BatchData => ({
-  batch_id: data.batch_id,
-  image_count: data.image_count,
-  images: data.images?.map(normalizeBatchImage),
-})
-
 const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => {
   const [batch, setBatch] = useState<BatchData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedImage, setSelectedImage] = useState<BatchImage | null>(null)
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const { nsfwPreference } = useApp()
-
-  const selectedGeneratedImage = useMemo<GeneratedImage | null>(() => {
-    if (!selectedImage) {
-      return null
-    }
-
-    return toGeneratedImage(selectedImage)
-  }, [selectedImage])
 
   const selectedAlt = selectedImage?.metadata?.prompt || 'Generated image'
 
   const selectedImageSources = useMemo(
     () =>
-      selectedGeneratedImage
-        ? resolveImageSources(selectedGeneratedImage, { fallbackAlt: selectedAlt })
+      selectedImage
+        ? resolveImageSources(selectedImage, { fallbackAlt: selectedAlt })
         : null,
-    [selectedGeneratedImage, selectedAlt]
+    [selectedImage, selectedAlt]
   )
 
   useEffect(() => {
@@ -138,7 +88,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
     setLoading(true)
     try {
       const data = await api.batches.getById(batchId)
-      setBatch(normalizeBatchData(data))
+      setBatch(data)
     } catch (error) {
       logger.error('Failed to fetch batch:', error as Error)
     } finally {
@@ -150,7 +100,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
     void fetchBatch()
   }, [fetchBatch])
 
-  const openModal = useCallback((image: BatchImage): void => {
+  const openModal = useCallback((image: GeneratedImage): void => {
     setSelectedImage(image)
   }, [])
 
@@ -182,26 +132,25 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
     <div className="batch-gallery">
       <div className="batch-header">
         <button onClick={onBack} className="back-button">← Back to Gallery</button>
-        <h2>{batch.batch_id}</h2>
-        <p className="batch-info">{batch.image_count} images</p>
+        <h2>{batch.name}</h2>
+        <p className="batch-info">{batch.image_count} images · ID: {batch.batch_id}</p>
       </div>
 
       <div className="image-grid">
         {batch.images && batch.images.length > 0 ? (
           batch.images.map((image, index) => {
-            const imageKey = image.filename || image.relative_path || String(index)
-            const isNsfw = isBatchImageNsfw(image)
+            const imageKey = image.id ? String(image.id) : image.filename ?? String(index)
+            const isNsfw = isGeneratedImageNsfw(image)
             if (isNsfw && nsfwPreference === 'hide') {
               return null
             }
 
-            const generatedImage = toGeneratedImage(image)
-            const labelCount = generatedImage.labels?.length ?? 0
+            const labelCount = image.labels?.length ?? 0
 
             return (
               <div key={imageKey} className="gallery-grid-item">
                 <ImageCard
-                  image={generatedImage}
+                  image={image}
                   nsfwPreference={nsfwPreference}
                   onImageClick={() => openModal(image)}
                   showPrompt={false}
@@ -282,7 +231,7 @@ const BatchGallery: React.FC<BatchGalleryProps> = memo(({ batchId, onBack }) => 
               </div>
 
               <div className="text-sm">
-                <strong>Created:</strong> {new Date(selectedImage.created).toLocaleString()}
+                <strong>Created:</strong> {selectedImage.created ? new Date(selectedImage.created).toLocaleString() : 'Unknown'}
               </div>
             </div>
           )}
