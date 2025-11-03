@@ -1,6 +1,8 @@
 import React from 'react'
+import { Loader2 } from 'lucide-react'
 import GenerateForm from './GenerateForm'
 import { useGeneration } from '../contexts/AppContext'
+import { Card, CardContent } from './ui/card'
 
 interface GenerateTabProps {
   isAdmin: boolean
@@ -9,17 +11,21 @@ interface GenerateTabProps {
 const GenerateTab: React.FC<GenerateTabProps> = ({ isAdmin }) => {
   const { config, loading, queuePosition, handleGenerate } = useGeneration()
   return (
-    <div className="generate-tab">
+    <div className="flex flex-col gap-8">
       {loading && (
-        <div className="loading-indicator" role="status" aria-live="polite" aria-atomic="true">
-          <div className="spinner"></div>
-          <p>
-            Generating image...
-            {queuePosition !== null && queuePosition > 0 && (
-              <span> (Queue position: {queuePosition})</span>
-            )}
-          </p>
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center gap-4 py-8" role="status" aria-live="polite" aria-atomic="true">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-muted-foreground">
+                Generating image...
+                {queuePosition !== null && queuePosition > 0 && (
+                  <span className="ml-1">(Queue position: {queuePosition})</span>
+                )}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {!loading && (
