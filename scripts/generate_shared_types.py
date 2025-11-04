@@ -320,9 +320,12 @@ def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
         import subprocess
         import tempfile
 
-        # Write to temp file, format with Black, and read back
+        # Write to temp file in the repo directory so Black picks up pyproject.toml
+        temp_dir = ROOT / ".black_temp"
+        temp_dir.mkdir(exist_ok=True)
+
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, encoding="utf-8"
+            mode="w", suffix=".py", delete=False, encoding="utf-8", dir=str(temp_dir)
         ) as f:
             f.write(py_output)
             temp_path = f.name
@@ -332,11 +335,17 @@ def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
                 ["black", "--quiet", temp_path],
                 check=True,
                 capture_output=True,
+                cwd=str(ROOT),  # Run in repo root to find pyproject.toml
             )
             with open(temp_path, "r", encoding="utf-8") as f:
                 py_output = f.read()
         finally:
             Path(temp_path).unlink(missing_ok=True)
+            # Clean up temp dir if empty
+            try:
+                temp_dir.rmdir()
+            except OSError:
+                pass
     except (subprocess.CalledProcessError, FileNotFoundError):
         # If Black fails or isn't available, use unformatted output
         pass
