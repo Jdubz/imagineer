@@ -208,11 +208,12 @@ export const BatchSummarySchema = z.object({
   batch_id: z.string(),
   album_id: z.number(),
   name: z.string(),
-  album_type: z.string().optional(),
+  album_type: z.string().optional().nullable(),
   image_count: z.number(),
   created: z.string().optional().nullable(),
   updated: z.string().optional().nullable(),
   preview_url: z.string().optional().nullable(),
+  path: z.string().optional().nullable(),
 })
 
 
@@ -242,7 +243,6 @@ export const ScrapingJobRuntimeSchema = z.object({
 
 export const ScrapingJobStatusSchema = z.enum([
   'pending',
-  'queued',
   'running',
   'completed',
   'failed',

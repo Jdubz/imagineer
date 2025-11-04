@@ -577,6 +577,11 @@ function assertTypeCompatibility(schema: ZodTypeAny, property: PropertySchema) {
 function extractJsonTypes(property: PropertySchema): string[] {
   const schemaType = property.type;
 
+  // Handle enums - they're effectively strings with restricted values
+  if (property.enum) {
+    return ['string'];
+  }
+
   if (Array.isArray(schemaType)) {
     return schemaType.map(normalizeSchemaType).filter((type) => type !== 'unknown');
   }

@@ -62,7 +62,7 @@ export interface BatchSummary {
   batch_id: string
   album_id: number
   name: string
-  album_type?: string
+  album_type?: string | null
   image_count: number
   created?: string | null
   updated?: string | null
