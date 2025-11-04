@@ -461,7 +461,7 @@ export const AlbumSchema = z.object({
   lora_count: z.number(),
   template_items_preview: z.array(z.unknown()).default([]),
   slug: z.string(),
-})
+}).passthrough()
 
 export const LabelAnalyticsSchema = z.object({
   album_id: z.number(),
