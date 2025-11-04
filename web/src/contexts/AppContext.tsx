@@ -285,7 +285,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         }
       }
 
-      await pollJobStatus()
+      try {
+        await pollJobStatus()
+      } catch (pollError) {
+        // Handle 404 gracefully - job may have been pruned from history
+        const is404 =
+          (pollError instanceof ApiError && pollError.status === 404) ||
+          (pollError && typeof pollError === 'object' && 'status' in pollError && pollError.status === 404) ||
+          (pollError instanceof Error && pollError.message.toLowerCase().includes('job not found'))
+
+        if (is404) {
+          logger.info('Job no longer found in history during initial poll', { jobId: job.id })
+          setLoading(false)
+          setQueuePosition(null)
+          return
+        }
+
+        // Re-throw other errors to be handled by outer catch
+        throw pollError
+      }
     } catch (error) {
       setLoading(false)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
