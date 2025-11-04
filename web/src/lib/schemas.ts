@@ -520,6 +520,10 @@ export const AlbumsResponseSchema = z.union([
   z.array(AlbumSchema),
   z.object({
     albums: z.array(AlbumSchema),
+    total: z.number().optional(),
+    page: z.number().optional(),
+    per_page: z.number().optional(),
+    pages: z.number().optional(),
   }),
 ])
 
