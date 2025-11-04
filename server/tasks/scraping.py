@@ -429,6 +429,7 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
                 job.completed_at = datetime.now(timezone.utc)
                 job.progress = 100
                 job.output_directory = str(output_dir)
+                job.album_id = result.get("album_id")
                 job.description = "Scrape completed successfully"
                 _persist_runtime_state(
                     job,

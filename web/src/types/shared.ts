@@ -199,6 +199,7 @@ export interface ScrapeJobResponse {
   progress: number;
   progress_message?: string | null;
   images_scraped: number;
+  album_id?: number | null;
   error_message?: string | null;
   last_error_at?: string | null;
   created_at?: string | null;
