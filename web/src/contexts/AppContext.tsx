@@ -238,7 +238,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           }
         } catch (error) {
           // Handle 404 gracefully - job may have been pruned from history
-          if (error instanceof ApiError && error.status === 404) {
+          // Check both instanceof and error properties for robustness
+          const is404 =
+            (error instanceof ApiError && error.status === 404) ||
+            (error && typeof error === 'object' && 'status' in error && error.status === 404) ||
+            (error instanceof Error && error.message.toLowerCase().includes('job not found'))
+
+          if (is404) {
             logger.info('Job no longer found in history, stopping poll', { jobId: job.id })
             setLoading(false)
             setQueuePosition(null)
