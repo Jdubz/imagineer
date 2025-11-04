@@ -59,6 +59,18 @@
     },
     "thumbnail_path": {
       "type": ["string", "null"]
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "$ref": "Label"
+      }
+    },
+    "label_count": {
+      "type": ["integer", "null"]
+    },
+    "manual_label_count": {
+      "type": ["integer", "null"]
     }
   },
   "required": [

@@ -1,5 +1,11 @@
 import { z, type ZodType } from 'zod'
-import type { Job as JobContract, JobsResponse } from '../types/shared'
+import type {
+  AlbumDetailResponse as AlbumDetailResponseContract,
+  ImageResponse as ImageResponseContract,
+  Job as JobContract,
+  JobsResponse,
+  Label as LabelContract,
+} from '../types/shared'
 
 /**
  * Zod schemas for runtime validation of API responses
@@ -71,6 +77,43 @@ export const JobSchema: ZodType<JobContract> = z.object({
   batch_item_data: z.record(z.string(), z.unknown()).optional(),
 })
 
+export const LabelSchema: ZodType<LabelContract> = z.object({
+  id: z.number(),
+  image_id: z.number(),
+  label_text: z.string(),
+  confidence: z.number().nullable().optional(),
+  label_type: z.string(),
+  source_model: z.string().nullable().optional(),
+  source_prompt: z.string().nullable().optional(),
+  created_by: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+})
+
+export const ImageResponseSchema: ZodType<ImageResponseContract> = z.object({
+  id: z.number(),
+  filename: z.string(),
+  storage_name: z.string().nullable().optional(),
+  download_url: z.string(),
+  thumbnail_url: z.string(),
+  prompt: z.string().nullable().optional(),
+  negative_prompt: z.string().nullable().optional(),
+  seed: z.number().nullable().optional(),
+  steps: z.number().nullable().optional(),
+  guidance_scale: z.number().nullable().optional(),
+  width: z.number().nullable().optional(),
+  height: z.number().nullable().optional(),
+  lora_config: z.string().nullable().optional(),
+  is_nsfw: z.boolean(),
+  is_public: z.boolean(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  file_path: z.string().nullable().optional(),
+  thumbnail_path: z.string().nullable().optional(),
+  labels: z.array(LabelSchema).optional(),
+  label_count: z.number().nullable().optional(),
+  manual_label_count: z.number().nullable().optional(),
+})
+
 // ============================================
 // Images
 // ============================================
@@ -128,6 +171,33 @@ export const GeneratedImageSchema = z.object({
   is_public: z.boolean().optional(),
   metadata: ImageMetadataSchema.optional(),
 }).catchall(z.unknown())
+
+export const AlbumDetailResponseSchema: ZodType<AlbumDetailResponseContract> = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  album_type: z.string(),
+  is_public: z.boolean(),
+  is_training_source: z.boolean(),
+  generation_prompt: z.string().nullable().optional(),
+  generation_config: z.string().nullable().optional(),
+  created_by: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  image_count: z.number(),
+  is_set_template: z.boolean(),
+  csv_data: z.string().nullable().optional(),
+  base_prompt: z.string().nullable().optional(),
+  prompt_template: z.string().nullable().optional(),
+  style_suffix: z.string().nullable().optional(),
+  example_theme: z.string().nullable().optional(),
+  lora_config: z.string().nullable().optional(),
+  template_item_count: z.number(),
+  template_items_preview: z.array(z.record(z.string(), z.unknown())),
+  lora_count: z.number(),
+  slug: z.string(),
+  images: z.array(ImageResponseSchema),
+})
 
 // ============================================
 // Batches
@@ -340,30 +410,30 @@ export const AlbumSchema = z.object({
     .union([z.string(), z.number()])
     .transform((value) => value.toString()),
   name: z.string(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   image_count: z.number(),
   cover_image: z.string().optional(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  created_at: z.string().nullish(),
+  updated_at: z.string().nullish(),
   images: z.array(z.lazy(() => GeneratedImageSchema)).optional(),
-  album_type: z.string().optional(),
-  is_set_template: z.boolean().optional(),
-  template_item_count: z.number().optional(),
-  example_theme: z.string().optional(),
-  base_prompt: z.string().optional(),
+  album_type: z.string(),
+  is_set_template: z.boolean(),
+  template_item_count: z.number(),
+  example_theme: z.string().nullish(),
+  base_prompt: z.string().nullish(),
   // Additional fields from backend Album.to_dict()
   generation_prompt: z.string().nullish(),
   generation_config: z.string().nullish(),
-  is_public: z.boolean().optional(),
-  is_training_source: z.boolean().optional(),
+  is_public: z.boolean(),
+  is_training_source: z.boolean(),
   created_by: z.string().nullish(),
   csv_data: z.string().nullish(),
   prompt_template: z.string().nullish(),
   style_suffix: z.string().nullish(),
   lora_config: z.string().nullish(),
-  lora_count: z.number().optional(),
-  template_items_preview: z.array(z.unknown()).optional(),
-  slug: z.string().optional(),
+  lora_count: z.number(),
+  template_items_preview: z.array(z.unknown()).default([]),
+  slug: z.string(),
 })
 
 export const LabelAnalyticsSchema = z.object({

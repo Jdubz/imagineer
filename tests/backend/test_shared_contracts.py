@@ -5,13 +5,14 @@ Tests that enforce the shared API contract between backend and frontend.
 from __future__ import annotations
 
 import json
+import queue
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from scripts import generate_shared_types as generator
-from server.database import Album, Image, ScrapeJob, TrainingRun, db
+from server.database import Album, AlbumImage, Image, Label, ScrapeJob, TrainingRun, db
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_DIR = ROOT / "shared" / "schema"
@@ -270,10 +271,12 @@ def test_album_response_matches_schema(client) -> None:
 
 def test_album_detail_response_matches_schema(client) -> None:
     """
-    /api/albums/{id} detail response must match the AlbumResponse schema.
+    /api/albums/{id} detail response must match the AlbumDetailResponse schema
+    and embed ImageResponse payloads.
     """
 
-    schema = _load_schema("album_response")
+    album_schema = _load_schema("album_detail_response")
+    image_schema = _load_schema("image_response")
 
     with client.application.app_context():
         album = Album(
@@ -284,14 +287,73 @@ def test_album_detail_response_matches_schema(client) -> None:
             is_training_source=True,
             is_set_template=False,
         )
-        db.session.add(album)
+        image = Image(
+            filename="detail-image.png",
+            file_path="/tmp/detail-image.png",
+            prompt="Album detail validation",
+            is_public=True,
+        )
+        db.session.add_all([album, image])
+        db.session.commit()
+
+        association = AlbumImage(album_id=album.id, image_id=image.id)
+        label = Label(
+            image_id=image.id,
+            label_text="mountain landscape",
+            label_type="manual",
+            confidence=0.9,
+        )
+        db.session.add_all([association, label])
         db.session.commit()
         album_id = album.id
 
-    response = client.get(f"/api/albums/{album_id}")
+    response = client.get(f"/api/albums/{album_id}?include_labels=1")
     assert response.status_code == 200
     payload = response.get_json()
 
+    assert isinstance(payload, dict)
+    _validate_against_schema(payload, album_schema)
+
+    images = payload.get("images")
+    assert isinstance(images, list) and images, "Expected at least one image in album detail"
+    for image_payload in images:
+        assert isinstance(image_payload, dict)
+        _validate_against_schema(image_payload, image_schema)
+
+
+@pytest.mark.usefixtures("mock_admin_auth")
+def test_queue_job_detail_response_matches_schema(client, monkeypatch) -> None:
+    """
+    /api/jobs/{id} detail response must match the Job schema.
+    """
+
+    schema = _load_schema("job")
+    from server.routes import generation as generation_module
+
+    job_payload = {
+        "id": 42,
+        "prompt": "Queue detail contract test",
+        "status": "completed",
+        "submitted_at": "2025-11-04T00:00:00",
+        "started_at": "2025-11-04T00:01:00",
+        "completed_at": "2025-11-04T00:02:00",
+        "output_filename": "job-test.png",
+        "output_directory": "/tmp/imagineer/outputs",
+        "width": 512,
+        "height": 512,
+        "steps": 30,
+        "seed": 123,
+        "guidance_scale": 7.5,
+        "negative_prompt": "low quality",
+    }
+
+    monkeypatch.setattr(generation_module, "current_job", None)
+    monkeypatch.setattr(generation_module, "job_queue", queue.Queue())
+    monkeypatch.setattr(generation_module, "job_history", [job_payload])
+
+    response = client.get(f"/api/jobs/{job_payload['id']}")
+    assert response.status_code == 200
+    payload = response.get_json()
     assert isinstance(payload, dict)
     _validate_against_schema(payload, schema)
 
@@ -373,6 +435,34 @@ def test_training_run_response_matches_schema(client) -> None:
     assert target is not None, "Expected Contract Test Training in runs listing"
 
     _validate_against_schema(target, schema)
+
+
+@pytest.mark.usefixtures("mock_admin_auth")
+def test_training_run_detail_response_matches_schema(client) -> None:
+    """
+    /api/training/{id} detail response must match the TrainingRunResponse schema.
+    """
+
+    schema = _load_schema("training_run_response")
+
+    with client.application.app_context():
+        training_run = TrainingRun(
+            name="Contract Test Training Detail",
+            description="Training run detail contract",
+            status="running",
+            progress=50,
+            dataset_path="/tmp/dataset-detail",
+            output_path="/tmp/output-detail",
+        )
+        db.session.add(training_run)
+        db.session.commit()
+        run_id = training_run.id
+
+    response = client.get(f"/api/training/{run_id}")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    _validate_against_schema(payload, schema)
 
 
 @pytest.mark.usefixtures("mock_admin_auth")

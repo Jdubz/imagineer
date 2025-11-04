@@ -8,6 +8,35 @@ from __future__ import annotations
 from typing import Any, Literal, NotRequired, Required, TypedDict
 
 
+class AlbumDetailResponseTypedDict(TypedDict, total=False):
+    """Album detail record returned by GET /api/albums/{id}."""
+
+    id: Required[int]
+    name: Required[str]
+    description: NotRequired[str | None]
+    album_type: Required[str]
+    is_public: Required[bool]
+    is_training_source: Required[bool]
+    generation_prompt: NotRequired[str | None]
+    generation_config: NotRequired[str | None]
+    created_by: NotRequired[str | None]
+    created_at: NotRequired[str | None]
+    updated_at: NotRequired[str | None]
+    image_count: Required[int]
+    is_set_template: Required[bool]
+    csv_data: NotRequired[str | None]
+    base_prompt: NotRequired[str | None]
+    prompt_template: NotRequired[str | None]
+    style_suffix: NotRequired[str | None]
+    example_theme: NotRequired[str | None]
+    lora_config: NotRequired[str | None]
+    template_item_count: Required[int]
+    template_items_preview: Required[list[dict[str, Any]]]
+    lora_count: Required[int]
+    slug: Required[str]
+    images: Required[list[ImageResponseTypedDict]]
+
+
 class AlbumResponseTypedDict(TypedDict, total=False):
     """Album record returned by /api/albums endpoints."""
 
@@ -172,6 +201,9 @@ class ImageResponseTypedDict(TypedDict, total=False):
     updated_at: NotRequired[str | None]
     file_path: NotRequired[str | None]
     thumbnail_path: NotRequired[str | None]
+    labels: NotRequired[list[LabelTypedDict]]
+    label_count: NotRequired[int | None]
+    manual_label_count: NotRequired[int | None]
 
 
 class JobTypedDict(TypedDict, total=False):
