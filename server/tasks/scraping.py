@@ -688,6 +688,44 @@ def cleanup_scrape_job(scrape_job_id):
             return {"status": "error", "message": "Job not found"}
 
         try:
+            # Delete image records and album associations for this job
+            if job.album_id:
+                album = db.session.get(Album, job.album_id)
+                if album:
+                    # Get all images in this album
+                    album_images = AlbumImage.query.filter_by(album_id=album.id).all()
+                    image_ids = [ai.image_id for ai in album_images]
+
+                    # Delete album associations
+                    for ai in album_images:
+                        db.session.delete(ai)
+
+                    # Delete images that were scraped (check file_path is in output_directory)
+                    if job.output_directory:
+                        output_path = Path(job.output_directory)
+                        for image_id in image_ids:
+                            image = db.session.get(Image, image_id)
+                            if image and image.file_path:
+                                image_path = Path(image.file_path)
+                                # Only delete if image file is in the scrape output directory
+                                try:
+                                    if image_path.is_relative_to(output_path):
+                                        db.session.delete(image)
+                                except (ValueError, AttributeError):
+                                    # is_relative_to not available or path comparison failed
+                                    # Fall back to string comparison
+                                    if str(image_path).startswith(str(output_path)):
+                                        db.session.delete(image)
+
+                    # Delete the album
+                    db.session.delete(album)
+
+                    logger.info(
+                        "Deleted album %s and associated images for scrape job %s",
+                        album.id,
+                        scrape_job_id,
+                    )
+
             # Clean up output directory if it exists
             if job.output_directory:
                 output_path = Path(job.output_directory)
@@ -699,10 +737,12 @@ def cleanup_scrape_job(scrape_job_id):
 
             # Mark job as cleaned up
             job.status = "cleaned_up"
+            job.output_directory = None
             db.session.commit()
 
             return {"status": "success", "message": "Job cleaned up successfully"}
 
         except Exception as e:
-            logger.error(f"Error cleaning up job {scrape_job_id}: {e}")
+            logger.error(f"Error cleaning up job {scrape_job_id}: {e}", exc_info=True)
+            db.session.rollback()
             return {"status": "error", "message": str(e)}
