@@ -103,15 +103,25 @@ def _get_training_data_repo() -> Path:
         repo_path = Path(__file__).parent.parent.parent / "training-data"
 
     if not repo_path.exists():
-        if os.environ.get("FLASK_ENV") == "production":
-            raise RuntimeError(
-                "Training data repository path not configured. "
-                "Set IMAGINEER_TRAINING_DATA_PATH or scraping.training_data_repo in config.yaml."
+        try:
+            repo_path.mkdir(parents=True, exist_ok=True)
+            logger.info(
+                "Created training data repository directory at %s",
+                repo_path,
             )
-        logger.warning(
-            "Training data repository %s does not exist; continuing using development defaults.",
-            repo_path,
-        )
+        except OSError as exc:
+            if os.environ.get("FLASK_ENV") == "production":
+                raise RuntimeError(
+                    f"Unable to initialize training data repository at {repo_path}: {exc}. "
+                    "Set IMAGINEER_TRAINING_DATA_PATH or scraping.training_data_repo in "
+                    "config.yaml to a writable location."
+                ) from exc
+            logger.warning(
+                "Training data repository %s does not exist and could not be created: %s; "
+                "continuing using development defaults.",
+                repo_path,
+                exc,
+            )
 
     TRAINING_DATA_REPO_PATH = repo_path
     return repo_path
