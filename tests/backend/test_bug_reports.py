@@ -21,6 +21,12 @@ BUG_REPORT_REQUEST_KEYS = tuple(BUG_REPORT_REQUEST_SCHEMA["properties"].keys())
 
 
 def _build_payload(**overrides: Any) -> Dict[str, Any]:
+    """
+    Build a test bug report payload with sample data.
+
+    The default payload includes an error log with message "Boom" which is
+    intentionally generic test data for validating bug report submission.
+    """
     payload: Dict[str, Any] = {
         "description": "Something went wrong when saving an image.",
         "environment": {"mode": "development", "appVersion": "1.0.0"},
@@ -29,7 +35,7 @@ def _build_payload(**overrides: Any) -> Dict[str, Any]:
         "recentLogs": [
             {
                 "level": "error",
-                "message": "Boom",
+                "message": "Boom",  # Generic test error message
                 "args": [],
                 "timestamp": "2025-10-30T00:00:00Z",
                 "serializedArgs": [],
