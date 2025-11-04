@@ -510,8 +510,15 @@ def index():
 @app.route("/api/config", methods=["GET"])
 def get_config():
     """Get current configuration"""
-    config = load_config()
-    return jsonify(config)
+    try:
+        config = load_config()
+        if not config:
+            logger.warning("Configuration is empty or invalid")
+            return jsonify({"error": "Configuration not available"}), 500
+        return jsonify(config)
+    except Exception as e:
+        logger.error("Failed to load configuration", exc_info=True)
+        return jsonify({"error": "Failed to load configuration", "message": str(e)}), 500
 
 
 @app.route("/api/config", methods=["PUT"])
