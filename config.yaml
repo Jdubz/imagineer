@@ -67,3 +67,13 @@ hardware:
 bug_reports:
   storage_path: /mnt/storage/imagineer/bug_reports
   retention_days: 30
+  agent:
+    enabled: true
+    docker_image: imagineer/bug-cli:latest
+    target_branch: develop
+    timeout_minutes: 60
+    log_dir: logs/bug_reports
+    git_author_name: Imagineer Bug Agent
+    git_author_email: agent@imagineer.local
+    env_passthrough:
+    - ANTHROPIC_API_KEY
