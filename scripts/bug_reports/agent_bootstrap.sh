@@ -115,8 +115,6 @@ cleanup_workspace() {
 checkout_branch() {
   cd "${WORKSPACE_DIR}"
   git fetch origin "${TARGET_BRANCH}"
-  # Force reset to ensure clean state
-  git reset --hard "origin/${TARGET_BRANCH}"
   git checkout -B "bugfix/${REPORT_ID}" "origin/${TARGET_BRANCH}"
 }
 
@@ -150,9 +148,8 @@ LAST_TEST_RESULTS="{}"
 run_tests() {
   local tests_json="{}"
   cd "${WORKSPACE_DIR}/web"
-  # Use fresh install to avoid cache issues with platform-specific dependencies (rollup)
-  rm -rf node_modules package-lock.json
-  npm install --prefer-offline
+  # Ensure dependencies match the lockfile exactly for deterministic installs
+  npm ci --prefer-offline
   npm run lint
   npm run tsc
   npm test -- --run
