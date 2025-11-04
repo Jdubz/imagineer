@@ -425,6 +425,9 @@ class BugReport(db.Model):
 
     # Bug description
     description = db.Column(db.Text, nullable=False)
+    expected_behavior = db.Column(db.Text)
+    actual_behavior = db.Column(db.Text)
+    steps_to_reproduce = db.Column(db.Text)  # JSON array
 
     # Status tracking
     status = db.Column(
@@ -455,6 +458,16 @@ class BugReport(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
+    @staticmethod
+    def _loads(value, default):
+        if not value:
+            return default
+        try:
+            return json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            logger.debug("Failed to decode bug report JSON field", exc_info=True)
+            return default
+
     def to_dict(self, include_context: bool = False):
         """Convert to dictionary for API serialization."""
         base = {
@@ -463,6 +476,9 @@ class BugReport(db.Model):
             "submitted_by": self.submitted_by,
             "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
             "description": self.description,
+            "expected_behavior": self.expected_behavior,
+            "actual_behavior": self.actual_behavior,
+            "steps_to_reproduce": self._loads(self.steps_to_reproduce, []),
             "status": self.status,
             "automation_attempts": self.automation_attempts,
             "screenshot_path": self.screenshot_path,
@@ -474,37 +490,22 @@ class BugReport(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-        if include_context:
-            # Parse JSON fields for context
-            context = {}
-            for field in [
-                "environment",
-                "client_meta",
-                "app_state",
-                "recent_logs",
-                "network_events",
-            ]:
-                value = getattr(self, field)
-                if value:
-                    try:
-                        context[field] = json.loads(value)
-                    except (json.JSONDecodeError, TypeError):
-                        context[field] = value
-            base["context"] = context
+        environment = self._loads(self.environment, {})
+        client_meta = self._loads(self.client_meta, {})
+        app_state = self._loads(self.app_state, {})
 
-            # Parse events
-            if self.events:
-                try:
-                    base["events"] = json.loads(self.events)
-                except (json.JSONDecodeError, TypeError):
-                    base["events"] = []
+        base["environment"] = environment
+        base["client_meta"] = client_meta
+        base["app_state"] = app_state
+
+        if include_context:
+            base["recent_logs"] = self._loads(self.recent_logs, [])
+            base["network_events"] = self._loads(self.network_events, [])
+            base["events"] = self._loads(self.events, [])
         else:
-            # Include raw context fields
-            base["environment"] = self.environment
-            base["clientMeta"] = self.client_meta
-            base["appState"] = self.app_state
-            base["recentLogs"] = self.recent_logs
-            base["networkEvents"] = self.network_events
+            base["has_recent_logs"] = bool(self.recent_logs)
+            base["has_network_events"] = bool(self.network_events)
+            base["has_events"] = bool(self.events)
 
         return base
 

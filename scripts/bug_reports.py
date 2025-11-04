@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 """
-Bug report maintenance CLI.
+Bug report maintenance CLI for the database-backed workflow.
 
-Provides helpers for listing, showing, updating, deleting, and purging stored
-bug report JSON files. This mirrors the admin API so operators can run the
-workflow from cron or local shells without spinning up a web session.
+Allows operators to list, inspect, update, delete, and purge bug reports
+stored in the Imagineer database.
 """
 
 from __future__ import annotations
@@ -20,91 +19,99 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from server.bug_reports.storage import (  # noqa: E402
-    BugReportStorageError,
-    delete_report,
-    list_reports,
-    load_report,
-    purge_reports_older_than,
-    update_report,
-)
+from server.api import app as flask_app  # noqa: E402
 from server.config_loader import load_config  # noqa: E402
-from server.routes.bug_reports import get_bug_reports_dir  # noqa: E402
+from server.services import bug_reports as bug_report_service  # noqa: E402
 
 
-def _resolve_root(path: Optional[str]) -> Path:
-    if path:
-        return Path(path).expanduser()
-    return Path(get_bug_reports_dir()).expanduser()
+def _format_timestamp(value: Optional[str]) -> str:
+    return value or "-"
+
+
+def _with_context(func, *args, **kwargs):
+    with flask_app.app_context():
+        return func(*args, **kwargs)
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    root = _resolve_root(args.root)
-    summaries = list_reports(root, status=args.status)
+    status = args.status
+    limit = args.limit or 100
+
+    records, total = _with_context(
+        bug_report_service.list_bug_reports,
+        status=status,
+        page=1,
+        per_page=limit,
+    )
+
     if args.json:
-        print(json.dumps([summary.to_dict(root=root) for summary in summaries], indent=2))
+        payload = [record.to_dict(include_context=args.include_context) for record in records]
+        print(json.dumps({"total": total, "reports": payload}, indent=2))
         return 0
 
-    if not summaries:
+    if not records:
         print("No bug reports found.")
         return 0
 
-    print(f"{'Report ID':<36} {'Status':<9} {'Submitted At':<25} {'Submitted By':<30} Size")
-    print("-" * 110)
-    for summary in summaries:
-        submitted = summary.submitted_at_iso or "-"
-        submitted_by = summary.submitted_by or "-"
-        status = summary.status
-        size = summary.size_bytes
-        print(f"{summary.report_id:<36} {status:<9} " f"{submitted:<25} {submitted_by:<30} {size}")
+    header = (
+        f"{'Report ID':<36} {'Status':<14} {'Submitted At':<25} "
+        f"{'Submitted By':<30} {'Trace ID':<32} {'Logs':<5} {'Net':<5}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    for record in records:
+        data = record.to_dict(include_context=False)
+        submitted_at = _format_timestamp(data.get("submitted_at"))
+        submitted_by = (data.get("submitted_by") or "-")[:29]
+        trace_id = (data.get("trace_id") or "-")[:31]
+        has_logs = "Y" if data.get("has_recent_logs") else "-"
+        has_network = "Y" if data.get("has_network_events") else "-"
+        print(
+            f"{record.report_id:<36} {data.get('status', '-'):<14} "
+            f"{submitted_at:<25} {submitted_by:<30} {trace_id:<32} "
+            f"{has_logs:<5} {has_network:<5}"
+        )
+
     return 0
 
 
 def cmd_show(args: argparse.Namespace) -> int:
-    root = _resolve_root(args.root)
-    try:
-        report = load_report(args.report_id, root)
-    except FileNotFoundError:
+    record = _with_context(bug_report_service.get_bug_report, args.report_id)
+    if not record:
         print(f"Report {args.report_id} not found.", file=sys.stderr)
         return 1
-    except BugReportStorageError as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
 
-    print(json.dumps(report, indent=2))
+    payload = record.to_dict(include_context=True)
+    print(json.dumps(payload, indent=2))
     return 0
 
 
 def cmd_update(args: argparse.Namespace) -> int:
-    root = _resolve_root(args.root)
-    resolution = json.loads(args.resolution) if args.resolution else None
-    try:
-        report = update_report(
-            args.report_id,
-            root,
-            status=args.status,
-            resolution=resolution,
-        )
-    except FileNotFoundError:
+    resolution_payload = json.loads(args.resolution) if args.resolution else None
+    record = _with_context(
+        bug_report_service.update_bug_report_status,
+        report_id=args.report_id,
+        status=args.status,
+        actor_id=args.actor,
+        resolution_notes=(resolution_payload or {}).get("notes") if resolution_payload else None,
+        resolution_commit_sha=(
+            (resolution_payload or {}).get("commit_sha") if resolution_payload else None
+        ),
+    )
+
+    if not record:
         print(f"Report {args.report_id} not found.", file=sys.stderr)
         return 1
-    except (ValueError, BugReportStorageError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
 
-    print(json.dumps(report, indent=2))
+    print(json.dumps(record.to_dict(include_context=False), indent=2))
     return 0
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
-    root = _resolve_root(args.root)
-    try:
-        delete_report(args.report_id, root)
-    except FileNotFoundError:
+    deleted = _with_context(bug_report_service.delete_bug_report, args.report_id)
+    if not deleted:
         print(f"Report {args.report_id} not found.", file=sys.stderr)
-        return 1
-    except BugReportStorageError as exc:
-        print(str(exc), file=sys.stderr)
         return 1
 
     print(f"Deleted report {args.report_id}.")
@@ -112,7 +119,6 @@ def cmd_delete(args: argparse.Namespace) -> int:
 
 
 def cmd_purge(args: argparse.Namespace) -> int:
-    root = _resolve_root(args.root)
     config = load_config()
     default_days = int(config.get("bug_reports", {}).get("retention_days", 30))
     days = args.days or default_days
@@ -121,40 +127,35 @@ def cmd_purge(args: argparse.Namespace) -> int:
         return 1
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    if args.dry_run:
-        summaries = list_reports(root)
-        matching = [
-            summary
-            for summary in summaries
-            if summary.submitted_at and summary.submitted_at < cutoff
-        ]
-        print(
-            json.dumps(
-                {
-                    "status": "dry_run",
-                    "cutoff": cutoff.isoformat().replace("+00:00", "Z"),
-                    "matched": len(matching),
-                    "reports": [summary.to_dict(root=root) for summary in matching],
-                },
-                indent=2,
-            )
-        )
-        return 0
-
-    results = purge_reports_older_than(root, cutoff)
-    print(json.dumps({"status": "success", "results": results}, indent=2))
+    results = _with_context(
+        bug_report_service.purge_bug_reports,
+        cutoff=cutoff,
+        dry_run=args.dry_run,
+    )
+    results["cutoff"] = cutoff.isoformat().replace("+00:00", "Z")
+    status = "dry_run" if args.dry_run else "success"
+    print(json.dumps({"status": status, "results": results}, indent=2))
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Bug report maintenance CLI.")
-    parser.add_argument("--root", help="Override bug report storage directory")
+    parser = argparse.ArgumentParser(description="Bug report maintenance CLI (database-backed).")
 
     subparsers = parser.add_subparsers(required=True, dest="command")
 
     list_parser = subparsers.add_parser("list", help="List stored bug reports")
-    list_parser.add_argument("--status", choices=["open", "resolved"], help="Filter by status")
+    list_parser.add_argument(
+        "--status", choices=["open", "in_progress", "resolved"], help="Filter by status"
+    )
+    list_parser.add_argument(
+        "--limit", type=int, help="Maximum number of reports to list (default 100)"
+    )
     list_parser.add_argument("--json", action="store_true", help="Emit JSON output")
+    list_parser.add_argument(
+        "--include-context",
+        action="store_true",
+        help="Include full context (logs/network) when using --json",
+    )
     list_parser.set_defaults(func=cmd_list)
 
     show_parser = subparsers.add_parser("show", help="Show full bug report payload")
@@ -163,11 +164,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     update_parser = subparsers.add_parser("update", help="Update bug report status/resolution")
     update_parser.add_argument("report_id")
-    update_parser.add_argument("--status", choices=["open", "resolved"], help="New status")
+    update_parser.add_argument(
+        "--status", choices=["open", "in_progress", "resolved"], help="New status"
+    )
     update_parser.add_argument(
         "--resolution",
-        help='Resolution metadata as JSON (e.g. \'{"commit": "abc123"}\')',
+        help='Resolution metadata as JSON (e.g. \'{"notes": "Fixed", "commit_sha": "..."}\')',
     )
+    update_parser.add_argument("--actor", help="Actor identifier performing the update")
     update_parser.set_defaults(func=cmd_update)
 
     delete_parser = subparsers.add_parser("delete", help="Delete a bug report")

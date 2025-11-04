@@ -127,10 +127,8 @@ def submit_bug_report():
         if payload["description"].strip() == "":
             raise APIError("Description is required", "MISSING_DESCRIPTION", 400)
 
-        # Generate report ID with timestamp and trace ID prefix
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        trace_id_prefix = g.trace_id[:8] if hasattr(g, "trace_id") else "unknown"
-        report_id = f"bug_{timestamp}_{trace_id_prefix}"
+        trace_id = g.trace_id if hasattr(g, "trace_id") else None
+        report_id = bug_report_service.generate_report_id(trace_id)
 
         # Extract and save screenshot if provided
         reports_dir = get_bug_reports_dir()  # Still needed for screenshots
@@ -164,41 +162,27 @@ def submit_bug_report():
         # Combine client and server screenshot errors
         screenshot_error = client_screenshot_error or server_screenshot_error
 
-        # Create database record
-        from server.database import BugReport, db
-
-        bug_report = BugReport(
-            report_id=report_id,
-            trace_id=g.trace_id if hasattr(g, "trace_id") else None,
-            submitted_by=g.user.email if hasattr(g, "user") else None,
-            submitted_at=datetime.now(timezone.utc),
-            description=payload["description"],
-            status="open",
-            automation_attempts=0,
-            screenshot_path=screenshot_path,
-            screenshot_error=screenshot_error,
-        )
-
-        # Store context data as JSON
-        if payload.get("environment"):
-            bug_report.environment = json.dumps(payload["environment"])
-        if payload.get("clientMeta"):
-            bug_report.client_meta = json.dumps(payload["clientMeta"])
-        if payload.get("appState"):
-            bug_report.app_state = json.dumps(payload["appState"])
-        if payload.get("recentLogs"):
-            bug_report.recent_logs = json.dumps(payload["recentLogs"])
-        if payload.get("networkEvents"):
-            bug_report.network_events = json.dumps(payload["networkEvents"])
-
-        # Save to database
-        stored_at = None
+        stored_at: str | None = None
         try:
-            db.session.add(bug_report)
-            db.session.commit()
-            stored_at = f"database:bug_reports:{report_id}"
+            record = bug_report_service.create_bug_report(
+                payload=payload,
+                trace_id=trace_id,
+                submitted_by=g.user.email if hasattr(g, "user") else None,
+                screenshot_path=screenshot_path,
+                screenshot_error=screenshot_error,
+                report_id=report_id,
+            )
+            stored_at = f"database:bug_reports:{record.report_id}"
         except Exception as e:
-            db.session.rollback()
+            # Cleanup saved screenshot on failure to avoid orphaned files
+            if screenshot_path:
+                try:
+                    path_obj = Path(screenshot_path)
+                    path_obj.unlink(missing_ok=True)
+                    if path_obj.parent.exists() and not any(path_obj.parent.iterdir()):
+                        path_obj.parent.rmdir()
+                except OSError:
+                    logger.debug("Failed to cleanup screenshot %s after DB error", screenshot_path)
             _log_storage_failure(f"Failed to write bug report to database: {report_id}", e)
             raise APIError(
                 "Failed to save bug report",
@@ -227,7 +211,7 @@ def submit_bug_report():
         response_payload: BugReportSubmissionResponseTypedDict = {
             "success": True,
             "report_id": report_id,
-            "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
+            "trace_id": trace_id,
             "stored_at": str(stored_at) if stored_at else None,
         }
 
@@ -256,27 +240,19 @@ def submit_bug_report():
 @require_admin
 def list_bug_reports():
     """Return paginated list of stored bug reports."""
-    from server.database import BugReport
-
     status_filter = request.args.get("status")
     page = max(1, request.args.get("page", default=1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", default=20, type=int)))
 
-    # Build query
-    query = BugReport.query
-    if status_filter:
-        query = query.filter_by(status=status_filter.lower())
-
-    # Get total count
-    total = query.count()
-
-    # Get paginated results
-    offset = (page - 1) * per_page
-    bug_reports = query.order_by(BugReport.submitted_at.desc()).offset(offset).limit(per_page).all()
+    records, total = bug_report_service.list_bug_reports(
+        status=status_filter,
+        page=page,
+        per_page=per_page,
+    )
 
     return jsonify(
         {
-            "reports": [br.to_dict(include_context=False) for br in bug_reports],
+            "reports": [record.to_dict(include_context=False) for record in records],
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -291,13 +267,11 @@ def list_bug_reports():
 @require_admin
 def get_bug_report(report_id: str):
     """Return full bug report payload for the given report ID."""
-    from server.database import BugReport
-
-    bug_report = BugReport.query.filter_by(report_id=report_id).first()
-    if not bug_report:
+    record = bug_report_service.get_bug_report(report_id)
+    if not record:
         return jsonify({"error": f"Bug report {report_id} not found"}), 404
 
-    return jsonify({"report": bug_report.to_dict(include_context=True)})
+    return jsonify({"report": record.to_dict(include_context=True)})
 
 
 @bug_reports_bp.route("/api/bug-reports/<report_id>", methods=["PATCH"])
@@ -339,28 +313,17 @@ def update_bug_report(report_id: str):
 @require_admin
 def delete_bug_report_route(report_id: str):
     """Delete a stored bug report."""
-    from server.database import BugReport, db
-
-    bug_report = BugReport.query.filter_by(report_id=report_id).first()
-    if not bug_report:
+    deleted = bug_report_service.delete_bug_report(report_id)
+    if not deleted:
         return jsonify({"error": f"Bug report {report_id} not found"}), 404
 
-    try:
-        db.session.delete(bug_report)
-        db.session.commit()
-        return jsonify({"success": True})
-    except Exception as exc:
-        db.session.rollback()
-        logger.error(f"Failed to delete bug report {report_id}: {exc}", exc_info=True)
-        return jsonify({"error": "Failed to delete bug report"}), 500
+    return jsonify({"success": True})
 
 
 @bug_reports_bp.route("/api/bug-reports/purge", methods=["POST"])
 @require_admin
 def purge_bug_reports():
     """Purge bug reports older than the configured retention period."""
-    from server.database import BugReport, db
-
     config = load_config()
     retention_cfg = config.get("bug_reports", {})
     default_days = int(retention_cfg.get("retention_days", 30))
@@ -373,39 +336,15 @@ def purge_bug_reports():
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     dry_run = bool(payload.get("dry_run", False))
 
-    # Count matching reports
-    matched_count = BugReport.query.filter(BugReport.submitted_at < cutoff).count()
-
-    if dry_run:
-        return jsonify(
-            {
-                "status": "dry_run",
-                "results": {
-                    "matched": matched_count,
-                    "deleted": 0,
-                    "skipped": 0,
-                    "cutoff": cutoff.isoformat().replace("+00:00", "Z"),
-                },
-            }
-        )
-
-    # Delete old reports
     try:
-        deleted_count = BugReport.query.filter(BugReport.submitted_at < cutoff).delete()
-        db.session.commit()
+        if dry_run:
+            results = bug_report_service.purge_bug_reports(cutoff=cutoff, dry_run=True)
+            results["cutoff"] = cutoff.isoformat().replace("+00:00", "Z")
+            return jsonify({"status": "dry_run", "results": results})
 
-        return jsonify(
-            {
-                "status": "success",
-                "results": {
-                    "matched": matched_count,
-                    "deleted": deleted_count,
-                    "skipped": 0,
-                    "cutoff": cutoff.isoformat().replace("+00:00", "Z"),
-                },
-            }
-        )
+        results = bug_report_service.purge_bug_reports(cutoff=cutoff, dry_run=False)
+        results["cutoff"] = cutoff.isoformat().replace("+00:00", "Z")
+        return jsonify({"status": "success", "results": results})
     except Exception as exc:
-        db.session.rollback()
         logger.error(f"Failed to purge bug reports: {exc}", exc_info=True)
         return jsonify({"error": "Failed to purge bug reports"}), 500

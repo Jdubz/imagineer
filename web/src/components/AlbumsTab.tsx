@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '../lib/logger'
-import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
+import { api } from '../lib/api'
 import { getApiUrl } from '../lib/apiConfig'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'

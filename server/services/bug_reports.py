@@ -12,7 +12,9 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from uuid import uuid4
 
 from server.database import BugReport, db
 
@@ -23,29 +25,189 @@ logger = logging.getLogger(__name__)
 class BugReportRecord:
     """In-memory view of a bug report entry (for backward compatibility)."""
 
-    report_id: str
-    payload: Dict[str, Any]
+    model: BugReport
 
     @classmethod
     def from_db_model(cls, bug_report: BugReport) -> "BugReportRecord":
         """Create a BugReportRecord from a database BugReport model."""
-        return cls(report_id=bug_report.report_id, payload=bug_report.to_dict(include_context=True))
+        return cls(model=bug_report)
+
+    @property
+    def report_id(self) -> str:
+        return self.model.report_id
 
     @property
     def status(self) -> str:
-        return str(self.payload.get("status", "open")).lower()
+        return str(self.model.status or "open").lower()
 
     def to_dict(self, *, include_context: bool = False) -> Dict[str, Any]:
         """Convert to dictionary for API serialization."""
-        # The payload already contains the full data
-        if include_context:
-            return self.payload
-        else:
-            # Return without nested context
-            result = dict(self.payload)
-            # Remove nested context if present
-            result.pop("context", None)
-            return result
+        return self.model.to_dict(include_context=include_context)
+
+
+def _generate_report_id(trace_id: Optional[str]) -> str:
+    """Generate a stable bug report identifier."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    prefix = (trace_id or uuid4().hex)[:8]
+    suffix = uuid4().hex[:4]
+    return f"bug_{timestamp}_{prefix}{suffix}"
+
+
+def _json_or_none(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)) and not value:
+        return None
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
+    return str(value)
+
+
+def _normalise_optional(payload: Dict[str, Any], *keys: str) -> Optional[str]:
+    for key in keys:
+        if key in payload and payload[key]:
+            return str(payload[key])
+    return None
+
+
+def generate_report_id(trace_id: Optional[str]) -> str:
+    """Public helper to generate a bug report identifier."""
+    return _generate_report_id(trace_id)
+
+
+def create_bug_report(
+    *,
+    payload: Dict[str, Any],
+    trace_id: Optional[str],
+    submitted_by: Optional[str],
+    screenshot_path: Optional[str],
+    screenshot_error: Optional[str],
+    report_id: Optional[str] = None,
+) -> BugReportRecord:
+    """
+    Create a new bug report from a validated payload.
+
+    Args:
+        payload: Request payload (camelCase keys as per schema)
+        trace_id: Request trace identifier
+        submitted_by: Email of the submitting user
+        screenshot_path: Path to stored screenshot (if any)
+        screenshot_error: Screenshot failure note (if any)
+    """
+
+    report_id = report_id or _generate_report_id(trace_id)
+    timestamp = datetime.now(timezone.utc)
+
+    bug_report = BugReport(
+        report_id=report_id,
+        trace_id=trace_id,
+        submitted_by=submitted_by,
+        submitted_at=timestamp,
+        description=str(payload["description"]),
+        expected_behavior=_normalise_optional(payload, "expected_behavior", "expectedBehavior"),
+        actual_behavior=_normalise_optional(payload, "actual_behavior", "actualBehavior"),
+        steps_to_reproduce=_json_or_none(
+            payload.get("steps_to_reproduce") or payload.get("stepsToReproduce") or []
+        ),
+        status="open",
+        automation_attempts=0,
+        screenshot_path=screenshot_path,
+        screenshot_error=screenshot_error,
+    )
+
+    for request_key, model_field in (
+        ("environment", "environment"),
+        ("clientMeta", "client_meta"),
+        ("appState", "app_state"),
+        ("recentLogs", "recent_logs"),
+        ("networkEvents", "network_events"),
+    ):
+        value = payload.get(request_key)
+        if value is not None:
+            setattr(bug_report, model_field, json.dumps(value))
+
+    # Record initial submission event for audit history
+    bug_report.events = json.dumps(
+        [
+            {
+                "event_type": "submitted",
+                "event_data": {"source": "frontend_submission"},
+                "actor_id": submitted_by,
+                "actor_type": "user" if submitted_by else "system",
+                "timestamp": timestamp.isoformat().replace("+00:00", "Z"),
+            }
+        ]
+    )
+
+    db.session.add(bug_report)
+    db.session.commit()
+
+    return BugReportRecord.from_db_model(bug_report)
+
+
+def list_bug_reports(
+    *,
+    status: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> Tuple[List[BugReportRecord], int]:
+    """
+    Return paginated bug report results.
+
+    Args:
+        status: Optional status filter
+        page: 1-based page index
+        per_page: Page size (max 100 enforced by caller)
+
+    Returns:
+        Tuple of (records, total_count)
+    """
+
+    query = BugReport.query
+    if status:
+        query = query.filter_by(status=status.lower())
+
+    total = query.count()
+    offset = max(0, page - 1) * per_page
+    bug_reports = query.order_by(BugReport.submitted_at.desc()).offset(offset).limit(per_page).all()
+
+    return [BugReportRecord.from_db_model(br) for br in bug_reports], total
+
+
+def delete_bug_report(report_id: str) -> bool:
+    """
+    Delete a bug report and its associated screenshot (if any).
+
+    Returns:
+        True if deleted, False if not found.
+    """
+
+    bug_report = BugReport.query.filter_by(report_id=report_id).first()
+    if not bug_report:
+        return False
+
+    screenshot_path = bug_report.screenshot_path
+    db.session.delete(bug_report)
+    db.session.commit()
+
+    _cleanup_screenshot_files([screenshot_path] if screenshot_path else [])
+    return True
+
+
+def _cleanup_screenshot_files(paths: Iterable[Optional[str]]) -> None:
+    for path_str in paths:
+        if not path_str:
+            continue
+        try:
+            path = Path(path_str)
+        except (TypeError, ValueError):
+            continue
+        try:
+            path.unlink(missing_ok=True)
+            if path.parent.exists() and not any(path.parent.iterdir()):
+                path.parent.rmdir()
+        except OSError:
+            logger.debug("Failed to remove screenshot file at %s", path_str, exc_info=True)
 
 
 def get_bug_report(report_id: str) -> Optional[BugReportRecord]:
@@ -203,3 +365,44 @@ def get_pending_automation_reports(*, limit: int = 10) -> List[BugReportRecord]:
     )
 
     return [BugReportRecord.from_db_model(br) for br in bug_reports]
+
+
+def purge_bug_reports(
+    *,
+    cutoff: datetime,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """
+    Purge bug reports older than the supplied cutoff timestamp.
+
+    Args:
+        cutoff: Oldest allowed submission timestamp (UTC)
+        dry_run: When True, do not delete anything and only report counts
+    """
+
+    query = BugReport.query.filter(BugReport.submitted_at < cutoff)
+    matched = query.count()
+
+    if dry_run:
+        return {
+            "matched": matched,
+            "deleted": 0,
+            "skipped": 0,
+        }
+
+    bug_reports = query.all()
+    screenshot_paths = [br.screenshot_path for br in bug_reports if br.screenshot_path]
+
+    deleted = 0
+    for bug_report in bug_reports:
+        db.session.delete(bug_report)
+        deleted += 1
+
+    db.session.commit()
+    _cleanup_screenshot_files(screenshot_paths)
+
+    return {
+        "matched": matched,
+        "deleted": deleted,
+        "skipped": 0,
+    }

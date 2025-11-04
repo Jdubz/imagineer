@@ -71,6 +71,8 @@ def migrate_bug_report(report_id: str, payload: dict) -> BugReport | None:
         submitted_by=payload.get("submitted_by"),
         submitted_at=submitted_at,
         description=payload.get("description", ""),
+        expected_behavior=payload.get("expected_behavior") or payload.get("expectedBehavior"),
+        actual_behavior=payload.get("actual_behavior") or payload.get("actualBehavior"),
         status=payload.get("status", "open"),
         automation_attempts=payload.get("automation_attempts", 0),
         screenshot_path=payload.get("screenshot_path"),
@@ -79,6 +81,13 @@ def migrate_bug_report(report_id: str, payload: dict) -> BugReport | None:
         resolution_commit_sha=payload.get("resolution_commit_sha"),
         resolution_actor_id=payload.get("resolution_actor_id"),
     )
+
+    steps = payload.get("steps_to_reproduce") or payload.get("stepsToReproduce")
+    if steps:
+        if isinstance(steps, (list, dict)):
+            bug_report.steps_to_reproduce = json.dumps(steps)
+        else:
+            bug_report.steps_to_reproduce = json.dumps([steps])
 
     # Set JSON fields
     for field in ["environment", "clientMeta", "appState", "recentLogs", "networkEvents"]:
