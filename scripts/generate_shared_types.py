@@ -315,6 +315,32 @@ def build_outputs(schemas: list[dict[str, Any]]) -> tuple[str, str]:
     ]
     py_output = "\n".join(py_lines).rstrip() + "\n"
 
+    # Format Python output with Black
+    try:
+        import subprocess
+        import tempfile
+
+        # Write to temp file, format with Black, and read back
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(py_output)
+            temp_path = f.name
+
+        try:
+            subprocess.run(
+                ["black", "--quiet", temp_path],
+                check=True,
+                capture_output=True,
+            )
+            with open(temp_path, "r", encoding="utf-8") as f:
+                py_output = f.read()
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # If Black fails or isn't available, use unformatted output
+        pass
+
     return ts_output, py_output
 
 
