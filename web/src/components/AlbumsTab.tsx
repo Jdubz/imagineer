@@ -19,7 +19,7 @@ import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
+import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage, PreviewImage } from '../types/models'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -42,15 +42,8 @@ interface AlbumImage {
   manual_label_count?: number
 }
 
-interface PreviewImage {
-  id: number
-  filename: string
-  thumbnail_path?: string | null
-}
-
 type Album = SharedAlbum & {
   images?: AlbumImage[]
-  preview_images?: PreviewImage[]
 }
 
 interface AlbumsTabProps {
