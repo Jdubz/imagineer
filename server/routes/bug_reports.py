@@ -17,7 +17,6 @@ from jsonschema import Draft202012Validator, ValidationError
 from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
-from server.bug_reports.service import bug_report_service
 from server.bug_reports.storage import (
     BugReportStorageError,
     delete_report,
@@ -26,6 +25,7 @@ from server.bug_reports.storage import (
     purge_reports_older_than,
 )
 from server.config_loader import PROJECT_ROOT, load_config
+from server.services import bug_reports as bug_report_service
 from server.shared_types import (
     BugReportSubmissionRequestTypedDict,
     BugReportSubmissionResponseTypedDict,
