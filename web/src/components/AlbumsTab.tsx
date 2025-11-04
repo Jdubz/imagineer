@@ -391,10 +391,14 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
           const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.preventDefault()
             e.stopPropagation()
             deleteAlbum(album.id)
           }
-          const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => handleBatchGenerate(album, e)
+          const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.preventDefault()
+            handleBatchGenerate(album, e)
+          }
           const coverImage = album.images && album.images.length > 0 ? album.images[0] : null
           const coverGenerated: GeneratedImage | null = coverImage
             ? {

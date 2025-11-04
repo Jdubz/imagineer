@@ -103,6 +103,15 @@ configure_git() {
   fi
 }
 
+cleanup_workspace() {
+  cd "${WORKSPACE_DIR}"
+  # Discard all local changes from previous runs
+  git reset --hard HEAD
+  # Remove untracked files and directories
+  git clean -fdx
+  log "Workspace cleaned: ready for fresh checkout"
+}
+
 checkout_branch() {
   cd "${WORKSPACE_DIR}"
   git fetch origin "${TARGET_BRANCH}"
@@ -139,7 +148,8 @@ LAST_TEST_RESULTS="{}"
 run_tests() {
   local tests_json="{}"
   cd "${WORKSPACE_DIR}/web"
-  npm install --prefer-offline --ignore-scripts
+  # Ensure dependencies match the lockfile exactly for deterministic installs
+  npm ci --prefer-offline
   npm run lint
   npm run tsc
   npm test -- --run
@@ -181,6 +191,7 @@ push_changes() {
 
 run_step "Link cached node_modules" link_node_modules
 run_step "Configure git identity" configure_git
+run_step "Clean workspace" cleanup_workspace
 run_step "Prepare remediation branch" checkout_branch
 run_step "Display workspace status" git -C "${WORKSPACE_DIR}" status
 run_step "Hydrate Claude credentials" hydrate_claude_credentials

@@ -22,8 +22,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     && apt-get install -y gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Claude CLI globally
-RUN npm install -g @anthropic-ai/claude-code
+# Install Claude CLI globally (latest version for bug fixes)
+RUN npm install -g @anthropic-ai/claude-code@latest
 
 # Install Python development tools and app dependencies
 RUN pip3 install --no-cache-dir --break-system-packages \
@@ -48,8 +48,9 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     redis==5.2.1
 
 # Prepare shared node_modules cache (used by remediation bootstrap)
+# Note: Cache is no longer used - agents do fresh npm install per bootstrap.sh changes
+# Keeping directory structure for backward compatibility
 RUN mkdir -p /opt/imagineer/node_modules && \
-    npm install --prefix /opt/imagineer @rollup/rollup-linux-x64-gnu@latest && \
     chown -R node:node /opt/imagineer
 
 # node:20-slim already has 'node' user with UID 1000, use it as worker
