@@ -291,12 +291,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
-  const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
-    event.preventDefault()
-    event.stopPropagation()
-    setShowBatchDialog(album)
-  }, [])
-
   const filteredAlbums = useMemo(() => {
     return albums.filter((album) => {
       if (albumFilter === 'all') return true
@@ -390,66 +384,64 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
-          const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
-            e.preventDefault()
-            e.stopPropagation()
+          const handleDeleteAlbum = () => {
             deleteAlbum(album.id)
           }
-          const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-            e.preventDefault()
-            handleBatchGenerate(album, e)
+          const handleBatchClick = () => {
+            setShowBatchDialog(album)
           }
 
           return (
-            <Link
+            <Card
               key={album.id}
-              to={`/albums/${album.id}`}
-              className="block h-full"
+              className={cn(
+                'group flex h-full flex-col overflow-hidden border transition',
+                'hover:border-primary/50 hover:shadow-lg'
+              )}
             >
-              <Card
-                className={cn(
-                  'group flex h-full flex-col overflow-hidden border transition',
-                  'hover:border-primary/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70'
-                )}
+              <Link
+                to={`/albums/${album.id}`}
+                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
               >
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                {album.preview_images && album.preview_images.length > 0 ? (
-                  <AlbumThumbnailCarousel
-                    previewImages={album.preview_images}
-                    albumName={album.name}
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    {album.image_count || 0} images
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                  {album.preview_images && album.preview_images.length > 0 ? (
+                    <AlbumThumbnailCarousel
+                      previewImages={album.preview_images}
+                      albumName={album.name}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      {album.image_count || 0} images
+                    </div>
+                  )}
+                </div>
+
+                <CardHeader className="gap-3 p-6 pb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="line-clamp-2 text-base font-semibold">
+                      {album.name}
+                    </CardTitle>
+                    {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
                   </div>
-                )}
-              </div>
+                  <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
+                    {album.description || 'No description provided'}
+                  </CardDescription>
+                </CardHeader>
 
-              <CardHeader className="gap-3 p-6 pb-4">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="line-clamp-2 text-base font-semibold">
-                    {album.name}
-                  </CardTitle>
-                  {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
-                </div>
-                <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
-                  {album.description || 'No description provided'}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 px-6 pb-6 pt-0">
-                {album.is_set_template && album.template_item_count ? (
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {album.template_item_count} template items
-                  </p>
-                ) : null}
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
-                  <span>{album.image_count || 0} images</span>
-                  <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
-                    {album.album_type || 'manual'}
-                  </Badge>
-                </div>
-              </CardContent>
+                <CardContent className="space-y-3 px-6 pb-6 pt-0">
+                  {album.is_set_template && album.template_item_count ? (
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {album.template_item_count} template items
+                    </p>
+                  ) : null}
+                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
+                    <span>{album.image_count || 0} images</span>
+                    <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
+                      {album.album_type || 'manual'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Link>
 
               {isAdmin ? (
                 <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/30 px-6 py-4">
@@ -472,7 +464,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
                 </CardFooter>
               ) : null}
             </Card>
-            </Link>
           )
         })}
       </div>
