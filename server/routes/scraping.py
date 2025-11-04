@@ -219,6 +219,40 @@ def purge_scrape_artifacts():
     )
 
 
+@scraping_bp.route("/jobs/<int:job_id>/reset", methods=["POST"])
+@require_admin
+def reset_stuck_job(job_id):
+    """Reset a stuck scrape job (admin only)"""
+    try:
+        job = get_scrape_job_or_404(job_id)
+
+        if job.status not in ["pending", "running"]:
+            return jsonify({"error": "Only pending or running jobs can be reset"}), 400
+
+        # Cancel Celery task if it exists
+        if hasattr(job, "celery_task_id") and job.celery_task_id:
+            from server.celery_app import celery as celery_app
+
+            celery_app.control.revoke(job.celery_task_id, terminate=True)
+
+        # Reset job to failed state with explanation
+        from datetime import datetime, timezone
+
+        job.status = "failed"
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = "Job was stuck and manually reset by admin"
+        job.last_error_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        logger.info(f"Reset stuck scrape job {job_id}")
+
+        return jsonify({"success": True, "message": "Job reset successfully"})
+
+    except Exception as e:
+        logger.error(f"Error resetting scrape job {job_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to reset scrape job"}), 500
+
+
 @scraping_bp.route("/stats", methods=["GET"])
 def get_scraping_stats():
     """Get scraping statistics (public)"""

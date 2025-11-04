@@ -12,6 +12,7 @@ import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
 import { logger } from '../lib/logger'
+import { resolveImageSources } from '../lib/imageSources'
 import type { Album, GeneratedImage } from '../types/models'
 
 interface AlbumDetailPageProps {
@@ -319,25 +320,29 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {images.map((image) => (
-                <Link
-                  key={image.id}
-                  to={`/image/${image.id}`}
-                  className="group relative aspect-square rounded-lg overflow-hidden bg-muted hover:ring-2 hover:ring-primary transition-all"
-                >
-                  <img
-                    src={image.thumbnail_url || image.download_url}
-                    alt={image.filename}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                    <p className="text-white text-xs text-center line-clamp-2">
-                      {image.filename}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+              {images.map((image) => {
+                const sources = resolveImageSources(image, { fallbackAlt: image.filename })
+                return (
+                  <Link
+                    key={image.id}
+                    to={`/image/${image.id}`}
+                    className="group relative aspect-square rounded-lg overflow-hidden bg-muted hover:ring-2 hover:ring-primary transition-all"
+                  >
+                    <img
+                      src={sources.thumbnail}
+                      srcSet={sources.srcSet}
+                      alt={sources.alt}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
+                      <p className="text-white text-xs text-center line-clamp-2">
+                        {image.filename}
+                      </p>
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </CardContent>

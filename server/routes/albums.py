@@ -41,8 +41,11 @@ def list_albums():
     """List all albums (public, with pagination)"""
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 50, type=int), 100)
+    preview_limit = min(request.args.get("preview_limit", 5, type=int), 10)
 
-    query = Album.query.order_by(Album.created_at.desc())
+    query = Album.query.options(
+        joinedload(Album.album_images).joinedload(AlbumImage.image)
+    ).order_by(Album.created_at.desc())
 
     album_type = request.args.get("album_type")
     if album_type:
@@ -56,9 +59,26 @@ def list_albums():
 
     pagination = query.paginate(page=page, per_page=per_page)
 
+    albums_data = []
+    for album in pagination.items:
+        album_dict = album.to_dict()
+        # Add preview images (limited number for thumbnails)
+        preview_images = []
+        for association in album.album_images[:preview_limit]:
+            if association.image:
+                preview_images.append(
+                    {
+                        "id": association.image.id,
+                        "filename": association.image.filename,
+                        "thumbnail_path": association.image.thumbnail_path,
+                    }
+                )
+        album_dict["preview_images"] = preview_images
+        albums_data.append(album_dict)
+
     return jsonify(
         {
-            "albums": [album.to_dict() for album in pagination.items],
+            "albums": albums_data,
             "total": pagination.total,
             "page": page,
             "per_page": per_page,

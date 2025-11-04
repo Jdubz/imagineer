@@ -425,6 +425,12 @@ export const LoRAConfigSchema = z.object({
   name: z.string().optional(),
 })
 
+const PreviewImageSchema = z.object({
+  id: z.number(),
+  filename: z.string(),
+  thumbnail_path: z.string().nullish(),
+})
+
 export const AlbumSchema = z.object({
   id: z
     .union([z.string(), z.number()])
@@ -436,6 +442,7 @@ export const AlbumSchema = z.object({
   created_at: z.string().nullish(),
   updated_at: z.string().nullish(),
   images: z.array(z.lazy(() => GeneratedImageSchema)).optional(),
+  preview_images: z.array(PreviewImageSchema).optional(),
   album_type: z.string(),
   is_set_template: z.boolean(),
   template_item_count: z.number(),
@@ -454,7 +461,7 @@ export const AlbumSchema = z.object({
   lora_count: z.number(),
   template_items_preview: z.array(z.unknown()).default([]),
   slug: z.string(),
-})
+}).passthrough()
 
 export const LabelAnalyticsSchema = z.object({
   album_id: z.number(),
@@ -513,6 +520,10 @@ export const AlbumsResponseSchema = z.union([
   z.array(AlbumSchema),
   z.object({
     albums: z.array(AlbumSchema),
+    total: z.number().optional(),
+    page: z.number().optional(),
+    per_page: z.number().optional(),
+    pages: z.number().optional(),
   }),
 ])
 

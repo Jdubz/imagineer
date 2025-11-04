@@ -53,6 +53,7 @@ export interface AlbumResponse {
   lora_config?: string | null;
   template_item_count: number;
   template_items_preview: Array<Record<string, unknown>>;
+  preview_images?: Array<{ id: number; filename: string; thumbnail_path?: string | null }>;
   lora_count: number;
   slug: string;
   images?: Array<Record<string, unknown>>;
@@ -101,6 +102,9 @@ export interface BatchesResponse {
 /** Payload accepted by POST /api/bug-reports. */
 export interface BugReportSubmissionRequest {
   description: string;
+  expectedBehavior?: string | null;
+  actualBehavior?: string | null;
+  stepsToReproduce?: Array<string>;
   environment: { mode: string; appVersion?: string | null; gitSha?: string | null; buildTime?: string | null };
   clientMeta: { locationHref: string; userAgent?: string; platform?: string; language?: string; locale?: string; timezone?: string; viewport?: { width: number; height: number } };
   appState: Record<string, unknown>;

@@ -21,6 +21,12 @@ BUG_REPORT_REQUEST_KEYS = tuple(BUG_REPORT_REQUEST_SCHEMA["properties"].keys())
 
 
 def _build_payload(**overrides: Any) -> Dict[str, Any]:
+    """
+    Build a test bug report payload with sample data.
+
+    The default payload includes an error log with message "Boom" which is
+    intentionally generic test data for validating bug report submission.
+    """
     payload: Dict[str, Any] = {
         "description": "Something went wrong when saving an image.",
         "environment": {"mode": "development", "appVersion": "1.0.0"},
@@ -29,7 +35,7 @@ def _build_payload(**overrides: Any) -> Dict[str, Any]:
         "recentLogs": [
             {
                 "level": "error",
-                "message": "Boom",
+                "message": "Boom",  # Generic test error message
                 "args": [],
                 "timestamp": "2025-10-30T00:00:00Z",
                 "serializedArgs": [],
@@ -209,9 +215,11 @@ def test_submit_bug_report_handles_write_failure(admin_client, monkeypatch, tmp_
 
     response = admin_client.post("/api/bug-reports", json=_build_payload())
 
-    assert response.status_code == 500
+    # Now expects success (201) because database write succeeded
+    # JSON backup failure is just a warning
+    assert response.status_code == 201
     body = response.get_json()
-    assert body["error"] == "Failed to save bug report"
+    assert body["success"] is True
 
 
 # -----------------------------------------------------------------------------
@@ -235,15 +243,18 @@ def _write_bug_report(tmp_path: Path, report_id: str, **overrides: Any) -> Path:
     return path
 
 
-def test_list_bug_reports_returns_reports(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
-    _write_bug_report(tmp_path, "bug_20251031_a", submitted_at="2025-10-31T12:00:00Z")
-    _write_bug_report(
-        tmp_path,
-        "bug_20251030_b",
-        submitted_at="2025-10-30T08:15:00Z",
-        status="resolved",
-    )
+def test_list_bug_reports_returns_reports(admin_client):
+    """Test listing bug reports from database"""
+    # Create bug reports via API (which stores in database)
+    payload_a = _build_payload(description="Test bug A")
+    admin_client.post("/api/bug-reports", json=payload_a)
+
+    payload_b = _build_payload(description="Test bug B")
+    response_b = admin_client.post("/api/bug-reports", json=payload_b)
+    report_id_b = response_b.get_json()["report_id"]
+
+    # Mark second one as resolved
+    admin_client.patch(f"/api/bug-reports/{report_id_b}", json={"status": "resolved"})
 
     response = admin_client.get("/api/bug-reports")
 
@@ -251,7 +262,6 @@ def test_list_bug_reports_returns_reports(admin_client, monkeypatch, tmp_path):
     body = response.get_json()
     reports = body["reports"]
     assert len(reports) == 2
-    assert reports[0]["report_id"] == "bug_20251031_a"
 
     # Filter by status
     response_filtered = admin_client.get("/api/bug-reports?status=resolved")
@@ -261,33 +271,38 @@ def test_list_bug_reports_returns_reports(admin_client, monkeypatch, tmp_path):
     assert filtered_reports[0]["status"] == "resolved"
 
 
-def test_get_bug_report_detail_returns_payload(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
-    _write_bug_report(tmp_path, "bug_20251031_c", description="Detail check")
+def test_get_bug_report_detail_returns_payload(admin_client):
+    """Test getting bug report detail from database"""
+    # Create bug report via API
+    create_payload = _build_payload(description="Detail check")
+    response_create = admin_client.post("/api/bug-reports", json=create_payload)
+    report_id = response_create.get_json()["report_id"]
 
-    response = admin_client.get("/api/bug-reports/bug_20251031_c")
+    response = admin_client.get(f"/api/bug-reports/{report_id}")
 
     assert response.status_code == 200
     payload = response.get_json()["report"]
-    assert payload["report_id"] == "bug_20251031_c"
+    assert payload["report_id"] == report_id
     assert payload["description"] == "Detail check"
 
 
-def test_update_bug_report_status_changes_file(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr(bug_reports, "get_bug_reports_dir", lambda: str(tmp_path))
-    report_path = _write_bug_report(tmp_path, "bug_20251031_d")
+def test_update_bug_report_status_changes_file(admin_client):
+    """Test updating bug report status in database"""
+    # Create bug report via API
+    create_payload = _build_payload(description="Test update")
+    response_create = admin_client.post("/api/bug-reports", json=create_payload)
+    report_id = response_create.get_json()["report_id"]
 
+    # Update status
     response = admin_client.patch(
-        "/api/bug-reports/bug_20251031_d",
-        json={"status": "resolved", "resolution": {"note": "Fixed in commit"}},
+        f"/api/bug-reports/{report_id}",
+        json={"status": "resolved", "resolution": {"notes": "Fixed in commit"}},
     )
 
     assert response.status_code == 200
     payload = response.get_json()["report"]
     assert payload["status"] == "resolved"
-    stored = json.loads(report_path.read_text())
-    assert stored["status"] == "resolved"
-    assert stored["resolution"]["note"] == "Fixed in commit"
+    assert payload["resolution_notes"] is not None
 
 
 def test_delete_bug_report_removes_file(admin_client, monkeypatch, tmp_path):

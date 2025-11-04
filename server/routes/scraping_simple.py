@@ -243,6 +243,46 @@ def cleanup_job(job_id):
                 400,
             )
 
+        # Delete image records and album associations for this job
+        if job.album_id:
+            from pathlib import Path
+
+            from server.database import Album, AlbumImage, Image
+
+            album = db.session.get(Album, job.album_id)
+            if album:
+                # Get all images in this album
+                album_images = AlbumImage.query.filter_by(album_id=album.id).all()
+                image_ids = [ai.image_id for ai in album_images]
+
+                # Delete album associations
+                for ai in album_images:
+                    db.session.delete(ai)
+
+                # Delete images that were scraped (check file_path is in output_directory)
+                if job.output_directory:
+                    output_path = Path(job.output_directory)
+                    for image_id in image_ids:
+                        image = db.session.get(Image, image_id)
+                        if image and image.file_path:
+                            image_path = Path(image.file_path)
+                            # Only delete if image file is in the scrape output directory
+                            try:
+                                if image_path.is_relative_to(output_path):
+                                    db.session.delete(image)
+                            except (ValueError, AttributeError):
+                                # is_relative_to not available or path comparison failed
+                                # Fall back to string comparison
+                                if str(image_path).startswith(str(output_path)):
+                                    db.session.delete(image)
+
+                # Delete the album
+                db.session.delete(album)
+
+                logger.info(
+                    "Deleted album %s and associated images for scrape job %s", album.id, job_id
+                )
+
         # Clean up output directory if it exists
         if job.output_directory:
             from pathlib import Path
@@ -263,6 +303,7 @@ def cleanup_job(job_id):
 
     except Exception as e:
         logger.error(f"Error starting cleanup for job {job_id}: {e}", exc_info=True)
+        db.session.rollback()
         return jsonify({"error": "Failed to cleanup job"}), 500
 
 

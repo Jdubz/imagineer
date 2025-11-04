@@ -424,7 +424,16 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
   }, [])
 
   const handleSubmit = useCallback(
-    async (description: string, includeScreenshot: boolean, annotatedScreenshot?: string) => {
+    async (
+      description: string,
+      includeScreenshot: boolean,
+      annotatedScreenshot?: string,
+      qualityFields?: {
+        expectedBehavior?: string
+        actualBehavior?: string
+        stepsToReproduce?: string
+      },
+    ) => {
       setIsSubmitting(true)
 
       try {
@@ -438,6 +447,21 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
             serializedArgs: entry.serializedArgs,
           })),
           networkEvents,
+        }
+
+        // Add quality enhancement fields if provided
+        if (qualityFields?.expectedBehavior) {
+          payload.expectedBehavior = qualityFields.expectedBehavior
+        }
+        if (qualityFields?.actualBehavior) {
+          payload.actualBehavior = qualityFields.actualBehavior
+        }
+        if (qualityFields?.stepsToReproduce) {
+          // Split steps by newlines to create array
+          payload.stepsToReproduce = qualityFields.stepsToReproduce
+            .split('\n')
+            .map(step => step.trim())
+            .filter(step => step.length > 0)
         }
 
         // Include screenshot data if enabled
@@ -498,7 +522,16 @@ export const BugReportProvider: React.FC<BugReportProviderProps> = ({ children }
 interface BugReportModalProps {
   isSubmitting: boolean
   onClose: () => void
-  onSubmit: (description: string, includeScreenshot: boolean, annotatedScreenshot?: string) => Promise<void>
+  onSubmit: (
+    description: string,
+    includeScreenshot: boolean,
+    annotatedScreenshot?: string,
+    qualityFields?: {
+      expectedBehavior?: string
+      actualBehavior?: string
+      stepsToReproduce?: string
+    },
+  ) => Promise<void>
   recentLogCount: number
   networkEventCount: number
   defaultDescription?: string
@@ -519,6 +552,9 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
   isCapturingScreenshot,
 }) => {
   const [description, setDescription] = useState(defaultDescription ?? '')
+  const [expectedBehavior, setExpectedBehavior] = useState('')
+  const [actualBehavior, setActualBehavior] = useState('')
+  const [stepsToReproduce, setStepsToReproduce] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [includeScreenshot, setIncludeScreenshot] = useState(true)
   const [isAnnotating, setIsAnnotating] = useState(false)
@@ -593,7 +629,15 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
       return
     }
     setError(null)
-    await onSubmit(trimmed, includeScreenshot, annotatedScreenshot || undefined)
+
+    // Collect quality fields if provided
+    const qualityFields = {
+      expectedBehavior: expectedBehavior.trim() || undefined,
+      actualBehavior: actualBehavior.trim() || undefined,
+      stepsToReproduce: stepsToReproduce.trim() || undefined,
+    }
+
+    await onSubmit(trimmed, includeScreenshot, annotatedScreenshot || undefined, qualityFields)
   }
 
   return (
@@ -622,9 +666,55 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
                 maxLength={4000}
                 disabled={isSubmitting}
                 required
-                className="min-h-[160px] resize-y"
+                className="min-h-[120px] resize-y"
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
+
+            {/* Quality Enhancement Fields */}
+            <div className="space-y-2">
+              <Label htmlFor="expected-behavior" className="font-semibold">
+                Expected Behavior <span className="text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="expected-behavior"
+                placeholder="What did you expect to happen?"
+                value={expectedBehavior}
+                onChange={(event) => setExpectedBehavior(event.target.value)}
+                maxLength={1000}
+                disabled={isSubmitting}
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="actual-behavior" className="font-semibold">
+                Actual Behavior <span className="text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="actual-behavior"
+                placeholder="What actually happened instead?"
+                value={actualBehavior}
+                onChange={(event) => setActualBehavior(event.target.value)}
+                maxLength={1000}
+                disabled={isSubmitting}
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="steps-to-reproduce" className="font-semibold">
+                Steps to Reproduce <span className="text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="steps-to-reproduce"
+                placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."
+                value={stepsToReproduce}
+                onChange={(event) => setStepsToReproduce(event.target.value)}
+                maxLength={2000}
+                disabled={isSubmitting}
+                className="min-h-[100px] resize-y font-mono text-sm"
+              />
             </div>
 
             {/* Screenshot Section */}

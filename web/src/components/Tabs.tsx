@@ -26,12 +26,12 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab }) => {
       onValueChange={handleTabChange}
       className="w-full"
     >
-      <TabsList className="flex w-full justify-start gap-2 overflow-x-auto overflow-y-hidden bg-muted p-2 md:flex-wrap md:gap-3">
+      <TabsList className="flex w-full justify-start gap-1 overflow-x-auto overflow-y-hidden bg-muted p-1.5 md:flex-wrap md:gap-2 md:p-2">
         {tabs.map((tab) => (
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="flex-shrink-0 gap-2 px-4 py-2 text-base md:px-5"
+            className="flex-shrink-0 gap-1.5 px-3 py-2 text-sm md:gap-2 md:px-4 md:text-base"
           >
             {tab.icon && <span aria-hidden="true">{tab.icon}</span>}
             <span>{tab.label}</span>

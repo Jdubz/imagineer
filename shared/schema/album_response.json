@@ -69,6 +69,18 @@
         "type": "object"
       }
     },
+    "preview_images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "filename": { "type": "string" },
+          "thumbnail_path": { "type": ["string", "null"] }
+        },
+        "required": ["id", "filename"]
+      }
+    },
     "lora_count": {
       "type": "integer"
     },
