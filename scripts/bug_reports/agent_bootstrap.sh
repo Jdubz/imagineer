@@ -170,16 +170,69 @@ run_tests() {
   LAST_TEST_RESULTS="${tests_json}"
 }
 
-push_changes() {
+validate_changes() {
   cd "${WORKSPACE_DIR}"
   git add -A
+
+  # Check if any changes were made
   if git diff --cached --quiet; then
-    log "No staged changes detected after Claude automation."
-    fail_summary "Claude automation did not produce any changes"
-    exit 4
+    log "❌ VALIDATION FAILED: No files were modified"
+    fail_summary "No code changes detected"
+    return 1
   fi
+
+  local changed_files
+  changed_files=$(git diff --cached --name-only)
+  local file_count
+  file_count=$(echo "$changed_files" | wc -l)
+
+  log "Files changed ($file_count):"
+  echo "$changed_files" | while read -r file; do
+    log "  - $file"
+  done
+
+  # Red flag: only package-lock.json changed
+  if [ "$file_count" -eq 1 ] && echo "$changed_files" | grep -qE '^(web/)?package-lock\.json$'; then
+    log "❌ VALIDATION FAILED: Only package-lock.json was modified"
+    log "This suggests npm install ran but no actual code changes were made"
+    fail_summary "Only package-lock.json modified - no actual fix implemented"
+    return 1
+  fi
+
+  # Red flag: only build artifacts or configs changed
+  if echo "$changed_files" | grep -qvE '\.(ts|tsx|js|jsx|py|html|css|scss)$' && [ "$file_count" -lt 3 ]; then
+    log "⚠️  WARNING: Changes appear to be only build artifacts/configs"
+    log "Expected code changes in .ts/.tsx/.py files for typical bug fixes"
+  fi
+
+  # Warning: too many files changed
+  if [ "$file_count" -gt 10 ]; then
+    log "⚠️  WARNING: $file_count files changed (expected 1-3 for typical bug fix)"
+    log "Large changesets may indicate unintended side effects"
+  fi
+
+  # Try to extract bug context for logging
+  if [ -f "${CONTEXT_PATH}" ]; then
+    local bug_desc
+    bug_desc=$(jq -r '.description // "N/A"' "${CONTEXT_PATH}" 2>/dev/null || echo "N/A")
+    local bug_route
+    bug_route=$(jq -r '.clientMeta.locationHref // "N/A"' "${CONTEXT_PATH}" 2>/dev/null || echo "N/A")
+    log "Bug context:"
+    log "  Route: $bug_route"
+    log "  Description: $bug_desc"
+  fi
+
+  log "✅ Change validation passed"
+  return 0
+}
+
+push_changes() {
+  cd "${WORKSPACE_DIR}"
+
+  local commit_msg="fix: automated remediation (bug ${REPORT_ID})"
+
   git status >&2
-  git commit -m "fix: automated remediation (bug ${REPORT_ID})" >&2
+  git commit -m "$commit_msg" >&2
   if ! git push origin "${TARGET_BRANCH}" >&2; then
     log "Git push failed to ${TARGET_BRANCH}. Check credentials or remote configuration."
     return 1
@@ -198,6 +251,7 @@ run_step "Prepare remediation branch" checkout_branch
 run_step "Display workspace status" git -C "${WORKSPACE_DIR}" status
 run_step "Hydrate Claude credentials" hydrate_claude_credentials
 run_step "Execute Claude automation" maybe_run_claude
+run_step "Validate code changes" validate_changes
 run_step "Run verification suite" run_tests
 COMMIT_SHA="$(run_step "Commit and push changes" push_changes)"
 if [[ -z "${COMMIT_SHA}" ]]; then

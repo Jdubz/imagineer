@@ -174,41 +174,89 @@ class BugReportDockerRunner:
         route = client_meta.get("locationHref") or payload.get("appState", {}).get("route", {}).get(
             "pathname"
         )
+        report_id = payload.get("report_id", "")
 
-        # Check if screenshot is available
+        # Extract context hints
+        recent_logs = payload.get("recentLogs", [])
+        network_events = payload.get("networkEvents", [])
+
+        # Build context section
+        context_hints = []
+
+        # Screenshot instruction
         screenshot_path = payload.get("screenshot_path")
-        screenshot_instruction = ""
         if screenshot_path:
-            screenshot_instruction = (
-                "\n              - Screenshot available at "
-                f"{self.CONTEXT_DIR_NAME}/screenshot.png "
-                "- inspect it to understand the visual issue."
+            context_hints.append(
+                f"- Screenshot: {self.CONTEXT_DIR_NAME}/screenshot.png shows the visual issue"
             )
+
+        # Error logs summary
+        if recent_logs:
+            error_logs = [log for log in recent_logs[:3] if log.get("level") == "error"]
+            if error_logs:
+                error_messages = ", ".join(f'"{log.get("message", "")}"' for log in error_logs[:2])
+                context_hints.append(f"- Error logs show: {error_messages}")
+
+        # Network events summary
+        if network_events:
+            failed_requests = [
+                evt
+                for evt in network_events[:5]
+                if not evt.get("ok") or evt.get("status", 0) >= 400
+            ]
+            if failed_requests:
+                failed_urls = ", ".join(
+                    f"{evt.get('method', 'GET')} {evt.get('url', '')[:60]}"
+                    for evt in failed_requests[:2]
+                )
+                context_hints.append(f"- Failed requests: {failed_urls}")
+
+        context_section = "\n".join(context_hints) if context_hints else ""
+        if context_section:
+            context_section = f"\nCONTEXT:\n{context_section}\n"
 
         prompt = textwrap.dedent(
             f"""
-            You are a remediation agent working on the Imagineer repository.
-            Address bug report {payload.get("report_id") or ''}.
-            Description: {description or 'No description provided.'}
-            Route / context: {route or 'Unknown'}
+            You are a remediation agent for the Imagineer repository.
 
+            BUG REPORT: {report_id}
+            ROUTE: {route or 'Unknown'}
+            DESCRIPTION: {description or 'No description provided.'}
+{context_section}
             IMPORTANT: You are on the {self.config.target_branch} branch. All changes
             will be committed and pushed directly to this branch. DO NOT create or
             mention bugfix branches.
 
-            Steps:
-              1. Review the report data in {self.CONTEXT_DIR_NAME}/context.json.
-{screenshot_instruction}
-              2. Identify the root cause and implement a minimal fix.
-              3. DO NOT commit or push - the automation handles this automatically.
-              4. The verification suite will run after your changes:
-                 - Frontend: npm lint, tsc, test
-                 - Backend: black, flake8, pytest
+            WORKFLOW:
+              1. Review full context in {self.CONTEXT_DIR_NAME}/context.json
+                 {
+                     "- Inspect screenshot.png to understand the visual issue"
+                     if screenshot_path
+                     else ""
+                 }
+              2. Identify ROOT CAUSE from logs, network events, stack traces
+              3. Implement a minimal, targeted fix
+              4. VERIFY YOUR FIX:
+                 - Does your change directly address the reported symptom?
+                 - Are you modifying the correct file/component for THIS bug?
+                 - Did you check the screenshot/logs to understand the issue?
+                 - Can you explain in 1 sentence HOW your change fixes the bug?
+              5. DO NOT commit or push - automation handles this
 
-            Focus on the minimal fix needed. Changes will be committed automatically
-            with: "fix: automated remediation (bug {payload.get("report_id") or ''})"
+            QUALITY GATES:
+              ❌ FAIL: Changes only to package.json/package-lock.json/build configs
+              ❌ FAIL: Changes to unrelated components (check route/error logs)
+              ✅ PASS: Changes directly address reported symptom with minimal scope
 
-            If you cannot complete the work, document why before exiting.
+            The verification suite will run after your changes:
+              - Frontend: npm lint, tsc, test (with retry for flaky tests)
+              - Backend: black, flake8, pytest
+
+            Changes will be committed automatically with:
+            "fix: automated remediation (bug {report_id})"
+
+            If you cannot complete the work or are unsure about the fix,
+            document why and exit. DO NOT make speculative changes.
             """
         ).strip()
         path.write_text(prompt + "\n", encoding="utf-8")

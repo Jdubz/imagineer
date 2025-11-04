@@ -49,12 +49,19 @@ export function getApiUrl(endpoint: string): string {
   // Remove trailing slash from base URL
   const baseUrl = API_BASE_URL.replace(/\/$/, '')
 
-  // If endpoint starts with /api/, remove it (base URL already includes /api)
-  const cleanEndpoint = normalizedEndpoint.startsWith('/api/')
-    ? normalizedEndpoint.slice(4) // Remove '/api'
-    : normalizedEndpoint
+  const ensureLeadingSlash = (value: string) => (value.startsWith('/') ? value : `/${value}`)
+  const baseIncludesApi = baseUrl.endsWith('/api')
 
-  return `${baseUrl}${cleanEndpoint}`
+  if (baseIncludesApi && normalizedEndpoint === '/api') {
+    return baseUrl
+  }
+
+  if (baseIncludesApi && normalizedEndpoint.startsWith('/api/')) {
+    const trimmedEndpoint = normalizedEndpoint.slice(4)
+    return `${baseUrl}${ensureLeadingSlash(trimmedEndpoint)}`
+  }
+
+  return `${baseUrl}${ensureLeadingSlash(normalizedEndpoint)}`
 }
 
 /**

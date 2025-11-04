@@ -26,6 +26,7 @@ from server.bug_reports.storage import (
     update_report,
 )
 from server.config_loader import PROJECT_ROOT, load_config
+from server.services import bug_reports as bug_report_service
 from server.shared_types import (
     BugReportSubmissionRequestTypedDict,
     BugReportSubmissionResponseTypedDict,
@@ -199,31 +200,48 @@ def submit_bug_report():
         # Combine client and server screenshot errors
         screenshot_error = client_screenshot_error or server_screenshot_error
 
-        # Add metadata to report (excluding raw screenshot data and client error)
-        report = {
-            "report_id": report_id,
-            "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
-            "submitted_at": datetime.now(timezone.utc).isoformat(),
-            "submitted_by": g.user.email if hasattr(g, "user") else None,
-            "user_role": g.user.role if hasattr(g, "user") else None,
-            "status": "open",
-            "screenshot_path": screenshot_path,
-            "screenshot_error": screenshot_error,
-            **{k: v for k, v in payload.items() if k not in ("screenshot", "screenshotError")},
-        }
-
-        # Write to disk
+        # Save to database
         try:
+            bug_report_service.create_bug_report(
+                report_id=report_id,
+                description=payload["description"],
+                trace_id=g.trace_id if hasattr(g, "trace_id") else None,
+                reporter_id=g.user.email if hasattr(g, "user") else None,
+                screenshot_path=screenshot_path,
+                screenshot_error=screenshot_error,
+                environment=payload.get("environment"),
+                client_meta=payload.get("clientMeta"),
+                app_state=payload.get("appState"),
+                recent_logs=payload.get("recentLogs"),
+                network_events=payload.get("networkEvents"),
+            )
+        except Exception as e:
+            logger.error(f"Failed to save bug report to database: {e}", exc_info=True)
+            raise APIError(
+                "Failed to save bug report",
+                "DATABASE_ERROR",
+                500,
+                {"error": str(e)},
+            )
+
+        # Also write to disk for backward compatibility (temporary during migration)
+        try:
+            report = {
+                "report_id": report_id,
+                "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
+                "submitted_at": datetime.now(timezone.utc).isoformat(),
+                "submitted_by": g.user.email if hasattr(g, "user") else None,
+                "user_role": g.user.role if hasattr(g, "user") else None,
+                "status": "open",
+                "screenshot_path": screenshot_path,
+                "screenshot_error": screenshot_error,
+                **{k: v for k, v in payload.items() if k not in ("screenshot", "screenshotError")},
+            }
             with open(report_path, "w") as f:
                 json.dump(report, f, indent=2)
         except Exception as e:
-            _log_storage_failure(f"Failed to write bug report to disk: {report_path}", e)
-            raise APIError(
-                "Failed to save bug report",
-                "WRITE_ERROR",
-                500,
-                {"path": report_path, "error": str(e)},
-            )
+            # Log but don't fail - database is primary storage now
+            logger.warning(f"Failed to write bug report JSON backup: {e}")
 
         logger.info(
             f"Bug report saved: {report_id}",
@@ -272,30 +290,73 @@ def submit_bug_report():
 
 @bug_reports_bp.route("/api/bug-reports", methods=["GET"])
 @require_admin
-def list_bug_reports():
-    """Return paginated list of stored bug reports."""
-    status_filter = request.args.get("status")
-    page = max(1, request.args.get("page", default=1, type=int))
-    per_page = min(100, max(1, request.args.get("per_page", default=20, type=int)))
+def list_bug_reports_endpoint():
+    """Return paginated list of bug reports from database."""
+    try:
+        status_filter = request.args.get("status")
+        assignee_filter = request.args.get("assignee_id")
+        automation_filter = request.args.get("automation_enabled")
+        page = max(1, request.args.get("page", default=1, type=int))
+        per_page = min(100, max(1, request.args.get("per_page", default=20, type=int)))
 
-    root = _get_reports_root()
-    summaries = list_reports(root, status=status_filter)
-    total = len(summaries)
-    start = (page - 1) * per_page
-    end = start + per_page
-    items = summaries[start:end] if start < total else []
+        # Convert string automation filter to boolean
+        automation_enabled = None
+        if automation_filter is not None:
+            automation_enabled = automation_filter.lower() in ("true", "1", "yes")
 
-    return jsonify(
-        {
-            "reports": [summary.to_dict(root=root) for summary in items],
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "pages": max(1, (total + per_page - 1) // per_page),
-            },
-        }
-    )
+        # Calculate offset
+        offset = (page - 1) * per_page
+
+        # Get reports from database
+        reports = bug_report_service.list_bug_reports(
+            status=status_filter,
+            assignee_id=assignee_filter,
+            automation_enabled=automation_enabled,
+            limit=per_page,
+            offset=offset,
+        )
+
+        # Get total count for pagination
+        from server.database import BugReport
+
+        query = BugReport.query
+        if status_filter:
+            query = query.filter_by(status=status_filter)
+        if assignee_filter:
+            query = query.filter_by(assignee_id=assignee_filter)
+        if automation_enabled is not None:
+            query = query.filter_by(automation_enabled=automation_enabled)
+        total = query.count()
+
+        return jsonify(
+            {
+                "reports": [report.to_dict(include_context=False) for report in reports],
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": max(1, (total + per_page - 1) // per_page),
+                },
+            }
+        )
+    except APIError as error:
+        return format_error_response(error)
+    except Exception as exc:
+        logger.exception("Failed to list bug reports from database")
+        return format_error_response(
+            APIError(
+                "Failed to list bug reports",
+                "BUG_REPORT_LIST_FAILED",
+                500,
+                {"error": str(exc)},
+            )
+        )
+    except BadRequest as exc:
+        # Surface bad pagination or filter inputs to the caller.
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive
+        _log_storage_failure("Failed to list bug reports", exc)
+        return jsonify({"error": "Failed to list bug reports"}), 500
 
 
 @bug_reports_bp.route("/api/bug-reports/<report_id>", methods=["GET"])

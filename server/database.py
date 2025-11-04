@@ -465,6 +465,243 @@ class MigrationHistory(db.Model):
         }
 
 
+class BugReport(db.Model):
+    """Bug reports with automated remediation support"""
+
+    __tablename__ = "bug_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.String(100), nullable=False, unique=True, index=True)
+
+    # Core fields
+    title = db.Column(db.String(500))
+    description = db.Column(db.Text, nullable=False)
+    expected_behavior = db.Column(db.Text)
+    actual_behavior = db.Column(db.Text)
+    steps_to_reproduce = db.Column(db.Text)  # JSON array
+
+    # Classification
+    severity = db.Column(db.String(50))  # low, medium, high, critical
+    category = db.Column(db.String(100))  # ui, api, performance, security, etc.
+    status = db.Column(
+        db.String(50), nullable=False, default="new", index=True
+    )  # new, triaged, in_progress, awaiting_verification, resolved, closed
+
+    # Source tracking
+    source = db.Column(db.String(50), default="user")  # user, agent, system
+    reporter_id = db.Column(db.String(255))  # email or user identifier
+    assignee_id = db.Column(db.String(255))
+
+    # Telemetry integration
+    trace_id = db.Column(db.String(100), index=True)
+    request_id = db.Column(db.String(100))
+    release_sha = db.Column(db.String(100))
+
+    # Build metadata
+    app_version = db.Column(db.String(50))
+    git_sha = db.Column(db.String(100))
+    build_time = db.Column(db.DateTime)
+
+    # Context metadata (JSON fields)
+    suspected_components = db.Column(db.Text)  # JSON array
+    related_files = db.Column(db.Text)  # JSON array
+    navigation_history = db.Column(db.Text)  # JSON array
+
+    # Full context data (from existing JSON reports)
+    environment = db.Column(db.Text)  # JSON object
+    client_meta = db.Column(db.Text)  # JSON object
+    app_state = db.Column(db.Text)  # JSON object
+    recent_logs = db.Column(db.Text)  # JSON array
+    network_events = db.Column(db.Text)  # JSON array
+
+    # Screenshot
+    screenshot_path = db.Column(db.String(500))
+    screenshot_error = db.Column(db.Text)
+
+    # Resolution tracking
+    resolution_notes = db.Column(db.Text)
+    resolution_commit_sha = db.Column(db.String(100))
+
+    # Deduplication
+    duplicate_of_id = db.Column(db.Integer, db.ForeignKey("bug_reports.id"))
+    dedup_hash = db.Column(db.String(64), index=True)  # Hash for grouping
+
+    # Automation flags
+    automation_enabled = db.Column(db.Boolean, default=True)
+    automation_attempts = db.Column(db.Integer, default=0)
+    last_automation_at = db.Column(db.DateTime)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    resolved_at = db.Column(db.DateTime)
+    sla_due_at = db.Column(db.DateTime)
+
+    # Relationships
+    events = db.relationship(
+        "BugReportEvent",
+        backref="bug_report",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    duplicates = db.relationship(
+        "BugReport",
+        backref=db.backref("canonical_report", remote_side=[id]),
+        foreign_keys=[duplicate_of_id],
+    )
+
+    def to_dict(self, include_context=False):
+        """Convert to dictionary for API serialization."""
+        data = {
+            "id": self.id,
+            "report_id": self.report_id,
+            "title": self.title,
+            "description": self.description,
+            "expected_behavior": self.expected_behavior,
+            "actual_behavior": self.actual_behavior,
+            "severity": self.severity,
+            "category": self.category,
+            "status": self.status,
+            "source": self.source,
+            "reporter_id": self.reporter_id,
+            "assignee_id": self.assignee_id,
+            "trace_id": self.trace_id,
+            "request_id": self.request_id,
+            "release_sha": self.release_sha,
+            "app_version": self.app_version,
+            "git_sha": self.git_sha,
+            "build_time": self.build_time.isoformat() if self.build_time else None,
+            "screenshot_path": self.screenshot_path,
+            "screenshot_error": self.screenshot_error,
+            "resolution_notes": self.resolution_notes,
+            "resolution_commit_sha": self.resolution_commit_sha,
+            "duplicate_of_id": self.duplicate_of_id,
+            "dedup_hash": self.dedup_hash,
+            "automation_enabled": self.automation_enabled,
+            "automation_attempts": self.automation_attempts,
+            "last_automation_at": (
+                self.last_automation_at.isoformat() if self.last_automation_at else None
+            ),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "sla_due_at": self.sla_due_at.isoformat() if self.sla_due_at else None,
+        }
+
+        # Parse JSON fields
+        for field in [
+            "steps_to_reproduce",
+            "suspected_components",
+            "related_files",
+            "navigation_history",
+        ]:
+            value = getattr(self, field)
+            try:
+                data[field] = json.loads(value) if value else None
+            except (json.JSONDecodeError, TypeError):
+                data[field] = None
+
+        # Include full context if requested
+        if include_context:
+            for field in [
+                "environment",
+                "client_meta",
+                "app_state",
+                "recent_logs",
+                "network_events",
+            ]:
+                value = getattr(self, field)
+                try:
+                    data[field] = json.loads(value) if value else None
+                except (json.JSONDecodeError, TypeError):
+                    data[field] = None
+
+        return data
+
+
+class BugReportEvent(db.Model):
+    """Lifecycle events and agent actions for bug reports"""
+
+    __tablename__ = "bug_report_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    bug_report_id = db.Column(
+        db.Integer,
+        db.ForeignKey("bug_reports.id"),
+        nullable=False,
+        index=True,
+    )
+
+    # Event type
+    event_type = db.Column(
+        db.String(50),
+        nullable=False,
+    )  # status_change, note, agent_run, assignment, etc.
+    event_data = db.Column(db.Text)  # JSON payload with event-specific data
+
+    # Tracking
+    actor_id = db.Column(db.String(255))  # User or agent who triggered the event
+    actor_type = db.Column(db.String(50))  # user, agent, system
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+
+    def to_dict(self):
+        """Convert to dictionary for API serialization."""
+        try:
+            event_data_parsed = json.loads(self.event_data) if self.event_data else None
+        except (json.JSONDecodeError, TypeError):
+            event_data_parsed = None
+
+        return {
+            "id": self.id,
+            "bug_report_id": self.bug_report_id,
+            "event_type": self.event_type,
+            "event_data": event_data_parsed,
+            "actor_id": self.actor_id,
+            "actor_type": self.actor_type,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class BugReportDedup(db.Model):
+    """Deduplication keys and occurrence counts for bug reports"""
+
+    __tablename__ = "bug_report_dedup"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Deduplication key (hash of normalized error signature)
+    dedup_key = db.Column(db.String(100), nullable=False, unique=True, index=True)
+
+    # Canonical report for this dedup group
+    canonical_report_id = db.Column(db.Integer, db.ForeignKey("bug_reports.id"), nullable=False)
+
+    # Statistics
+    occurrence_count = db.Column(db.Integer, default=1, nullable=False)
+    first_seen_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    last_seen_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    # Metadata
+    stack_trace_hash = db.Column(db.String(64))
+    component_hash = db.Column(db.String(64))
+    message_hash = db.Column(db.String(64))
+
+    def to_dict(self):
+        """Convert to dictionary for API serialization."""
+        return {
+            "id": self.id,
+            "dedup_key": self.dedup_key,
+            "canonical_report_id": self.canonical_report_id,
+            "occurrence_count": self.occurrence_count,
+            "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
+            "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
+            "stack_trace_hash": self.stack_trace_hash,
+            "component_hash": self.component_hash,
+            "message_hash": self.message_hash,
+        }
+
+
 def init_database(app):
     """Initialize database with Flask app"""
     db.init_app(app)

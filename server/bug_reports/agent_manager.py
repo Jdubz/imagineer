@@ -15,13 +15,8 @@ from server.bug_reports.agent_runner import (
     BugReportAgentConfig,
     BugReportDockerRunner,
 )
-from server.bug_reports.storage import (
-    BugReportStorageError,
-    list_reports,
-    load_report,
-    update_report,
-)
 from server.config_loader import PROJECT_ROOT, load_config
+from server.services import bug_reports as bug_report_service
 
 logger = logging.getLogger(__name__)
 
@@ -186,47 +181,70 @@ class BugReportAgentManager:
                 continue
             return candidate
 
-        # Fallback: pull newest open report from storage.
-        summaries = list_reports(self._config.reports_root, status="open")
-        for summary in summaries:
-            if summary.report_id in self._inflight or summary.report_id in self._recent_failures:
-                continue
-            return summary.report_id
+        # Fallback: pull pending automation reports from database
+        try:
+            pending_reports = bug_report_service.get_pending_automation_reports(limit=10)
+            for report in pending_reports:
+                if report.report_id in self._inflight or report.report_id in self._recent_failures:
+                    continue
+                return report.report_id
+        except Exception as exc:
+            logger.error("Failed to query pending automation reports: %s", exc)
         return None
 
     def _process_report(self, report_id: str) -> None:
+        # Load from database
         try:
-            payload = load_report(report_id, self._config.reports_root)
-        except FileNotFoundError:
-            logger.warning("Bug report %s no longer exists; skipping.", report_id)
-            return
-        except BugReportStorageError as exc:
-            logger.error("Failed to load bug report %s: %s", report_id, exc)
+            bug_report = bug_report_service.get_bug_report(report_id)
+            if not bug_report:
+                logger.warning("Bug report %s no longer exists; skipping.", report_id)
+                return
+
+            # Convert to payload format expected by runner
+            payload = bug_report.to_dict(include_context=True)
+
+            # Increment automation attempts counter
+            bug_report_service.increment_automation_attempts(report_id)
+
+        except Exception as exc:
+            logger.error("Failed to load bug report %s from database: %s", report_id, exc)
             return
 
         runner = self._runner_factory(self._config)
         result = runner.run(report_id, payload)
 
-        resolution = {
+        # Prepare resolution notes
+        resolution_data = {
             "agent": {
                 "status": result.status,
                 "log_dir": str(result.log_dir),
             }
         }
         if result.summary:
-            resolution["agent"]["summary"] = result.summary  # type: ignore[index]
+            resolution_data["agent"]["summary"] = result.summary  # type: ignore[index]
         if result.error:
-            resolution["agent"]["error"] = result.error  # type: ignore[index]
+            resolution_data["agent"]["error"] = result.error  # type: ignore[index]
+
+        import json
+
+        resolution_notes = json.dumps(resolution_data)
 
         if result.status == "success":
             commit_sha = (result.summary or {}).get("commit")
-            resolution["agent"]["commit"] = commit_sha  # type: ignore[index]
             try:
-                update_report(
-                    report_id,
-                    self._config.reports_root,
+                bug_report_service.update_bug_report_status(
+                    report_id=report_id,
                     status="resolved",
-                    resolution=resolution,
+                    actor_id="bug-agent",
+                    resolution_notes=resolution_notes,
+                    resolution_commit_sha=commit_sha,
+                )
+                bug_report_service.add_bug_report_event(
+                    report_id=report_id,
+                    event_type="agent_run",
+                    event_data={"result": "success", "commit_sha": commit_sha},
+                    actor_id="bug-agent",
+                    actor_type="agent",
                 )
                 logger.info("Bug report %s resolved by agent.", report_id)
             except Exception as exc:
@@ -235,11 +253,12 @@ class BugReportAgentManager:
             with self._lock:
                 self._recent_failures.add(report_id)
             try:
-                update_report(
-                    report_id,
-                    self._config.reports_root,
-                    status="open",
-                    resolution=resolution,
+                bug_report_service.add_bug_report_event(
+                    report_id=report_id,
+                    event_type="agent_run",
+                    event_data={"result": "failure", "error": result.error},
+                    actor_id="bug-agent",
+                    actor_type="agent",
                 )
                 logger.info("Bug report %s left open after agent failure.", report_id)
             except Exception as exc:

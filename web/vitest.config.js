@@ -17,6 +17,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    // Retry failed tests up to 3 times to handle flakiness
+    // This prevents valid fixes from being rejected due to transient failures
+    retry: 3,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

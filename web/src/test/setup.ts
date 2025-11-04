@@ -1,10 +1,29 @@
 import '@testing-library/jest-dom'
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
-// Cleanup after each test
+// Clear all mocks before each test to prevent state leakage
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+// Cleanup after each test to ensure test isolation
 afterEach(() => {
   cleanup()
+
+  // Clear storage to prevent state leakage between tests
+  localStorage.clear()
+  sessionStorage.clear()
+
+  // Clear any pending timers
+  vi.clearAllTimers()
+
+  // Reset document state
+  document.body.innerHTML = ''
+
+  // Clear any custom attributes that might have been added
+  document.documentElement.removeAttribute('class')
+  document.documentElement.removeAttribute('style')
 })
 
 // Mock ResizeObserver (used by Radix UI Dialog)
