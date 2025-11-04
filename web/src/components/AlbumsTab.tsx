@@ -293,6 +293,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
+    event.preventDefault()
     event.stopPropagation()
     setShowBatchDialog(album)
   }, [])
@@ -391,6 +392,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
           const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.preventDefault()
             e.stopPropagation()
             deleteAlbum(album.id)
           }
