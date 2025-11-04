@@ -64,6 +64,16 @@ def _json_or_none(value: Any) -> Optional[str]:
 
 
 def _normalise_optional(payload: Dict[str, Any], *keys: str) -> Optional[str]:
+    """
+    Extract first non-empty value from payload using provided key variants.
+
+    Checks keys in order (snake_case first, then camelCase) and returns
+    the first non-empty value found. This handles both naming conventions
+    from different API clients.
+
+    Note: If multiple variants exist with values, only the first is returned.
+    This is intentional to handle legacy data migration scenarios.
+    """
     for key in keys:
         if key in payload and payload[key]:
             return str(payload[key])
@@ -326,7 +336,7 @@ def add_bug_report_event(
         try:
             events = json.loads(bug_report.events)
         except json.JSONDecodeError:
-            logger.warning(f"Failed to parse events for {report_id}, resetting")
+            logger.warning("Failed to parse events for %s, resetting", report_id)
             events = []
 
     # Add new event

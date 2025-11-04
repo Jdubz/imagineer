@@ -498,14 +498,16 @@ class BugReport(db.Model):
         base["client_meta"] = client_meta
         base["app_state"] = app_state
 
+        # Always include boolean flags for data presence
+        base["has_recent_logs"] = bool(self.recent_logs)
+        base["has_network_events"] = bool(self.network_events)
+        base["has_events"] = bool(self.events)
+
+        # Conditionally include full data when requested
         if include_context:
             base["recent_logs"] = self._loads(self.recent_logs, [])
             base["network_events"] = self._loads(self.network_events, [])
             base["events"] = self._loads(self.events, [])
-        else:
-            base["has_recent_logs"] = bool(self.recent_logs)
-            base["has_network_events"] = bool(self.network_events)
-            base["has_events"] = bool(self.events)
 
         return base
 

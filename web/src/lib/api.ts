@@ -726,11 +726,11 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
      * Fetch all albums
      */
     async getAll(signal?: AbortSignal, filters?: { is_set_template?: boolean }): Promise<Album[]> {
-      let url = '/albums'
+      const params = new URLSearchParams()
       if (filters?.is_set_template !== undefined) {
-        const templateParam = filters.is_set_template ? 'true' : 'false'
-        url = `/albums?is_set_template=${templateParam}`
+        params.set('is_set_template', String(filters.is_set_template))
       }
+      const url = params.toString() ? `/albums?${params}` : '/albums'
 
       const response = await apiRequest(getApiUrl(url), schemas.AlbumsResponseSchema, { signal })
 

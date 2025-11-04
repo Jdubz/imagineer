@@ -14,6 +14,7 @@ from typing import cast
 
 from flask import Blueprint, current_app, g, jsonify, request
 from jsonschema import Draft202012Validator, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
@@ -173,7 +174,7 @@ def submit_bug_report():
                 report_id=report_id,
             )
             stored_at = f"database:bug_reports:{record.report_id}"
-        except Exception as e:
+        except (SQLAlchemyError, ValueError, KeyError) as e:
             # Cleanup saved screenshot on failure to avoid orphaned files
             if screenshot_path:
                 try:
