@@ -23,7 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Plus, StopCircle, Trash2, X } from 'lucide-react'
+import { Plus, StopCircle, Trash2, X, RotateCcw } from 'lucide-react'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { api, ApiError } from '@/lib/api'
@@ -167,6 +167,26 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
         error: err,
       })
       logger.error('Error cancelling job:', err)
+    }
+  }
+
+  const resetJob = async (jobId: string): Promise<void> => {
+    if (!isAdmin) return
+    try {
+      await api.scraping.resetJob(jobId)
+      await fetchJobs()
+      toast({
+        title: 'Scrape job reset',
+        description: 'The stuck job was reset successfully.',
+      })
+    } catch (err) {
+      setError((prev) => prev ?? 'Failed to reset job')
+      showErrorToast({
+        title: 'Job Reset Failed',
+        context: 'Failed to reset stuck job',
+        error: err,
+      })
+      logger.error('Error resetting job:', err)
     }
   }
 
@@ -427,6 +447,12 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
                     <Button variant="destructive" onClick={() => cancelJob(String(job.id))}>
                       <StopCircle className="mr-2 h-4 w-4" />
                       Cancel
+                    </Button>
+                  ) : null}
+                  {job.status === 'pending' || job.status === 'running' ? (
+                    <Button variant="outline" onClick={() => resetJob(String(job.id))}>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reset Stuck Job
                     </Button>
                   ) : null}
                   {job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' ? (

@@ -607,6 +607,14 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
       })
     },
 
+    async resetJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/reset`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
     async cleanupJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
       const id = encodeURIComponent(jobId.toString())
       await apiRequest(getApiUrl(`/scraping/jobs/${id}/cleanup`), schemas.ScrapingActionResponseSchema, {

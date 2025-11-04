@@ -756,3 +756,68 @@ def cleanup_scrape_job(scrape_job_id):
             logger.error(f"Error cleaning up job {scrape_job_id}: {e}", exc_info=True)
             db.session.rollback()
             return {"status": "error", "message": str(e)}
+
+
+@celery.task(name="server.tasks.scraping.reset_stuck_scrape_jobs")
+def reset_stuck_scrape_jobs(timeout_hours: int | None = None):
+    """
+    Detect and reset scrape jobs stuck in pending or running state.
+
+    Args:
+        timeout_hours: Hours after which a job is considered stuck (default: 2)
+
+    Returns:
+        Dict with reset statistics
+    """
+    from server.api import app
+
+    # Default timeout is 2 hours
+    timeout = timeout_hours or int(os.environ.get("IMAGINEER_SCRAPE_STUCK_TIMEOUT_HOURS", "2"))
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=timeout)
+
+    reset_count = 0
+    jobs_checked = 0
+
+    with app.app_context():
+        # Find jobs stuck in pending or running state
+        stuck_jobs = ScrapeJob.query.filter(
+            ScrapeJob.status.in_(["pending", "running"]),
+            ScrapeJob.created_at < cutoff,
+        ).all()
+
+        for job in stuck_jobs:
+            jobs_checked += 1
+
+            # For pending jobs, check if they were never started
+            if job.status == "pending" and not job.started_at:
+                job.status = "failed"
+                job.completed_at = datetime.now(timezone.utc)
+                job.error_message = f"Job stuck in pending state for over {timeout} hours"
+                job.last_error_at = datetime.now(timezone.utc)
+                reset_count += 1
+                logger.warning(f"Reset stuck pending job {job.id}: never started")
+
+            # For running jobs, check if they haven't updated in timeout period
+            elif job.status == "running":
+                # Check when the job was last updated
+                last_update = job.started_at or job.created_at
+                if last_update < cutoff:
+                    job.status = "failed"
+                    job.completed_at = datetime.now(timezone.utc)
+                    job.error_message = f"Job stuck in running state for over {timeout} hours"
+                    job.last_error_at = datetime.now(timezone.utc)
+                    reset_count += 1
+                    logger.warning(
+                        f"Reset stuck running job {job.id}: no updates since {last_update}"
+                    )
+
+        if reset_count > 0:
+            db.session.commit()
+            logger.info(f"Reset {reset_count} stuck scrape jobs out of {jobs_checked} checked")
+
+    return {
+        "status": "success",
+        "timeout_hours": timeout,
+        "jobs_checked": jobs_checked,
+        "jobs_reset": reset_count,
+    }
