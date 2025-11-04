@@ -353,7 +353,7 @@ export const AlbumSchema = z.object({
   base_prompt: z.string().optional(),
   // Additional fields from backend Album.to_dict()
   generation_prompt: z.string().optional().nullable(),
-  generation_config: z.string().optional().nullable(),
+  generation_config: z.string().nullish(),
   is_public: z.boolean().optional(),
   is_training_source: z.boolean().optional(),
   created_by: z.string().optional().nullable(),
