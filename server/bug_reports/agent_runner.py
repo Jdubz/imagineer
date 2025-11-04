@@ -192,15 +192,21 @@ class BugReportDockerRunner:
             Description: {description or 'No description provided.'}
             Route / context: {route or 'Unknown'}
 
+            IMPORTANT: You are on the {self.config.target_branch} branch. All changes
+            will be committed and pushed directly to this branch. DO NOT create or
+            mention bugfix branches.
+
             Steps:
               1. Review the report data in {self.CONTEXT_DIR_NAME}/context.json.
 {screenshot_instruction}
-              2. Identify the root cause and implement a fix inside /workspace/repo.
-              3. Run the full verification suite (npm lint/tsc/test, black,
-                 flake8, pytest).
-              4. Commit with a descriptive message referencing the report ID.
-                 Push to {self.config.target_branch}.
-              5. Summarise the work in the session summary.
+              2. Identify the root cause and implement a minimal fix.
+              3. DO NOT commit or push - the automation handles this automatically.
+              4. The verification suite will run after your changes:
+                 - Frontend: npm lint, tsc, test
+                 - Backend: black, flake8, pytest
+
+            Focus on the minimal fix needed. Changes will be committed automatically
+            with: "fix: automated remediation (bug {payload.get("report_id") or ''})"
 
             If you cannot complete the work, document why before exiting.
             """
