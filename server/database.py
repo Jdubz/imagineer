@@ -410,6 +410,105 @@ class TrainingRun(db.Model):
         return data
 
 
+class BugReport(db.Model):
+    """Bug reports with automated remediation tracking"""
+
+    __tablename__ = "bug_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.String(100), nullable=False, unique=True, index=True)
+
+    # Submission metadata
+    trace_id = db.Column(db.String(100), index=True)
+    submitted_by = db.Column(db.String(255))
+    submitted_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    # Bug description
+    description = db.Column(db.Text, nullable=False)
+
+    # Status tracking
+    status = db.Column(
+        db.String(20), nullable=False, default="open", index=True
+    )  # open, in_progress, resolved
+    automation_attempts = db.Column(db.Integer, default=0)
+
+    # Context data (stored as JSON)
+    environment = db.Column(db.Text)  # JSON: browser, OS, etc.
+    client_meta = db.Column(db.Text)  # JSON: app version, etc.
+    app_state = db.Column(db.Text)  # JSON: current page, route, etc.
+    recent_logs = db.Column(db.Text)  # JSON: array of log entries
+    network_events = db.Column(db.Text)  # JSON: array of network requests
+
+    # Screenshot
+    screenshot_path = db.Column(db.String(500))
+    screenshot_error = db.Column(db.Text)
+
+    # Resolution tracking
+    resolution_notes = db.Column(db.Text)
+    resolution_commit_sha = db.Column(db.String(40))
+    resolution_actor_id = db.Column(db.String(255))
+
+    # Automation events (stored as JSON array)
+    events = db.Column(db.Text)  # JSON: [{event_type, data, timestamp, actor}]
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    def to_dict(self, include_context: bool = False):
+        """Convert to dictionary for API serialization."""
+        base = {
+            "report_id": self.report_id,
+            "trace_id": self.trace_id,
+            "submitted_by": self.submitted_by,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+            "description": self.description,
+            "status": self.status,
+            "automation_attempts": self.automation_attempts,
+            "screenshot_path": self.screenshot_path,
+            "screenshot_error": self.screenshot_error,
+            "resolution_notes": self.resolution_notes,
+            "resolution_commit_sha": self.resolution_commit_sha,
+            "resolution_actor_id": self.resolution_actor_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+        if include_context:
+            # Parse JSON fields for context
+            context = {}
+            for field in [
+                "environment",
+                "client_meta",
+                "app_state",
+                "recent_logs",
+                "network_events",
+            ]:
+                value = getattr(self, field)
+                if value:
+                    try:
+                        context[field] = json.loads(value)
+                    except (json.JSONDecodeError, TypeError):
+                        context[field] = value
+            base["context"] = context
+
+            # Parse events
+            if self.events:
+                try:
+                    base["events"] = json.loads(self.events)
+                except (json.JSONDecodeError, TypeError):
+                    base["events"] = []
+        else:
+            # Include raw context fields
+            base["environment"] = self.environment
+            base["clientMeta"] = self.client_meta
+            base["appState"] = self.app_state
+            base["recentLogs"] = self.recent_logs
+            base["networkEvents"] = self.network_events
+
+        return base
+
+
 class MigrationHistory(db.Model):
     """Record of one-off migration or import scripts that have been executed."""
 
