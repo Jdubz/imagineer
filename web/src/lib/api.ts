@@ -108,11 +108,16 @@ function toAbsoluteApiPath(path?: string | null): string | undefined {
     return path
   }
 
-  if (path.startsWith('/')) {
-    return path
+  // If path starts with /api/, use getApiUrl to convert it properly
+  if (path.startsWith('/api/')) {
+    return getApiUrl(path)
   }
 
-  return `/api/${path.replace(/^\/+/, '')}`
+  if (path.startsWith('/')) {
+    return getApiUrl(path)
+  }
+
+  return getApiUrl(`/api/${path.replace(/^\/+/, '')}`)
 }
 
 function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | undefined {
