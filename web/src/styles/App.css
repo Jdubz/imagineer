@@ -783,6 +783,33 @@ button[type="submit"]:disabled {
   margin: 0;
 }
 
+/* Navigation Tabs Scrolling (Mobile) */
+/* Hide scrollbar on mobile while keeping functionality */
+@media (max-width: 768px) {
+  [role="tablist"] {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [role="tablist"]::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  [role="tablist"]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  [role="tablist"]::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border-radius: 2px;
+  }
+
+  [role="tablist"]::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header h1 {
