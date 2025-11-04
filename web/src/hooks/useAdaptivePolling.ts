@@ -179,11 +179,16 @@ export function useAdaptivePolling<T>(
     };
   }, [pauseWhenHidden, enabled, executeCallback, startPolling]);
 
+  // Initial fetch effect - only run once on mount or when enabled changes
+  useEffect(() => {
+    if (enabled) {
+      void executeCallback();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
   // Main polling effect - restart when interval changes
   useEffect(() => {
-    // Initial fetch
-    void executeCallback();
-
     // Start polling
     startPolling();
 
@@ -194,7 +199,7 @@ export function useAdaptivePolling<T>(
         intervalRef.current = null;
       }
     };
-  }, [enabled, currentInterval, executeCallback, startPolling]);
+  }, [currentInterval, startPolling]);
 
   return data;
 }
