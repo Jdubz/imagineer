@@ -682,15 +682,15 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <div className="border rounded-md overflow-hidden">
+                          <div className="border rounded-md overflow-auto max-h-[600px]">
                             <canvas
                               ref={canvasRef}
                               onMouseDown={handleMouseDown}
                               onMouseMove={handleMouseMove}
                               onMouseUp={handleMouseUp}
                               onMouseLeave={handleMouseUp}
-                              className="w-full cursor-crosshair"
-                              style={{ maxHeight: '400px', display: 'block' }}
+                              className="cursor-crosshair"
+                              style={{ display: 'block', width: '100%', height: 'auto' }}
                             />
                           </div>
                           <div className="flex gap-2">
