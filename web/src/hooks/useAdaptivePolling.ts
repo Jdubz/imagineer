@@ -92,65 +92,65 @@ export function useAdaptivePolling<T>(
   } = options;
 
   const [data, setData] = useState<T | null>(null);
-  const [currentInterval, setCurrentInterval] = useState(baseInterval);
 
   const savedCallback = useRef(callback);
-  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isVisibleRef = useRef(true);
-  const lastActivityLevel = useRef<'active' | 'medium' | 'idle'>('idle');
+  const currentIntervalRef = useRef<number>(baseInterval);
+  const enabledRef = useRef(enabled);
 
-  // Update saved callback on each render
+  // Update refs on each render
   useEffect(() => {
     savedCallback.current = callback;
-  }, [callback]);
+    enabledRef.current = enabled;
+  }, [callback, enabled]);
 
-  // Execute callback and update data
-  const executeCallback = useCallback(async (): Promise<void> => {
-    try {
-      const result = await savedCallback.current();
-      setData(result);
-
-      // Determine activity level and adjust interval
-      const activityLevel = getActivityLevel(result);
-
-      // Only update interval if activity level changed
-      if (activityLevel !== lastActivityLevel.current) {
-        lastActivityLevel.current = activityLevel;
-
-        const newInterval =
-          activityLevel === 'active' ? activeInterval :
-          activityLevel === 'medium' ? mediumInterval :
-          baseInterval;
-
-        setCurrentInterval(newInterval);
-      }
-    } catch (error) {
-      // On error, keep existing data and slow down polling
-      logger.error('Adaptive polling error:', error as Error);
-      setCurrentInterval(baseInterval);
-    }
-  }, [getActivityLevel, activeInterval, mediumInterval, baseInterval]);
-
-  // Start polling function
-  const startPolling = useCallback((): void => {
-    // Clear any existing interval
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
+  // Polling function that schedules the next poll
+  const scheduleNextPoll = useCallback((interval: number): void => {
+    // Clear any existing timeout
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
-    // Only start if enabled and (not checking visibility OR page is visible)
-    if (!enabled || (pauseWhenHidden && !isVisibleRef.current)) {
+    // Only schedule if enabled and visible
+    if (!enabledRef.current || (pauseWhenHidden && !isVisibleRef.current)) {
       return;
     }
 
-    // Set up the interval with current interval
-    intervalRef.current = setInterval(() => {
-      // Double-check visibility before executing
-      if (!pauseWhenHidden || isVisibleRef.current) {
-        void executeCallback();
-      }
-    }, currentInterval);
-  }, [enabled, currentInterval, pauseWhenHidden, executeCallback]);
+    timeoutRef.current = setTimeout(() => {
+      // Execute the callback and schedule next poll
+      void (async () => {
+        try {
+          const result = await savedCallback.current();
+          setData(result);
+
+          // Determine activity level and get next interval
+          const activityLevel = getActivityLevel(result);
+          const nextInterval =
+            activityLevel === 'active' ? activeInterval :
+            activityLevel === 'medium' ? mediumInterval :
+            baseInterval;
+
+          currentIntervalRef.current = nextInterval;
+
+          // Schedule next poll with the new interval
+          if (enabledRef.current && (!pauseWhenHidden || isVisibleRef.current)) {
+            scheduleNextPoll(nextInterval);
+          }
+        } catch (error) {
+          // On error, keep existing data and slow down polling
+          logger.error('Adaptive polling error:', error as Error);
+          currentIntervalRef.current = baseInterval;
+
+          // Schedule next poll with base interval
+          if (enabledRef.current && (!pauseWhenHidden || isVisibleRef.current)) {
+            scheduleNextPoll(baseInterval);
+          }
+        }
+      })();
+    }, interval);
+  }, [getActivityLevel, activeInterval, mediumInterval, baseInterval, pauseWhenHidden]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -162,13 +162,31 @@ export function useAdaptivePolling<T>(
 
       // If page becomes visible, fetch immediately and restart polling
       if (isVisible && enabled) {
-        void executeCallback();
-        startPolling();
+        void (async () => {
+          try {
+            const result = await savedCallback.current();
+            setData(result);
+
+            // Determine activity level and get next interval
+            const activityLevel = getActivityLevel(result);
+            const nextInterval =
+              activityLevel === 'active' ? activeInterval :
+              activityLevel === 'medium' ? mediumInterval :
+              baseInterval;
+
+            currentIntervalRef.current = nextInterval;
+            scheduleNextPoll(nextInterval);
+          } catch (error) {
+            logger.error('Adaptive polling error:', error as Error);
+            currentIntervalRef.current = baseInterval;
+            scheduleNextPoll(baseInterval);
+          }
+        })();
       }
-      // If page becomes hidden, clear the interval
-      else if (!isVisible && intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      // If page becomes hidden, clear the timeout
+      else if (!isVisible && timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
 
@@ -177,24 +195,50 @@ export function useAdaptivePolling<T>(
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [pauseWhenHidden, enabled, executeCallback, startPolling]);
+  }, [pauseWhenHidden, enabled, getActivityLevel, activeInterval, mediumInterval, baseInterval, scheduleNextPoll]);
 
-  // Main polling effect - restart when interval changes
+  // Initial fetch and setup effect
   useEffect(() => {
-    // Initial fetch
-    void executeCallback();
+    if (!enabled) {
+      // Clear any pending timeout if disabled
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
 
-    // Start polling
-    startPolling();
+    // Initial fetch
+    void (async () => {
+      try {
+        const result = await savedCallback.current();
+        setData(result);
+
+        // Determine activity level and start polling
+        const activityLevel = getActivityLevel(result);
+        const nextInterval =
+          activityLevel === 'active' ? activeInterval :
+          activityLevel === 'medium' ? mediumInterval :
+          baseInterval;
+
+        currentIntervalRef.current = nextInterval;
+        scheduleNextPoll(nextInterval);
+      } catch (error) {
+        logger.error('Adaptive polling error:', error as Error);
+        currentIntervalRef.current = baseInterval;
+        scheduleNextPoll(baseInterval);
+      }
+    })();
 
     // Cleanup function - critical for preventing memory leaks
     return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
-  }, [enabled, currentInterval, executeCallback, startPolling]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   return data;
 }

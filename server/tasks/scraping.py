@@ -103,15 +103,25 @@ def _get_training_data_repo() -> Path:
         repo_path = Path(__file__).parent.parent.parent / "training-data"
 
     if not repo_path.exists():
-        if os.environ.get("FLASK_ENV") == "production":
-            raise RuntimeError(
-                "Training data repository path not configured. "
-                "Set IMAGINEER_TRAINING_DATA_PATH or scraping.training_data_repo in config.yaml."
+        try:
+            repo_path.mkdir(parents=True, exist_ok=True)
+            logger.info(
+                "Created training data repository directory at %s",
+                repo_path,
             )
-        logger.warning(
-            "Training data repository %s does not exist; continuing using development defaults.",
-            repo_path,
-        )
+        except OSError as exc:
+            if os.environ.get("FLASK_ENV") == "production":
+                raise RuntimeError(
+                    f"Unable to initialize training data repository at {repo_path}: {exc}. "
+                    "Set IMAGINEER_TRAINING_DATA_PATH or scraping.training_data_repo in "
+                    "config.yaml to a writable location."
+                ) from exc
+            logger.warning(
+                "Training data repository %s does not exist and could not be created: %s; "
+                "continuing using development defaults.",
+                repo_path,
+                exc,
+            )
 
     TRAINING_DATA_REPO_PATH = repo_path
     return repo_path
@@ -688,6 +698,44 @@ def cleanup_scrape_job(scrape_job_id):
             return {"status": "error", "message": "Job not found"}
 
         try:
+            # Delete image records and album associations for this job
+            if job.album_id:
+                album = db.session.get(Album, job.album_id)
+                if album:
+                    # Get all images in this album
+                    album_images = AlbumImage.query.filter_by(album_id=album.id).all()
+                    image_ids = [ai.image_id for ai in album_images]
+
+                    # Delete album associations
+                    for ai in album_images:
+                        db.session.delete(ai)
+
+                    # Delete images that were scraped (check file_path is in output_directory)
+                    if job.output_directory:
+                        output_path = Path(job.output_directory)
+                        for image_id in image_ids:
+                            image = db.session.get(Image, image_id)
+                            if image and image.file_path:
+                                image_path = Path(image.file_path)
+                                # Only delete if image file is in the scrape output directory
+                                try:
+                                    if image_path.is_relative_to(output_path):
+                                        db.session.delete(image)
+                                except (ValueError, AttributeError):
+                                    # is_relative_to not available or path comparison failed
+                                    # Fall back to string comparison
+                                    if str(image_path).startswith(str(output_path)):
+                                        db.session.delete(image)
+
+                    # Delete the album
+                    db.session.delete(album)
+
+                    logger.info(
+                        "Deleted album %s and associated images for scrape job %s",
+                        album.id,
+                        scrape_job_id,
+                    )
+
             # Clean up output directory if it exists
             if job.output_directory:
                 output_path = Path(job.output_directory)
@@ -699,10 +747,77 @@ def cleanup_scrape_job(scrape_job_id):
 
             # Mark job as cleaned up
             job.status = "cleaned_up"
+            job.output_directory = None
             db.session.commit()
 
             return {"status": "success", "message": "Job cleaned up successfully"}
 
         except Exception as e:
-            logger.error(f"Error cleaning up job {scrape_job_id}: {e}")
+            logger.error(f"Error cleaning up job {scrape_job_id}: {e}", exc_info=True)
+            db.session.rollback()
             return {"status": "error", "message": str(e)}
+
+
+@celery.task(name="server.tasks.scraping.reset_stuck_scrape_jobs")
+def reset_stuck_scrape_jobs(timeout_hours: int | None = None):
+    """
+    Detect and reset scrape jobs stuck in pending or running state.
+
+    Args:
+        timeout_hours: Hours after which a job is considered stuck (default: 2)
+
+    Returns:
+        Dict with reset statistics
+    """
+    from server.api import app
+
+    # Default timeout is 2 hours
+    timeout = timeout_hours or int(os.environ.get("IMAGINEER_SCRAPE_STUCK_TIMEOUT_HOURS", "2"))
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=timeout)
+
+    reset_count = 0
+    jobs_checked = 0
+
+    with app.app_context():
+        # Find jobs stuck in pending or running state
+        stuck_jobs = ScrapeJob.query.filter(
+            ScrapeJob.status.in_(["pending", "running"]),
+            ScrapeJob.created_at < cutoff,
+        ).all()
+
+        for job in stuck_jobs:
+            jobs_checked += 1
+
+            # For pending jobs, check if they were never started
+            if job.status == "pending" and not job.started_at:
+                job.status = "failed"
+                job.completed_at = datetime.now(timezone.utc)
+                job.error_message = f"Job stuck in pending state for over {timeout} hours"
+                job.last_error_at = datetime.now(timezone.utc)
+                reset_count += 1
+                logger.warning(f"Reset stuck pending job {job.id}: never started")
+
+            # For running jobs, check if they haven't updated in timeout period
+            elif job.status == "running":
+                # Check when the job was last updated
+                last_update = job.started_at or job.created_at
+                if last_update < cutoff:
+                    job.status = "failed"
+                    job.completed_at = datetime.now(timezone.utc)
+                    job.error_message = f"Job stuck in running state for over {timeout} hours"
+                    job.last_error_at = datetime.now(timezone.utc)
+                    reset_count += 1
+                    logger.warning(
+                        f"Reset stuck running job {job.id}: no updates since {last_update}"
+                    )
+
+        if reset_count > 0:
+            db.session.commit()
+            logger.info(f"Reset {reset_count} stuck scrape jobs out of {jobs_checked} checked")
+
+    return {
+        "status": "success",
+        "timeout_hours": timeout,
+        "jobs_checked": jobs_checked,
+        "jobs_reset": reset_count,
+    }

@@ -14,13 +14,12 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '../lib/logger'
-import { resolveImageSources, preloadImage } from '../lib/imageSources'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
 import { useAlbumDetailState } from '../hooks/useAlbumDetailState'
-import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage } from '../types/models'
+import type { Album as SharedAlbum, Label, LabelAnalytics, GeneratedImage, PreviewImage } from '../types/models'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -292,12 +291,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     }
   }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
-  const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
-    event.preventDefault()
-    event.stopPropagation()
-    setShowBatchDialog(album)
-  }, [])
-
   const filteredAlbums = useMemo(() => {
     return albums.filter((album) => {
       if (albumFilter === 'all') return true
@@ -391,92 +384,68 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
-          const handleDeleteAlbum = (e: React.MouseEvent<HTMLButtonElement>) => {
+          const handleDeleteAlbum = (e: React.MouseEvent) => {
             e.preventDefault()
             e.stopPropagation()
             deleteAlbum(album.id)
           }
-          const handleBatchClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+          const handleBatchClick = (e: React.MouseEvent) => {
             e.preventDefault()
-            handleBatchGenerate(album, e)
+            e.stopPropagation()
+            setShowBatchDialog(album)
           }
-          const coverImage = album.images && album.images.length > 0 ? album.images[0] : null
-          const coverGenerated: GeneratedImage | null = coverImage
-            ? {
-                id: coverImage.id,
-                filename: coverImage.filename,
-                thumbnail_url: `/api/images/${coverImage.id}/thumbnail`,
-                download_url: `/api/images/${coverImage.id}/file`,
-              }
-            : null
-          const coverSources = coverGenerated
-            ? resolveImageSources(coverGenerated, { fallbackAlt: album.name })
-            : null
 
           return (
-            <Link
+            <Card
               key={album.id}
-              to={`/albums/${album.id}`}
-              className="block h-full"
+              className={cn(
+                'group flex h-full flex-col overflow-hidden border transition',
+                'hover:border-primary/50 hover:shadow-lg'
+              )}
             >
-              <Card
-                className={cn(
-                  'group flex h-full flex-col overflow-hidden border transition',
-                  'hover:border-primary/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70'
-                )}
+              <Link
+                to={`/albums/${album.id}`}
+                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
               >
-              <div
-                className="relative aspect-[4/3] w-full overflow-hidden bg-muted"
-                onMouseEnter={() => coverSources && preloadImage(coverSources.full)}
-                onFocus={() => coverSources && preloadImage(coverSources.full)}
-              >
-                {coverSources ? (
-                  <picture>
-                    {coverSources.thumbnail.endsWith('.webp') && (
-                      <source srcSet={coverSources.srcSet} type="image/webp" />
-                    )}
-                    <img
-                      src={coverSources.thumbnail}
-                      srcSet={coverSources.srcSet}
-                      sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 100vw"
-                      alt={coverSources.alt || album.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-105"
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                  {album.preview_images && album.preview_images.length > 0 ? (
+                    <AlbumThumbnailCarousel
+                      previewImages={album.preview_images}
+                      albumName={album.name}
                     />
-                  </picture>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    {album.image_count || 0} images
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      {album.image_count || 0} images
+                    </div>
+                  )}
+                </div>
+
+                <CardHeader className="gap-3 p-6 pb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="line-clamp-2 text-base font-semibold">
+                      {album.name}
+                    </CardTitle>
+                    {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
                   </div>
-                )}
-              </div>
+                  <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
+                    {album.description || 'No description provided'}
+                  </CardDescription>
+                </CardHeader>
 
-              <CardHeader className="gap-3 p-6 pb-4">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="line-clamp-2 text-base font-semibold">
-                    {album.name}
-                  </CardTitle>
-                  {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
-                </div>
-                <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
-                  {album.description || 'No description provided'}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 px-6 pb-6 pt-0">
-                {album.is_set_template && album.template_item_count ? (
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {album.template_item_count} template items
-                  </p>
-                ) : null}
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
-                  <span>{album.image_count || 0} images</span>
-                  <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
-                    {album.album_type || 'manual'}
-                  </Badge>
-                </div>
-              </CardContent>
+                <CardContent className="space-y-3 px-6 pb-6 pt-0">
+                  {album.is_set_template && album.template_item_count ? (
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {album.template_item_count} template items
+                    </p>
+                  ) : null}
+                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
+                    <span>{album.image_count || 0} images</span>
+                    <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
+                      {album.album_type || 'manual'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Link>
 
               {isAdmin ? (
                 <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/30 px-6 py-4">
@@ -499,7 +468,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
                 </CardFooter>
               ) : null}
             </Card>
-            </Link>
           )
         })}
       </div>
@@ -554,6 +522,99 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 })
 
 AlbumsTab.displayName = 'AlbumsTab'
+
+interface AlbumThumbnailCarouselProps {
+  previewImages: PreviewImage[]
+  albumName: string
+}
+
+const AlbumThumbnailCarousel: React.FC<AlbumThumbnailCarouselProps> = memo(({ previewImages, albumName }) => {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  if (!previewImages || previewImages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        No images
+      </div>
+    )
+  }
+
+  const currentImage = previewImages[currentIndex]
+  const thumbnailUrl = `/api/images/${currentImage.id}/thumbnail`
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCurrentIndex((prev) => (prev === 0 ? previewImages.length - 1 : prev - 1))
+  }
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCurrentIndex((prev) => (prev === previewImages.length - 1 ? 0 : prev + 1))
+  }
+
+  const handleDotClick = (index: number, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCurrentIndex(index)
+  }
+
+  return (
+    <div className="relative h-full w-full group/carousel">
+      <img
+        src={thumbnailUrl}
+        alt={`${albumName} - Image ${currentIndex + 1}`}
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-105"
+      />
+
+      {previewImages.length > 1 && (
+        <>
+          {/* Navigation buttons */}
+          <button
+            onClick={handlePrev}
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+            aria-label="Previous image"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <button
+            onClick={handleNext}
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+            aria-label="Next image"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+
+          {/* Dot indicators */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {previewImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={(e) => handleDotClick(index, e)}
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full transition-all',
+                  index === currentIndex
+                    ? 'bg-white w-4'
+                    : 'bg-white/60 hover:bg-white/80'
+                )}
+                aria-label={`Go to image ${index + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+})
+
+AlbumThumbnailCarousel.displayName = 'AlbumThumbnailCarousel'
 
 interface AlbumDetailViewProps {
   album: Album

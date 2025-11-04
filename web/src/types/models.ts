@@ -127,6 +127,12 @@ export interface Tab {
   icon: string
 }
 
+export interface PreviewImage {
+  id: number
+  filename: string
+  thumbnail_path?: string | null
+}
+
 export interface Album {
   id: string
   name: string
@@ -155,6 +161,8 @@ export interface Album {
   generation_config?: string | null
   // Images array (populated when fetching album details)
   images?: GeneratedImage[]
+  // Preview images (populated in list view for thumbnails)
+  preview_images?: PreviewImage[]
 }
 
 export interface Label {

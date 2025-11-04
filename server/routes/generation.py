@@ -452,7 +452,8 @@ def generate():  # noqa: C901
         response.headers["Location"] = f"/api/jobs/{job['id']}"
         return response
 
-    except Exception:  # pragma: no cover - defensive
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Generation request failed", exc_info=True, extra={"error": str(exc)})
         return jsonify({"error": "Invalid request"}), 400
 
 

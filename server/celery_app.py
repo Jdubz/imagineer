@@ -62,6 +62,11 @@ def make_celery(app=None):
             "schedule": crontab(hour=purge_scrape_hour, minute=45),
             "options": {"queue": "scraping"},
         },
+        "reset-stuck-scrape-jobs": {
+            "task": "server.tasks.scraping.reset_stuck_scrape_jobs",
+            "schedule": crontab(minute="*/30"),  # Run every 30 minutes
+            "options": {"queue": "scraping"},
+        },
         "record-disk-usage": {
             "task": "server.tasks.maintenance.record_disk_usage",
             "schedule": crontab(hour=f"*/{disk_interval_hours}", minute=0),

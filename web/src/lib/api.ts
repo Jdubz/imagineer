@@ -108,11 +108,16 @@ function toAbsoluteApiPath(path?: string | null): string | undefined {
     return path
   }
 
-  if (path.startsWith('/')) {
-    return path
+  // If path starts with /api/, use getApiUrl to convert it properly
+  if (path.startsWith('/api/')) {
+    return getApiUrl(path)
   }
 
-  return `/api/${path.replace(/^\/+/, '')}`
+  if (path.startsWith('/')) {
+    return getApiUrl(path)
+  }
+
+  return getApiUrl(`/api/${path.replace(/^\/+/, '')}`)
 }
 
 function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | undefined {
@@ -149,11 +154,11 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
   const downloadUrl =
     toAbsoluteApiPath(image.download_url) ??
     toAbsoluteApiPath(image.path) ??
-    (image.id ? `/api/images/${image.id}/file` : undefined)
+    (image.id ? getApiUrl(`/images/${image.id}/file`) : undefined)
 
   const thumbnailUrl =
     toAbsoluteApiPath(image.thumbnail_url) ??
-    (image.id ? `/api/images/${image.id}/thumbnail` : undefined) ??
+    (image.id ? getApiUrl(`/images/${image.id}/thumbnail`) : undefined) ??
     downloadUrl
 
   const created = image.created ?? image.created_at ?? undefined
@@ -597,6 +602,14 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
     async cancelJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
       const id = encodeURIComponent(jobId.toString())
       await apiRequest(getApiUrl(`/scraping/jobs/${id}/cancel`), schemas.ScrapingActionResponseSchema, {
+        method: 'POST',
+        signal,
+      })
+    },
+
+    async resetJob(jobId: string | number, signal?: AbortSignal): Promise<void> {
+      const id = encodeURIComponent(jobId.toString())
+      await apiRequest(getApiUrl(`/scraping/jobs/${id}/reset`), schemas.ScrapingActionResponseSchema, {
         method: 'POST',
         signal,
       })
