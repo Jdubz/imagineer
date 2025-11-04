@@ -725,8 +725,14 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
     /**
      * Fetch all albums
      */
-    async getAll(signal?: AbortSignal): Promise<Album[]> {
-      const response = await apiRequest(getApiUrl('/albums'), schemas.AlbumsResponseSchema, { signal })
+    async getAll(signal?: AbortSignal, filters?: { is_set_template?: boolean }): Promise<Album[]> {
+      let url = '/albums'
+      if (filters?.is_set_template !== undefined) {
+        const templateParam = filters.is_set_template ? 'true' : 'false'
+        url = `/albums?is_set_template=${templateParam}`
+      }
+
+      const response = await apiRequest(getApiUrl(url), schemas.AlbumsResponseSchema, { signal })
 
       if (Array.isArray(response)) {
         return response

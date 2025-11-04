@@ -4,7 +4,13 @@
 
 ## Overview
 
-Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card sets (playing cards, tarot, zodiac). The system supports multi-LoRA loading, set-based batch generation, AI-powered image labeling, and provides both REST API and web UI interfaces.
+Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card collections (playing cards, tarot, zodiac). The system supports multi-LoRA loading, template-based batch generation, AI-powered image labeling, and provides both REST API and web UI interfaces.
+
+## Terminology
+
+- **Batch Generation Template**: A configuration (CSV + prompts + LoRAs) that defines HOW to generate a collection of images. These are input configurations stored in the database with `is_set_template=True`.
+- **Album**: An output collection of generated images organized together. Created when a batch generation template is executed with a user theme.
+- **Batch**: A single execution of a template that creates an album of images.
 
 ## System Architecture
 
@@ -22,7 +28,7 @@ Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a
          │         Port: 10050 (configurable)                │
          ├───────────────────────────────────────────────────┤
          │  - Job Queue Management                           │
-         │  - Set Configuration Loading                      │
+         │  - Batch Template Configuration Loading           │
          │  - Batch Generation Orchestration                 │
          │  - LoRA Configuration (Single/Multi)              │
          └─────────────────────┬─────────────────────────────┘
@@ -97,10 +103,10 @@ imagineer/
 │   ├── basic_inference.py        # Simple inference example
 │   └── train_lora.py             # LoRA training script
 ├── data/
-│   └── sets/                     # Set definitions (not in repo)
-│       ├── card_deck.csv         # 54 playing cards with visual layouts
-│       ├── tarot_deck.csv        # 22 Major Arcana
-│       └── zodiac.csv            # 12 zodiac signs
+│   └── sets/                     # Batch template definitions (not in repo)
+│       ├── card_deck.csv         # 54 playing card prompts with visual layouts
+│       ├── tarot_deck.csv        # 22 Major Arcana prompts
+│       └── zodiac.csv            # 12 zodiac sign prompts
 ├── web/                          # React frontend
 │   ├── src/
 │   │   ├── App.jsx              # Main app with routing
@@ -117,10 +123,10 @@ External Directories (configured in config.yaml):
 ├── models/
 │   └── lora/                     # LoRA weight files (.safetensors)
 ├── sets/
-│   └── config.yaml               # Set-specific configurations
+│   └── config.yaml               # Batch template configurations
 ├── checkpoints/                  # LoRA training outputs
 └── outputs/                      # Generated images
-    └── [batch_id]/               # Batch subdirectories
+    └── [album_name]/             # Album subdirectories (batch outputs)
         ├── *.png                 # Generated images
         └── *.json                # Metadata sidecars
 ```
@@ -133,9 +139,9 @@ External Directories (configured in config.yaml):
 
 **Key Features:**
 - Job queue with background worker thread
-- Set configuration loading and validation
+- Batch template configuration loading and validation
 - Batch generation orchestration
-- Dynamic set discovery from CSV files
+- Dynamic template discovery from CSV files
 - Multi-LoRA configuration support
 
 **Key Endpoints:**
@@ -144,9 +150,9 @@ External Directories (configured in config.yaml):
 |----------|--------|---------|
 | `/api/config` | GET/PUT | Manage global configuration |
 | `/api/generate` | POST | Submit single generation job |
-| `/api/generate/batch` | POST | Submit batch generation from set |
-| `/api/sets` | GET | List available sets |
-| `/api/sets/<name>/info` | GET | Get set details |
+| `/api/generate/batch` | POST | Submit batch generation from template |
+| `/api/albums?is_set_template=true` | GET | List available batch templates |
+| `/api/albums/<id>` | GET | Get template details |
 | `/api/jobs` | GET | View job queue and history |
 | `/api/jobs/<id>` | GET/DELETE | Manage specific job |
 | `/api/batches` | GET | List batch outputs |
@@ -201,11 +207,11 @@ python examples/generate.py \
   --output outputs/image.png
 ```
 
-### 3. Set Configuration System
+### 3. Batch Template Configuration System
 
 **Location:** `/mnt/speedy/imagineer/sets/config.yaml`
 
-**Purpose:** Define batch generation templates for card sets
+**Purpose:** Define batch generation templates for card collections
 
 **Structure:**
 ```yaml
@@ -234,7 +240,9 @@ python examples/generate.py \
 
 This order follows SD best practices where front words have strongest influence.
 
-**CSV Set Format:**
+**CSV Template Format:**
+
+CSV files define the prompts for batch generation. Each row becomes one image generation job.
 
 `card_deck.csv`:
 ```csv
@@ -244,7 +252,7 @@ Two,Hearts,The Pair - symbolizes union...,"Two red heart symbols..."
 ...
 ```
 
-Each row becomes one generation job with columns available as `{column}` in prompt_template.
+Each row's columns are available as `{column}` in the prompt_template, allowing dynamic prompt generation for each item.
 
 ### 4. LoRA System
 
@@ -286,7 +294,7 @@ loras:
 
 - `App.jsx` - Main app with React Router
 - `Gallery.jsx` - Batch gallery with navigation (Next/Previous)
-- `SetSelector.jsx` - Set selection and batch generation
+- `AlbumsTab.jsx` - Template selection and batch generation
 - `ConfigPanel.jsx` - Configuration management
 - `JobsPanel.jsx` - Job queue monitoring
 
@@ -495,25 +503,29 @@ User → API: GET /api/images/<id>/file
 ### Batch Generation
 
 ```
-User → API: POST /api/generate/batch
-  {set_name: "card_deck", user_theme: "gothic style"}
+User → API: POST /api/albums/<template_id>/generate
+  {user_theme: "gothic style"}
   ↓
-API: Load set config & CSV
+API: Load batch template (Album with is_set_template=True)
+  - Parse CSV data (prompt rows)
+  - Load generation config (dimensions, LoRAs, negative_prompt)
   ↓
 API: For each CSV row:
-  - Construct prompt from template
-  - Create job with set dimensions, LoRAs, negative_prompt
+  - Construct prompt from template + user_theme
+  - Create generation job with template settings
   - Add to queue
   ↓
-API: Create batch directory: outputs/{set_name}_{timestamp}/
+API: Create new Album record (is_set_template=False)
+  - Album name: "{template_name} - {user_theme}"
+  - Links to output directory
   ↓
 Worker: Process jobs sequentially
-  - Each job outputs to batch directory
-  - Filename: {timestamp}_{item_name}.png
+  - Each job outputs to album directory
+  - Images added to Album via AlbumImage records
   ↓
-User → API: GET /api/batches/<batch_id>
+User → API: GET /api/albums/<album_id>
   ↓
-Gallery: Display all images in batch
+Frontend: Display album with all generated images
 ```
 
 ### Image Labeling (AI-Powered)
@@ -868,15 +880,15 @@ flake8 src/ examples/
 
 **v1.0.0 (2025-10-13):**
 - ✅ Multi-LoRA support via PEFT
-- ✅ Set-based batch generation
-- ✅ React gallery with batch navigation
+- ✅ Template-based batch generation
+- ✅ React album gallery with navigation
 - ✅ REST API with job queue
 - ✅ Explicit visual layouts for card_deck
 - ✅ Compatible version locking (diffusers 0.31.0, transformers 4.47.0)
 
 **Initial (2025-10-11):**
 - Basic SD 1.5 inference
-- CSV set definitions
+- CSV batch templates
 - Flask API
 - Web UI
 

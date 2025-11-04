@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card sets (playing cards, tarot, zodiac). The system supports multi-LoRA loading, set-based batch generation, and provides both REST API and web UI interfaces.
+Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a focus on batch generation of themed card collections (playing cards, tarot, zodiac). The system supports multi-LoRA loading, template-based batch generation, and provides both REST API and web UI interfaces.
+
+## Terminology
+
+- **Batch Generation Template**: A CSV file + configuration (prompts, LoRAs, dimensions) that defines HOW to generate a collection of images. Stored as Albums with `is_set_template=True`.
+- **Album**: An output collection of generated images. Created when a batch template is executed with a user's custom theme.
+- **Batch**: A single execution of a template that creates an album.
 
 **For detailed architecture documentation, see:** `docs/ARCHITECTURE.md`
 
@@ -116,10 +122,10 @@ curl -X POST http://localhost:10050/api/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "your prompt", "steps": 25}'
 
-# Batch generation from set
-curl -X POST http://localhost:10050/api/generate/batch \
+# Batch generation from template
+curl -X POST http://localhost:10050/api/albums/<template_id>/generate \
   -H "Content-Type: application/json" \
-  -d '{"set_name": "card_deck", "user_theme": "gothic style"}'
+  -d '{"user_theme": "gothic style"}'
 ```
 
 ### Testing LoRAs
@@ -164,9 +170,9 @@ pytest
 
 **server/api.py** - Flask REST API (Port 10050)
 - Job queue with background worker
-- Set-based batch generation
+- Template-based batch generation
 - Multi-LoRA configuration support
-- Dynamic CSV set discovery
+- Dynamic batch template discovery
 
 **examples/generate.py** - Core generation script
 - Multi-LoRA loading via PEFT adapters
@@ -175,8 +181,8 @@ pytest
 - Metadata JSON sidecars
 
 **web/** - React Frontend (Port 3000)
-- Batch gallery with navigation
-- Set selection and batch generation UI
+- Album gallery with navigation
+- Batch template selection and generation UI
 - Real-time job queue monitoring
 
 **examples/train_lora.py** - LoRA training
@@ -189,9 +195,10 @@ pytest
 - Model, generation, training, hardware settings
 - Paths to external directories
 
-**/mnt/speedy/imagineer/sets/config.yaml** - Set definitions
-- Per-set prompts, dimensions, LoRAs, negative prompts
+**/mnt/speedy/imagineer/sets/config.yaml** - Batch template definitions
+- Per-template prompts, dimensions, LoRAs, negative prompts
 - Multi-LoRA stacking configuration
+- CSV data defining items to generate
 
 **firebase.json** - Firebase Hosting configuration
 - SPA routing rules
@@ -219,20 +226,27 @@ pytest
 /mnt/speedy/imagineer/              # External storage
 ├── models/lora/*.safetensors        # LoRA weights
 ├── sets/
-│   ├── config.yaml                  # Set configurations
-│   ├── card_deck.csv                # 54 playing cards
-│   ├── tarot_deck.csv               # 22 Major Arcana
-│   └── zodiac.csv                   # 12 zodiac signs
+│   ├── config.yaml                  # Batch template configurations
+│   ├── card_deck.csv                # 54 playing card prompts
+│   ├── tarot_deck.csv               # 22 Major Arcana prompts
+│   └── zodiac.csv                   # 12 zodiac sign prompts
 ├── checkpoints/                     # Training outputs
 └── outputs/
-    └── [batch_id]/                  # Batch subdirectories
+    └── [album_name]/                # Album subdirectories (batch outputs)
         ├── *.png                    # Generated images
         └── *.json                   # Metadata sidecars
 ```
 
 ## Key Design Patterns
 
-**Set-Based Batch Generation:**
+**Template-Based Batch Generation:**
+
+Batch templates are stored as Albums with `is_set_template=True` and contain:
+- CSV data with rows defining items to generate
+- Base prompt, prompt template, style suffix
+- LoRA configurations
+- Generation settings (dimensions, negative prompt)
+
 ```yaml
 # /mnt/speedy/imagineer/sets/config.yaml
 card_deck:
@@ -245,6 +259,8 @@ card_deck:
 ```
 
 Prompt construction order: `[Base Prompt] [User Theme] [CSV Data] [Style Suffix]`
+
+When executed, creates a new Album (output) with generated images.
 
 **Multi-LoRA Loading:**
 ```python
@@ -289,4 +305,5 @@ LoRAs combine additively: `Output = Base + (LoRA1 * w1) + (LoRA2 * w2)`
 
 **Generated Images:**
 - Saved with JSON metadata sidecars (prompt, settings, LoRAs, seed)
-- Batch images organized in subdirectories: `outputs/{set_name}_{timestamp}/`
+- Batch images organized in album subdirectories: `outputs/{album_name}/`
+- Linked to Album records in the database for gallery viewing
