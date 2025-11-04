@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { logger } from '../lib/logger'
+import { getApiUrl } from '../lib/apiConfig'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -84,7 +85,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
   const startPolling = (id: string): void => {
     pollRef.current = window.setInterval(async () => {
       try {
-        const response = await fetch(`/api/labeling/tasks/${id}`, {
+        const response = await fetch(getApiUrl(`/api/labeling/tasks/${id}`), {
           credentials: 'include'
         })
 
@@ -165,7 +166,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
         ...(albumId ? { force: false } : {})
       }
 
-      const response = await fetch(endpoint, {
+      const response = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -151,11 +151,11 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
   const downloadUrl =
     toAbsoluteApiPath(image.download_url) ??
     toAbsoluteApiPath(image.path) ??
-    (image.id ? `/api/images/${image.id}/file` : undefined)
+    (image.id ? getApiUrl(`/api/images/${image.id}/file`) : undefined)
 
   const thumbnailUrl =
     toAbsoluteApiPath(image.thumbnail_url) ??
-    (image.id ? `/api/images/${image.id}/thumbnail` : undefined) ??
+    (image.id ? getApiUrl(`/api/images/${image.id}/thumbnail`) : undefined) ??
     downloadUrl
 
   const created = image.created ?? image.created_at ?? undefined

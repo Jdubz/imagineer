@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { logger } from '../lib/logger'
 import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
+import { getApiUrl } from '../lib/apiConfig'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { useAbortableEffect } from '../hooks/useAbortableEffect'
@@ -540,7 +541,7 @@ const AlbumThumbnailCarousel: React.FC<AlbumThumbnailCarouselProps> = memo(({ pr
   }
 
   const currentImage = previewImages[currentIndex]
-  const thumbnailUrl = `/api/images/${currentImage.id}/thumbnail`
+  const thumbnailUrl = getApiUrl(`/api/images/${currentImage.id}/thumbnail`)
 
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -772,8 +773,8 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const generatedImage: GeneratedImage = {
             id: imageId,
             filename: image.filename,
-            thumbnail_url: `/api/images/${imageId}/thumbnail`,
-            download_url: `/api/images/${imageId}/file`,
+            thumbnail_url: getApiUrl(`/api/images/${imageId}/thumbnail`),
+            download_url: getApiUrl(`/api/images/${imageId}/file`),
             is_nsfw: image.is_nsfw,
           }
 
