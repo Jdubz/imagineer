@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Save, X, Trash2, Loader2, Download, FolderOpen, Calendar, Hash, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
 import { logger } from '../lib/logger'
+import { resolveImageSources } from '../lib/imageSources'
 import type { GeneratedImage } from '../types/models'
 
 interface ImageDetailPageProps {
@@ -31,6 +32,11 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   const [editedNegativePrompt, setEditedNegativePrompt] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const imageSources = useMemo(
+    () => (image ? resolveImageSources(image) : null),
+    [image]
+  )
 
   const fetchImageDetails = useCallback(async () => {
     if (!imageId) return
@@ -117,15 +123,15 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   }, [image, navigate, toast, showErrorToast])
 
   const handleDownload = useCallback(() => {
-    if (!image || !image.download_url) return
+    if (!imageSources) return
 
     const link = document.createElement('a')
-    link.href = image.download_url
-    link.download = image.filename
+    link.href = imageSources.full
+    link.download = image?.filename || 'download.png'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-  }, [image])
+  }, [imageSources, image])
 
   if (loading) {
     return (
@@ -173,11 +179,15 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
         <Card className="lg:sticky lg:top-6 lg:self-start">
           <CardContent className="pt-6">
             <div className="aspect-square w-full rounded-lg overflow-hidden bg-muted">
-              <img
-                src={image.download_url}
-                alt={image.filename}
-                className="w-full h-full object-contain"
-              />
+              {imageSources && (
+                <img
+                  src={imageSources.full}
+                  srcSet={imageSources.srcSet}
+                  alt={imageSources.alt}
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                />
+              )}
             </div>
             <div className="mt-4 flex items-center gap-2">
               <Button onClick={handleDownload} className="flex-1">
