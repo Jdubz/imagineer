@@ -390,7 +390,17 @@ class TrainingRunResponseTypedDict(TypedDict, total=False):
     output_path: NotRequired[str | None]
 
 
+class TrainingRunsResponsePagination(TypedDict, total=False):
+    page: Required[int]
+    per_page: Required[int]
+    total: Required[int]
+    pages: Required[int]
+    has_next: Required[bool]
+    has_prev: Required[bool]
+
+
 class TrainingRunsResponseTypedDict(TypedDict, total=False):
     """Envelope returned by GET /api/training."""
 
     training_runs: Required[list[TrainingRunResponseTypedDict]]
+    pagination: Required[TrainingRunsResponsePagination]

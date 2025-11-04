@@ -8,6 +8,11 @@ from server.services.template_seeder import MIGRATION_NAME, ensure_default_set_t
 
 def test_ensure_default_set_templates_creates_records(app):
     with app.app_context():
+        # Clean up any existing templates from previous tests
+        Album.query.filter(Album.is_set_template.is_(True)).delete()
+        MigrationHistory.query.filter_by(name=MIGRATION_NAME).delete()
+        db.session.commit()
+
         summary = ensure_default_set_templates(app)
 
         assert summary["created"] or summary["updated"]

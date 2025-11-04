@@ -251,48 +251,58 @@ export const ScrapingJobStatusSchema = z.enum([
 ])
 
 export const ScrapingJobSchema = z.object({
-  id: z.union([z.string(), z.number()]).transform(value => value.toString()),
+  id: z.preprocess((value) => {
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10)
+      return Number.isNaN(parsed) ? value : parsed
+    }
+    return value
+  }, z.number()),
   status: ScrapingJobStatusSchema,
-  url: z.string().optional(),
-  name: z.string().optional(),
-  source_url: z.string().optional(),
-  output_dir: z.string().optional(),
-  output_directory: z.string().optional(),
-  progress: z.number().optional().nullable(),
-  progress_message: z.string().optional(),
-  description: z.string().optional(),
-  runtime: ScrapingJobRuntimeSchema.optional(),
-  created_at: z.string(),
+  url: z.string().optional().nullable(),
+  name: z.string().optional().nullable(),
+  source_url: z.string().optional().nullable(),
+  output_dir: z.string().optional().nullable(),
+  output_directory: z.string().optional().nullable(),
+  progress: z.number().nullable(),
+  progress_message: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  runtime: ScrapingJobRuntimeSchema,
+  created_at: z.string().optional().nullable(),
+  started_at: z.string().optional().nullable(),
   completed_at: z.string().optional().nullable(),
+  scrape_config: z.string().optional().nullable(),
+  config: z.record(z.string(), z.unknown()),
+  album_id: z.number().optional().nullable(),
+  images_scraped: z.number().nullable(),
+  error_message: z.string().optional().nullable(),
   error: z.string().optional().nullable(),
-  images_scraped: z.number().optional().nullable(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  last_error_at: z.string().optional().nullable(),
 })
 
-export const ScrapingJobsResponseSchema = z
-  .object({
-    jobs: z.array(ScrapingJobSchema),
-    total: z.number().optional(),
-    page: z.number().optional(),
-    per_page: z.number().optional(),
-    pages: z.number().optional(),
-  })
-  .passthrough()
+export const ScrapingJobsResponseSchema = z.object({
+  jobs: z.array(ScrapingJobSchema),
+  total: z.number(),
+  page: z.number(),
+  per_page: z.number(),
+  pages: z.number(),
+})
 
 export const ScrapingStorageStatsSchema = z.object({
   path: z.string(),
-  total_gb: z.number().optional(),
-  used_gb: z.number().optional(),
-  free_gb: z.number().optional(),
+  total_gb: z.number().optional().nullable(),
+  used_gb: z.number().optional().nullable(),
+  free_gb: z.number().optional().nullable(),
   free_percent: z.number().optional().nullable(),
-  error: z.string().optional(),
+  error: z.string().optional().nullable(),
 })
 
 export const ScrapingStatsSchema = z.object({
   total_jobs: z.number(),
   total_images_scraped: z.number(),
   recent_jobs: z.number(),
-  storage: ScrapingStorageStatsSchema.optional(),
+  status_breakdown: z.record(z.string(), z.number()),
+  storage: ScrapingStorageStatsSchema,
 })
 
 export const ScrapingActionResponseSchema = z.object({

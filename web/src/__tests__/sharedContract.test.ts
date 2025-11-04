@@ -7,29 +7,55 @@ import type { ZodTypeAny } from 'zod';
 import type {
   AlbumDetailResponse as SharedAlbumDetailResponse,
   AuthStatus,
+  BatchSummary as SharedBatchSummary,
+  BatchesResponse as SharedBatchesResponse,
   BugReportSubmissionRequest as SharedBugReportSubmissionRequest,
   BugReportSubmissionResponse as SharedBugReportSubmissionResponse,
+  AlbumResponse as SharedAlbumResponse,
   ImageMetadata as SharedImageMetadata,
   ImageResponse as SharedImageResponse,
   Job as SharedJob,
   JobsResponse as SharedJobsResponse,
+  ScrapeJobResponse as SharedScrapeJobResponse,
+  ScrapingJobsResponse as SharedScrapingJobsResponse,
+  ScrapingStatsResponse as SharedScrapingStatsResponse,
+  TrainingRunResponse as SharedTrainingRunResponse,
+  TrainingAlbumsResponse as SharedTrainingAlbumsResponse,
+  TrainingLogResponse as SharedTrainingLogResponse,
+  TrainingRunsResponse as SharedTrainingRunsResponse,
 } from '../types/shared';
 import authStatusSchemaRaw from '../../../shared/schema/auth_status.json';
 import imageMetadataSchemaRaw from '../../../shared/schema/image_metadata.json';
 import imageResponseSchemaRaw from '../../../shared/schema/image_response.json';
 import albumDetailResponseSchemaRaw from '../../../shared/schema/album_detail_response.json';
+import batchSummarySchemaRaw from '../../../shared/schema/batch_summary.json';
+import batchesResponseSchemaRaw from '../../../shared/schema/batches_response.json';
 import jobSchemaRaw from '../../../shared/schema/job.json';
 import jobsResponseSchemaRaw from '../../../shared/schema/jobs_response.json';
+import scrapeJobResponseSchemaRaw from '../../../shared/schema/scrape_job_response.json';
+import scrapingJobsResponseSchemaRaw from '../../../shared/schema/scraping_jobs_response.json';
+import scrapingStatsResponseSchemaRaw from '../../../shared/schema/scraping_stats_response.json';
 import bugReportSubmissionRequestSchemaRaw from '../../../shared/schema/bug_report_submission_request.json';
 import bugReportSubmissionResponseSchemaRaw from '../../../shared/schema/bug_report_submission_response.json';
+import trainingAlbumsResponseSchemaRaw from '../../../shared/schema/training_albums_response.json';
+import trainingLogResponseSchemaRaw from '../../../shared/schema/training_log_response.json';
+import trainingRunsResponseSchemaRaw from '../../../shared/schema/training_runs_response.json';
 import {
   AlbumDetailResponseSchema,
   AuthStatusSchema,
+  BatchSummarySchema,
+  BatchesResponseSchema,
+  BugReportResponseSchema,
   ImageMetadataSchema,
   ImageResponseSchema,
   JobSchema,
   JobsResponseSchema,
-  BugReportResponseSchema,
+  ScrapingJobSchema,
+  ScrapingJobsResponseSchema,
+  ScrapingStatsSchema,
+  TrainingAlbumsResponseSchema,
+  TrainingLogResponseSchema,
+  TrainingRunsResponseSchema,
 } from '../lib/schemas';
 import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport';
 
@@ -58,10 +84,18 @@ const authStatusSchema = authStatusSchemaRaw as JsonSchema;
 const imageMetadataSchema = imageMetadataSchemaRaw as JsonSchema;
 const imageResponseSchema = imageResponseSchemaRaw as JsonSchema;
 const albumDetailResponseSchema = albumDetailResponseSchemaRaw as JsonSchema;
+const batchSummarySchema = batchSummarySchemaRaw as JsonSchema;
+const batchesResponseSchema = batchesResponseSchemaRaw as JsonSchema;
 const jobSchema = jobSchemaRaw as JsonSchema;
 const jobsResponseSchema = jobsResponseSchemaRaw as JsonSchema;
+const scrapeJobResponseSchema = scrapeJobResponseSchemaRaw as JsonSchema;
+const scrapingJobsResponseSchema = scrapingJobsResponseSchemaRaw as JsonSchema;
+const scrapingStatsResponseSchema = scrapingStatsResponseSchemaRaw as JsonSchema;
 const bugReportRequestSchema = bugReportSubmissionRequestSchemaRaw as JsonSchema;
 const bugReportResponseSchema = bugReportSubmissionResponseSchemaRaw as JsonSchema;
+const trainingAlbumsResponseSchema = trainingAlbumsResponseSchemaRaw as JsonSchema;
+const trainingLogResponseSchema = trainingLogResponseSchemaRaw as JsonSchema;
+const trainingRunsResponseSchema = trainingRunsResponseSchemaRaw as JsonSchema;
 
 const sharedTypesPath = path.resolve(__dirname, '../types/shared.ts');
 
@@ -81,9 +115,17 @@ const schemaRegistry = new Map<string, JsonSchema>([
   [imageMetadataSchema.name, imageMetadataSchema],
   [imageResponseSchema.name, imageResponseSchema],
   [albumDetailResponseSchema.name, albumDetailResponseSchema],
+  [batchSummarySchema.name, batchSummarySchema],
+  [batchesResponseSchema.name, batchesResponseSchema],
   [jobSchema.name, jobSchema],
   [jobsResponseSchema.name, jobsResponseSchema],
+  [scrapeJobResponseSchema.name, scrapeJobResponseSchema],
+  [scrapingJobsResponseSchema.name, scrapingJobsResponseSchema],
+  [scrapingStatsResponseSchema.name, scrapingStatsResponseSchema],
   [bugReportResponseSchema.name, bugReportResponseSchema],
+  [trainingAlbumsResponseSchema.name, trainingAlbumsResponseSchema],
+  [trainingLogResponseSchema.name, trainingLogResponseSchema],
+  [trainingRunsResponseSchema.name, trainingRunsResponseSchema],
 ]);
 
 const schemaCases: readonly SchemaCase[] = [
@@ -176,6 +218,119 @@ const schemaCases: readonly SchemaCase[] = [
         current: SharedJob | null;
         queue: SharedJob[];
         history: SharedJob[];
+      }>();
+    },
+  },
+  {
+    name: 'BatchSummary',
+    schema: batchSummarySchema,
+    zod: BatchSummarySchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof batchSummarySchemaRaw.properties;
+      type RequiredKeys = typeof batchSummarySchemaRaw.required extends readonly string[]
+        ? (typeof batchSummarySchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedBatchSummary>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'BatchesResponse',
+    schema: batchesResponseSchema,
+    zod: BatchesResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedBatchesResponse>().toMatchTypeOf<{
+        batches: SharedBatchSummary[];
+      }>();
+    },
+  },
+  {
+    name: 'ScrapeJobResponse',
+    schema: scrapeJobResponseSchema,
+    zod: ScrapingJobSchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof scrapeJobResponseSchemaRaw.properties;
+      type RequiredKeys = typeof scrapeJobResponseSchemaRaw.required extends readonly string[]
+        ? (typeof scrapeJobResponseSchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedScrapeJobResponse>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'ScrapingJobsResponse',
+    schema: scrapingJobsResponseSchema,
+    zod: ScrapingJobsResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedScrapingJobsResponse>().toMatchTypeOf<{
+        jobs: SharedScrapeJobResponse[];
+        total: number;
+        page: number;
+        per_page: number;
+        pages: number;
+      }>();
+    },
+  },
+  {
+    name: 'ScrapingStatsResponse',
+    schema: scrapingStatsResponseSchema,
+    zod: ScrapingStatsSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedScrapingStatsResponse>().toMatchTypeOf<{
+        total_jobs: number;
+        total_images_scraped: number;
+        recent_jobs: number;
+        status_breakdown: Record<string, number>;
+        storage: {
+          path: string;
+          total_gb?: number | null;
+          used_gb?: number | null;
+          free_gb?: number | null;
+          free_percent?: number | null;
+          error?: string | null;
+        } | null;
+      }>();
+    },
+  },
+  {
+    name: 'TrainingLogResponse',
+    schema: trainingLogResponseSchema,
+    zod: TrainingLogResponseSchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof trainingLogResponseSchemaRaw.properties;
+      type RequiredKeys = typeof trainingLogResponseSchemaRaw.required extends readonly string[]
+        ? (typeof trainingLogResponseSchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedTrainingLogResponse>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'TrainingRunsResponse',
+    schema: trainingRunsResponseSchema,
+    zod: TrainingRunsResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedTrainingRunsResponse>().toMatchTypeOf<{
+        training_runs: SharedTrainingRunResponse[];
+      }>();
+    },
+  },
+  {
+    name: 'TrainingAlbumsResponse',
+    schema: trainingAlbumsResponseSchema,
+    zod: TrainingAlbumsResponseSchema,
+    typeAssertion: () => {
+      expectTypeOf<SharedTrainingAlbumsResponse>().toMatchTypeOf<{
+        albums: SharedAlbumResponse[];
       }>();
     },
   },

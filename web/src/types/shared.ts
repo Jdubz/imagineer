@@ -295,4 +295,5 @@ export interface TrainingRunResponse {
 /** Envelope returned by GET /api/training. */
 export interface TrainingRunsResponse {
   training_runs: Array<TrainingRunResponse>;
+  pagination: { page: number; per_page: number; total: number; pages: number; has_next: boolean; has_prev: boolean };
 }
