@@ -738,10 +738,20 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
       signal?: AbortSignal
     ): Promise<Album> {
       const includeParam = includeLabels ? '?include_labels=1' : ''
-      return apiRequest(getApiUrl(`/albums/${albumId}${includeParam}`), schemas.AlbumSchema, {
+      const album = await apiRequest(getApiUrl(`/albums/${albumId}${includeParam}`), schemas.AlbumSchema, {
         credentials: 'include',
         signal,
       })
+
+      // Normalize image URLs to use API paths
+      if (album.images) {
+        return {
+          ...album,
+          images: album.images.map(normalizeGeneratedImage)
+        }
+      }
+
+      return album
     },
 
     /**
