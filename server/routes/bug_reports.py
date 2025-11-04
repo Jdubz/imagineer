@@ -17,13 +17,13 @@ from jsonschema import Draft202012Validator, ValidationError
 from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
+from server.bug_reports.service import bug_report_service
 from server.bug_reports.storage import (
     BugReportStorageError,
     delete_report,
     list_reports,
     load_report,
     purge_reports_older_than,
-    update_report,
 )
 from server.config_loader import PROJECT_ROOT, load_config
 from server.shared_types import (
@@ -318,22 +318,32 @@ def update_bug_report(report_id: str):
     """Update bug report metadata such as status or resolution notes."""
     payload = request.get_json(silent=True) or {}
     status = payload.get("status")
-    resolution = payload.get("resolution")
+    resolution = payload.get("resolution", {})
 
     try:
-        updated = update_report(
-            report_id,
-            _get_reports_root(),
-            status=status,
-            resolution=resolution if isinstance(resolution, dict) else None,
+        # Extract resolution details
+        resolution_notes = resolution.get("notes") if isinstance(resolution, dict) else None
+        resolution_commit_sha = (
+            resolution.get("commit_sha") if isinstance(resolution, dict) else None
         )
-        return jsonify({"report": updated})
-    except FileNotFoundError:
-        return jsonify({"error": f"Bug report {report_id} not found"}), 404
+
+        # Update in database
+        updated = bug_report_service.update_bug_report_status(
+            report_id=report_id,
+            status=status,
+            actor_id=g.user.email if hasattr(g, "user") else None,
+            resolution_notes=resolution_notes,
+            resolution_commit_sha=resolution_commit_sha,
+        )
+
+        if not updated:
+            return jsonify({"error": f"Bug report {report_id} not found"}), 404
+
+        return jsonify({"report": updated.to_dict(include_context=False)})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    except BugReportStorageError as exc:  # pragma: no cover - defensive
-        _log_storage_failure(f"Failed to update bug report {report_id}", exc)
+    except Exception as exc:
+        logger.error(f"Failed to update bug report {report_id}: {exc}", exc_info=True)
         return jsonify({"error": "Failed to update bug report"}), 500
 
 

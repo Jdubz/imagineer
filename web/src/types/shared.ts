@@ -101,6 +101,9 @@ export interface BatchesResponse {
 /** Payload accepted by POST /api/bug-reports. */
 export interface BugReportSubmissionRequest {
   description: string;
+  expectedBehavior?: string | null;
+  actualBehavior?: string | null;
+  stepsToReproduce?: Array<string>;
   environment: { mode: string; appVersion?: string | null; gitSha?: string | null; buildTime?: string | null };
   clientMeta: { locationHref: string; userAgent?: string; platform?: string; language?: string; locale?: string; timezone?: string; viewport?: { width: number; height: number } };
   appState: Record<string, unknown>;

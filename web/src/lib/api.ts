@@ -108,16 +108,13 @@ function toAbsoluteApiPath(path?: string | null): string | undefined {
     return path
   }
 
-  // If path starts with /api/, use getApiUrl to convert it properly
-  if (path.startsWith('/api/')) {
-    return getApiUrl(path)
-  }
-
+  // If path starts with /, use getApiUrl to convert it properly
   if (path.startsWith('/')) {
     return getApiUrl(path)
   }
 
-  return getApiUrl(`/api/${path.replace(/^\/+/, '')}`)
+  const normalized = path.replace(/^\/+/, '')
+  return getApiUrl(`/api/${normalized}`)
 }
 
 function buildMetadataFromImage(image: GeneratedImageContract): ImageMetadata | undefined {
@@ -154,11 +151,11 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
   const downloadUrl =
     toAbsoluteApiPath(image.download_url) ??
     toAbsoluteApiPath(image.path) ??
-    (image.id ? getApiUrl(`/images/${image.id}/file`) : undefined)
+    (image.id ? `/api/images/${image.id}/file` : undefined)
 
   const thumbnailUrl =
     toAbsoluteApiPath(image.thumbnail_url) ??
-    (image.id ? getApiUrl(`/images/${image.id}/thumbnail`) : undefined) ??
+    (image.id ? `/api/images/${image.id}/thumbnail` : undefined) ??
     downloadUrl
 
   const created = image.created ?? image.created_at ?? undefined
