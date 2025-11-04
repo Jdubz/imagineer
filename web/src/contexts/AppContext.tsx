@@ -13,7 +13,7 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
 import { logger } from '../lib/logger'
-import { api } from '../lib/api'
+import { api, ApiError } from '../lib/api'
 import { JobSchema } from '../lib/schemas'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
@@ -237,6 +237,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             })
           }
         } catch (error) {
+          // Handle 404 gracefully - job may have been pruned from history
+          if (error instanceof ApiError && error.status === 404) {
+            logger.info('Job no longer found in history, stopping poll', { jobId: job.id })
+            setLoading(false)
+            setQueuePosition(null)
+            return
+          }
+
           logger.error('Error polling job status', error as Error)
           setLoading(false)
           showErrorToast({
