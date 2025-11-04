@@ -351,6 +351,19 @@ export const AlbumSchema = z.object({
   template_item_count: z.number().optional(),
   example_theme: z.string().optional(),
   base_prompt: z.string().optional(),
+  // Additional fields from backend Album.to_dict()
+  generation_prompt: z.string().nullish(),
+  generation_config: z.string().nullish(),
+  is_public: z.boolean().optional(),
+  is_training_source: z.boolean().optional(),
+  created_by: z.string().nullish(),
+  csv_data: z.string().nullish(),
+  prompt_template: z.string().nullish(),
+  style_suffix: z.string().nullish(),
+  lora_config: z.string().nullish(),
+  lora_count: z.number().optional(),
+  template_items_preview: z.array(z.unknown()).optional(),
+  slug: z.string().optional(),
 })
 
 export const LabelAnalyticsSchema = z.object({
