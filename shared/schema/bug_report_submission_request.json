@@ -7,6 +7,21 @@
       "type": "string",
       "minLength": 1
     },
+    "expectedBehavior": {
+      "type": ["string", "null"],
+      "description": "What the user expected to happen"
+    },
+    "actualBehavior": {
+      "type": ["string", "null"],
+      "description": "What actually happened instead"
+    },
+    "stepsToReproduce": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Steps to reproduce the issue"
+    },
     "environment": {
       "type": "object",
       "properties": {

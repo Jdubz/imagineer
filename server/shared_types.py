@@ -171,6 +171,9 @@ class BugReportSubmissionRequestTypedDict(TypedDict, total=False):
     """Payload accepted by POST /api/bug-reports."""
 
     description: Required[str]
+    expectedBehavior: NotRequired[str | None]
+    actualBehavior: NotRequired[str | None]
+    stepsToReproduce: NotRequired[list[str]]
     environment: Required[BugReportSubmissionRequestEnvironment]
     clientMeta: Required[BugReportSubmissionRequestClientmeta]
     appState: Required[dict[str, Any]]

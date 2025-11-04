@@ -182,19 +182,42 @@ class BugReportAgentManager:
             return candidate
 
         # Fallback: pull pending automation reports from database
+        # Note: Requires Flask app context
         try:
-            pending_reports = bug_report_service.get_pending_automation_reports(limit=10)
-            for report in pending_reports:
-                if report.report_id in self._inflight or report.report_id in self._recent_failures:
-                    continue
-                return report.report_id
+            from flask import current_app
+
+            if current_app:
+                pending_reports = bug_report_service.get_pending_automation_reports(limit=10)
+                for report in pending_reports:
+                    if (
+                        report.report_id in self._inflight
+                        or report.report_id in self._recent_failures
+                    ):
+                        continue
+                    return report.report_id
         except Exception as exc:
-            logger.error("Failed to query pending automation reports: %s", exc)
+            logger.debug("Database fallback not available (no app context): %s", exc)
         return None
 
     def _process_report(self, report_id: str) -> None:
-        # Load from database
+        # Load from database - requires app context
         try:
+            from flask import current_app
+
+            # Check if app context exists
+            try:
+                _ = current_app._get_current_object()
+                has_context = True
+            except RuntimeError:
+                has_context = False
+
+            if not has_context:
+                logger.warning(
+                    "No Flask app context for bug report %s; cannot access database",
+                    report_id,
+                )
+                return
+
             bug_report = bug_report_service.get_bug_report(report_id)
             if not bug_report:
                 logger.warning("Bug report %s no longer exists; skipping.", report_id)
