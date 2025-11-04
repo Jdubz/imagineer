@@ -79,6 +79,37 @@ class AuthStatusTypedDict(TypedDict, total=False):
     message: NotRequired[str | None]
 
 
+class BatchGenerationResponseTypedDict(TypedDict, total=False):
+    """Response returned after queuing batch generation jobs."""
+
+    message: Required[str]
+    album_id: Required[int]
+    album_name: Required[str]
+    batch_id: Required[str]
+    job_ids: Required[list[int]]
+    output_dir: Required[str]
+
+
+class BatchSummaryTypedDict(TypedDict, total=False):
+    """Summary record for generated image batches returned by /api/generation/batches."""
+
+    batch_id: Required[str]
+    album_id: Required[int]
+    name: Required[str]
+    album_type: NotRequired[str | None]
+    image_count: Required[int]
+    created: NotRequired[str | None]
+    updated: NotRequired[str | None]
+    preview_url: NotRequired[str | None]
+    path: NotRequired[str | None]
+
+
+class BatchesResponseTypedDict(TypedDict, total=False):
+    """Envelope returned by GET /api/generation/batches."""
+
+    batches: Required[list[BatchSummaryTypedDict]]
+
+
 class BugReportSubmissionRequestEnvironment(TypedDict, total=False):
     mode: Required[str]
     appVersion: NotRequired[str | None]
@@ -267,24 +298,75 @@ class ScrapeJobResponseTypedDict(TypedDict, total=False):
     """Scrape job status returned by /api/scraping endpoints."""
 
     id: Required[int]
-    name: Required[str]
+    name: NotRequired[str | None]
     description: NotRequired[str | None]
     source_url: NotRequired[str | None]
     url: NotRequired[str | None]
     scrape_config: NotRequired[str | None]
     config: Required[dict[str, Any]]
     runtime: Required[dict[str, Any]]
-    status: Required[Literal["pending", "running", "completed", "failed"]]
-    progress: Required[int]
+    status: Required[
+        Literal["pending", "running", "completed", "failed", "cancelled", "cleaned_up"]
+    ]
+    progress: Required[int | None]
     progress_message: NotRequired[str | None]
-    images_scraped: Required[int]
+    images_scraped: Required[int | None]
+    album_id: NotRequired[int | None]
     error_message: NotRequired[str | None]
+    error: NotRequired[str | None]
     last_error_at: NotRequired[str | None]
     created_at: NotRequired[str | None]
     started_at: NotRequired[str | None]
     completed_at: NotRequired[str | None]
     output_directory: NotRequired[str | None]
     output_dir: NotRequired[str | None]
+
+
+class ScrapingJobsResponseTypedDict(TypedDict, total=False):
+    """Paginated list of scraping jobs returned by GET /api/scraping/jobs."""
+
+    jobs: Required[list[ScrapeJobResponseTypedDict]]
+    total: Required[int]
+    page: Required[int]
+    per_page: Required[int]
+    pages: Required[int]
+
+
+class ScrapingStatsResponseStorage(TypedDict, total=False):
+    path: Required[str]
+    total_gb: NotRequired[float | None]
+    used_gb: NotRequired[float | None]
+    free_gb: NotRequired[float | None]
+    free_percent: NotRequired[float | None]
+    error: NotRequired[str | None]
+
+
+class ScrapingStatsResponseTypedDict(TypedDict, total=False):
+    """Aggregated scraping statistics returned by GET /api/scraping/stats."""
+
+    total_jobs: Required[int]
+    total_images_scraped: Required[int]
+    recent_jobs: Required[int]
+    status_breakdown: Required[dict[str, int]]
+    storage: Required[ScrapingStatsResponseStorage | None]
+
+
+class TrainingAlbumsResponseTypedDict(TypedDict, total=False):
+    """Albums eligible for training returned by GET /api/training/albums."""
+
+    albums: Required[list[AlbumResponseTypedDict]]
+
+
+class TrainingLogResponseTypedDict(TypedDict, total=False):
+    """Detailed log information returned by GET /api/training/{id}/logs."""
+
+    training_run_id: Required[int]
+    status: Required[Literal["pending", "queued", "running", "completed", "failed", "cancelled"]]
+    progress: Required[float]
+    error_message: NotRequired[str | None]
+    log_path: Required[str]
+    log_available: Required[bool]
+    logs: Required[str]
 
 
 class TrainingRunResponseTypedDict(TypedDict, total=False):
@@ -294,8 +376,8 @@ class TrainingRunResponseTypedDict(TypedDict, total=False):
     name: Required[str]
     description: NotRequired[str | None]
     training_config: NotRequired[str | None]
-    status: Required[Literal["pending", "running", "completed", "failed"]]
-    progress: Required[int]
+    status: Required[Literal["pending", "queued", "running", "completed", "failed", "cancelled"]]
+    progress: Required[float]
     final_checkpoint: NotRequired[str | None]
     training_loss: NotRequired[float | None]
     validation_loss: NotRequired[float | None]
@@ -306,3 +388,9 @@ class TrainingRunResponseTypedDict(TypedDict, total=False):
     completed_at: NotRequired[str | None]
     dataset_path: NotRequired[str | None]
     output_path: NotRequired[str | None]
+
+
+class TrainingRunsResponseTypedDict(TypedDict, total=False):
+    """Envelope returned by GET /api/training."""
+
+    training_runs: Required[list[TrainingRunResponseTypedDict]]

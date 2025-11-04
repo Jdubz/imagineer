@@ -7,7 +7,7 @@
       "type": "integer"
     },
     "name": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "description": {
       "type": ["string", "null"]
@@ -28,18 +28,24 @@
       "type": "object"
     },
     "status": {
-      "enum": ["pending", "running", "completed", "failed"]
+      "enum": ["pending", "running", "completed", "failed", "cancelled", "cleaned_up"]
     },
     "progress": {
-      "type": "integer"
+      "type": ["integer", "null"]
     },
     "progress_message": {
       "type": ["string", "null"]
     },
     "images_scraped": {
-      "type": "integer"
+      "type": ["integer", "null"]
+    },
+    "album_id": {
+      "type": ["integer", "null"]
     },
     "error_message": {
+      "type": ["string", "null"]
+    },
+    "error": {
       "type": ["string", "null"]
     },
     "last_error_at": {
@@ -63,7 +69,6 @@
   },
   "required": [
     "id",
-    "name",
     "status",
     "progress",
     "images_scraped",

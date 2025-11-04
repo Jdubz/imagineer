@@ -1,0 +1,15 @@
+{
+  "name": "TrainingRunsResponse",
+  "description": "Envelope returned by GET /api/training.",
+  "type": "object",
+  "properties": {
+    "training_runs": {
+      "type": "array",
+      "items": {
+        "$ref": "TrainingRunResponse"
+      }
+    }
+  },
+  "required": ["training_runs"],
+  "additionalProperties": false
+}

@@ -1,0 +1,37 @@
+{
+  "name": "BatchGenerationResponse",
+  "description": "Response returned after queuing batch generation jobs.",
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string"
+    },
+    "album_id": {
+      "type": "integer"
+    },
+    "album_name": {
+      "type": "string"
+    },
+    "batch_id": {
+      "type": "string"
+    },
+    "job_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "output_dir": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "message",
+    "album_id",
+    "album_name",
+    "batch_id",
+    "job_ids",
+    "output_dir"
+  ],
+  "additionalProperties": false
+}

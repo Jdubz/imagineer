@@ -70,6 +70,34 @@ export interface AuthStatus {
   message?: string | null;
 }
 
+/** Response returned after queuing batch generation jobs. */
+export interface BatchGenerationResponse {
+  message: string;
+  album_id: number;
+  album_name: string;
+  batch_id: string;
+  job_ids: Array<number>;
+  output_dir: string;
+}
+
+/** Summary record for generated image batches returned by /api/generation/batches. */
+export interface BatchSummary {
+  batch_id: string;
+  album_id: number;
+  name: string;
+  album_type?: string | null;
+  image_count: number;
+  created?: string | null;
+  updated?: string | null;
+  preview_url?: string | null;
+  path?: string | null;
+}
+
+/** Envelope returned by GET /api/generation/batches. */
+export interface BatchesResponse {
+  batches: Array<BatchSummary>;
+}
+
 /** Payload accepted by POST /api/bug-reports. */
 export interface BugReportSubmissionRequest {
   description: string;
@@ -188,19 +216,20 @@ export interface Label {
 /** Scrape job status returned by /api/scraping endpoints. */
 export interface ScrapeJobResponse {
   id: number;
-  name: string;
+  name?: string | null;
   description?: string | null;
   source_url?: string | null;
   url?: string | null;
   scrape_config?: string | null;
   config: Record<string, unknown>;
   runtime: Record<string, unknown>;
-  status: "pending" | "running" | "completed" | "failed";
-  progress: number;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "cleaned_up";
+  progress: number | null;
   progress_message?: string | null;
-  images_scraped: number;
+  images_scraped: number | null;
   album_id?: number | null;
   error_message?: string | null;
+  error?: string | null;
   last_error_at?: string | null;
   created_at?: string | null;
   started_at?: string | null;
@@ -209,13 +238,47 @@ export interface ScrapeJobResponse {
   output_dir?: string | null;
 }
 
+/** Paginated list of scraping jobs returned by GET /api/scraping/jobs. */
+export interface ScrapingJobsResponse {
+  jobs: Array<ScrapeJobResponse>;
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+/** Aggregated scraping statistics returned by GET /api/scraping/stats. */
+export interface ScrapingStatsResponse {
+  total_jobs: number;
+  total_images_scraped: number;
+  recent_jobs: number;
+  status_breakdown: Record<string, number>;
+  storage: { path: string; total_gb?: number | null; used_gb?: number | null; free_gb?: number | null; free_percent?: number | null; error?: string | null } | null;
+}
+
+/** Albums eligible for training returned by GET /api/training/albums. */
+export interface TrainingAlbumsResponse {
+  albums: Array<AlbumResponse>;
+}
+
+/** Detailed log information returned by GET /api/training/{id}/logs. */
+export interface TrainingLogResponse {
+  training_run_id: number;
+  status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  progress: number;
+  error_message?: string | null;
+  log_path: string;
+  log_available: boolean;
+  logs: string;
+}
+
 /** Training run status returned by /api/training endpoints. */
 export interface TrainingRunResponse {
   id: number;
   name: string;
   description?: string | null;
   training_config?: string | null;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled";
   progress: number;
   final_checkpoint?: string | null;
   training_loss?: number | null;
@@ -227,4 +290,9 @@ export interface TrainingRunResponse {
   completed_at?: string | null;
   dataset_path?: string | null;
   output_path?: string | null;
+}
+
+/** Envelope returned by GET /api/training. */
+export interface TrainingRunsResponse {
+  training_runs: Array<TrainingRunResponse>;
 }

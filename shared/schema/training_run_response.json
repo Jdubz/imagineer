@@ -16,10 +16,10 @@
       "type": ["string", "null"]
     },
     "status": {
-      "enum": ["pending", "running", "completed", "failed"]
+      "enum": ["pending", "queued", "running", "completed", "failed", "cancelled"]
     },
     "progress": {
-      "type": "integer"
+      "type": "number"
     },
     "final_checkpoint": {
       "type": ["string", "null"]

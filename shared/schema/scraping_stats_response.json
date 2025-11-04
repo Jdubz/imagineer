@@ -1,0 +1,55 @@
+{
+  "name": "ScrapingStatsResponse",
+  "description": "Aggregated scraping statistics returned by GET /api/scraping/stats.",
+  "type": "object",
+  "properties": {
+    "total_jobs": {
+      "type": "integer"
+    },
+    "total_images_scraped": {
+      "type": "integer"
+    },
+    "recent_jobs": {
+      "type": "integer"
+    },
+    "status_breakdown": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "storage": {
+      "type": ["object", "null"],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "total_gb": {
+          "type": ["number", "null"]
+        },
+        "used_gb": {
+          "type": ["number", "null"]
+        },
+        "free_gb": {
+          "type": ["number", "null"]
+        },
+        "free_percent": {
+          "type": ["number", "null"]
+        },
+        "error": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "total_jobs",
+    "total_images_scraped",
+    "recent_jobs",
+    "status_breakdown",
+    "storage"
+  ],
+  "additionalProperties": false
+}
