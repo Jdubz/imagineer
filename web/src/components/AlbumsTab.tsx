@@ -384,10 +384,14 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredAlbums.map((album) => {
-          const handleDeleteAlbum = () => {
+          const handleDeleteAlbum = (e: React.MouseEvent) => {
+            e.preventDefault()
+            e.stopPropagation()
             deleteAlbum(album.id)
           }
-          const handleBatchClick = () => {
+          const handleBatchClick = (e: React.MouseEvent) => {
+            e.preventDefault()
+            e.stopPropagation()
             setShowBatchDialog(album)
           }
 
