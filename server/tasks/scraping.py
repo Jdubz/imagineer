@@ -160,8 +160,18 @@ def get_scraped_output_path() -> Path:
                 if fallback_path and fallback_path != candidate_path
                 else Path("/tmp/imagineer/outputs/scraped")
             )
-            fallback_candidate.mkdir(parents=True, exist_ok=True)
-            candidate_path = fallback_candidate
+
+            try:
+                fallback_candidate.mkdir(parents=True, exist_ok=True)
+                candidate_path = fallback_candidate
+            except OSError:
+                # Fallback also failed, use /tmp as last resort
+                logger.warning(
+                    "Fallback directory %s also inaccessible. Using /tmp fallback.",
+                    fallback_candidate,
+                )
+                candidate_path = Path("/tmp/imagineer/outputs/scraped")
+                candidate_path.mkdir(parents=True, exist_ok=True)
 
         SCRAPED_OUTPUT_PATH = candidate_path
 
@@ -429,6 +439,7 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
                 job.completed_at = datetime.now(timezone.utc)
                 job.progress = 100
                 job.output_directory = str(output_dir)
+                job.album_id = result.get("album_id")
                 job.description = "Scrape completed successfully"
                 _persist_runtime_state(
                     job,

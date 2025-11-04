@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { logger } from '../lib/logger'
 import { usePolling } from '../hooks/usePolling'
-import type { TrainingJob, JobStatus, TrainingAlbum } from '../types/models'
+import type { TrainingJob, TrainingJobStatus, TrainingAlbum } from '../types/models'
 import Spinner from './Spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,7 +51,7 @@ interface TrainingTabProps {
 interface TrainingLogState {
   runId: string | null
   content: string
-  status: JobStatus | null
+  status: TrainingJobStatus | null
   logAvailable: boolean
   logPath: string
   loading: boolean

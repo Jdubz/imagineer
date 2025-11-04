@@ -115,7 +115,9 @@ cleanup_workspace() {
 checkout_branch() {
   cd "${WORKSPACE_DIR}"
   git fetch origin "${TARGET_BRANCH}"
-  git checkout -B "bugfix/${REPORT_ID}" "origin/${TARGET_BRANCH}"
+  # Check out target branch directly (agents commit to develop, not bugfix branches)
+  git checkout "${TARGET_BRANCH}"
+  git reset --hard "origin/${TARGET_BRANCH}"
 }
 
 hydrate_claude_credentials() {
@@ -178,8 +180,8 @@ push_changes() {
   fi
   git status >&2
   git commit -m "fix: automated remediation (bug ${REPORT_ID})" >&2
-  if ! git push origin "HEAD:${TARGET_BRANCH}" >&2; then
-    log "Git push failed for remediation branch. Check credentials or remote configuration."
+  if ! git push origin "${TARGET_BRANCH}" >&2; then
+    log "Git push failed to ${TARGET_BRANCH}. Check credentials or remote configuration."
     return 1
   fi
   git rev-parse HEAD

@@ -1,0 +1,15 @@
+{
+  "name": "TrainingAlbumsResponse",
+  "description": "Albums eligible for training returned by GET /api/training/albums.",
+  "type": "object",
+  "properties": {
+    "albums": {
+      "type": "array",
+      "items": {
+        "$ref": "AlbumResponse"
+      }
+    }
+  },
+  "required": ["albums"],
+  "additionalProperties": false
+}

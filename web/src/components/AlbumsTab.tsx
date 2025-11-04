@@ -293,6 +293,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   }, [deleteConfirmAlbum, toast, showErrorToast, fetchAlbums, selectedAlbum])
 
   const handleBatchGenerate = useCallback((album: Album, event: React.MouseEvent): void => {
+    event.preventDefault()
     event.stopPropagation()
     setShowBatchDialog(album)
   }, [])

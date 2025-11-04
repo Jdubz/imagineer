@@ -1,0 +1,15 @@
+{
+  "name": "BatchesResponse",
+  "description": "Envelope returned by GET /api/generation/batches.",
+  "type": "object",
+  "properties": {
+    "batches": {
+      "type": "array",
+      "items": {
+        "$ref": "BatchSummary"
+      }
+    }
+  },
+  "required": ["batches"],
+  "additionalProperties": false
+}

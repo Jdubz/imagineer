@@ -119,3 +119,4 @@ web/coverage/
 # Audit and planning docs (keep in repo but ignore if recreated)
 # AUDIT_REPORT.md
 # SECURITY_AUDIT.md
+.black_temp/

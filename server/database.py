@@ -294,6 +294,7 @@ class ScrapeJob(db.Model):
     # Results
     images_scraped = db.Column(db.Integer, default=0)
     output_directory = db.Column(db.String(500))
+    album_id = db.Column(db.Integer, db.ForeignKey("albums.id"), nullable=True)
 
     # Error handling
     error_message = db.Column(db.Text)
@@ -330,7 +331,9 @@ class ScrapeJob(db.Model):
             "progress": self.progress,
             "progress_message": self.description,
             "images_scraped": self.images_scraped,
+            "album_id": self.album_id,
             "error_message": self.error_message,
+            "error": self.error_message,  # Frontend expects 'error' field
             "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,

@@ -1,0 +1,41 @@
+{
+  "name": "BatchSummary",
+  "description": "Summary record for generated image batches returned by /api/generation/batches.",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string"
+    },
+    "album_id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "album_type": {
+      "type": ["string", "null"]
+    },
+    "image_count": {
+      "type": "integer"
+    },
+    "created": {
+      "type": ["string", "null"]
+    },
+    "updated": {
+      "type": ["string", "null"]
+    },
+    "preview_url": {
+      "type": ["string", "null"]
+    },
+    "path": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "batch_id",
+    "album_id",
+    "name",
+    "image_count"
+  ],
+  "additionalProperties": false
+}

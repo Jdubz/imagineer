@@ -36,7 +36,7 @@ describe('ScrapingTab', () => {
 
   it('renders admin metrics and telemetry details from runtime data', async () => {
     const jobPayload = {
-      id: 'job-1',
+      id: 1,
       status: 'running' as const,
       url: 'https://example.com/gallery',
       output_dir: '/tmp/job-1',
@@ -44,6 +44,7 @@ describe('ScrapingTab', () => {
       images_scraped: 12,
       progress: 45,
       progress_message: 'Downloading latest images…',
+      config: {},
       runtime: {
         stage: 'downloading',
         discovered: 123,
@@ -60,6 +61,10 @@ describe('ScrapingTab', () => {
         json: () =>
           Promise.resolve({
             jobs: [jobPayload],
+            total: 1,
+            page: 1,
+            per_page: 10,
+            pages: 1,
           }),
       })
       .mockResolvedValueOnce({
@@ -69,6 +74,7 @@ describe('ScrapingTab', () => {
             total_jobs: 1,
             total_images_scraped: 12,
             recent_jobs: 1,
+            status_breakdown: { running: 1 },
             storage: {
               path: '/mnt/storage/imagineer/scraped',
               total_gb: 900,
@@ -110,6 +116,10 @@ describe('ScrapingTab', () => {
         json: () =>
           Promise.resolve({
             jobs: [],
+            total: 0,
+            page: 1,
+            per_page: 10,
+            pages: 0,
           }),
       })
       .mockResolvedValueOnce({
@@ -119,6 +129,7 @@ describe('ScrapingTab', () => {
             total_jobs: 0,
             total_images_scraped: 0,
             recent_jobs: 0,
+            status_breakdown: {},
             storage: {
               path: '/mnt/storage/imagineer/scraped',
               total_gb: 900,
@@ -144,12 +155,20 @@ describe('ScrapingTab', () => {
           Promise.resolve({
             jobs: [
               {
-                id: 'job-2',
+                id: 2,
                 status: 'pending',
                 url: 'https://cards.test',
                 created_at: new Date().toISOString(),
+                images_scraped: null,
+                progress: null,
+                config: {},
+                runtime: {},
               },
             ],
+            total: 1,
+            page: 1,
+            per_page: 10,
+            pages: 1,
           }),
       })
       .mockResolvedValueOnce({
@@ -159,6 +178,7 @@ describe('ScrapingTab', () => {
             total_jobs: 1,
             total_images_scraped: 0,
             recent_jobs: 1,
+            status_breakdown: { pending: 1 },
             storage: {
               path: '/mnt/storage/imagineer/scraped',
               total_gb: 900,

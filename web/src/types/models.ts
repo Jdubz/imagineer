@@ -62,7 +62,7 @@ export interface BatchSummary {
   batch_id: string
   album_id: number
   name: string
-  album_type?: string
+  album_type?: string | null
   image_count: number
   created?: string | null
   updated?: string | null
@@ -71,6 +71,8 @@ export interface BatchSummary {
 }
 
 export type JobStatus = JobContract['status']
+
+export type TrainingJobStatus = JobStatus | 'pending'
 
 export type Job = JobContract
 
@@ -196,7 +198,7 @@ export interface TrainingJob {
   id: number
   name: string
   description?: string | null
-  status: JobStatus
+  status: TrainingJobStatus
   dataset_path?: string | null
   output_path?: string | null
   training_config?: string | Record<string, unknown> | null
@@ -220,7 +222,7 @@ export interface TrainingAlbum {
 
 export interface TrainingLogResponse {
   training_run_id: number
-  status: JobStatus
+  status: TrainingJobStatus
   progress: number
   error_message?: string | null
   log_path: string
@@ -239,22 +241,23 @@ export interface ScrapingJobRuntime {
 
 export interface ScrapingStorageStats {
   path: string
-  total_gb?: number
-  used_gb?: number
-  free_gb?: number
+  total_gb?: number | null
+  used_gb?: number | null
+  free_gb?: number | null
   free_percent?: number | null
-  error?: string
+  error?: string | null
 }
 
 export interface ScrapingStats {
   total_jobs: number
   total_images_scraped: number
   recent_jobs: number
-  storage?: ScrapingStorageStats
+  status_breakdown: Record<string, number>
+  storage: ScrapingStorageStats | null
 }
 
 export interface ScrapingJob {
-  id: string
+  id: number | string
   status: JobStatus | 'pending' | 'cleaned_up'
   url?: string
   name?: string
@@ -265,7 +268,7 @@ export interface ScrapingJob {
   progress_message?: string
   description?: string
   runtime?: ScrapingJobRuntime
-  created_at: string
+  created_at?: string
   completed_at?: string
   error?: string
   images_scraped?: number

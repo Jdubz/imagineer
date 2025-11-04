@@ -1,0 +1,37 @@
+{
+  "name": "TrainingLogResponse",
+  "description": "Detailed log information returned by GET /api/training/{id}/logs.",
+  "type": "object",
+  "properties": {
+    "training_run_id": {
+      "type": "integer"
+    },
+    "status": {
+      "enum": ["pending", "queued", "running", "completed", "failed", "cancelled"]
+    },
+    "progress": {
+      "type": "number"
+    },
+    "error_message": {
+      "type": ["string", "null"]
+    },
+    "log_path": {
+      "type": "string"
+    },
+    "log_available": {
+      "type": "boolean"
+    },
+    "logs": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "training_run_id",
+    "status",
+    "progress",
+    "log_path",
+    "log_available",
+    "logs"
+  ],
+  "additionalProperties": false
+}

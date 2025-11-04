@@ -1,0 +1,27 @@
+{
+  "name": "ScrapingJobsResponse",
+  "description": "Paginated list of scraping jobs returned by GET /api/scraping/jobs.",
+  "type": "object",
+  "properties": {
+    "jobs": {
+      "type": "array",
+      "items": {
+        "$ref": "ScrapeJobResponse"
+      }
+    },
+    "total": {
+      "type": "integer"
+    },
+    "page": {
+      "type": "integer"
+    },
+    "per_page": {
+      "type": "integer"
+    },
+    "pages": {
+      "type": "integer"
+    }
+  },
+  "required": ["jobs", "total", "page", "per_page", "pages"],
+  "additionalProperties": false
+}
