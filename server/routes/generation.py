@@ -42,6 +42,17 @@ GENERATE_SCRIPT = PROJECT_ROOT / "examples" / "generate.py"
 
 job_queue: queue.Queue[dict] = queue.Queue()
 job_history: list[dict] = []
+_next_job_id = 1
+_job_id_lock = threading.Lock()
+
+
+def _get_next_job_id() -> int:
+    """Generate a unique job ID using a thread-safe counter."""
+    global _next_job_id
+    with _job_id_lock:
+        job_id = _next_job_id
+        _next_job_id += 1
+        return job_id
 
 
 def _prune_none_fields(payload: dict) -> dict:
@@ -401,7 +412,7 @@ def generate():  # noqa: C901
         lora_weights = data.get("lora_weights")
 
         job = {
-            "id": len(job_history) + job_queue.qsize() + 1,
+            "id": _get_next_job_id(),
             "prompt": prompt,
             "status": "queued",
             "submitted_at": datetime.now().isoformat(),
@@ -566,7 +577,7 @@ def generate_batch_from_album(album_id):  # noqa: C901
         else:
             item_name = next(iter(item.values())) if item else "item"
 
-        job_id = len(job_history) + job_queue.qsize() + 1
+        job_id = _get_next_job_id()
         job = {
             "id": job_id,
             "prompt": prompt,
