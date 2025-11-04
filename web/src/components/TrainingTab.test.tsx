@@ -67,6 +67,14 @@ describe('TrainingTab', () => {
         json: () =>
           Promise.resolve({
             training_runs: [trainingRun],
+            pagination: {
+              page: 1,
+              per_page: 10,
+              total: 1,
+              pages: 1,
+              has_next: false,
+              has_prev: false,
+            },
           }),
       })
       .mockResolvedValueOnce({
@@ -118,6 +126,14 @@ describe('TrainingTab', () => {
         json: () =>
           Promise.resolve({
             training_runs: [trainingRun],
+            pagination: {
+              page: 1,
+              per_page: 10,
+              total: 1,
+              pages: 1,
+              has_next: false,
+              has_prev: false,
+            },
           }),
       })
       .mockResolvedValueOnce({

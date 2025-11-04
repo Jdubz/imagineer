@@ -72,6 +72,8 @@ export interface BatchSummary {
 
 export type JobStatus = JobContract['status']
 
+export type TrainingJobStatus = JobStatus | 'pending'
+
 export type Job = JobContract
 
 export type JobsResponse = JobsResponseContract
@@ -196,7 +198,7 @@ export interface TrainingJob {
   id: number
   name: string
   description?: string | null
-  status: JobStatus
+  status: TrainingJobStatus
   dataset_path?: string | null
   output_path?: string | null
   training_config?: string | Record<string, unknown> | null
@@ -220,7 +222,7 @@ export interface TrainingAlbum {
 
 export interface TrainingLogResponse {
   training_run_id: number
-  status: JobStatus
+  status: TrainingJobStatus
   progress: number
   error_message?: string | null
   log_path: string

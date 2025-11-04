@@ -28,6 +28,8 @@ import type {
 
 export const JobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'cancelled'])
 
+export const TrainingJobStatusSchema = z.enum(['pending', 'queued', 'running', 'completed', 'failed', 'cancelled'])
+
 // ============================================
 // Job
 // ============================================
@@ -318,7 +320,7 @@ export const TrainingJobSchema = z.object({
   id: z.number(),
   name: z.string(),
   description: z.string().optional().nullable(),
-  status: JobStatusSchema,
+  status: TrainingJobStatusSchema,
   dataset_path: z.string().optional().nullable(),
   output_path: z.string().optional().nullable(),
   training_config: z.union([z.string(), z.record(z.string(), z.unknown())]).optional().nullable(),
@@ -336,6 +338,14 @@ export const TrainingJobSchema = z.object({
 
 export const TrainingRunsResponseSchema = z.object({
   training_runs: z.array(TrainingJobSchema),
+  pagination: z.object({
+    page: z.number(),
+    per_page: z.number(),
+    total: z.number(),
+    pages: z.number(),
+    has_next: z.boolean(),
+    has_prev: z.boolean(),
+  }),
 })
 
 export const TrainingAlbumSchema = z.object({
@@ -350,7 +360,7 @@ export const TrainingAlbumsResponseSchema = z.object({
 
 export const TrainingLogResponseSchema = z.object({
   training_run_id: z.number(),
-  status: JobStatusSchema,
+  status: TrainingJobStatusSchema,
   progress: z.number(),
   error_message: z.string().optional().nullable(),
   log_path: z.string(),
