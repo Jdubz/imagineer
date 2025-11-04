@@ -325,8 +325,7 @@ def mock_admin_auth():
         "server.routes.images.current_user",
         "server.routes.albums.current_user",
         "server.routes.training.current_user",
-        "server.routes.scraping.current_user",
-        "server.routes.admin.current_user",
+        "server.routes.scraping_simple.current_user",
         "server.routes.admin.current_user",
     ]
 
@@ -356,7 +355,7 @@ def mock_public_auth():
         "server.routes.images.current_user",
         "server.routes.albums.current_user",
         "server.routes.training.current_user",
-        "server.routes.scraping.current_user",
+        "server.routes.scraping_simple.current_user",
     ]
 
     with ExitStack() as stack:

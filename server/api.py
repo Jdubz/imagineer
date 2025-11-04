@@ -62,8 +62,8 @@ from server.database import (  # noqa: E402
     init_database,
 )
 from server.logging_config import configure_logging  # noqa: E402
-from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 from server.services.template_seeder import ensure_default_set_templates  # noqa: E402
+from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
 # Frontend is now served by Firebase Hosting, not Flask
 # Remove static_folder and static_url_path to prevent serving public directory
@@ -169,7 +169,9 @@ from server.routes.albums import albums_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 from server.routes.generation import generation_bp, get_generation_health  # noqa: E402
 from server.routes.images import images_bp  # noqa: E402
-from server.routes.scraping import scraping_bp  # noqa: E402
+
+# Use simple threading-based scraping (no Celery required)
+from server.routes.scraping_simple import scraping_bp  # noqa: E402
 from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(images_bp)

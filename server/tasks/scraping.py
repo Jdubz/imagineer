@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import selectors
 import subprocess
 import time
@@ -167,13 +168,15 @@ def get_scraped_output_path() -> Path:
     return SCRAPED_OUTPUT_PATH
 
 
-@celery.task(bind=True, name="server.tasks.scraping.scrape_site")
-def scrape_site_task(self, scrape_job_id):  # noqa: C901
+def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
     """
     Execute web scraping job using training-data project.
 
+    This is the core implementation that can be called from either Celery or threading.
+
     Args:
         scrape_job_id: Database ID of scrape job
+        celery_task: Optional Celery task instance for progress updates
 
     Returns:
         Dict with job results
@@ -219,27 +222,49 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             # Run training-data scraper
             training_data_repo = _get_training_data_repo()
 
+            # Use training-data's virtual environment Python
+            training_venv_python = training_data_repo / "venv" / "bin" / "python"
+            if not training_venv_python.exists():
+                # Fall back to system Python if venv doesn't exist
+                training_venv_python = Path("/usr/bin/python3")
+
+            # training-data CLI expects: [OPTIONS] URL [PROMPT] OUTPUT_DIR
+            # We need to provide all 3 positional args
             cmd = [
-                "python",
+                str(training_venv_python),
                 "-m",
                 "training_data",
-                "--url",
-                job.source_url,
-                "--output",
-                str(output_dir),
-                "--depth",
-                str(depth),
-                "--max-images",
-                str(max_images),
-                "--config",
-                str(training_data_repo / "config/default_config.yaml"),
             ]
 
-            # Add additional config options if present
-            if config.get("follow_links", True):
-                cmd.append("--follow-links")
-            if config.get("download_images", True):
-                cmd.append("--download-images")
+            # Add options FIRST
+            if max_images > 0:
+                cmd.extend(["--max-images", str(max_images)])
+
+            if depth > 0:
+                cmd.extend(["--max-depth", str(depth)])
+
+            # Add positional arguments: URL PROMPT OUTPUT_DIR
+            cmd.extend(
+                [
+                    job.source_url,  # URL
+                    "training data",  # PROMPT positional arg required by training-data CLI
+                    str(output_dir),  # OUTPUT_DIR
+                ]
+            )
+
+            # Add config if it exists
+            default_config = training_data_repo / "config" / "default_config.yaml"
+            if default_config.exists():
+                cmd.extend(["--config", str(default_config)])
+
+            # Check for Anthropic API key
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                # Try to load from training-data .env
+                env_file = training_data_repo / ".env"
+                if env_file.exists():
+                    from dotenv import load_dotenv
+
+                    load_dotenv(env_file)
 
             logger.info(f"Running scraper command: {' '.join(cmd)}")
 
@@ -263,6 +288,12 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             selector = selectors.DefaultSelector()
             if process.stdout:
                 selector.register(process.stdout, selectors.EVENT_READ)
+
+            discovered_pattern = re.compile(r"Discovered\s+(\d+)\s+images", re.IGNORECASE)
+            downloaded_pattern = re.compile(
+                r"Downloaded\s+(\d+)(?:/(\d+))?\s+images", re.IGNORECASE
+            )
+            caption_pattern = re.compile(r"Captioning\s+image\s+(\d+)(?:/(\d+))?", re.IGNORECASE)
 
             try:
                 while True:
@@ -291,25 +322,27 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                             last_output_time = time.monotonic()
                             logger.info(f"Scraper: {line}")
 
-                            if "Discovered:" in line:
-                                try:
-                                    discovered_count = int(line.split("Discovered:")[1].split()[0])
-                                    job.images_scraped = discovered_count
-                                    stage = "discovering"
-                                except (ValueError, IndexError):
-                                    pass
-                            elif "Downloaded:" in line:
-                                try:
-                                    downloaded_count = int(line.split("Downloaded:")[1].split()[0])
-                                    job.images_scraped = downloaded_count
-                                    if max_images > 0:
-                                        progress = min(
-                                            90, int((downloaded_count / max_images) * 90)
-                                        )
-                                        job.progress = progress
-                                    stage = "downloading"
-                                except (ValueError, IndexError):
-                                    pass
+                            # Parse training-data output format
+                            # "INFO     Discovered X images"
+                            # "INFO     Downloaded X/Y images"
+                            # "INFO     Captioning image X/Y"
+                            discovered_match = discovered_pattern.search(line)
+                            if discovered_match:
+                                discovered_count = int(discovered_match.group(1))
+                                stage = "discovering"
+                            elif downloaded_match := downloaded_pattern.search(line):
+                                downloaded_count = int(downloaded_match.group(1))
+                                job.images_scraped = downloaded_count
+                                if max_images > 0:
+                                    progress = min(90, int((downloaded_count / max_images) * 90))
+                                    job.progress = progress
+                                stage = "downloading"
+                            elif caption_match := caption_pattern.search(line):
+                                captioned_count = int(caption_match.group(1))
+                                if max_images > 0:
+                                    progress = min(95, 90 + int((captioned_count / max_images) * 5))
+                                    job.progress = progress
+                                stage = "captioning"
 
                             job.description = line[-200:] if len(line) > 200 else line
                             _persist_runtime_state(
@@ -322,15 +355,17 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
                             )
                             db.session.commit()
 
-                            self.update_state(
-                                state="PROGRESS",
-                                meta={
-                                    "discovered": discovered_count,
-                                    "downloaded": downloaded_count,
-                                    "progress": job.progress,
-                                    "message": job.description,
-                                },
-                            )
+                            # Update Celery task state if available
+                            if celery_task:
+                                celery_task.update_state(
+                                    state="PROGRESS",
+                                    meta={
+                                        "discovered": discovered_count,
+                                        "downloaded": downloaded_count,
+                                        "progress": job.progress,
+                                        "message": job.description,
+                                    },
+                                )
                     else:
                         if (
                             SCRAPING_IDLE_TIMEOUT_SECONDS > 0
@@ -452,6 +487,20 @@ def scrape_site_task(self, scrape_job_id):  # noqa: C901
             db.session.commit()
 
             return {"status": "error", "message": error_msg}
+
+
+@celery.task(bind=True, name="server.tasks.scraping.scrape_site")
+def scrape_site_task(self, scrape_job_id):
+    """
+    Celery task wrapper for scrape_site_implementation.
+
+    Args:
+        scrape_job_id: Database ID of scrape job
+
+    Returns:
+        Dict with job results
+    """
+    return scrape_site_implementation(scrape_job_id, celery_task=self)
 
 
 def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901

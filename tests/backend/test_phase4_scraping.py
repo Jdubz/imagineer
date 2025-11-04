@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import server.api
-import server.routes.scraping as scraping_routes
+import server.routes.scraping_simple as scraping_routes
 from server.database import ScrapeJob, db
 from server.tasks import scraping
 
@@ -205,7 +205,8 @@ class TestScrapingAPI:
 
         storage_root = tmp_path / "scraped"
         storage_root.mkdir()
-        monkeypatch.setattr(scraping_routes, "get_scraped_output_path", lambda: storage_root)
+        # Patch in the tasks module where get_scraped_output_path is defined
+        monkeypatch.setattr(scraping, "get_scraped_output_path", lambda: storage_root)
         total_bytes = 1024**4  # 1 TiB
         used_bytes = 400 * 1024**3
         free_bytes = total_bytes - used_bytes

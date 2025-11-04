@@ -233,6 +233,15 @@ def submit_bug_report():
             },
         )
 
+        # Enqueue for automated remediation
+        try:
+            from server.bug_reports.agent_manager import get_bug_report_agent_manager
+
+            get_bug_report_agent_manager().enqueue(report_id)
+            logger.info(f"Bug report {report_id} enqueued for automated remediation")
+        except Exception as e:
+            logger.warning(f"Failed to enqueue bug report {report_id} for remediation: {e}")
+
         response_payload: BugReportSubmissionResponseTypedDict = {
             "success": True,
             "report_id": report_id,

@@ -199,9 +199,15 @@ export const ScrapingJobSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 })
 
-export const ScrapingJobsResponseSchema = z.object({
-  jobs: z.array(ScrapingJobSchema),
-})
+export const ScrapingJobsResponseSchema = z
+  .object({
+    jobs: z.array(ScrapingJobSchema),
+    total: z.number().optional(),
+    page: z.number().optional(),
+    per_page: z.number().optional(),
+    pages: z.number().optional(),
+  })
+  .passthrough()
 
 export const ScrapingStorageStatsSchema = z.object({
   path: z.string(),
