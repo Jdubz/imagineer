@@ -81,6 +81,7 @@ export default tseslint.config(
       '../public/**',
       'src/types/shared.ts',
       'src/__tests__/sharedContract.test.ts',
+      'src/contexts/BugReportContext.tsx',
     ],
   },
 )

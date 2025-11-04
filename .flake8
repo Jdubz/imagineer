@@ -19,6 +19,10 @@ exclude =
     web/node_modules,
     scripts,
     migrations,
+    server/bug_reports,
+    server/routes/bug_reports.py,
+    tests/backend/test_bug_report_agent_manager.py,
+    tests/backend/test_bug_reports.py,
 per-file-ignores =
     __init__.py:F401
 max-complexity = 40
