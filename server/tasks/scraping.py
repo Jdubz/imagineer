@@ -160,8 +160,18 @@ def get_scraped_output_path() -> Path:
                 if fallback_path and fallback_path != candidate_path
                 else Path("/tmp/imagineer/outputs/scraped")
             )
-            fallback_candidate.mkdir(parents=True, exist_ok=True)
-            candidate_path = fallback_candidate
+
+            try:
+                fallback_candidate.mkdir(parents=True, exist_ok=True)
+                candidate_path = fallback_candidate
+            except OSError:
+                # Fallback also failed, use /tmp as last resort
+                logger.warning(
+                    "Fallback directory %s also inaccessible. Using /tmp fallback.",
+                    fallback_candidate,
+                )
+                candidate_path = Path("/tmp/imagineer/outputs/scraped")
+                candidate_path.mkdir(parents=True, exist_ok=True)
 
         SCRAPED_OUTPUT_PATH = candidate_path
 
