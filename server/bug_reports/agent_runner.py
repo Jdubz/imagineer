@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import textwrap
 from dataclasses import dataclass
@@ -70,6 +71,7 @@ class BugReportDockerRunner:
 
         self._write_context(context_path, report_payload)
         self._write_prompt(prompt_path, report_payload)
+        self._copy_screenshot_if_exists(context_dir, report_payload)
 
         container_id = None
         try:
@@ -137,12 +139,52 @@ class BugReportDockerRunner:
             serialized + ("\n" if not serialized.endswith("\n") else ""), encoding="utf-8"
         )
 
+    def _copy_screenshot_if_exists(self, context_dir: Path, payload: dict) -> None:
+        """Copy screenshot from reports storage to context directory if it exists."""
+        screenshot_path = payload.get("screenshot_path")
+        if not screenshot_path:
+            return
+
+        screenshot_source = Path(screenshot_path)
+        if not screenshot_source.exists():
+            logger.warning(
+                "Screenshot path in report does not exist: %s",
+                screenshot_path,
+            )
+            return
+
+        screenshot_dest = context_dir / "screenshot.png"
+        try:
+            shutil.copy2(screenshot_source, screenshot_dest)
+            logger.info(
+                "Copied screenshot to context directory: %s -> %s",
+                screenshot_source,
+                screenshot_dest,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to copy screenshot %s: %s",
+                screenshot_path,
+                exc,
+            )
+
     def _write_prompt(self, path: Path, payload: dict) -> None:
         description = payload.get("description", "").strip()
         client_meta = payload.get("clientMeta", {})
         route = client_meta.get("locationHref") or payload.get("appState", {}).get("route", {}).get(
             "pathname"
         )
+
+        # Check if screenshot is available
+        screenshot_path = payload.get("screenshot_path")
+        screenshot_instruction = ""
+        if screenshot_path:
+            screenshot_instruction = (
+                "\n              - Screenshot available at "
+                f"{self.CONTEXT_DIR_NAME}/screenshot.png "
+                "- inspect it to understand the visual issue."
+            )
+
         prompt = textwrap.dedent(
             f"""
             You are a remediation agent working on the Imagineer repository.
@@ -152,8 +194,10 @@ class BugReportDockerRunner:
 
             Steps:
               1. Review the report data in {self.CONTEXT_DIR_NAME}/context.json.
+{screenshot_instruction}
               2. Identify the root cause and implement a fix inside /workspace/repo.
-              3. Run the full verification suite (npm lint/tsc/test, black, flake8, pytest).
+              3. Run the full verification suite (npm lint/tsc/test, black,
+                 flake8, pytest).
               4. Commit with a descriptive message referencing the report ID.
                  Push to {self.config.target_branch}.
               5. Summarise the work in the session summary.

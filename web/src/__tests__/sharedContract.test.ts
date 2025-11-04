@@ -5,22 +5,28 @@ import path from 'node:path';
 import type { ZodTypeAny } from 'zod';
 
 import type {
+  AlbumDetailResponse as SharedAlbumDetailResponse,
   AuthStatus,
   BugReportSubmissionRequest as SharedBugReportSubmissionRequest,
   BugReportSubmissionResponse as SharedBugReportSubmissionResponse,
   ImageMetadata as SharedImageMetadata,
+  ImageResponse as SharedImageResponse,
   Job as SharedJob,
   JobsResponse as SharedJobsResponse,
 } from '../types/shared';
 import authStatusSchemaRaw from '../../../shared/schema/auth_status.json';
 import imageMetadataSchemaRaw from '../../../shared/schema/image_metadata.json';
+import imageResponseSchemaRaw from '../../../shared/schema/image_response.json';
+import albumDetailResponseSchemaRaw from '../../../shared/schema/album_detail_response.json';
 import jobSchemaRaw from '../../../shared/schema/job.json';
 import jobsResponseSchemaRaw from '../../../shared/schema/jobs_response.json';
 import bugReportSubmissionRequestSchemaRaw from '../../../shared/schema/bug_report_submission_request.json';
 import bugReportSubmissionResponseSchemaRaw from '../../../shared/schema/bug_report_submission_response.json';
 import {
+  AlbumDetailResponseSchema,
   AuthStatusSchema,
   ImageMetadataSchema,
+  ImageResponseSchema,
   JobSchema,
   JobsResponseSchema,
   BugReportResponseSchema,
@@ -50,6 +56,8 @@ type JsonSchema = {
 
 const authStatusSchema = authStatusSchemaRaw as JsonSchema;
 const imageMetadataSchema = imageMetadataSchemaRaw as JsonSchema;
+const imageResponseSchema = imageResponseSchemaRaw as JsonSchema;
+const albumDetailResponseSchema = albumDetailResponseSchemaRaw as JsonSchema;
 const jobSchema = jobSchemaRaw as JsonSchema;
 const jobsResponseSchema = jobsResponseSchemaRaw as JsonSchema;
 const bugReportRequestSchema = bugReportSubmissionRequestSchemaRaw as JsonSchema;
@@ -71,6 +79,8 @@ type ZodObjectLike = ZodTypeAny & { shape: Record<string, ZodTypeAny> };
 const schemaRegistry = new Map<string, JsonSchema>([
   [authStatusSchema.name, authStatusSchema],
   [imageMetadataSchema.name, imageMetadataSchema],
+  [imageResponseSchema.name, imageResponseSchema],
+  [albumDetailResponseSchema.name, albumDetailResponseSchema],
   [jobSchema.name, jobSchema],
   [jobsResponseSchema.name, jobsResponseSchema],
   [bugReportResponseSchema.name, bugReportResponseSchema],
@@ -105,6 +115,38 @@ const schemaCases: readonly SchemaCase[] = [
       type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
 
       expectTypeOf<SharedImageMetadata>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'ImageResponse',
+    schema: imageResponseSchema,
+    zod: ImageResponseSchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof imageResponseSchemaRaw.properties;
+      type RequiredKeys = typeof imageResponseSchemaRaw.required extends readonly string[]
+        ? (typeof imageResponseSchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedImageResponse>().toMatchTypeOf<
+        { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
+      >();
+    },
+  },
+  {
+    name: 'AlbumDetailResponse',
+    schema: albumDetailResponseSchema,
+    zod: AlbumDetailResponseSchema,
+    typeAssertion: () => {
+      type SchemaKeys = keyof typeof albumDetailResponseSchemaRaw.properties;
+      type RequiredKeys = typeof albumDetailResponseSchemaRaw.required extends readonly string[]
+        ? (typeof albumDetailResponseSchemaRaw.required)[number]
+        : never;
+      type OptionalKeys = Exclude<SchemaKeys, RequiredKeys>;
+
+      expectTypeOf<SharedAlbumDetailResponse>().toMatchTypeOf<
         { [key in RequiredKeys]: unknown } & { [key in OptionalKeys]?: unknown }
       >();
     },

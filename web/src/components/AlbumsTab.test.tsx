@@ -19,11 +19,18 @@ describe('AlbumsTab admin listing', () => {
 
   const mockAlbumListResponse = [
     {
-      id: '1',
+      id: 1,
       name: 'Sample Album',
       description: 'Test description',
       album_type: 'manual',
+      is_public: true,
+      is_training_source: false,
       image_count: 1,
+      is_set_template: false,
+      template_item_count: 0,
+      template_items_preview: [],
+      lora_count: 0,
+      slug: 'sample-album',
       created_at: '2025-10-20T12:00:00Z',
       updated_at: '2025-10-20T12:00:00Z',
       images: [
