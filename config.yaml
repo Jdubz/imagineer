@@ -77,3 +77,5 @@ bug_reports:
     git_author_email: agent@imagineer.local
     env_passthrough:
     - ANTHROPIC_API_KEY
+scraping:
+  training_data_repo: /mnt/storage/imagineer/training-data
