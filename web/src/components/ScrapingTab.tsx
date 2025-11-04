@@ -424,13 +424,13 @@ const ScrapingTab: React.FC<ScrapingTabProps> = ({ isAdmin = false }) => {
 
                 <CardFooter className="flex flex-wrap gap-2">
                   {job.status === 'running' ? (
-                    <Button variant="destructive" onClick={() => cancelJob(job.id)}>
+                    <Button variant="destructive" onClick={() => cancelJob(String(job.id))}>
                       <StopCircle className="mr-2 h-4 w-4" />
                       Cancel
                     </Button>
                   ) : null}
                   {job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' ? (
-                    <Button variant="outline" onClick={() => cleanupJob(job.id)}>
+                    <Button variant="outline" onClick={() => cleanupJob(String(job.id))}>
                       <Trash2 className="mr-2 h-4 w-4" />
                       Cleanup
                     </Button>

@@ -302,7 +302,7 @@ export const ScrapingStatsSchema = z.object({
   total_images_scraped: z.number(),
   recent_jobs: z.number(),
   status_breakdown: z.record(z.string(), z.number()),
-  storage: ScrapingStorageStatsSchema,
+  storage: ScrapingStorageStatsSchema.nullable(),
 })
 
 export const ScrapingActionResponseSchema = z.object({

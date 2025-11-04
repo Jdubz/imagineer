@@ -91,7 +91,7 @@ class BatchGenerationResponseTypedDict(TypedDict, total=False):
 
 
 class BatchSummaryTypedDict(TypedDict, total=False):
-    """Summary record for generated image batches returned by /api/generation/batches."""
+    """Summary record for generated image batches returned by GET /api/batches."""
 
     batch_id: Required[str]
     album_id: Required[int]
@@ -105,7 +105,7 @@ class BatchSummaryTypedDict(TypedDict, total=False):
 
 
 class BatchesResponseTypedDict(TypedDict, total=False):
-    """Envelope returned by GET /api/generation/batches."""
+    """Envelope returned by GET /api/batches."""
 
     batches: Required[list[BatchSummaryTypedDict]]
 

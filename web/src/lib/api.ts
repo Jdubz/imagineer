@@ -570,7 +570,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
           progress_message: progress_message ?? undefined,
           description: description ?? undefined,
           runtime: runtime ?? undefined,
-          created_at,
+          created_at: created_at ?? undefined,
           completed_at: completed_at ?? undefined,
           error: error ?? undefined,
           images_scraped: images_scraped ?? undefined,
