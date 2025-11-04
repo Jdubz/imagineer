@@ -25,16 +25,27 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Install Python development tools
+# Install Python development tools and app dependencies
 RUN pip3 install --no-cache-dir --break-system-packages \
     black==24.10.0 \
     flake8==7.1.1 \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
+    pytest-mock==3.15.1 \
     isort==5.13.2 \
     pyyaml==6.0.2 \
     safetensors==0.4.3 \
-    python-dotenv==1.0.1
+    python-dotenv==1.0.1 \
+    flask==3.1.0 \
+    flask-cors==5.0.0 \
+    flask-login==0.6.3 \
+    flask-sqlalchemy==3.1.1 \
+    flask-talisman==1.1.0 \
+    authlib==1.4.0 \
+    requests==2.32.3 \
+    jsonschema==4.23.0 \
+    celery==5.4.0 \
+    redis==5.2.1
 
 # Prepare shared node_modules cache (used by remediation bootstrap)
 RUN mkdir -p /opt/imagineer/node_modules && \
