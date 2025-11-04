@@ -17,6 +17,7 @@ from jsonschema import Draft202012Validator, ValidationError
 from werkzeug.exceptions import BadRequest
 
 from server.auth import require_admin
+from server.bug_reports.paths import resolve_storage_root
 from server.bug_reports.storage import (
     BugReportStorageError,
     delete_report,
@@ -69,22 +70,7 @@ def get_bug_reports_dir() -> str:
     Returns:
         Path to bug reports directory
     """
-    env_override = os.getenv("BUG_REPORTS_PATH")
-    if env_override:
-        return env_override
-
-    try:
-        config = load_config()
-        storage_path = config.get("bug_reports", {}).get("storage_path")
-        if storage_path:
-            return storage_path
-    except Exception:
-        logger.warning(
-            "Falling back to default bug report directory due to config load failure",
-            exc_info=True,
-        )
-
-    return "/mnt/storage/imagineer/bug_reports"
+    return str(resolve_storage_root(config_loader=load_config))
 
 
 def _get_reports_root() -> Path:
@@ -213,17 +199,14 @@ def submit_bug_report():
         }
 
         # Write to disk
+        stored_at = None
         try:
             with open(report_path, "w") as f:
                 json.dump(report, f, indent=2)
+            stored_at = report_path
         except Exception as e:
             _log_storage_failure(f"Failed to write bug report to disk: {report_path}", e)
-            raise APIError(
-                "Failed to save bug report",
-                "WRITE_ERROR",
-                500,
-                {"path": report_path, "error": str(e)},
-            )
+            stored_at = None
 
         logger.info(
             f"Bug report saved: {report_id}",
@@ -246,7 +229,7 @@ def submit_bug_report():
             "success": True,
             "report_id": report_id,
             "trace_id": g.trace_id if hasattr(g, "trace_id") else None,
-            "stored_at": report_path,
+            "stored_at": str(stored_at) if stored_at else None,
         }
 
         try:

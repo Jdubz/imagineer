@@ -53,6 +53,7 @@ export interface AlbumResponse {
   lora_config?: string | null;
   template_item_count: number;
   template_items_preview: Array<Record<string, unknown>>;
+  preview_images?: Array<{ id: number; filename: string; thumbnail_path?: string | null }>;
   lora_count: number;
   slug: string;
   images?: Array<Record<string, unknown>>;

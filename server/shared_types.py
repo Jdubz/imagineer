@@ -37,6 +37,12 @@ class AlbumDetailResponseTypedDict(TypedDict, total=False):
     images: Required[list[ImageResponseTypedDict]]
 
 
+class AlbumResponsePreviewImagesItem(TypedDict, total=False):
+    id: Required[int]
+    filename: Required[str]
+    thumbnail_path: NotRequired[str | None]
+
+
 class AlbumResponseTypedDict(TypedDict, total=False):
     """Album record returned by /api/albums endpoints."""
 
@@ -61,6 +67,7 @@ class AlbumResponseTypedDict(TypedDict, total=False):
     lora_config: NotRequired[str | None]
     template_item_count: Required[int]
     template_items_preview: Required[list[dict[str, Any]]]
+    preview_images: NotRequired[list[AlbumResponsePreviewImagesItem]]
     lora_count: Required[int]
     slug: Required[str]
     images: NotRequired[list[dict[str, Any]]]
