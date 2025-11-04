@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import selectors
 import subprocess
 import time
@@ -246,7 +247,7 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
             cmd.extend(
                 [
                     job.source_url,  # URL
-                    "training data",  # PROMPT (optional but needed to avoid parsing confusion)
+                    "training data",  # PROMPT positional arg required by training-data CLI
                     str(output_dir),  # OUTPUT_DIR
                 ]
             )
@@ -288,6 +289,12 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
             if process.stdout:
                 selector.register(process.stdout, selectors.EVENT_READ)
 
+            discovered_pattern = re.compile(r"Discovered\s+(\d+)\s+images", re.IGNORECASE)
+            downloaded_pattern = re.compile(
+                r"Downloaded\s+(\d+)(?:/(\d+))?\s+images", re.IGNORECASE
+            )
+            caption_pattern = re.compile(r"Captioning\s+image\s+(\d+)(?:/(\d+))?", re.IGNORECASE)
+
             try:
                 while True:
                     now = time.monotonic()
@@ -319,45 +326,23 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
                             # "INFO     Discovered X images"
                             # "INFO     Downloaded X/Y images"
                             # "INFO     Captioning image X/Y"
-                            if "Discovered" in line and "images" in line:
-                                try:
-                                    # Extract number from "Discovered X images"
-                                    parts = line.split("Discovered")[1].split("images")[0].strip()
-                                    discovered_count = int(parts)
-                                    stage = "discovering"
-                                except (ValueError, IndexError):
-                                    pass
-                            elif "Downloaded" in line and "images" in line:
-                                try:
-                                    # Extract from "Downloaded X/Y images" or "Downloaded X images"
-                                    parts = line.split("Downloaded")[1].split("images")[0].strip()
-                                    if "/" in parts:
-                                        downloaded_count = int(parts.split("/")[0].strip())
-                                    else:
-                                        downloaded_count = int(parts.strip())
-                                    job.images_scraped = downloaded_count
-                                    if max_images > 0:
-                                        progress = min(
-                                            90, int((downloaded_count / max_images) * 90)
-                                        )
-                                        job.progress = progress
-                                    stage = "downloading"
-                                except (ValueError, IndexError):
-                                    pass
-                            elif "Captioning" in line:
-                                try:
-                                    # Extract from "Captioning image X/Y"
-                                    parts = line.split("Captioning")[1].split("image")[1].strip()
-                                    if "/" in parts:
-                                        captioned_count = int(parts.split("/")[0].strip())
-                                        if max_images > 0:
-                                            progress = min(
-                                                95, 90 + int((captioned_count / max_images) * 5)
-                                            )
-                                            job.progress = progress
-                                    stage = "captioning"
-                                except (ValueError, IndexError):
-                                    pass
+                            discovered_match = discovered_pattern.search(line)
+                            if discovered_match:
+                                discovered_count = int(discovered_match.group(1))
+                                stage = "discovering"
+                            elif downloaded_match := downloaded_pattern.search(line):
+                                downloaded_count = int(downloaded_match.group(1))
+                                job.images_scraped = downloaded_count
+                                if max_images > 0:
+                                    progress = min(90, int((downloaded_count / max_images) * 90))
+                                    job.progress = progress
+                                stage = "downloading"
+                            elif caption_match := caption_pattern.search(line):
+                                captioned_count = int(caption_match.group(1))
+                                if max_images > 0:
+                                    progress = min(95, 90 + int((captioned_count / max_images) * 5))
+                                    job.progress = progress
+                                stage = "captioning"
 
                             job.description = line[-200:] if len(line) > 200 else line
                             _persist_runtime_state(

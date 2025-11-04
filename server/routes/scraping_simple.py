@@ -48,6 +48,7 @@ def process_scrape_jobs():
     global current_scrape_job_id
 
     # Import here to avoid circular imports
+    from server.api import app
     from server.tasks.scraping import scrape_site_implementation
 
     while True:
@@ -58,23 +59,21 @@ def process_scrape_jobs():
         current_scrape_job_id = job_id
 
         try:
-            logger.info(f"Processing scrape job {job_id}")
-            scrape_site_implementation(job_id)
-        except Exception as e:
-            logger.error(f"Error processing scrape job {job_id}: {e}", exc_info=True)
-            # Update job status to failed
-            try:
-                from server.api import app
-
-                with app.app_context():
-                    job = db.session.get(ScrapeJob, job_id)
-                    if job:
-                        job.status = "failed"
-                        job.error_message = str(e)
-                        job.completed_at = datetime.now(timezone.utc)
-                        db.session.commit()
-            except Exception as db_err:
-                logger.error(f"Failed to update job {job_id} status: {db_err}")
+            with app.app_context():
+                try:
+                    logger.info(f"Processing scrape job {job_id}")
+                    scrape_site_implementation(job_id)
+                except Exception as e:
+                    logger.error(f"Error processing scrape job {job_id}: {e}", exc_info=True)
+                    try:
+                        job = db.session.get(ScrapeJob, job_id)
+                        if job:
+                            job.status = "failed"
+                            job.error_message = str(e)
+                            job.completed_at = datetime.now(timezone.utc)
+                            db.session.commit()
+                    except Exception as db_err:
+                        logger.error(f"Failed to update job {job_id} status: {db_err}")
         finally:
             current_scrape_job_id = None
             scrape_queue.task_done()
