@@ -5,6 +5,7 @@ import type { NsfwPreference } from '@/types/models'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Settings, Bug, LogOut } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 interface SettingsMenuProps {
   user: AuthStatus | null
@@ -29,39 +30,32 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   nsfwPreference = 'show',
 }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const { openBugReport } = useBugReporter()
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false)
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
-
-  // Close on escape key
-  useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
+      if (event.key === 'Escape') {
         setIsOpen(false)
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape)
-    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
 
     return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleEscape)
     }
   }, [isOpen])
@@ -96,7 +90,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   }
 
   return (
-    <div className="settings-menu" ref={menuRef}>
+    <div className="relative" ref={menuRef}>
       <Button
         variant="ghost"
         size="icon"
@@ -110,40 +104,41 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
       </Button>
 
       {isOpen && (
-        <div className="settings-dropdown" role="menu">
-          <div className="settings-header">
-            <div className="settings-user-info">
-              <div className="settings-user-email">{user.email}</div>
-              <div className="settings-user-role">
-                {isAdmin ? (
-                  <>
-                    <span className="role-icon">👑</span> Admin
-                  </>
-                ) : (
-                  <>
-                    <span className="role-icon">👁️</span> Viewer
-                  </>
-                )}
-              </div>
+        <div
+          role="menu"
+          className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-border bg-popover p-4 shadow-lg focus:outline-none"
+        >
+          <div className="mb-3 space-y-1">
+            <p className="text-sm font-medium text-foreground">{user.email}</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant={isAdmin ? 'secondary' : 'outline'}>
+                {isAdmin ? 'Admin' : 'Viewer'}
+              </Badge>
+              <span>{isAdmin ? 'Full access' : 'Read only access'}</span>
             </div>
           </div>
 
-          <div className="settings-divider" />
+          <div className="my-3 h-px bg-border" />
 
-          <div className="settings-options">
-            {/* NSFW Preference */}
-            <div className="settings-option settings-select">
-              <div className="settings-option-text">
-                <span className="settings-option-label">NSFW Content</span>
-                <span className="settings-option-description">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-foreground">NSFW Content</span>
+                <span className="block text-xs text-muted-foreground">
                   Choose how NSFW images appear in galleries.
                 </span>
               </div>
-              <Select value={nsfwPreference} onValueChange={(value) => handleNsfwChange(value as NsfwPreference)}>
-                <SelectTrigger className="settings-select-trigger" aria-label="NSFW preference">
+              <Select
+                value={nsfwPreference}
+                onValueChange={(value) => handleNsfwChange(value as NsfwPreference)}
+              >
+                <SelectTrigger
+                  aria-label="NSFW preference"
+                  className="w-[150px] justify-between"
+                >
                   <SelectValue placeholder="Select preference" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="end">
                   <SelectItem value="show">Show</SelectItem>
                   <SelectItem value="blur">Blur</SelectItem>
                   <SelectItem value="hide">Hide</SelectItem>
@@ -151,37 +146,31 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
               </Select>
             </div>
 
-            {/* Bug Report (Admin Only) */}
             {isAdmin && (
-              <>
-                <div className="settings-divider" />
-                <Button
-                  variant="ghost"
-                  className="settings-option settings-button w-full justify-between"
-                  onClick={handleBugReport}
-                  type="button"
-                  role="menuitem"
-                >
-                  <span className="settings-option-label">
-                    <Bug className="h-4 w-4 inline mr-2" />
-                    Report Bug
-                  </span>
-                  <span className="settings-option-hint">Ctrl+Shift+B</span>
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                className="w-full justify-between"
+                onClick={handleBugReport}
+                type="button"
+                role="menuitem"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Bug className="h-4 w-4" />
+                  Report Bug
+                </span>
+                <span className="text-xs text-muted-foreground">Ctrl+Shift+B</span>
+              </Button>
             )}
 
-            {/* Logout */}
-            <div className="settings-divider" />
             <Button
               variant="ghost"
-              className="settings-option settings-button w-full justify-start"
+              className="w-full justify-start gap-2 text-destructive hover:text-destructive"
               onClick={handleLogout}
               type="button"
               role="menuitem"
             >
-              <LogOut className="h-4 w-4 mr-2" />
-              <span className="settings-option-label">Logout</span>
+              <LogOut className="h-4 w-4" />
+              <span className="text-sm font-medium">Logout</span>
             </Button>
           </div>
         </div>
