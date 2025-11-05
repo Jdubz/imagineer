@@ -20,6 +20,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
 os.environ["DATABASE_URL"] = f"sqlite:////tmp/imagineer_test_{worker_id}.db"
 
+# Override path configuration for tests
+os.environ["IMAGINEER_MODEL_CACHE_DIR"] = "/tmp/imagineer/models"
+os.environ["IMAGINEER_DATASET_ROOT"] = "/tmp/imagineer/data/training"
+
 from server.api import app as flask_app  # noqa: E402
 
 

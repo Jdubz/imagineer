@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '../lib/logger'
-import { api, type GenerateBatchParams, type GenerateBatchSuccess } from '../lib/api'
+import { api } from '../lib/api'
 import { getApiUrl } from '../lib/apiConfig'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
@@ -94,7 +94,7 @@ interface RawAlbum {
   generation_config?: string
 }
 
-type AlbumFilter = 'all' | 'sets' | 'regular'
+type AlbumFilter = 'all' | 'batch' | 'manual'
 
 const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const { toast } = useToast()
@@ -104,12 +104,12 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const [showCreateDialog, setShowCreateDialog] = useState<boolean>(false)
   const [albumAnalytics, setAlbumAnalytics] = useState<LabelAnalytics | null>(null)
   const [albumFilter, setAlbumFilter] = useState<AlbumFilter>('all')
-  const [showBatchDialog, setShowBatchDialog] = useState<Album | null>(null)
   const [deleteConfirmAlbum, setDeleteConfirmAlbum] = useState<string | null>(null)
 
   const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
-      const rawAlbums = await api.albums.getAll(signal)
+      // Fetch only regular albums (not templates) by default
+      const rawAlbums = await api.albums.getAll(signal, { is_set_template: false })
       const normalizedAlbums = Array.isArray(rawAlbums)
         ? rawAlbums.map((album: Album & { id: string | number }) => ({
             ...album,
@@ -295,18 +295,17 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
   const filteredAlbums = useMemo(() => {
     return albums.filter((album) => {
       if (albumFilter === 'all') return true
-      if (albumFilter === 'sets') return album.is_set_template === true
-      if (albumFilter === 'regular') return !album.is_set_template
+      if (albumFilter === 'batch') return album.album_type === 'batch'
+      if (albumFilter === 'manual') return album.album_type === 'manual'
       return true
     })
   }, [albums, albumFilter])
 
   const handleFilterAll = useCallback(() => setAlbumFilter('all'), [])
-  const handleFilterSets = useCallback(() => setAlbumFilter('sets'), [])
-  const handleFilterRegular = useCallback(() => setAlbumFilter('regular'), [])
+  const handleFilterBatch = useCallback(() => setAlbumFilter('batch'), [])
+  const handleFilterManual = useCallback(() => setAlbumFilter('manual'), [])
   const handleShowCreateDialog = useCallback(() => setShowCreateDialog(true), [])
   const handleCloseCreateDialog = useCallback(() => setShowCreateDialog(false), [])
-  const handleCloseBatchDialog = useCallback(() => setShowBatchDialog(null), [])
   const handleBackToList = useCallback(() => setSelectedAlbum(null), [])
 
   const handleRefreshAlbum = useCallback(() => {
@@ -318,12 +317,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
     if (!selectedAlbum) return
     await fetchAlbumAnalytics(String(selectedAlbum.id))
   }, [selectedAlbum, fetchAlbumAnalytics])
-
-  const handleBatchSuccess = useCallback((result: GenerateBatchSuccess) => {
-    setShowBatchDialog(null)
-    const suffix = result.batchId ? ` (batch ${result.batchId})` : ''
-    toast({ title: 'Success', description: `${result.message}${suffix}` })
-  }, [toast])
 
   if (selectedAlbum) {
     return (
@@ -346,7 +339,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
           <div className="space-y-1">
             <h2 className="text-3xl font-semibold tracking-tight">Albums</h2>
             <p className="text-sm text-muted-foreground">
-              Browse generated collections and set templates.
+              Browse your generated image collections.
             </p>
           </div>
           {isAdmin ? (
@@ -365,20 +358,20 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             All Albums
           </Button>
           <Button
-            variant={albumFilter === 'sets' ? 'default' : 'outline'}
+            variant={albumFilter === 'batch' ? 'default' : 'outline'}
             size="sm"
-            onClick={handleFilterSets}
-            aria-pressed={albumFilter === 'sets'}
+            onClick={handleFilterBatch}
+            aria-pressed={albumFilter === 'batch'}
           >
-            Set Templates
+            Batch Generated
           </Button>
           <Button
-            variant={albumFilter === 'regular' ? 'default' : 'outline'}
+            variant={albumFilter === 'manual' ? 'default' : 'outline'}
             size="sm"
-            onClick={handleFilterRegular}
-            aria-pressed={albumFilter === 'regular'}
+            onClick={handleFilterManual}
+            aria-pressed={albumFilter === 'manual'}
           >
-            Regular Albums
+            Manual Collections
           </Button>
         </div>
       </div>
@@ -389,11 +382,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
             e.preventDefault()
             e.stopPropagation()
             deleteAlbum(album.id)
-          }
-          const handleBatchClick = (e: React.MouseEvent) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setShowBatchDialog(album)
           }
 
           return (
@@ -426,7 +414,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
                     <CardTitle className="line-clamp-2 text-base font-semibold">
                       {album.name}
                     </CardTitle>
-                    {album.is_set_template ? <Badge variant="secondary">Set Template</Badge> : null}
                   </div>
                   <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
                     {album.description || 'No description provided'}
@@ -434,11 +421,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
                 </CardHeader>
 
                 <CardContent className="space-y-3 px-6 pb-6 pt-0">
-                  {album.is_set_template && album.template_item_count ? (
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {album.template_item_count} template items
-                    </p>
-                  ) : null}
                   <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
                     <span>{album.image_count || 0} images</span>
                     <Badge variant="outline" className="px-2 py-0 text-[0.7rem] font-medium capitalize">
@@ -450,15 +432,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
               {isAdmin ? (
                 <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/30 px-6 py-4">
-                  {album.is_set_template ? (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleBatchClick}
-                    >
-                      Generate Batch
-                    </Button>
-                  ) : null}
                   <Button
                     size="sm"
                     variant="destructive"
@@ -476,7 +449,7 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
       {filteredAlbums.length === 0 && albums.length > 0 && (
         <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            No {albumFilter === 'sets' ? 'set template' : albumFilter === 'regular' ? 'regular' : ''} albums found.
+            No {albumFilter === 'batch' ? 'batch generated' : albumFilter === 'manual' ? 'manual' : ''} albums found.
           </p>
         </div>
       )}
@@ -493,14 +466,6 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
         <CreateAlbumDialog
           onClose={handleCloseCreateDialog}
           onCreate={createAlbum}
-        />
-      )}
-
-      {showBatchDialog && (
-        <BatchGenerateDialog
-          album={showBatchDialog}
-          onClose={handleCloseBatchDialog}
-          onSuccess={handleBatchSuccess}
         />
       )}
 
@@ -917,6 +882,9 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
 
 AlbumDetailView.displayName = 'AlbumDetailView'
 
+// BatchGenerateDialog component moved to separate templates page
+// TODO: Create a dedicated Batch Templates page for template selection and generation
+/*
 interface BatchGenerateDialogProps {
   album: Album
   onClose: () => void
@@ -1069,6 +1037,7 @@ const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, o
 })
 
 BatchGenerateDialog.displayName = 'BatchGenerateDialog'
+*/
 
 interface CreateAlbumDialogProps {
   onClose: () => void
