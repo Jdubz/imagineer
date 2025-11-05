@@ -3,7 +3,9 @@ import { logger } from './logger'
 import { getApiUrl } from './apiConfig'
 import type {
   Album,
+  BatchGenerateResponse,
   BatchSummary,
+  BatchTemplate,
   Config,
   GeneratedImage,
   ImageMetadata,
@@ -968,6 +970,201 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
           error: 'Error generating batch',
         }
       }
+    },
+  },
+
+  // ============================================
+  // Batch Templates
+  // ============================================
+
+  batchTemplates: {
+    /**
+     * Fetch all batch templates
+     */
+    async getAll(signal?: AbortSignal): Promise<import('../types/models').BatchTemplate[]> {
+      const response = await fetch(getApiUrl('/batch-templates'), { signal })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to fetch batch templates: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      const data = await response.json() as { templates?: BatchTemplate[] }
+      return data.templates || []
+    },
+
+    /**
+     * Fetch batch template by ID
+     */
+    async getById(templateId: number, signal?: AbortSignal): Promise<import('../types/models').BatchTemplate> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}`), { signal })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to fetch template: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      return response.json() as Promise<BatchTemplate>
+    },
+
+    /**
+     * Create batch template (admin only)
+     */
+    async create(
+      data: Partial<import('../types/models').BatchTemplate>,
+      signal?: AbortSignal
+    ): Promise<import('../types/models').BatchTemplate> {
+      const response = await fetch(getApiUrl('/batch-templates'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to create template: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      return response.json() as Promise<BatchTemplate>
+    },
+
+    /**
+     * Update batch template (admin only)
+     */
+    async update(
+      templateId: number,
+      data: Partial<import('../types/models').BatchTemplate>,
+      signal?: AbortSignal
+    ): Promise<import('../types/models').BatchTemplate> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to update template: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      return response.json() as Promise<BatchTemplate>
+    },
+
+    /**
+     * Delete batch template (admin only)
+     */
+    async delete(templateId: number, signal?: AbortSignal): Promise<{ message: string }> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to delete template: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      return response.json() as Promise<{ message: string }>
+    },
+
+    /**
+     * Generate batch from template
+     */
+    async generate(
+      templateId: number,
+      params: import('../types/models').BatchGenerateParams,
+      signal?: AbortSignal
+    ): Promise<import('../types/models').BatchGenerateResponse> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}/generate`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(params),
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to generate batch: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      return response.json() as Promise<BatchGenerateResponse>
+    },
+
+    /**
+     * List generation runs for a template
+     */
+    async getRuns(
+      templateId: number,
+      signal?: AbortSignal
+    ): Promise<{ runs: import('../types/models').BatchGenerationRun[]; total: number }> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}/runs`), { signal })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to fetch runs: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      const data = await response.json()
+      return { runs: data.runs || [], total: data.total || 0 }
+    },
+
+    /**
+     * Get status of a specific generation run (for progress polling)
+     */
+    async getRunStatus(
+      templateId: number,
+      runId: number,
+      signal?: AbortSignal
+    ): Promise<import('../types/models').BatchGenerationRun> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}/runs/${runId}`), {
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to fetch run status: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      const data = (await response.json()) as { run: import('../types/models').BatchGenerationRun }
+      return data.run
     },
   },
 

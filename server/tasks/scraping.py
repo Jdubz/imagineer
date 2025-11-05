@@ -539,12 +539,14 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     if not job:
         return {"imported": 0, "album_id": None}
 
-    # Create album
+    # Create album with source tracking
     album = Album(
         name=f"Scraped: {job.name}",
         description=f"Images scraped from {job.source_url}",
         album_type="scraped",
         is_public=True,
+        source_type="scrape",
+        source_id=scrape_job_id,
     )
     db.session.add(album)
     db.session.flush()

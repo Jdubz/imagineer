@@ -135,6 +135,138 @@ class Label(db.Model):
         }
 
 
+class BatchTemplate(db.Model):
+    """Batch generation templates (instructions for generating image collections)"""
+
+    __tablename__ = "batch_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+
+    # Template definition
+    csv_path = db.Column(db.String(500), nullable=False)
+    csv_data = db.Column(db.Text)  # JSON: Cached CSV data
+    base_prompt = db.Column(db.Text)
+    prompt_template = db.Column(db.Text, nullable=False)
+    style_suffix = db.Column(db.Text)
+    example_theme = db.Column(db.Text)
+
+    # Generation settings
+    width = db.Column(db.Integer, default=512)
+    height = db.Column(db.Integer, default=512)
+    negative_prompt = db.Column(db.Text)
+    lora_config = db.Column(db.Text)  # JSON: [{path, weight}]
+
+    # Metadata
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    generation_runs = db.relationship(
+        "BatchGenerationRun", backref="template", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        """Convert to dictionary for API responses"""
+        try:
+            csv_items = json.loads(self.csv_data) if self.csv_data else []
+        except json.JSONDecodeError:
+            csv_items = []
+
+        try:
+            loras = json.loads(self.lora_config) if self.lora_config else []
+        except json.JSONDecodeError:
+            loras = []
+
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "csv_path": self.csv_path,
+            "csv_data": self.csv_data,
+            "base_prompt": self.base_prompt,
+            "prompt_template": self.prompt_template,
+            "style_suffix": self.style_suffix,
+            "example_theme": self.example_theme,
+            "width": self.width,
+            "height": self.height,
+            "negative_prompt": self.negative_prompt,
+            "lora_config": self.lora_config,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "template_item_count": len(csv_items),
+            "template_items_preview": csv_items[:5] if csv_items else [],
+            "lora_count": len(loras),
+        }
+
+
+class BatchGenerationRun(db.Model):
+    """Track batch generation executions and their results"""
+
+    __tablename__ = "batch_generation_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Links
+    template_id = db.Column(db.Integer, db.ForeignKey("batch_templates.id"), nullable=False)
+    album_id = db.Column(db.Integer, db.ForeignKey("albums.id"))
+
+    # User inputs
+    album_name = db.Column(db.String(255), nullable=False)
+    user_theme = db.Column(db.Text, nullable=False)
+
+    # Generation parameters (overrides)
+    steps = db.Column(db.Integer)
+    seed = db.Column(db.Integer)
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+    guidance_scale = db.Column(db.Float)
+    negative_prompt = db.Column(db.Text)
+
+    # Status tracking
+    status = db.Column(db.String(50), default="queued")  # queued, running, completed, failed
+    total_items = db.Column(db.Integer)
+    completed_items = db.Column(db.Integer, default=0)
+    failed_items = db.Column(db.Integer, default=0)
+
+    # Timing
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=utcnow)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+
+    # Error tracking
+    error_message = db.Column(db.Text)
+
+    def to_dict(self):
+        """Convert to dictionary for API responses"""
+        return {
+            "id": self.id,
+            "template_id": self.template_id,
+            "album_id": self.album_id,
+            "album_name": self.album_name,
+            "user_theme": self.user_theme,
+            "steps": self.steps,
+            "seed": self.seed,
+            "width": self.width,
+            "height": self.height,
+            "guidance_scale": self.guidance_scale,
+            "negative_prompt": self.negative_prompt,
+            "status": self.status,
+            "total_items": self.total_items,
+            "completed_items": self.completed_items,
+            "failed_items": self.failed_items,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "error_message": self.error_message,
+        }
+
+
 class Album(db.Model):
     """Collections of images (batches, sets, etc.)"""
 
@@ -154,7 +286,8 @@ class Album(db.Model):
     generation_prompt = db.Column(db.Text)
     generation_config = db.Column(db.Text)  # JSON: generation settings
 
-    # Set template metadata
+    # DEPRECATED: Legacy template fields (templates moved to batch_templates table)
+    # These fields remain for backward compatibility with old data
     is_set_template = db.Column(db.Boolean, default=False)
     csv_data = db.Column(db.Text)  # JSON string containing template rows
     base_prompt = db.Column(db.Text)
@@ -162,6 +295,12 @@ class Album(db.Model):
     style_suffix = db.Column(db.Text)
     example_theme = db.Column(db.Text)
     lora_config = db.Column(db.Text)  # JSON array of LoRA configs
+
+    # Source tracking (links albums to their creation source)
+    source_type = db.Column(
+        db.String(50), default="manual"
+    )  # 'manual', 'batch_generation', 'scrape'
+    source_id = db.Column(db.Integer)  # FK to BatchGenerationRun or ScrapeJob
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=utcnow)
@@ -212,6 +351,8 @@ class Album(db.Model):
             "template_items_preview": template_items[:5] if template_items else [],
             "lora_count": len(lora_payload),
             "slug": self.slug,
+            "source_type": self.source_type,
+            "source_id": self.source_id,
         }
 
     @property

@@ -108,8 +108,8 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
   const fetchAlbums = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
-      // Fetch only regular albums (not templates) by default
-      const rawAlbums = await api.albums.getAll(signal, { is_set_template: false })
+      // Fetch all albums (templates are now in batch_templates table)
+      const rawAlbums = await api.albums.getAll(signal)
       const normalizedAlbums = Array.isArray(rawAlbums)
         ? rawAlbums.map((album: Album & { id: string | number }) => ({
             ...album,
@@ -411,9 +411,21 @@ const AlbumsTab: React.FC<AlbumsTabProps> = memo(({ isAdmin }) => {
 
                 <CardHeader className="gap-3 p-6 pb-4">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="line-clamp-2 text-base font-semibold">
-                      {album.name}
-                    </CardTitle>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <CardTitle className="line-clamp-2 text-base font-semibold">
+                        {album.name}
+                      </CardTitle>
+                      {album.source_type === 'batch_generation' && (
+                        <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                          🎨 Batch
+                        </Badge>
+                      )}
+                      {album.source_type === 'scrape' && (
+                        <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                          🌐 Scraped
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
                     {album.description || 'No description provided'}

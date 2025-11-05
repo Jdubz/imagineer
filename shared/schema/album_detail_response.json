@@ -80,6 +80,12 @@
       "items": {
         "$ref": "ImageResponse"
       }
+    },
+    "source_type": {
+      "type": ["string", "null"]
+    },
+    "source_id": {
+      "type": ["integer", "null"]
     }
   },
   "required": [

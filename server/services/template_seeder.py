@@ -150,7 +150,9 @@ def _collect_definitions() -> list[TemplateDefinition]:
 
 def ensure_default_set_templates(app=None) -> dict[str, list[str]]:
     """
-    Create or refresh the default set templates.
+    DEPRECATED: Create or refresh default batch templates in legacy Album table.
+    This function is no longer used - templates are now in the batch_templates table.
+    Kept for backward compatibility only.
 
     Returns a summary dictionary containing the templates that were created or updated.
     """

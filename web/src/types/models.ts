@@ -133,6 +133,69 @@ export interface PreviewImage {
   thumbnail_path?: string | null
 }
 
+export interface BatchTemplate {
+  id: number
+  name: string
+  description?: string | null
+  csv_path: string
+  csv_data?: string | null
+  csv_items?: unknown[]
+  base_prompt?: string | null
+  prompt_template: string
+  style_suffix?: string | null
+  example_theme?: string | null
+  width: number
+  height: number
+  negative_prompt?: string | null
+  lora_config?: string | null
+  template_item_count: number
+  template_items_preview?: unknown[]
+  lora_count: number
+  created_by?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface BatchGenerationRun {
+  id: number
+  template_id: number
+  album_id?: number | null
+  album_name: string
+  user_theme: string
+  steps?: number | null
+  seed?: number | null
+  width?: number | null
+  height?: number | null
+  guidance_scale?: number | null
+  negative_prompt?: string | null
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  total_items?: number | null
+  completed_items: number
+  failed_items: number
+  created_by?: string | null
+  created_at?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  error_message?: string | null
+}
+
+export interface BatchGenerateParams {
+  album_name: string
+  user_theme: string
+  steps?: number
+  seed?: number
+  width?: number
+  height?: number
+  guidance_scale?: number
+  negative_prompt?: string
+}
+
+export interface BatchGenerateResponse {
+  run: BatchGenerationRun
+  template: BatchTemplate
+  message: string
+}
+
 export interface Album {
   id: string
   name: string
@@ -145,7 +208,10 @@ export interface Album {
   is_public?: boolean
   is_training_source?: boolean
   created_by?: string | null
-  // Set template fields
+  // Source tracking (NEW)
+  source_type?: 'manual' | 'batch_generation' | 'scrape'
+  source_id?: number | null
+  // DEPRECATED: Set template fields (kept for backward compatibility)
   is_set_template?: boolean
   csv_data?: string | null
   base_prompt?: string | null

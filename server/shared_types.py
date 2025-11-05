@@ -35,6 +35,8 @@ class AlbumDetailResponseTypedDict(TypedDict, total=False):
     lora_count: Required[int]
     slug: Required[str]
     images: Required[list[ImageResponseTypedDict]]
+    source_type: NotRequired[str | None]
+    source_id: NotRequired[int | None]
 
 
 class AlbumResponsePreviewImagesItem(TypedDict, total=False):
@@ -71,6 +73,8 @@ class AlbumResponseTypedDict(TypedDict, total=False):
     lora_count: Required[int]
     slug: Required[str]
     images: NotRequired[list[dict[str, Any]]]
+    source_type: NotRequired[str | None]
+    source_id: NotRequired[int | None]
 
 
 class AuthStatusTypedDict(TypedDict, total=False):
