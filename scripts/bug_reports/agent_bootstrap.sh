@@ -184,13 +184,13 @@ push_changes() {
   # Retry push with rebase if remote has diverged (race condition from concurrent agents)
   local max_retries=3
   local attempt=1
-  while [ $attempt -le $max_retries ]; do
+  while [[ $attempt -le $max_retries ]]; do
     if git push origin "${TARGET_BRANCH}" >&2; then
       git rev-parse HEAD
       return 0
     fi
 
-    if [ $attempt -lt $max_retries ]; then
+    if [[ $attempt -lt $max_retries ]]; then
       log "Push rejected (attempt ${attempt}/${max_retries}). Rebasing onto remote changes..."
       git fetch origin "${TARGET_BRANCH}" >&2
       if ! git rebase "origin/${TARGET_BRANCH}" >&2; then

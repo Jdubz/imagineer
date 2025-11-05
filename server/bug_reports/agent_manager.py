@@ -163,7 +163,7 @@ class BugReportAgentManager:
         Returns True if lock was acquired, False if another process holds it.
         """
         try:
-            self._lock_file = os.open(str(self._lock_file_path), os.O_CREAT | os.O_RDWR, 0o644)
+            self._lock_file = os.open(str(self._lock_file_path), os.O_CREAT | os.O_RDWR, 0o600)
             fcntl.flock(self._lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
             logger.info("Acquired cross-process agent worker lock")
             return True
@@ -172,8 +172,8 @@ class BugReportAgentManager:
             if self._lock_file is not None:
                 try:
                     os.close(self._lock_file)
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    logger.debug("Failed to close lock file descriptor: %s", close_exc)
                 self._lock_file = None
             return False
 
