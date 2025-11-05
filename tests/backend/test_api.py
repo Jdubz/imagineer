@@ -675,33 +675,45 @@ class TestAlbumSetTemplates:
         assert json.loads(data["generation_config"])["width"] == 768
 
     def test_list_albums_filters_set_templates(self, client):
+        """Test filtering deprecated is_set_template and new source_type filters"""
         with client.application.app_context():
-            template_album = Album(
-                name="Zodiac Series",
-                description="Zodiac themed templates",
-                album_type="set",
-                is_set_template=True,
-                csv_data=json.dumps([{"name": "Aries"}]),
-                base_prompt="Astrology portrait",
+            # Create albums with new source tracking
+            batch_generated_album = Album(
+                name="Generated Zodiac",
+                description="Generated from batch template",
+                album_type="batch",
+                is_set_template=False,
+                source_type="batch_generation",
+                source_id=1,
                 created_by="admin@example.com",
             )
-            regular_album = Album(
+            manual_album = Album(
                 name="Manual Collection",
                 description="Hand curated",
                 album_type="manual",
                 is_set_template=False,
+                source_type="manual",
                 created_by="admin@example.com",
             )
-            db.session.add_all([template_album, regular_album])
+            db.session.add_all([batch_generated_album, manual_album])
             db.session.commit()
 
+        # DEPRECATED: is_set_template filter should return empty
+        # (templates moved to batch_templates)
         response = client.get("/api/albums?is_set_template=1")
         assert response.status_code == 200
         payload = json.loads(response.data)
-        assert len(payload["albums"]) == 1
-        assert payload["albums"][0]["name"] == "Zodiac Series"
-        assert payload["albums"][0]["template_item_count"] == 1
+        assert len(payload["albums"]) == 0  # Templates are in batch_templates table now
 
+        # NEW: source_type filter should work
+        response = client.get("/api/albums?source_type=batch_generation")
+        assert response.status_code == 200
+        payload = json.loads(response.data)
+        assert len(payload["albums"]) == 1
+        assert payload["albums"][0]["name"] == "Generated Zodiac"
+        assert payload["albums"][0]["source_type"] == "batch_generation"
+
+        # album_type filter should still work
         response = client.get("/api/albums?album_type=manual")
         assert response.status_code == 200
         payload = json.loads(response.data)

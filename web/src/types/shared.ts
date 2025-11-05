@@ -28,6 +28,8 @@ export interface AlbumDetailResponse {
   lora_count: number;
   slug: string;
   images: Array<ImageResponse>;
+  source_type?: string | null;
+  source_id?: number | null;
 }
 
 /** Album record returned by /api/albums endpoints. */
@@ -57,6 +59,8 @@ export interface AlbumResponse {
   lora_count: number;
   slug: string;
   images?: Array<Record<string, unknown>>;
+  source_type?: string | null;
+  source_id?: number | null;
 }
 
 /** Response payload returned by /api/auth/me. */
