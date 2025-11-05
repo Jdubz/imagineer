@@ -11,7 +11,7 @@ from pathlib import Path
 from flask import Blueprint, abort, current_app, jsonify, request
 
 from server.auth import current_user, require_admin
-from server.database import Album, TrainingRun, db
+from server.database import Album, AlbumImage, Image, TrainingRun, db
 from server.tasks.training import (
     cleanup_training_data,
     get_model_cache_dir,
@@ -387,9 +387,42 @@ def get_training_stats():
 
 @training_bp.route("/albums", methods=["GET"])
 def list_available_albums():
-    """List albums available for training (public)"""
-    albums = Album.query.filter(Album.is_training_source.is_(True)).all()
-    return jsonify({"albums": [album.to_dict() for album in albums]})
+    """
+    List albums available for training (public).
+
+    Returns ALL albums with metadata about their suitability for training:
+    - total_images: Total images in album
+    - labeled_images: Images with caption labels
+    - ready_for_training: Whether album has enough labeled images (20+ recommended)
+    """
+    from server.database import ImageLabel
+
+    albums = Album.query.all()
+
+    albums_with_metadata = []
+    for album in albums:
+        # Count images with caption labels
+        labeled_count = (
+            db.session.query(ImageLabel)
+            .join(ImageLabel.image)
+            .join(Image.album_images)
+            .filter(AlbumImage.album_id == album.id, ImageLabel.label_type == "caption")
+            .count()
+        )
+
+        total_count = len(album.album_images)
+
+        album_dict = album.to_dict()
+        album_dict.update(
+            {
+                "total_images": total_count,
+                "labeled_images": labeled_count,
+                "ready_for_training": labeled_count >= 20,  # Minimum recommended
+            }
+        )
+        albums_with_metadata.append(album_dict)
+
+    return jsonify({"albums": albums_with_metadata})
 
 
 @training_bp.route("/loras", methods=["GET"])

@@ -18,9 +18,6 @@
     "is_public": {
       "type": "boolean"
     },
-    "is_training_source": {
-      "type": "boolean"
-    },
     "generation_prompt": {
       "type": ["string", "null"]
     },
@@ -93,7 +90,6 @@
     "name",
     "album_type",
     "is_public",
-    "is_training_source",
     "image_count",
     "is_set_template",
     "template_item_count",

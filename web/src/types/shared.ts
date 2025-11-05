@@ -9,7 +9,6 @@ export interface AlbumDetailResponse {
   description?: string | null;
   album_type: string;
   is_public: boolean;
-  is_training_source: boolean;
   generation_prompt?: string | null;
   generation_config?: string | null;
   created_by?: string | null;
@@ -39,7 +38,6 @@ export interface AlbumResponse {
   description?: string | null;
   album_type: string;
   is_public: boolean;
-  is_training_source: boolean;
   generation_prompt?: string | null;
   generation_config?: string | null;
   created_by?: string | null;
