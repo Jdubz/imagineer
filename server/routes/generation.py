@@ -869,7 +869,7 @@ def list_batches():
             continue
 
         first_image = image_associations[0].image
-        preview_url = f"/api/images/{first_image.id}/thumbnail" if first_image else None
+        preview_url = f"/images/{first_image.id}/thumbnail" if first_image else None
 
         batches.append(
             {
