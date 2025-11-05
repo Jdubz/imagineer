@@ -45,13 +45,124 @@ def _parse_album_ids(album_ids_raw: object) -> list[int]:
     return album_ids
 
 
+def _validate_training_parameters(config: dict) -> None:
+    """Validate training configuration parameters."""
+    # Validate steps
+    steps = config.get("steps")
+    if steps is not None:
+        if not isinstance(steps, (int, float)) or steps < 500 or steps > 5000:
+            raise TrainingValidationError("steps must be between 500 and 5000")
+
+    # Validate rank
+    rank = config.get("rank")
+    if rank is not None:
+        if not isinstance(rank, int) or rank < 4 or rank > 32:
+            raise TrainingValidationError("rank must be between 4 and 32")
+
+    # Validate alpha
+    alpha = config.get("alpha")
+    if alpha is not None:
+        if not isinstance(alpha, (int, float)) or alpha < 1:
+            raise TrainingValidationError("alpha must be >= 1")
+
+    # Validate learning_rate
+    learning_rate = config.get("learning_rate")
+    if learning_rate is not None:
+        if not isinstance(learning_rate, (int, float)) or learning_rate <= 0 or learning_rate > 1:
+            raise TrainingValidationError("learning_rate must be between 0 and 1")
+
+    # Validate warmup_steps
+    warmup_steps = config.get("warmup_steps")
+    if warmup_steps is not None:
+        if not isinstance(warmup_steps, int) or warmup_steps < 0:
+            raise TrainingValidationError("warmup_steps must be >= 0")
+
+    # Validate gradient_accumulation_steps
+    grad_accum = config.get("gradient_accumulation_steps")
+    if grad_accum is not None:
+        if not isinstance(grad_accum, int) or grad_accum < 1:
+            raise TrainingValidationError("gradient_accumulation_steps must be >= 1")
+
+    # Validate boolean flags
+    for flag in ["random_flip", "center_crop"]:
+        value = config.get(flag)
+        if value is not None and not isinstance(value, bool):
+            raise TrainingValidationError(f"{flag} must be a boolean")
+
+
+def _get_training_defaults() -> dict:
+    """Get default training parameters from config.yaml."""
+    config = getattr(current_app, "config", {})
+    training_config = config.get("training", {})
+    lora_config = training_config.get("lora", {})
+
+    return {
+        "steps": int(training_config.get("max_train_steps", 1500)),
+        "rank": int(lora_config.get("rank", 8)),
+        "alpha": int(lora_config.get("alpha", 32)),
+        "learning_rate": float(training_config.get("learning_rate", 1e-4)),
+        "warmup_steps": int(training_config.get("warmup_steps", 100)),
+        "gradient_accumulation_steps": int(training_config.get("gradient_accumulation_steps", 4)),
+        "random_flip": bool(training_config.get("random_flip", True)),
+        "center_crop": bool(training_config.get("center_crop", True)),
+    }
+
+
+def _validate_album_selection(album_ids: list[int]) -> None:
+    """Validate that selected albums have sufficient labeled images for training."""
+    from server.database import Image, ImageLabel
+
+    total_images = 0
+    total_labeled = 0
+
+    for album_id in album_ids:
+        album = db.session.get(Album, album_id)
+        if not album:
+            continue
+
+        # Count labeled images in this album
+        labeled_count = (
+            db.session.query(ImageLabel)
+            .join(ImageLabel.image)
+            .join(Image.album_images)
+            .filter(AlbumImage.album_id == album.id, ImageLabel.label_type == "caption")
+            .count()
+        )
+
+        total_images += len(album.album_images)
+        total_labeled += labeled_count
+
+    if total_labeled < 20:
+        raise TrainingValidationError(
+            f"Insufficient labeled images for training. "
+            f"Found {total_labeled} labeled images, minimum 20 required. "
+            f"Please label more images before starting training."
+        )
+
+    if total_labeled < 50:
+        logger.warning(
+            f"Training dataset has only {total_labeled} labeled images. "
+            f"Recommended: 50+ images for better quality. Training may produce poor results."
+        )
+
+
 def _prepare_training_payload(data: dict) -> tuple[str, str, dict]:
     if not data.get("name"):
         raise TrainingValidationError("Name is required")
 
     album_ids = _parse_album_ids(data.get("album_ids"))
+
+    # Validate album selection has sufficient labeled images
+    _validate_album_selection(album_ids)
+
+    # Get defaults and merge with user overrides
+    defaults = _get_training_defaults()
     config_overrides = data.get("config", {}) or {}
-    training_config = {**config_overrides, "album_ids": album_ids}
+    training_config = {**defaults, **config_overrides, "album_ids": album_ids}
+
+    # Validate parameters
+    _validate_training_parameters(training_config)
+
     description = data.get("description", "")
     return data["name"], description, training_config
 
