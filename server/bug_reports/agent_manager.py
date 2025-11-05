@@ -4,6 +4,7 @@ Coordinator for automated bug report remediation agents.
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import os
 import threading
@@ -108,7 +109,12 @@ def _resolve_agent_config() -> BugReportAgentConfig:
 
 
 class BugReportAgentManager:
-    """Single-concurrency manager that coordinates remediation agents."""
+    """
+    Single-concurrency manager that coordinates remediation agents.
+
+    Uses a cross-process file lock to ensure only one agent worker runs
+    across all Gunicorn worker processes.
+    """
 
     def __init__(
         self,
@@ -123,6 +129,11 @@ class BugReportAgentManager:
         self._thread: Optional[threading.Thread] = None
         self._inflight: Set[str] = set()
         self._recent_failures: Set[str] = set()
+
+        # Cross-process lock to prevent multiple Gunicorn workers from running agents concurrently
+        self._lock_file_path = self._config.log_dir / ".agent_worker.lock"
+        self._lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_file: Optional[int] = None
 
     def refresh_config(self) -> None:
         """Reload configuration from disk/environment."""
@@ -146,33 +157,75 @@ class BugReportAgentManager:
 
     # ------------------------------------------------------------------ internal
 
+    def _acquire_cross_process_lock(self) -> bool:
+        """
+        Attempt to acquire a cross-process lock using flock.
+        Returns True if lock was acquired, False if another process holds it.
+        """
+        try:
+            self._lock_file = os.open(str(self._lock_file_path), os.O_CREAT | os.O_RDWR, 0o600)
+            fcntl.flock(self._lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            logger.info("Acquired cross-process agent worker lock")
+            return True
+        except (OSError, IOError) as exc:
+            logger.debug("Could not acquire cross-process lock: %s", exc)
+            if self._lock_file is not None:
+                try:
+                    os.close(self._lock_file)
+                except Exception as close_exc:
+                    logger.debug("Failed to close lock file descriptor: %s", close_exc)
+                self._lock_file = None
+            return False
+
+    def _release_cross_process_lock(self) -> None:
+        """Release the cross-process lock."""
+        if self._lock_file is not None:
+            try:
+                fcntl.flock(self._lock_file, fcntl.LOCK_UN)
+                os.close(self._lock_file)
+                logger.info("Released cross-process agent worker lock")
+            except Exception as exc:
+                logger.warning("Failed to release cross-process lock: %s", exc)
+            finally:
+                self._lock_file = None
+
     def _start_worker(self) -> None:
         self._active = True
         self._thread = threading.Thread(target=self._run, name="bug-report-agent", daemon=True)
         self._thread.start()
 
     def _run(self) -> None:
-        logger.info("Bug report agent worker started")
-        while True:
+        # Attempt to acquire cross-process lock
+        if not self._acquire_cross_process_lock():
+            logger.info("Another agent worker is already running in a different process. Exiting.")
             with self._lock:
-                if not self._config.enabled:
-                    logger.info("Bug report agent disabled; worker exiting")
-                    self._active = False
-                    return
-                next_report = self._select_next_report()
-                if not next_report:
-                    logger.info("No queued bug reports. Worker exiting.")
-                    self._active = False
-                    return
-                self._inflight.add(next_report)
+                self._active = False
+            return
 
-            try:
-                self._process_report(next_report)
-            except Exception:  # pragma: no cover - defensive
-                logger.exception("Unhandled agent error for report %s", next_report)
-            finally:
+        try:
+            logger.info("Bug report agent worker started")
+            while True:
                 with self._lock:
-                    self._inflight.discard(next_report)
+                    if not self._config.enabled:
+                        logger.info("Bug report agent disabled; worker exiting")
+                        self._active = False
+                        return
+                    next_report = self._select_next_report()
+                    if not next_report:
+                        logger.info("No queued bug reports. Worker exiting.")
+                        self._active = False
+                        return
+                    self._inflight.add(next_report)
+
+                try:
+                    self._process_report(next_report)
+                except Exception:  # pragma: no cover - defensive
+                    logger.exception("Unhandled agent error for report %s", next_report)
+                finally:
+                    with self._lock:
+                        self._inflight.discard(next_report)
+        finally:
+            self._release_cross_process_lock()
 
     def _select_next_report(self) -> Optional[str]:
         while self._queue:

@@ -49,7 +49,7 @@ export function getApiUrl(endpoint: string): string {
   // Remove trailing slash from base URL
   const baseUrl = API_BASE_URL.replace(/\/$/, '')
 
-  // Use endpoint as-is (already includes /api/ prefix from backend)
+  // Endpoint does not include /api/ prefix (added by base URL)
   return `${baseUrl}${normalizedEndpoint}`
 }
 

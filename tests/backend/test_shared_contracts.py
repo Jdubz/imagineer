@@ -671,3 +671,56 @@ def test_generation_batches_response_matches_schema(client) -> None:
     for entry in batches:
         assert isinstance(entry, dict)
         _validate_against_schema(entry, item_schema)
+
+
+def test_image_urls_dont_contain_duplicate_api_prefix(client) -> None:
+    """
+    Image URLs returned by the backend should NOT contain /api/ prefix.
+    The frontend's getApiUrl() function adds /api/ when constructing full URLs.
+
+    This test prevents the bug where:
+    - Backend returns: "/api/images/123/thumbnail"
+    - Frontend adds base: "https://domain.com/api" + "/api/images/123/thumbnail"
+    - Result: "https://domain.com/api/api/images/123/thumbnail" (WRONG!)
+    """
+
+    with client.application.app_context():
+        image = Image(
+            filename="url-format-test.png",
+            file_path="/tmp/url-format-test.png",
+            prompt="Testing URL format",
+            is_public=True,
+        )
+        db.session.add(image)
+        db.session.commit()
+        image_id = image.id
+
+    response = client.get(f"/api/images/{image_id}")
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    # Check that URLs don't start with /api/
+    download_url = payload.get("download_url")
+    thumbnail_url = payload.get("thumbnail_url")
+
+    assert download_url is not None, "download_url should be present"
+    assert thumbnail_url is not None, "thumbnail_url should be present"
+
+    # URLs should start with / but NOT /api/
+    assert download_url.startswith("/"), f"download_url should start with /: {download_url}"
+    assert not download_url.startswith(
+        "/api/"
+    ), f"download_url should NOT start with /api/: {download_url}"
+
+    assert thumbnail_url.startswith("/"), f"thumbnail_url should start with /: {thumbnail_url}"
+    assert not thumbnail_url.startswith(
+        "/api/"
+    ), f"thumbnail_url should NOT start with /api/: {thumbnail_url}"
+
+    # Verify they're well-formed relative paths
+    assert (
+        download_url == f"/images/{image_id}/file"
+    ), f"Unexpected download_url format: {download_url}"
+    assert (
+        thumbnail_url == f"/images/{image_id}/thumbnail"
+    ), f"Unexpected thumbnail_url format: {thumbnail_url}"

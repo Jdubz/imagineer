@@ -432,7 +432,7 @@ class TestGenerationBlueprint:
         slugs = [batch["batch_id"] for batch in payload["batches"]]
         assert slugs[:2] == [recent["album_slug"], older["album_slug"]]
         assert payload["batches"][0]["image_count"] == 1
-        assert payload["batches"][0]["preview_url"] == f"/api/images/{recent['image_id']}/thumbnail"
+        assert payload["batches"][0]["preview_url"] == f"/images/{recent['image_id']}/thumbnail"
 
     def test_get_batch_returns_image_metadata(self, client):
         record = self._create_album_with_image(
@@ -456,7 +456,7 @@ class TestGenerationBlueprint:
         assert payload["image_count"] == 1
         image_payload = payload["images"][0]
         assert image_payload["filename"] == record["filename"]
-        assert image_payload["download_url"] == f"/api/images/{record['image_id']}/file"
+        assert image_payload["download_url"] == f"/images/{record['image_id']}/file"
         assert image_payload["prompt"] == "sunset over the ocean"
         assert image_payload["seed"] == 42
         assert image_payload["width"] == 768

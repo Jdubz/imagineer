@@ -180,11 +180,33 @@ push_changes() {
   fi
   git status >&2
   git commit -m "fix: automated remediation (bug ${REPORT_ID})" >&2
-  if ! git push origin "${TARGET_BRANCH}" >&2; then
-    log "Git push failed to ${TARGET_BRANCH}. Check credentials or remote configuration."
-    return 1
-  fi
-  git rev-parse HEAD
+
+  # Retry push with rebase if remote has diverged (race condition from concurrent agents)
+  local max_retries=3
+  local attempt=1
+  while [[ $attempt -le $max_retries ]]; do
+    if git push origin "${TARGET_BRANCH}" >&2; then
+      git rev-parse HEAD
+      return 0
+    fi
+
+    if [[ $attempt -lt $max_retries ]]; then
+      log "Push rejected (attempt ${attempt}/${max_retries}). Rebasing onto remote changes..."
+      git fetch origin "${TARGET_BRANCH}" >&2
+      if ! git rebase "origin/${TARGET_BRANCH}" >&2; then
+        log "Rebase failed. Aborting and cleaning up..."
+        git rebase --abort >&2 || true
+        fail_summary "Unable to rebase changes onto remote ${TARGET_BRANCH}"
+        return 1
+      fi
+      log "Rebase successful. Retrying push..."
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  log "Git push failed after ${max_retries} attempts to ${TARGET_BRANCH}."
+  return 1
 }
 
 # -----------------------------------------------------------------------------
