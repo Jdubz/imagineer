@@ -199,6 +199,8 @@ export const AlbumDetailResponseSchema: ZodType<AlbumDetailResponseContract> = z
   lora_count: z.number(),
   slug: z.string(),
   images: z.array(ImageResponseSchema),
+  source_type: z.string().nullable().optional(),
+  source_id: z.number().nullable().optional(),
 })
 
 // ============================================
