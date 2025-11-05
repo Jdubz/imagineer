@@ -8,9 +8,18 @@ Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a
 
 ## Terminology
 
-- **Batch Generation Template**: A CSV file + configuration (prompts, LoRAs, dimensions) that defines HOW to generate a collection of images. Stored as Albums with `is_set_template=True`.
-- **Album**: An output collection of generated images. Created when a batch template is executed with a user's custom theme.
-- **Batch**: A single execution of a template that creates an album.
+**CRITICAL - Template vs Album Separation:**
+
+- **Batch Template**: A reusable recipe stored in the `batch_templates` database table (NOT in the albums table). Contains CSV data, prompt templates, LoRA configurations, and generation settings. Templates are *instructions* that can be used repeatedly.
+
+- **Album**: An output collection of generated images stored in the `albums` database table. Created when:
+  - A batch template is executed with a user's theme (`source_type='batch_generation'`)
+  - Images are scraped from the web (`source_type='scrape'`)
+  - Images are manually curated (`source_type='manual'`)
+
+- **Batch Generation Run**: Execution tracking stored in `batch_generation_runs` table. Links a template to its resulting album and tracks progress.
+
+**Key Difference:** Templates are recipes (reusable), Albums are the results (one-time outputs). The old system incorrectly stored templates as albums with `is_set_template=True` - this has been migrated to separate tables.
 
 **For detailed architecture documentation, see:** `docs/ARCHITECTURE.md`
 
@@ -123,9 +132,9 @@ curl -X POST http://localhost:10050/api/generate \
   -d '{"prompt": "your prompt", "steps": 25}'
 
 # Batch generation from template
-curl -X POST http://localhost:10050/api/albums/<template_id>/generate \
+curl -X POST http://localhost:10050/api/batch-templates/<template_id>/generate \
   -H "Content-Type: application/json" \
-  -d '{"user_theme": "gothic style"}'
+  -d '{"album_name": "My Steampunk Cards", "user_theme": "steampunk aesthetic with brass gears"}'
 ```
 
 ### Testing LoRAs
@@ -195,10 +204,10 @@ pytest
 - Model, generation, training, hardware settings
 - Paths to external directories
 
-**/mnt/speedy/imagineer/sets/config.yaml** - Batch template definitions
-- Per-template prompts, dimensions, LoRAs, negative prompts
-- Multi-LoRA stacking configuration
-- CSV data defining items to generate
+**Database (`instance/imagineer.db`)** - Batch template storage
+- `batch_templates` table stores template definitions
+- `batch_generation_runs` table tracks execution history
+- `albums` table stores output collections with source tracking
 
 **firebase.json** - Firebase Hosting configuration
 - SPA routing rules
@@ -241,26 +250,32 @@ pytest
 
 **Template-Based Batch Generation:**
 
-Batch templates are stored as Albums with `is_set_template=True` and contain:
-- CSV data with rows defining items to generate
+Batch templates are stored in the `batch_templates` database table (NOT as albums). Each template contains:
+- CSV data (JSON array) with rows defining items to generate
 - Base prompt, prompt template, style suffix
-- LoRA configurations
+- LoRA configurations (JSON array)
 - Generation settings (dimensions, negative prompt)
 
-```yaml
-# /mnt/speedy/imagineer/sets/config.yaml
-card_deck:
-  prompt_template: "{value} of {suit}. CARD LAYOUT: {visual_layout}"
-  loras:
-    - path: "/path/to/lora1.safetensors"
-      weight: 0.6
-    - path: "/path/to/lora2.safetensors"
-      weight: 0.3
+**Template Structure (Database):**
+```python
+BatchTemplate(
+    name="Playing Card Deck",
+    csv_data='[{"value": "Ace", "suit": "Spades", ...}, ...]',
+    prompt_template="{value} of {suit}. CARD LAYOUT: {visual_layout}",
+    lora_config='[{"path": "/path/to/lora1.safetensors", "weight": 0.6}, ...]',
+    width=512,
+    height=720,
+    ...
+)
 ```
 
-Prompt construction order: `[Base Prompt] [User Theme] [CSV Data] [Style Suffix]`
+**Prompt construction order:** `[Base Prompt] [User Theme] [CSV Data] [Style Suffix]`
 
-When executed, creates a new Album (output) with generated images.
+**Execution Flow:**
+1. User selects template and provides theme + album name
+2. System creates `BatchGenerationRun` to track progress
+3. Jobs queued for each CSV row with constructed prompts
+4. When complete, new `Album` created with `source_type='batch_generation'`
 
 **Multi-LoRA Loading:**
 ```python

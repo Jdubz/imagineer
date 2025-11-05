@@ -1,9 +1,14 @@
 # Template-Album Separation: Implementation Complete ✅
 
+> **⚠️ HISTORICAL DOCUMENT**
+> This document describes the migration completed on 2025-11-04.
+> The template-album separation is now in production and fully operational.
+> For current architecture, see `docs/ARCHITECTURE.md` and `CLAUDE.md`.
+
 **Project**: Imagineer AI Image Generation Toolkit
 **Feature**: Batch Template System
 **Date**: 2025-11-04
-**Status**: ✅ **PRODUCTION READY**
+**Status**: ✅ **PRODUCTION READY & DEPLOYED**
 
 ---
 
@@ -241,24 +246,26 @@ Album Model (Output)
 
 ---
 
-## What's NOT Implemented (Future Work)
+## Post-Migration Enhancements (Completed)
 
-### Job Queue Integration (Phase 2.2)
-The `/api/batch-templates/<id>/generate` endpoint currently:
+### ✅ Phase 2.2-2.5: Job Queue Integration & Progress Tracking (COMPLETE)
+**Completed**: 2025-11-04
+
+The `/api/batch-templates/<id>/generate` endpoint now:
 - ✅ Creates BatchGenerationRun record
-- ✅ Returns 202 Accepted
-- ❌ Does NOT queue actual jobs
-- ❌ Does NOT execute generation
-- ❌ Does NOT create albums automatically
+- ✅ Queues actual generation jobs
+- ✅ Executes generation via job worker
+- ✅ Creates albums automatically on completion
+- ✅ Tracks progress (completed_items/failed_items)
+- ✅ Frontend polls for real-time progress updates
+- ✅ Scraping jobs also create albums with source tracking
 
-**Why**: Requires integration with existing job queue system in `server/routes/generation.py`. This is complex and should be done carefully in a separate phase.
-
-**Next Steps**:
-1. Study existing batch generation in `generation.py:470`
-2. Adapt for BatchTemplate workflow
-3. Queue jobs for each CSV row
-4. Auto-create Album on completion
-5. Update BatchGenerationRun status
+**Implementation Details**:
+- Jobs queued to existing generation worker in `server/routes/generation.py`
+- Worker updates `BatchGenerationRun` progress after each job
+- Album auto-created when all jobs complete via `_create_album_from_batch_run()`
+- Scraping albums created with `source_type='scrape'`, `source_id=scrape_job_id`
+- Frontend shows toast notifications with X/Y complete percentage
 
 ### Additional UI Polish
 - ❌ Albums Tab source badges (show 🎨 Batch, 🌐 Scraped)

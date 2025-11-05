@@ -286,7 +286,8 @@ class Album(db.Model):
     generation_prompt = db.Column(db.Text)
     generation_config = db.Column(db.Text)  # JSON: generation settings
 
-    # Set template metadata
+    # DEPRECATED: Legacy template fields (templates moved to batch_templates table)
+    # These fields remain for backward compatibility with old data
     is_set_template = db.Column(db.Boolean, default=False)
     csv_data = db.Column(db.Text)  # JSON string containing template rows
     base_prompt = db.Column(db.Text)
@@ -295,7 +296,7 @@ class Album(db.Model):
     example_theme = db.Column(db.Text)
     lora_config = db.Column(db.Text)  # JSON array of LoRA configs
 
-    # Source tracking (NEW - for template/album separation)
+    # Source tracking (links albums to their creation source)
     source_type = db.Column(
         db.String(50), default="manual"
     )  # 'manual', 'batch_generation', 'scrape'

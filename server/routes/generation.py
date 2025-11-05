@@ -603,12 +603,19 @@ def get_random_theme_endpoint():
 @generation_bp.route("/albums/<int:album_id>/generate/batch", methods=["POST"])
 @require_admin
 def generate_batch_from_album(album_id):  # noqa: C901
-    """Queue generation jobs for every item in a set-template album."""
+    """
+    DEPRECATED: Legacy endpoint for old album-based templates.
+    Use /api/batch-templates/<id>/generate instead.
+    Queue generation jobs for every item in a legacy template album.
+    """
     album = db.session.get(Album, album_id)
     if not album:
         return jsonify({"error": "Album not found"}), 404
     if not album.is_set_template:
-        return jsonify({"error": "Album is not a set template"}), 400
+        return (
+            jsonify({"error": "Album is not a legacy template (use /api/batch-templates instead)"}),
+            400,
+        )
 
     data = request.json or {}
     if "user_theme" not in data:

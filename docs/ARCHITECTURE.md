@@ -1,6 +1,6 @@
 # Imagineer Architecture
 
-**Last Updated:** 2025-10-27
+**Last Updated:** 2025-11-04
 
 ## Overview
 
@@ -8,9 +8,23 @@ Imagineer is an AI Image Generation Toolkit built on Stable Diffusion 1.5 with a
 
 ## Terminology
 
-- **Batch Generation Template**: A configuration (CSV + prompts + LoRAs) that defines HOW to generate a collection of images. These are input configurations stored in the database with `is_set_template=True`.
-- **Album**: An output collection of generated images organized together. Created when a batch generation template is executed with a user theme.
-- **Batch**: A single execution of a template that creates an album of images.
+**CRITICAL DISTINCTION:**
+
+- **Batch Template** (`BatchTemplate` model): A reusable recipe/blueprint that defines HOW to generate a collection of images. Stored in the `batch_templates` database table. Contains:
+  - CSV data defining items to generate (e.g., 54 playing cards)
+  - Prompt templates with placeholders
+  - LoRA configurations
+  - Generation settings (dimensions, negative prompts)
+  - Example themes for user guidance
+
+- **Album** (`Album` model): An output collection of generated images. Stored in the `albums` database table. Created when:
+  - A batch template is executed with a user's custom theme (`source_type='batch_generation'`)
+  - Images are manually scraped from the web (`source_type='scrape'`)
+  - Images are manually curated (`source_type='manual'`)
+
+- **Batch Generation Run** (`BatchGenerationRun` model): Execution tracking for a specific batch generation. Links a template to the resulting album, tracks progress (completed/failed items), and stores the user's theme and parameters.
+
+**Key Difference:** Templates are *instructions* (reusable), Albums are *outputs* (one-time results). Think of templates as recipes and albums as the meals cooked from those recipes.
 
 ## System Architecture
 
@@ -103,7 +117,7 @@ imagineer/
 │   ├── basic_inference.py        # Simple inference example
 │   └── train_lora.py             # LoRA training script
 ├── data/
-│   └── sets/                     # Batch template definitions (not in repo)
+│   └── sets/                     # CSV data files for batch templates (not in repo)
 │       ├── card_deck.csv         # 54 playing card prompts with visual layouts
 │       ├── tarot_deck.csv        # 22 Major Arcana prompts
 │       └── zodiac.csv            # 12 zodiac sign prompts
@@ -150,13 +164,17 @@ External Directories (configured in config.yaml):
 |----------|--------|---------|
 | `/api/config` | GET/PUT | Manage global configuration |
 | `/api/generate` | POST | Submit single generation job |
-| `/api/generate/batch` | POST | Submit batch generation from template |
-| `/api/albums?is_set_template=true` | GET | List available batch templates |
-| `/api/albums/<id>` | GET | Get template details |
+| `/api/batch-templates` | GET | List all batch templates |
+| `/api/batch-templates/<id>` | GET | Get template details with CSV data |
+| `/api/batch-templates/<id>/generate` | POST | Generate batch from template with user theme |
+| `/api/batch-templates/<id>/runs` | GET | List generation runs for template |
+| `/api/batch-templates/<id>/runs/<run_id>` | GET | Get run status for progress polling |
+| `/api/albums` | GET | List albums (supports ?source_type filter) |
+| `/api/albums/<id>` | GET | Get album details with images |
 | `/api/jobs` | GET | View job queue and history |
 | `/api/jobs/<id>` | GET/DELETE | Manage specific job |
-| `/api/batches` | GET | List batch outputs |
-| `/api/batches/<id>` | GET | View batch images |
+| `/api/batches` | GET | List batch outputs (legacy) |
+| `/api/batches/<id>` | GET | View batch images (legacy) |
 | `/api/images` | GET | List generated images |
 | `/api/images/<id>/file` | GET | Serve generated image |
 | `/api/themes/random` | GET | Generate random theme |
@@ -207,30 +225,37 @@ python examples/generate.py \
   --output outputs/image.png
 ```
 
-### 3. Batch Template Configuration System
+### 3. Batch Template System
 
-**Location:** `/mnt/speedy/imagineer/sets/config.yaml`
+**Database Table:** `batch_templates`
 
-**Purpose:** Define batch generation templates for card collections
+**Purpose:** Store reusable batch generation recipes in the database
 
-**Structure:**
-```yaml
-<set_id>:
-  name: "Display Name"
-  description: "Set description"
-  csv_path: "data/sets/<set_id>.csv"
-  base_prompt: "Base description that applies to all items"
-  prompt_template: "{column1} of {column2}. {column3}"
-  style_suffix: "Technical style terms"
-  example_theme: "Example for user inspiration"
-  width: 512
-  height: 720
-  negative_prompt: "Things to avoid"
-  loras:  # Multi-LoRA support
-    - path: "/path/to/lora1.safetensors"
-      weight: 0.6
-    - path: "/path/to/lora2.safetensors"
-      weight: 0.3
+**Structure (BatchTemplate model):**
+```python
+class BatchTemplate(db.Model):
+    id: int                      # Primary key
+    name: str                    # Display name (e.g., "Playing Card Deck")
+    description: str             # Description of template
+    csv_data: str                # JSON array of CSV rows
+    base_prompt: str             # Base prompt for all items
+    prompt_template: str         # Template with placeholders like "{value} of {suit}"
+    style_suffix: str            # Technical style terms appended to prompts
+    example_theme: str           # Example theme to inspire users
+    width: int                   # Image width (default 512)
+    height: int                  # Image height (default 720)
+    negative_prompt: str         # Things to avoid in generation
+    lora_config: str             # JSON array of LoRA configurations
+    created_by: str              # User email who created template
+    created_at: datetime         # Creation timestamp
+```
+
+**LoRA Configuration Format (JSON):**
+```json
+[
+  {"path": "/path/to/lora1.safetensors", "weight": 0.6},
+  {"path": "/path/to/lora2.safetensors", "weight": 0.3}
+]
 ```
 
 **Prompt Construction Order:**
@@ -503,25 +528,40 @@ User → API: GET /api/images/<id>/file
 ### Batch Generation
 
 ```
-User → API: POST /api/albums/<template_id>/generate
-  {user_theme: "gothic style"}
+User → API: POST /api/batch-templates/<template_id>/generate
+  {album_name: "My Steampunk Cards", user_theme: "gothic steampunk aesthetic"}
   ↓
-API: Load batch template (Album with is_set_template=True)
-  - Parse CSV data (prompt rows)
-  - Load generation config (dimensions, LoRAs, negative_prompt)
+API: Load BatchTemplate from database
+  - Parse CSV data (JSON array of item rows)
+  - Load LoRA config, dimensions, prompts
+  ↓
+API: Create BatchGenerationRun record
+  - Links to template_id
+  - Stores user_theme and album_name
+  - Status: "queued" → "processing"
   ↓
 API: For each CSV row:
-  - Construct prompt from template + user_theme
-  - Create generation job with template settings
-  - Add to queue
-  ↓
-API: Create new Album record (is_set_template=False)
-  - Album name: "{template_name} - {user_theme}"
-  - Links to output directory
+  - Construct prompt: [base_prompt] [user_theme] [csv_row via template] [style_suffix]
+  - Create generation job with:
+    - Prompt, LoRAs, dimensions, negative_prompt
+    - batch_generation_run_id for tracking
+  - Add to job queue
   ↓
 Worker: Process jobs sequentially
-  - Each job outputs to album directory
-  - Images added to Album via AlbumImage records
+  - Each job runs examples/generate.py
+  - Outputs to batch output directory
+  - Updates BatchGenerationRun progress (completed_items/failed_items)
+  ↓
+Worker: When all jobs complete
+  - Create new Album record
+    - source_type='batch_generation'
+    - source_id=run.id
+  - Link all generated images to album
+  - Update run.status='completed', run.album_id=album.id
+  ↓
+Frontend: Poll GET /api/batch-templates/<id>/runs/<run_id>
+  - Shows progress toast (X/Y complete)
+  - On completion, redirects to album
   ↓
 User → API: GET /api/albums/<album_id>
   ↓
