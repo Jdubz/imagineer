@@ -1,25 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
+import React, { useState, useCallback, memo } from 'react'
 import { logger } from '../lib/logger'
-import { api } from '../lib/api'
-import { useToast } from '../hooks/use-toast'
-import { useErrorToast } from '../hooks/use-error-toast'
 import type { Config, GenerateParams } from '../types/models'
 import {
   validateForm,
   generateFormSchema,
-  themeSchema,
 } from '../lib/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Shuffle } from 'lucide-react'
 
@@ -30,9 +19,7 @@ interface GenerateFormProps {
   isAdmin: boolean
 }
 
-const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, config, isAdmin }) => {
-  const { toast } = useToast()
-  const { showErrorToast } = useErrorToast()
+const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, config }) => {
   // Single image generation state
   const [prompt, setPrompt] = useState<string>('')
   const [steps, setSteps] = useState<number>(config?.generation?.steps || 30)
