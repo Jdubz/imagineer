@@ -287,7 +287,7 @@ def show_all_data():
 
         print(f"\n🖼️  IMAGES: {Image.query.count()} total")
 
-        print(f"\n🕷️  SCRAPE JOBS:")
+        print("\n🕷️  SCRAPE JOBS:")
         jobs = ScrapeJob.query.order_by(ScrapeJob.created_at.desc()).all()
         for job in jobs:
             print(
@@ -295,7 +295,7 @@ def show_all_data():
                 f"(status: {job.status}, created: {job.created_at})"
             )
 
-        print(f"\n📋 BATCH TEMPLATES:")
+        print("\n📋 BATCH TEMPLATES:")
         templates = BatchTemplate.query.order_by(BatchTemplate.created_at.desc()).all()
         for template in templates:
             print(f"  ID {template.id}: '{template.name}' (created: {template.created_at})")
