@@ -6,6 +6,10 @@ type ActivityLevel = "active" | "medium" | "idle"
 interface BasePollingOptions {
   enabled?: boolean
   pauseWhenHidden?: boolean
+  /**
+   * Invoke the callback as soon as the hook mounts.
+   * Defaults to `true` for adaptive polling and `false` for static polling.
+   */
   runImmediately?: boolean
 }
 
@@ -27,6 +31,14 @@ function isAdaptiveOptions<T>(options: UsePollingOptions<T>): options is Adaptiv
   return typeof (options as AdaptivePollingOptions<T>).getActivityLevel === "function"
 }
 
+/**
+ * Shared polling hook that supports static intervals and adaptive intervals that respond to activity.
+ *
+ * Static mode: pass an `interval` (milliseconds) for a fixed cadence.
+ * Adaptive mode: provide interval overrides plus a `getActivityLevel` function to choose the next delay.
+ *
+ * The hook pauses automatically when the document becomes hidden (unless disabled) and always clears timers on unmount.
+ */
 export function usePolling(callback: () => void | Promise<void>, options: StaticPollingOptions): void
 export function usePolling<T>(callback: () => Promise<T>, options: AdaptivePollingOptions<T>): T | null
 export function usePolling<T>(
@@ -61,7 +73,7 @@ export function usePolling<T>(
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isVisibleRef = useRef(true)
   const enabledRef = useRef(enabled)
-  const dataRef = useRef<T | null>(null)
+  const getActivityLevelRef = useRef<(data: T | null) => ActivityLevel>(() => "idle")
 
   const [data, setData] = useState<T | null>(null)
 
@@ -72,6 +84,16 @@ export function usePolling<T>(
   useEffect(() => {
     enabledRef.current = enabled
   }, [enabled])
+
+  const adaptiveActivityEvaluator = isAdaptive ? options.getActivityLevel : undefined
+
+  useEffect(() => {
+    if (isAdaptive && adaptiveActivityEvaluator) {
+      getActivityLevelRef.current = adaptiveActivityEvaluator
+    } else {
+      getActivityLevelRef.current = () => "idle"
+    }
+  }, [isAdaptive, adaptiveActivityEvaluator])
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -107,11 +129,10 @@ export function usePolling<T>(
       let nextInterval: number
 
       if (isAdaptive) {
-        const typedResult = ((result ?? null) as T | null)
-        dataRef.current = typedResult
+        const typedResult = result ?? null
         setData(typedResult)
 
-        const activityLevel = options.getActivityLevel(typedResult)
+        const activityLevel = getActivityLevelRef.current(typedResult)
         nextInterval =
           activityLevel === "active"
             ? activeInterval ?? 2_000
@@ -131,7 +152,7 @@ export function usePolling<T>(
       const fallbackInterval = isAdaptive ? idleInterval ?? 30_000 : resolvedStaticInterval
       scheduleNext(fallbackInterval)
     }
-  }, [isAdaptive, options, activeInterval, mediumInterval, idleInterval, resolvedStaticInterval, scheduleNext])
+  }, [isAdaptive, activeInterval, mediumInterval, idleInterval, resolvedStaticInterval, scheduleNext])
 
   useEffect(() => {
     runPollRef.current = runPoll
