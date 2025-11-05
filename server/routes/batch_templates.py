@@ -201,6 +201,28 @@ def list_template_runs(template_id: int):
     )
 
 
+@batch_templates_bp.route("/<int:template_id>/runs/<int:run_id>", methods=["GET"])
+def get_run_status(template_id: int, run_id: int):
+    """
+    Get the status of a specific generation run
+
+    Returns current progress, status, and album link if completed.
+    Use this endpoint for real-time progress polling.
+    """
+    template = _load_template_or_abort(template_id)
+
+    run = (
+        db.session.query(BatchGenerationRun)
+        .filter_by(id=run_id, template_id=template_id)
+        .one_or_none()
+    )
+
+    if not run:
+        abort(404, description="Generation run not found")
+
+    return jsonify({"run": run.to_dict(), "template": template.to_dict()})
+
+
 @batch_templates_bp.route("/<int:template_id>/generate", methods=["POST"])
 def generate_from_template(template_id: int):  # noqa: C901
     """

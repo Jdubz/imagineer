@@ -67,6 +67,76 @@ const BatchTemplatesPage: React.FC<BatchTemplatesPageProps> = ({ isAdmin }) => {
     setShowGenerateDialog(true)
   }, [])
 
+  const pollRunProgress = useCallback(
+    (templateId: number, runId: number, albumName: string) => {
+      let progressToast: ReturnType<typeof toast> | null = null
+      let pollCount = 0
+      const maxPolls = 120 // 10 minutes max (5 sec intervals)
+
+      const poll = async () => {
+        try {
+          pollCount++
+          const run = await api.batchTemplates.getRunStatus(templateId, runId)
+
+          const progress = run.items_completed || 0
+          const failed = run.items_failed || 0
+          const total = run.total_items
+          const percentComplete = Math.round((progress / total) * 100)
+
+          // Update or create progress toast
+          if (!progressToast) {
+            progressToast = toast({
+              title: 'Generating...',
+              description: `${progress}/${total} images complete (${percentComplete}%)${
+                failed > 0 ? ` - ${failed} failed` : ''
+              }`,
+              duration: Infinity,
+            })
+          } else {
+            toast({
+              title: 'Generating...',
+              description: `${progress}/${total} images complete (${percentComplete}%)${
+                failed > 0 ? ` - ${failed} failed` : ''
+              }`,
+              duration: Infinity,
+            })
+          }
+
+          // Check if complete
+          if (run.status === 'completed' || run.status === 'failed') {
+            if (run.status === 'completed') {
+              toast({
+                title: 'Batch Complete!',
+                description: `Album "${albumName}" created with ${progress} images${
+                  run.album_id ? `. View in Albums tab.` : ''
+                }`,
+              })
+            } else {
+              toast({
+                title: 'Batch Failed',
+                description: run.error_message || 'All generation jobs failed',
+                variant: 'destructive',
+              })
+            }
+            return // Stop polling
+          }
+
+          // Continue polling if not complete and haven't exceeded max
+          if (pollCount < maxPolls) {
+            setTimeout(poll, 5000) // Poll every 5 seconds
+          }
+        } catch (error) {
+          logger.error('Failed to poll run status:', error)
+          // Stop polling on error
+        }
+      }
+
+      // Start polling
+      void poll()
+    },
+    [toast]
+  )
+
   const handleGenerate = useCallback(async () => {
     if (!selectedTemplate || !albumName || !userTheme) {
       toast({
@@ -98,6 +168,9 @@ const BatchTemplatesPage: React.FC<BatchTemplatesPageProps> = ({ isAdmin }) => {
 
       setShowGenerateDialog(false)
       setSelectedTemplate(null)
+
+      // Start polling for progress
+      pollRunProgress(selectedTemplate.id, response.run.id, response.run.album_name)
     } catch (error) {
       logger.error('Failed to generate batch:', error)
       showErrorToast({
@@ -108,7 +181,7 @@ const BatchTemplatesPage: React.FC<BatchTemplatesPageProps> = ({ isAdmin }) => {
     } finally {
       setIsGenerating(false)
     }
-  }, [selectedTemplate, albumName, userTheme, steps, seed, guidanceScale, toast, showErrorToast])
+  }, [selectedTemplate, albumName, userTheme, steps, seed, guidanceScale, toast, showErrorToast, pollRunProgress])
 
   if (loading) {
     return (

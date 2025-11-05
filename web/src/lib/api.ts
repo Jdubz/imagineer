@@ -1141,6 +1141,31 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
       const data = await response.json()
       return { runs: data.runs || [], total: data.total || 0 }
     },
+
+    /**
+     * Get status of a specific generation run (for progress polling)
+     */
+    async getRunStatus(
+      templateId: number,
+      runId: number,
+      signal?: AbortSignal
+    ): Promise<import('../types/models').BatchGenerationRun> {
+      const response = await fetch(getApiUrl(`/batch-templates/${templateId}/runs/${runId}`), {
+        signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new ApiError(
+          getErrorMessageFromBody(body, `Failed to fetch run status: ${response.statusText}`),
+          response.status,
+          body
+        )
+      }
+
+      const data = (await response.json()) as { run: BatchGenerationRun }
+      return data.run
+    },
   },
 
   bugReports: {
