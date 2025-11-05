@@ -272,10 +272,15 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
                 ]
             )
 
-            # Add config if it exists
-            default_config = training_data_repo / "config" / "default_config.yaml"
-            if default_config.exists():
-                cmd.extend(["--config", str(default_config)])
+            # Use scraping-specific config that accepts all image sizes
+            scraping_config = training_data_repo / "config" / "scraping_config.yaml"
+            if scraping_config.exists():
+                cmd.extend(["--config", str(scraping_config)])
+            else:
+                # Fall back to default config if scraping config doesn't exist
+                default_config = training_data_repo / "config" / "default_config.yaml"
+                if default_config.exists():
+                    cmd.extend(["--config", str(default_config)])
 
             # Check for Anthropic API key
             if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -511,9 +516,11 @@ def scrape_site_implementation(scrape_job_id, celery_task=None):  # noqa: C901
 
 
 @celery.task(bind=True, name="server.tasks.scraping.scrape_site")
-def scrape_site_task(self, scrape_job_id):
+def scrape_site_task_old(self, scrape_job_id):
     """
-    Celery task wrapper for scrape_site_implementation.
+    DEPRECATED: Old Celery task wrapper for scrape_site_implementation.
+
+    Use scrape_site_async from scraping_new.py instead.
 
     Args:
         scrape_job_id: Database ID of scrape job
@@ -556,15 +563,24 @@ def import_scraped_images(scrape_job_id, output_dir):  # noqa: C901
     if not images_dir.exists():
         # Try alternative structure
         images_dir = output_dir
-        if not any(images_dir.glob("*.jpg")):
+        # Check for any common image formats
+        has_images = any(
+            images_dir.glob(ext) for ext in ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.bmp", "*.gif"]
+        )
+        if not has_images:
             logger.warning(f"No images found in {output_dir}")
             return {"imported": 0, "album_id": album.id}
 
     imported_count = 0
     skipped_count = 0
 
-    # Import all images
-    for image_file in images_dir.glob("*.jpg"):
+    # Import all images (support multiple formats)
+    image_extensions = ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.bmp", "*.gif"]
+    image_files = []
+    for ext in image_extensions:
+        image_files.extend(images_dir.glob(ext))
+
+    for image_file in sorted(image_files):
         try:
             # Check if image already exists (by filename)
             existing_image = Image.query.filter_by(filename=image_file.name).first()
@@ -823,3 +839,18 @@ def reset_stuck_scrape_jobs(timeout_hours: int | None = None):
         "jobs_checked": jobs_checked,
         "jobs_reset": reset_count,
     }
+
+
+# New scraping implementation using internal server.scraping package
+# This replaces the external training-data dependency
+from server.tasks.scraping_new import (  # noqa: F401, E402
+    _create_album_from_metadata,
+    _scrape_site_internal,
+    scrape_site_async,
+)
+
+# Alias for backward compatibility with existing routes
+scrape_site_task = scrape_site_async
+
+# The old scrape_site_implementation function above is DEPRECATED
+# Use scrape_site_async (Celery) or call _scrape_site_internal directly
