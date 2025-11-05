@@ -3,7 +3,9 @@ import { logger } from './logger'
 import { getApiUrl } from './apiConfig'
 import type {
   Album,
+  BatchGenerateResponse,
   BatchSummary,
+  BatchTemplate,
   Config,
   GeneratedImage,
   ImageMetadata,
