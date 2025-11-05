@@ -1,0 +1,94 @@
+# Development configuration for Imagineer
+# This config is used when running the development server
+# Production server uses config.yaml
+
+model:
+  default: runwayml/stable-diffusion-v1-5
+  alternatives:
+  - stabilityai/stable-diffusion-2-1
+  - stabilityai/stable-diffusion-xl-base-1.0
+  cache_dir: /mnt/speedy/imagineer/models
+
+outputs:
+  base_dir: /tmp/imagineer-dev/outputs  # Development outputs
+  scraped_dir: /tmp/imagineer-dev/scraped  # Development scrapes
+
+generation:
+  width: 512
+  height: 512
+  steps: 30
+  guidance_scale: 8.0
+  negative_prompt: blurry, low quality, low resolution, low detail, poorly drawn,
+    bad anatomy, bad proportions, bad composition, distorted, deformed, disfigured,
+    ugly, unattractive, gross, disgusting, mutation, mutated, extra limbs, extra legs,
+    extra arms, extra fingers, extra hands, missing limbs, missing legs, missing arms,
+    missing fingers, fused limbs, fused fingers, fused toes, cloned face, duplicate,
+    clone, cropped, cut off, out of frame, watermark, signature, text, font, words,
+    letters, username, error, jpeg artifacts, compression artifacts, aliasing, pixelated,
+    pixel art, mosaic, censored, blurred face, blurred eyes, unclear, hazy, grainy,
+    noisy, overexposed, underexposed, oversaturated, desaturated, washed out, flat
+    colors, bad lighting, dark, darkness, silhouette, shadow, low contrast, unfinished,
+    sketch, draft, amateur, unprofessional, childish, simple, basic, plain, boring,
+    cluttered, busy, chaotic, messy, disorganized, tilted, crooked, asymmetric, imbalanced,
+    disproportionate, elongated, stretched, squashed, compressed, warped, twisted,
+    bent, broken, shattered, cracked, torn, ripped, damaged, destroyed, ruined, rotting,
+    decaying, decomposed, moldy, dirty, filthy, stained, smudged, scratched, scribbled,
+    scrawled, messy lines, rough lines, jagged edges, harsh edges, unnatural pose,
+    stiff pose, awkward pose, impossible pose, floating limbs, disconnected limbs,
+    phantom limbs, merged bodies, conjoined, Siamese, multiple heads, multiple faces,
+    two heads, three arms, four legs, too many, not enough, incorrect anatomy, wrong
+    anatomy, misplaced features, unrealistic proportions, cartoon, anime, 3d render,
+    cgi, digital art, illustration, painting, drawing, animated, stylized, abstract,
+    surreal, fantasy, sci-fi, unless intended
+  batch_size: 1
+  num_images: 1
+
+output:
+  directory: /tmp/imagineer-dev/outputs
+  format: png
+  save_metadata: true
+
+sets:
+  directory: /mnt/speedy/imagineer/sets
+
+training:
+  learning_rate: 1e-5
+  max_train_steps: 1000
+  train_batch_size: 1
+  gradient_accumulation_steps: 4
+  checkpoint_dir: /tmp/imagineer-dev/checkpoints  # Development checkpoints
+  save_steps: 500
+  lora:
+    rank: 4
+    alpha: 32
+    dropout: 0.1
+
+dataset:
+  data_dir: /mnt/speedy/imagineer/data/training
+  resolution: 512
+  center_crop: true
+  random_flip: true
+
+hardware:
+  device: auto
+  mixed_precision: fp16
+  enable_attention_slicing: true
+  enable_vae_slicing: false
+  enable_xformers: false
+
+bug_reports:
+  storage_path: /tmp/imagineer-dev/bug_reports  # Development bug reports
+  retention_days: 7  # Shorter retention for dev
+  agent:
+    enabled: true
+    docker_image: imagineer/bug-cli:latest
+    target_branch: develop  # Dev uses develop branch
+    timeout_minutes: 60
+    log_dir: logs/bug_reports
+    git_author_name: Imagineer Bug Agent
+    git_author_email: agent@imagineer.local
+    env_passthrough:
+    - ANTHROPIC_API_KEY
+
+scraping:
+  training_data_repo: /home/jdubz/Development/training-data
