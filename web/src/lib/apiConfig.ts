@@ -49,8 +49,27 @@ export function getApiUrl(endpoint: string): string {
   // Remove trailing slash from base URL
   const baseUrl = API_BASE_URL.replace(/\/$/, '')
 
-  // Endpoint does not include /api/ prefix (added by base URL)
-  return `${baseUrl}${normalizedEndpoint}`
+  // Avoid duplicating the /api segment when callers provide it explicitly
+  let basePath = ''
+  try {
+    basePath = new URL(baseUrl, 'http://placeholder.local').pathname.replace(/\/$/, '')
+  } catch {
+    basePath = ''
+  }
+
+  const hasExplicitApiPrefix =
+    normalizedEndpoint === '/api' || normalizedEndpoint.startsWith('/api/')
+
+  const shouldTrimApiPrefix = hasExplicitApiPrefix && basePath.endsWith('/api')
+
+  const endpointPath =
+    shouldTrimApiPrefix && normalizedEndpoint !== '/api'
+      ? normalizedEndpoint.slice(4)
+      : shouldTrimApiPrefix && normalizedEndpoint === '/api'
+        ? ''
+        : normalizedEndpoint
+
+  return `${baseUrl}${endpointPath}`
 }
 
 /**
