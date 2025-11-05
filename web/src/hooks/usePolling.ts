@@ -1,139 +1,188 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState } from "react"
+import { logger } from "../lib/logger"
 
-interface UsePollingOptions {
-  /**
-   * Polling interval in milliseconds
-   */
-  interval: number;
+type ActivityLevel = "active" | "medium" | "idle"
 
-  /**
-   * Whether polling should be active
-   * @default true
-   */
-  enabled?: boolean;
-
-  /**
-   * Whether to pause polling when the page/tab is not visible
-   * Uses the Page Visibility API to detect visibility changes
-   * @default true
-   */
-  pauseWhenHidden?: boolean;
-
-  /**
-   * Whether to execute the callback immediately on mount
-   * @default false
-   */
-  runImmediately?: boolean;
+interface BasePollingOptions {
+  enabled?: boolean
+  pauseWhenHidden?: boolean
+  runImmediately?: boolean
 }
 
-/**
- * Custom hook for polling with proper cleanup and memory leak prevention
- *
- * Features:
- * - Automatic cleanup on unmount
- * - Pauses when tab is hidden (Page Visibility API)
- * - Stable interval reference (no memory leaks from dependency changes)
- * - Can be enabled/disabled dynamically
- *
- * @param callback - Function to call on each poll. Should be wrapped in useCallback.
- * @param options - Polling configuration options
- *
- * @example
- * ```tsx
- * const fetchData = useCallback(async () => {
- *   const data = await fetch('/api/data');
- *   setData(data);
- * }, []);
- *
- * usePolling(fetchData, { interval: 5000, pauseWhenHidden: true });
- * ```
- */
-export function usePolling(
-  callback: () => void | Promise<void>,
-  options: UsePollingOptions
-): void {
+interface StaticPollingOptions extends BasePollingOptions {
+  interval: number
+}
+
+interface AdaptivePollingOptions<T> extends BasePollingOptions {
+  idleInterval?: number
+  baseInterval?: number
+  mediumInterval?: number
+  activeInterval?: number
+  getActivityLevel: (data: T | null) => ActivityLevel
+}
+
+type UsePollingOptions<T> = StaticPollingOptions | AdaptivePollingOptions<T>
+
+function isAdaptiveOptions<T>(options: UsePollingOptions<T>): options is AdaptivePollingOptions<T> {
+  return typeof (options as AdaptivePollingOptions<T>).getActivityLevel === "function"
+}
+
+export function usePolling(callback: () => void | Promise<void>, options: StaticPollingOptions): void
+export function usePolling<T>(callback: () => Promise<T>, options: AdaptivePollingOptions<T>): T | null
+export function usePolling<T>(
+  callback: (() => void | Promise<void>) | (() => Promise<T>),
+  options: UsePollingOptions<T>,
+): T | null | void {
+  const isAdaptive = isAdaptiveOptions(options)
+
   const {
-    interval,
     enabled = true,
     pauseWhenHidden = true,
-    runImmediately = false,
-  } = options;
+    runImmediately: runImmediatelyOption,
+  } = options
 
-  // Store callback in ref to avoid recreating interval on every callback change
-  const savedCallback = useRef(callback);
-  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isVisibleRef = useRef(true);
+  const idleInterval = isAdaptive ? options.idleInterval ?? options.baseInterval ?? 30_000 : undefined
+  const mediumInterval = isAdaptive ? options.mediumInterval ?? 10_000 : undefined
+  const activeInterval = isAdaptive ? options.activeInterval ?? 2_000 : undefined
+  const staticInterval = !isAdaptive ? options.interval : undefined
 
-  // Update saved callback on each render
+  if (!isAdaptive && typeof staticInterval !== "number") {
+    if (process.env.NODE_ENV !== "production") {
+      logger.warn(
+        "usePolling: interval is required when adaptive options are not provided. Defaulting to 30000ms.",
+      )
+    }
+  }
+
+  const resolvedStaticInterval = staticInterval ?? 30_000
+  const effectiveRunImmediately = runImmediatelyOption ?? isAdaptive
+
+  const savedCallback = useRef(callback)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isVisibleRef = useRef(true)
+  const enabledRef = useRef(enabled)
+  const dataRef = useRef<T | null>(null)
+
+  const [data, setData] = useState<T | null>(null)
+
   useEffect(() => {
-    savedCallback.current = callback;
-  }, [callback]);
+    savedCallback.current = callback
+  }, [callback])
 
-  // Start polling function
-  const startPolling = useCallback((): void => {
-    // Clear any existing interval
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
+  useEffect(() => {
+    enabledRef.current = enabled
+  }, [enabled])
+
+  const clearTimer = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
+  }, [])
 
-    // Only start if enabled and (not checking visibility OR page is visible)
-    if (!enabled || (pauseWhenHidden && !isVisibleRef.current)) {
-      return;
-    }
+  const scheduleNext = useCallback(
+    (delay: number) => {
+      clearTimer()
 
-    // Set up the interval
-    intervalRef.current = setInterval(() => {
-      // Double-check visibility before executing
-      if (!pauseWhenHidden || isVisibleRef.current) {
-        void savedCallback.current();
+      if (!enabledRef.current || (pauseWhenHidden && !isVisibleRef.current)) {
+        return
       }
-    }, interval);
-  }, [enabled, interval, pauseWhenHidden]);
 
-  // Handle visibility changes
+      timeoutRef.current = setTimeout(() => {
+        void runPollRef.current?.()
+      }, delay)
+    },
+    [clearTimer, pauseWhenHidden],
+  )
+
+  const runPollRef = useRef<() => Promise<void>>()
+
+  const runPoll = useCallback(async () => {
+    if (!enabledRef.current) {
+      return
+    }
+
+    try {
+      const result = await savedCallback.current()
+      let nextInterval: number
+
+      if (isAdaptive) {
+        const typedResult = ((result ?? null) as T | null)
+        dataRef.current = typedResult
+        setData(typedResult)
+
+        const activityLevel = options.getActivityLevel(typedResult)
+        nextInterval =
+          activityLevel === "active"
+            ? activeInterval ?? 2_000
+            : activityLevel === "medium"
+              ? mediumInterval ?? 10_000
+              : idleInterval ?? 30_000
+      } else {
+        nextInterval = resolvedStaticInterval
+      }
+
+      scheduleNext(nextInterval)
+    } catch (error) {
+      if (isAdaptive) {
+        logger.error("Adaptive polling error:", error as Error)
+      }
+
+      const fallbackInterval = isAdaptive ? idleInterval ?? 30_000 : resolvedStaticInterval
+      scheduleNext(fallbackInterval)
+    }
+  }, [isAdaptive, options, activeInterval, mediumInterval, idleInterval, resolvedStaticInterval, scheduleNext])
+
   useEffect(() => {
-    if (!pauseWhenHidden) return;
+    runPollRef.current = runPoll
+  }, [runPoll])
+
+  useEffect(() => {
+    if (!pauseWhenHidden) {
+      return undefined
+    }
 
     const handleVisibilityChange = (): void => {
-      const isVisible = document.visibilityState === 'visible';
-      isVisibleRef.current = isVisible;
+      const isVisible = document.visibilityState === "visible"
+      isVisibleRef.current = isVisible
 
-      // If page becomes visible, restart polling immediately
-      if (isVisible && enabled && intervalRef.current === null) {
-        startPolling();
+      if (isVisible && enabledRef.current) {
+        if (effectiveRunImmediately || isAdaptive) {
+          void runPollRef.current?.()
+        } else {
+          scheduleNext(resolvedStaticInterval)
+        }
+      } else if (!isVisible) {
+        clearTimer()
       }
-      // If page becomes hidden, clear the interval
-      else if (!isVisible && intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [pauseWhenHidden, enabled, interval, startPolling]);
-
-  // Main polling effect
-  useEffect(() => {
-    // Run immediately if requested
-    if (runImmediately && enabled) {
-      void savedCallback.current();
     }
 
-    // Start polling
-    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
-    // Cleanup function - critical for preventing memory leaks
     return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [enabled, interval, runImmediately, startPolling]);
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [pauseWhenHidden, effectiveRunImmediately, isAdaptive, resolvedStaticInterval, scheduleNext, clearTimer])
+
+  useEffect(() => {
+    if (!enabled) {
+      clearTimer()
+      return undefined
+    }
+
+    if (effectiveRunImmediately) {
+      void runPollRef.current?.()
+    } else {
+      const initialDelay = isAdaptive ? idleInterval ?? 30_000 : resolvedStaticInterval
+      scheduleNext(initialDelay)
+    }
+
+    return () => {
+      clearTimer()
+    }
+  }, [enabled, effectiveRunImmediately, isAdaptive, idleInterval, resolvedStaticInterval, scheduleNext, clearTimer])
+
+  return isAdaptive ? data : undefined
 }
 
 /**
@@ -144,22 +193,22 @@ export function usePolling(
  */
 export function usePageVisibility(): boolean {
   const [isVisible, setIsVisible] = useState(
-    typeof document !== 'undefined'
-      ? document.visibilityState === 'visible'
-      : true
-  );
+    typeof document !== "undefined"
+      ? document.visibilityState === "visible"
+      : true,
+  )
 
   useEffect(() => {
     const handleVisibilityChange = (): void => {
-      setIsVisible(document.visibilityState === 'visible');
-    };
+      setIsVisible(document.visibilityState === "visible")
+    }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [])
 
-  return isVisible;
+  return isVisible
 }
