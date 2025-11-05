@@ -318,12 +318,37 @@ def delete_image(image_id: int):
     """Delete image (admin only)."""
     image = _get_image_or_404(image_id)
 
+    # Delete the original image file
     filepath = Path(image.file_path)
     if filepath.exists():
         filepath.unlink()
         metadata_path = filepath.with_suffix(".json")
         if metadata_path.exists():
             metadata_path.unlink()
+
+    # Delete the thumbnail if it exists
+    from server.api import load_config  # Local import to avoid circular dependency
+
+    outputs_base = os.environ.get("IMAGINEER_OUTPUTS_DIR")
+    if not outputs_base:
+        config = load_config()
+        outputs_base = (
+            config.get("outputs", {}).get("base_dir")
+            or config.get("output", {}).get("directory")
+            or "/tmp/imagineer/outputs"
+        )
+
+    outputs_dir = Path(outputs_base).resolve()
+    thumbnail_path = outputs_dir / "thumbnails" / f"{image_id}.webp"
+    if thumbnail_path.exists():
+        try:
+            thumbnail_path.unlink()
+            logger.debug(f"Deleted thumbnail for image {image_id}")
+        except Exception as exc:
+            logger.warning(
+                f"Failed to delete thumbnail for image {image_id}: {exc}",
+                extra={"operation": "delete_image", "image_id": image_id},
+            )
 
     db.session.delete(image)
     db.session.commit()

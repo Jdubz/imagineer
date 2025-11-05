@@ -23,7 +23,17 @@ pyyaml>=6.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# AI Labeling
+# Web Scraping
+playwright>=1.40.0
+httpx>=0.25.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.3
+imagehash>=4.3.1
+aiofiles>=23.2.1
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# AI Labeling & Captioning
 # Uses Claude CLI via Docker (no direct API dependency)
 
 # Task Queue

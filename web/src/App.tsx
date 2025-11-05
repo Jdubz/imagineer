@@ -1,6 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import './styles/App.css'
 import SkipNav from './components/SkipNav'
 import Tabs from './components/Tabs'
 import ErrorBoundaryWithReporting from './components/ErrorBoundaryWithReporting'
@@ -120,16 +119,16 @@ const AppContent: React.FC = () => {
   ])
 
   return (
-    <div className="App">
+    <div className="min-h-screen bg-background text-foreground">
       <SkipNav />
       <Toaster />
-      <header className="header">
-        <div className="header-content">
-          <div className="header-title">
-            <h1>✨ Imagineer</h1>
-            <p>AI Image Generation Toolkit</p>
+      <header className="border-b bg-gradient-to-r from-primary via-primary/90 to-secondary text-primary-foreground shadow-sm">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between md:py-12">
+          <div className="space-y-1 text-center md:text-left">
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">✨ Imagineer</h1>
+            <p className="text-base text-primary-foreground/90">AI Image Generation Toolkit</p>
           </div>
-          <div className="header-actions">
+          <div className="flex justify-center md:justify-end">
             {user ? (
               <SettingsMenu
                 user={user}
@@ -144,12 +143,12 @@ const AppContent: React.FC = () => {
         </div>
       </header>
 
-      <div className="container">
-        <nav id="tabs-navigation" aria-label="Main navigation">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6">
+        <nav id="tabs-navigation" aria-label="Main navigation" className="mb-6">
           <Tabs tabs={tabs} activeTab={activeTab} />
         </nav>
 
-        <main id="main-content" className="main-content">
+        <main id="main-content" className="space-y-8">
           <Suspense fallback={<Spinner size="large" message="Loading..." />}>
             <Routes>
               <Route path="/" element={<Navigate to="/generate" replace />} />

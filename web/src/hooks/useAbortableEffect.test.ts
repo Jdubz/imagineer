@@ -105,7 +105,7 @@ describe('useAbortableEffect', () => {
     unmount()
 
     // The fetch should have been called with an aborted signal
-    expect(fetchMock).toHaveBeenCalledWith('/api/test', {
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/test'), {
       signal: expect.any(AbortSignal),
     })
 

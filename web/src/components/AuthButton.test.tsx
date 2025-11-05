@@ -65,7 +65,7 @@ describe('AuthButton', () => {
     })
     expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument()
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/auth/me',
+      expect.stringContaining('/api/auth/me'),
       expect.objectContaining({
         credentials: 'include',
         headers: { Accept: 'application/json' },
@@ -98,7 +98,7 @@ describe('AuthButton', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      '/api/auth/me',
+      expect.stringContaining('/api/auth/me'),
       expect.objectContaining({
         credentials: 'include',
         headers: { Accept: 'application/json' },
@@ -106,7 +106,7 @@ describe('AuthButton', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      '/api/auth/logout',
+      expect.stringContaining('/api/auth/logout'),
       expect.objectContaining({
         credentials: 'include',
         headers: { Accept: 'application/json' },

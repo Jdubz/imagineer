@@ -85,7 +85,7 @@ const LabelingPanel: React.FC<LabelingPanelProps> = ({
   const startPolling = (id: string): void => {
     pollRef.current = window.setInterval(async () => {
       try {
-        const response = await fetch(getApiUrl(`/api/labeling/tasks/${id}`), {
+        const response = await fetch(getApiUrl(`/labeling/tasks/${id}`), {
           credentials: 'include'
         })
 

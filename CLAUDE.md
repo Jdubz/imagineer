@@ -74,18 +74,46 @@ Internet
 
 **See:** `docs/deployment/FIREBASE_CLOUDFLARE_DEPLOYMENT.md` for full deployment guide
 
-## Common Commands
+## Development Workflow
 
-### Development Mode
+**CRITICAL**: This project has TWO SEPARATE server instances:
+- **Production Server** (Port 10050): systemd service, `main` branch ONLY
+- **Development Server** (Port 5000): Local process, `develop` branch
+
+**⚠️ NEVER restart, stop, or modify the production server during development!**
+
+**See `docs/DEVELOPMENT_WORKFLOW.md` for complete development guidelines.**
+
+### Starting Development
 
 ```bash
-# Terminal 1: API Server (Port 10050)
-source venv/bin/activate
-python server/api.py
+# Start development server (Port 5000)
+./run-dev.sh
 
-# Terminal 2: Web UI Dev Server (Port 3000)
+# In another terminal: Web UI Dev Server (Port 3000)
 cd web && npm run dev
 ```
+
+### Development Server Details
+
+- **Port**: 5000 (NOT 10050!)
+- **Config**: `config.development.yaml`
+- **Database**: `instance/imagineer-dev.db`
+- **Outputs**: `/tmp/imagineer-dev/outputs`
+- **Scraped**: `/tmp/imagineer-dev/scraped`
+- **Stop**: Press `Ctrl+C` (do NOT use systemctl)
+
+### Production Server (READ ONLY)
+
+```bash
+# Check production status ONLY
+curl http://localhost:10050/api/health
+
+# View production logs (READ ONLY)
+sudo journalctl -u imagineer-api -f
+```
+
+**Production Deployment**: Merge PR to `main` → CI/CD deploys → systemd reloads
 
 ### Production Services
 

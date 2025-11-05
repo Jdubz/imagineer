@@ -8,9 +8,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Shuffle } from 'lucide-react'
+import { FormField } from '@/components/form'
+import { cn } from '@/lib/utils'
+import { Shuffle, Info } from 'lucide-react'
 
 interface GenerateFormProps {
   onGenerate: (params: GenerateParams) => void
@@ -106,189 +107,207 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
   }, [])
 
   return (
-    <div className="generate-form">
+    <div className="space-y-6">
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-1">
           <CardTitle>Generate Single Image</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <Label htmlFor="prompt">Prompt</Label>
-          <Textarea
-            id="prompt"
-            value={prompt}
-            onChange={handlePromptChange}
-            placeholder="Describe the image you want to generate..."
-            rows={4}
-            disabled={loading}
-            required
-            className={validationErrors.prompt ? 'error' : ''}
-          />
-          {validationErrors.prompt && (
-            <span className="error-message">{validationErrors.prompt}</span>
-          )}
-        </div>
-
-        <div className="controls-grid">
-          <div className="form-group">
-            <Label htmlFor="steps">
-              Steps: {steps}
-              <span className="tooltip">?
-                <span className="tooltip-text">
-                  Number of denoising iterations. More steps = more refined image but slower.
-                  <br/>• 20-25: Fast, decent quality
-                  <br/>• 30-40: Balanced (recommended)
-                  <br/>• 50+: Diminishing returns
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Prompt
+                  <span className="text-xs font-normal text-muted-foreground">required</span>
                 </span>
-              </span>
-            </Label>
-            <input
-              type="range"
-              id="steps"
-              min="10"
-              max="75"
-              step="5"
-              value={steps}
-              onChange={handleStepsChange}
-              disabled={loading}
-            />
-            <div className="range-labels">
-              <span>10</span>
-              <span>Fast</span>
-              <span>Quality</span>
-              <span>75</span>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <Label htmlFor="guidance">
-              Guidance Scale: {guidanceScale}
-              <span className="tooltip">?
-                <span className="tooltip-text">
-                  How closely the model follows your prompt.
-                  <br/>• 1-5: Creative, loose interpretation
-                  <br/>• 7-10: Balanced
-                  <br/>• 10-15: Strong adherence
-                  <br/>• 15-20: Very strict (may reduce quality)
-                </span>
-              </span>
-            </Label>
-            <input
-              type="range"
-              id="guidance"
-              min="1"
-              max="20"
-              step="0.5"
-              value={guidanceScale}
-              onChange={handleGuidanceChange}
-              disabled={loading}
-            />
-            <div className="range-labels">
-              <span>1</span>
-              <span>Creative</span>
-              <span>Strict</span>
-              <span>20</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="form-group seed-group">
-          <Label htmlFor="seed">
-            Seed (Optional)
-            <span className="tooltip">?
-              <span className="tooltip-text">
-                Random seed for reproducibility. Same seed + prompt = same image.
-                <br/>• Leave as "Random" for different results each time
-                <br/>• Set a specific number to reproduce an image
-                <br/>• Range: 0 to 2,147,483,647
-              </span>
-            </span>
-          </Label>
-          <div className="seed-controls">
-            <div className="seed-toggle">
-              <label className="toggle-option">
-                <input
-                  type="radio"
-                  name="seed-mode"
-                  checked={useRandomSeed}
-                  onChange={handleSeedModeRandom}
-                  disabled={loading}
-                />
-                <span>Random</span>
-              </label>
-              <label className="toggle-option">
-                <input
-                  type="radio"
-                  name="seed-mode"
-                  checked={!useRandomSeed}
-                  onChange={handleSeedModeFixed}
-                  disabled={loading}
-                />
-                <span>Fixed</span>
-              </label>
-            </div>
-            <Input
-              type="number"
-              id="seed"
-              value={seed}
-              onChange={handleSeedChange}
-              placeholder="Enter seed or generate random"
-              min="0"
-              max="2147483647"
-              disabled={loading || useRandomSeed}
-              className="seed-input"
-            />
-            <Button
-              type="button"
-              onClick={generateRandomSeed}
-              disabled={loading}
-              size="icon"
-              variant="secondary"
-              title="Generate random seed"
-              aria-label="Generate random seed"
+              )}
+              htmlFor="prompt"
+              description="Describe the image you want Imagineer to create."
+              error={validationErrors.prompt}
             >
-              <Shuffle className="h-4 w-4" />
+              <Textarea
+                id="prompt"
+                value={prompt}
+                onChange={handlePromptChange}
+                placeholder="Describe the image you want to generate..."
+                rows={4}
+                disabled={loading}
+                required
+                className="min-h-[120px]"
+              />
+            </FormField>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Steps
+                  <span className="text-xs font-normal text-muted-foreground">{steps}</span>
+                  <span
+                    className="text-muted-foreground"
+                    title="Higher steps refine the result but take longer to render."
+                    aria-hidden="true"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </span>
+              )}
+              description="20–40 steps balance speed and quality for most prompts."
+              htmlFor="steps"
+              >
+                <input
+                  type="range"
+                  id="steps"
+                  min="10"
+                  max="75"
+                  step="5"
+                  value={steps}
+                  onChange={handleStepsChange}
+                  disabled={loading}
+                  className="range-input"
+                />
+                <div className="mt-2 flex justify-between text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                  <span>10</span>
+                  <span>Fast</span>
+                  <span>Quality</span>
+                  <span>75</span>
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">Steps: {steps}</p>
+              </FormField>
+
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Guidance Scale
+                  <span className="text-xs font-normal text-muted-foreground">{guidanceScale}</span>
+                  <span
+                    className="text-muted-foreground"
+                    title="Higher guidance keeps the output closer to your prompt."
+                    aria-hidden="true"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </span>
+              )}
+              description="Lower values encourage exploration; higher values follow the prompt strictly."
+              htmlFor="guidance"
+            >
+                <input
+                  type="range"
+                  id="guidance"
+                  min="1"
+                  max="20"
+                  step="0.5"
+                  value={guidanceScale}
+                  onChange={handleGuidanceChange}
+                  disabled={loading}
+                  className="range-input"
+                />
+                <div className="mt-2 flex justify-between text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                  <span>1</span>
+                  <span>Creative</span>
+                  <span>Strict</span>
+                  <span>20</span>
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Guidance Scale: {guidanceScale}
+                </p>
+              </FormField>
+          </div>
+
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Seed
+                  <span className="text-xs font-normal text-muted-foreground">optional</span>
+                </span>
+              )}
+              description="Use a fixed seed to reproduce results or stay random for fresh variations."
+              htmlFor="seed"
+            >
+              <div className="space-y-3">
+                <div className="inline-flex items-center rounded-full border border-border bg-muted/40 p-1 text-xs font-medium shadow-sm">
+                  <button
+                    type="button"
+                    onClick={handleSeedModeRandom}
+                    disabled={loading}
+                    className={cn(
+                      'rounded-full px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                      useRandomSeed
+                        ? 'bg-background text-foreground shadow'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Random
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSeedModeFixed}
+                    disabled={loading}
+                    className={cn(
+                      'rounded-full px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                      !useRandomSeed
+                        ? 'bg-background text-foreground shadow'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Fixed
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    type="number"
+                    id="seed"
+                    value={seed}
+                    onChange={handleSeedChange}
+                    placeholder="Enter a specific seed"
+                    min="0"
+                    max="2147483647"
+                    disabled={loading || useRandomSeed}
+                    className="sm:max-w-[200px]"
+                  />
+                  <Button
+                    type="button"
+                    onClick={generateRandomSeed}
+                    disabled={loading}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <Shuffle className="mr-2 h-4 w-4" />
+                    Randomize
+                  </Button>
+                </div>
+              </div>
+            </FormField>
+
+            <Button
+              type="submit"
+              disabled={loading || !prompt.trim()}
+              size="lg"
+              className="w-full"
+            >
+              {loading ? 'Generating…' : 'Generate Image'}
             </Button>
-          </div>
-        </div>
 
-        <Button
-          type="submit"
-          disabled={loading || !prompt.trim()}
-          size="lg"
-          className="w-full"
-        >
-          {loading ? 'Generating...' : 'Generate Image'}
-        </Button>
-
-        {loading && (
-          <div className="loading-indicator">
-            <div className="spinner"></div>
-            <p>Generating your image... This may take 10-30 seconds</p>
-          </div>
-        )}
+            {loading ? (
+              <p className="text-center text-sm text-muted-foreground">
+                Generating your image… This may take up to 30 seconds.
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>
 
-      <div className="form-divider"></div>
-
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-1">
           <CardTitle>🎨 Batch Generation from Templates</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p>
-            Generate complete sets of themed images using pre-configured templates.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Visit the <strong>Templates</strong> tab to browse available templates and start batch generation.
-          </p>
-          <Button asChild variant="outline" className="w-full">
-            <a href="/batch-templates">
-              Go to Templates →
-            </a>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>Generate complete sets of themed images using pre-configured templates.</p>
+          <p>Visit the <strong>Templates</strong> tab to browse available options and start batch jobs.</p>
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <a href="/batch-templates">Go to Templates →</a>
           </Button>
         </CardContent>
       </Card>

@@ -4,6 +4,8 @@ import '../styles/AlbumsTab.css'
 import LabelingPanel from './LabelingPanel'
 import ImageCard from './common/ImageCard'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
@@ -13,6 +15,22 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { FormField } from '@/components/form'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
 import { getApiUrl } from '../lib/apiConfig'
@@ -518,7 +536,7 @@ const AlbumThumbnailCarousel: React.FC<AlbumThumbnailCarouselProps> = memo(({ pr
   }
 
   const currentImage = previewImages[currentIndex]
-  const thumbnailUrl = getApiUrl(`/api/images/${currentImage.id}/thumbnail`)
+  const thumbnailUrl = getApiUrl(`/images/${currentImage.id}/thumbnail`)
 
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -750,8 +768,8 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const generatedImage: GeneratedImage = {
             id: imageId,
             filename: image.filename,
-            thumbnail_url: getApiUrl(`/api/images/${imageId}/thumbnail`),
-            download_url: getApiUrl(`/api/images/${imageId}/file`),
+            thumbnail_url: getApiUrl(`/images/${imageId}/thumbnail`),
+            download_url: getApiUrl(`/images/${imageId}/file`),
             is_nsfw: image.is_nsfw,
           }
 
@@ -894,163 +912,6 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
 
 AlbumDetailView.displayName = 'AlbumDetailView'
 
-// BatchGenerateDialog component moved to separate templates page
-// TODO: Create a dedicated Batch Templates page for template selection and generation
-/*
-interface BatchGenerateDialogProps {
-  album: Album
-  onClose: () => void
-  onSuccess: (result: GenerateBatchSuccess) => void
-}
-
-const BatchGenerateDialog: React.FC<BatchGenerateDialogProps> = memo(({ album, onClose, onSuccess }) => {
-  const { showErrorToast } = useErrorToast()
-  const [userTheme, setUserTheme] = useState<string>('')
-  const [steps, setSteps] = useState<string>('')
-  const [seed, setSeed] = useState<string>('')
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
-
-  const handleUserThemeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setUserTheme(e.target.value)
-  }, [])
-
-  const handleStepsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSteps(e.target.value)
-  }, [])
-
-  const handleSeedChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSeed(e.target.value)
-  }, [])
-
-  const handleOverlayClick = useCallback(() => {
-    onClose()
-  }, [onClose])
-
-  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-  }, [])
-
-  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault()
-    if (!userTheme.trim()) {
-      showErrorToast({
-        title: 'Validation Error',
-        context: 'User theme is required',
-        error: new Error('User theme is required'),
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      const params: GenerateBatchParams = {
-        user_theme: userTheme.trim(),
-      }
-
-      if (steps) {
-        const stepsNum = parseInt(steps, 10)
-        if (!isNaN(stepsNum)) params.steps = stepsNum
-      }
-
-      if (seed) {
-        const seedNum = parseInt(seed, 10)
-        if (!isNaN(seedNum)) params.seed = seedNum
-      }
-
-      const result = await api.albums.generateBatch(album.id, params)
-
-      if (result.success) {
-        onSuccess(result)
-      } else {
-        showErrorToast({
-          title: 'Batch Generation Failed',
-          context: 'Failed to start batch generation',
-          error: new Error(result.error || 'Unknown error'),
-        })
-      }
-    } catch (error) {
-      logger.error('Failed to generate batch:', error)
-      showErrorToast({
-        title: 'Batch Generation Error',
-        context: 'Error starting batch generation',
-        error,
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [userTheme, steps, seed, album.id, showErrorToast, onSuccess])
-
-  return (
-    <div className="dialog-overlay" onClick={handleOverlayClick}>
-      <div className="dialog" onClick={handleDialogClick}>
-        <h2>Generate Batch: {album.name}</h2>
-        <p className="dialog-description">
-          Generate {album.template_item_count || 0} images using this set template
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="user-theme">Art Style Theme (required):</label>
-            <input
-              id="user-theme"
-              type="text"
-              value={userTheme}
-              onChange={handleUserThemeChange}
-              placeholder={album.example_theme || "e.g., gothic style with ravens"}
-              required
-              disabled={isSubmitting}
-            />
-            {album.example_theme && (
-              <small className="form-hint">Example: {album.example_theme}</small>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="steps">Steps (optional):</label>
-            <input
-              id="steps"
-              type="number"
-              value={steps}
-              onChange={handleStepsChange}
-              placeholder="Leave empty to use album defaults"
-              min="1"
-              max="150"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="seed">Seed (optional):</label>
-            <input
-              id="seed"
-              type="number"
-              value={seed}
-              onChange={handleSeedChange}
-              placeholder="Random seed for reproducibility"
-              min="0"
-              max="2147483647"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div className="dialog-actions">
-            <button type="submit" disabled={isSubmitting || !userTheme.trim()}>
-              {isSubmitting ? 'Starting...' : 'Start Generation'}
-            </button>
-            <button type="button" onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-})
-
-BatchGenerateDialog.displayName = 'BatchGenerateDialog'
-*/
-
 interface CreateAlbumDialogProps {
   onClose: () => void
   onCreate: (name: string, description: string, albumType: string) => void
@@ -1061,78 +922,68 @@ const CreateAlbumDialog: React.FC<CreateAlbumDialogProps> = memo(({ onClose, onC
   const [description, setDescription] = useState<string>('')
   const [albumType, setAlbumType] = useState<string>('manual')
 
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setName(e.target.value)
-  }, [])
-
-  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDescription(e.target.value)
-  }, [])
-
-  const handleAlbumTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    setAlbumType(e.target.value)
-  }, [])
-
-  const handleOverlayClick = useCallback(() => {
-    onClose()
-  }, [onClose])
-
-  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-  }, [])
-
-  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault()
+  const handleSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     if (!name.trim()) return
 
     onCreate(name.trim(), description.trim(), albumType)
   }, [name, description, albumType, onCreate])
 
   return (
-    <div className="dialog-overlay" onClick={handleOverlayClick}>
-      <div className="dialog" onClick={handleDialogClick}>
-        <h2>Create Album</h2>
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent className="max-w-md space-y-4">
+        <DialogHeader>
+          <DialogTitle>Create Album</DialogTitle>
+          <DialogDescription>Organize related images into a dedicated workspace.</DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="album-name">Album Name:</label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Album Name" htmlFor="album-name">
+            <Input
               id="album-name"
-              type="text"
               value={name}
-              onChange={handleNameChange}
+              onChange={(event) => setName(event.target.value)}
               placeholder="Enter album name"
               required
             />
-          </div>
+          </FormField>
 
-          <div className="form-group">
-            <label htmlFor="album-description">Description:</label>
-            <textarea
+          <FormField
+            label="Description"
+            htmlFor="album-description"
+            description="Optional context to help collaborators understand this album."
+          >
+            <Textarea
               id="album-description"
               value={description}
-              onChange={handleDescriptionChange}
+              onChange={(event) => setDescription(event.target.value)}
               placeholder="Enter album description (optional)"
               rows={3}
             />
-          </div>
+          </FormField>
 
-          <div className="form-group">
-            <label htmlFor="album-type">Album Type:</label>
-            <select id="album-type" value={albumType} onChange={handleAlbumTypeChange}>
-              <option value="manual">Manual Collection</option>
-              <option value="batch">Generated Batch</option>
-              <option value="set">CSV Set</option>
-            </select>
-          </div>
+          <FormField label="Album Type">
+            <Select value={albumType} onValueChange={setAlbumType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select album type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">Manual Collection</SelectItem>
+                <SelectItem value="batch">Generated Batch</SelectItem>
+                <SelectItem value="set">CSV Set</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
 
-          <div className="dialog-actions">
-            <button type="submit">Create Album</button>
-            <button type="button" onClick={onClose}>Cancel</button>
-          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={!name.trim()}>Create Album</Button>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 })
 

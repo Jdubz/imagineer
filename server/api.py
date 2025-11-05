@@ -162,6 +162,67 @@ from server.middleware.trace_id import trace_id_middleware  # noqa: E402
 
 trace_id_middleware(app)
 
+
+# Environment validation
+def validate_environment():
+    """Validate environment configuration matches expectations."""
+    flask_env = os.environ.get("FLASK_ENV", "development")
+    port = int(os.environ.get("PORT", 5000))
+
+    if flask_env == "production":
+        # Production validation
+        if port != 10050:
+            logger.error(
+                f"❌ Production must run on port 10050, not {port}. "
+                f"Check .env.production or systemd service configuration."
+            )
+            sys.exit(1)
+
+        # Check we're on main branch
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=2,
+            )
+            if result.returncode == 0:
+                current_branch = result.stdout.strip()
+                if current_branch != "main":
+                    logger.warning(
+                        f"⚠️  Production running on branch '{current_branch}' "
+                        f"instead of 'main'. This may indicate a deployment issue."
+                    )
+        except Exception as e:
+            logger.warning(f"Could not determine git branch: {e}")
+
+        # Check config file
+        config_path = os.environ.get("IMAGINEER_CONFIG_PATH", "config.yaml")
+        if config_path != "config.yaml":
+            logger.error(
+                f"❌ Production must use config.yaml, not {config_path}. "
+                f"Check IMAGINEER_CONFIG_PATH environment variable."
+            )
+            sys.exit(1)
+
+        logger.info("✅ Production environment validation passed")
+
+    else:
+        # Development validation
+        if port == 10050:
+            logger.error(
+                "❌ Development cannot use port 10050 (reserved for production). "
+                "Use PORT=5000 or another port for development."
+            )
+            sys.exit(1)
+
+        logger.info(f"✅ Development environment validation passed (port {port})")
+
+
+# Validate environment on startup
+validate_environment()
+
 # Initialize Celery
 from server.celery_app import make_celery  # noqa: E402
 
@@ -590,6 +651,22 @@ def update_generation_config():
 def health():
     """Health check endpoint."""
     snapshot = get_generation_health()
+
+    # Get current git branch
+    current_branch = "unknown"
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            current_branch = result.stdout.strip()
+    except Exception:
+        pass
+
     return jsonify(
         {
             "status": "ok",
@@ -597,6 +674,8 @@ def health():
             "version": APP_VERSION,
             "git_commit": GIT_COMMIT,
             "started_at": SERVER_START_TIME,
+            "environment": os.environ.get("FLASK_ENV", "development"),
+            "branch": current_branch,
         }
     )
 
@@ -704,3 +783,12 @@ def get_database_stats():
 
 
 CONFIG_PATH = _CONFIG_PATH
+
+# Development server entry point
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    host = os.environ.get("HOST", "127.0.0.1")
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    logger.info(f"Starting development server on {host}:{port} (debug={debug})")
+    app.run(host=host, port=port, debug=debug)

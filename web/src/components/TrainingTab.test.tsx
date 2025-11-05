@@ -1,7 +1,57 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import * as React from 'react'
 import userEvent from '@testing-library/user-event'
 import TrainingTab from './TrainingTab'
+
+vi.mock('../hooks/usePolling', () => ({
+  usePolling: (
+    callback: () => void | Promise<void>,
+    options: { enabled?: boolean; runImmediately?: boolean } = {},
+  ) => {
+    if (options.enabled === false) {
+      return
+    }
+    if (options.runImmediately) {
+      void Promise.resolve(callback()).catch(() => {})
+    }
+  },
+}))
+
+vi.mock('@/components/ui/dialog', () => {
+
+  const Dialog = ({
+    open = false,
+    children,
+  }: {
+    open?: boolean
+    children?: React.ReactNode
+  }) => (open ? <div data-testid="dialog-root">{children}</div> : null)
+
+  const passthrough =
+    (role?: string) =>
+    ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      React.createElement(
+        'div',
+        { ...(role ? { role } : {}), ...props },
+        children,
+      )
+
+  return {
+    Dialog,
+    DialogContent: passthrough('dialog'),
+    DialogHeader: passthrough(),
+    DialogFooter: passthrough(),
+    DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) =>
+      React.createElement('h2', props, children),
+    DialogDescription: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) =>
+      React.createElement('p', props, children),
+    DialogTrigger: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogClose: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogPortal: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogOverlay: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  }
+})
 
 const flush = async (): Promise<void> => {
   await act(async () => {
@@ -23,8 +73,15 @@ describe('TrainingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  it('hides admin controls for non-admin users', () => {
-    render(<TrainingTab isAdmin={false} />)
+  const renderTrainingTab = async (isAdmin: boolean): Promise<void> => {
+    await act(async () => {
+      render(<TrainingTab isAdmin={isAdmin} />)
+      await Promise.resolve()
+    })
+  }
+
+  it('hides admin controls for non-admin users', async () => {
+    await renderTrainingTab(false)
     expect(screen.getByText(/sign in with an admin account/i)).toBeInTheDocument()
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -82,7 +139,7 @@ describe('TrainingTab', () => {
         json: () => Promise.resolve(albumsResponse),
       })
 
-    render(<TrainingTab isAdmin />)
+    await renderTrainingTab(true)
     await flush()
 
     await waitFor(() => {
@@ -157,7 +214,7 @@ describe('TrainingTab', () => {
       })
 
     const user = userEvent.setup()
-    render(<TrainingTab isAdmin />)
+    await renderTrainingTab(true)
     await flush()
 
     await waitFor(() => {
@@ -171,7 +228,7 @@ describe('TrainingTab', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/training/2/logs?tail=500',
+        expect.stringContaining('/api/training/2/logs?tail=500'),
         expect.objectContaining({
           credentials: 'include',
         }),

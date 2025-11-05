@@ -45,9 +45,10 @@ describe('AlbumsTab admin listing', () => {
 
   it('shows admin actions for albums', async () => {
     mockFetch.mockImplementation((input: RequestInfo) => {
-      const url = typeof input === 'string' ? input : input.url
+      const requestUrl = typeof input === 'string' ? input : input.url
+      const matchesAlbumsEndpoint = /\/api\/albums(\?|$)/.test(requestUrl)
 
-      if (url === '/api/albums?is_set_template=false' || url === '/api/albums') {
+      if (matchesAlbumsEndpoint) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(mockAlbumListResponse),

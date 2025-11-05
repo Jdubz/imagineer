@@ -1,12 +1,18 @@
+# Development configuration for Imagineer
+# This config is used when running the development server
+# Production server uses config.yaml
+
 model:
   default: runwayml/stable-diffusion-v1-5
   alternatives:
   - stabilityai/stable-diffusion-2-1
   - stabilityai/stable-diffusion-xl-base-1.0
   cache_dir: /mnt/speedy/imagineer/models
+
 outputs:
-  base_dir: /mnt/speedy/imagineer/outputs
-  scraped_dir: /mnt/storage/imagineer/scraped
+  base_dir: /tmp/imagineer-dev/outputs  # Development outputs
+  scraped_dir: /tmp/imagineer-dev/scraped  # Development scrapes
+
 generation:
   width: 512
   height: 512
@@ -36,69 +42,53 @@ generation:
     surreal, fantasy, sci-fi, unless intended
   batch_size: 1
   num_images: 1
+
 output:
-  directory: /mnt/speedy/imagineer/outputs
+  directory: /tmp/imagineer-dev/outputs
   format: png
   save_metadata: true
+
 sets:
   directory: /mnt/speedy/imagineer/sets
+
 training:
   learning_rate: 1e-5
   max_train_steps: 1000
   train_batch_size: 1
   gradient_accumulation_steps: 4
-  checkpoint_dir: /mnt/speedy/imagineer/checkpoints
+  checkpoint_dir: /tmp/imagineer-dev/checkpoints  # Development checkpoints
   save_steps: 500
   lora:
     rank: 4
     alpha: 32
     dropout: 0.1
+
 dataset:
   data_dir: /mnt/speedy/imagineer/data/training
   resolution: 512
   center_crop: true
   random_flip: true
+
 hardware:
   device: auto
   mixed_precision: fp16
   enable_attention_slicing: true
   enable_vae_slicing: false
   enable_xformers: false
+
 bug_reports:
-  storage_path: /mnt/storage/imagineer/bug_reports
-  retention_days: 30
+  storage_path: /tmp/imagineer-dev/bug_reports  # Development bug reports
+  retention_days: 7  # Shorter retention for dev
   agent:
     enabled: true
     docker_image: imagineer/bug-cli:latest
-    target_branch: develop
+    target_branch: develop  # Dev uses develop branch
     timeout_minutes: 60
     log_dir: logs/bug_reports
     git_author_name: Imagineer Bug Agent
     git_author_email: agent@imagineer.local
     env_passthrough:
     - ANTHROPIC_API_KEY
+
 scraping:
-  # Web crawler settings
-  max_depth: 3
-  max_images: 1000
-  timeout: 30
-  user_agent: "Mozilla/5.0 (compatible; ImagineerBot/1.0)"
-  respect_robots_txt: true
-
-  # Download settings
-  concurrent_downloads: 20
-  max_retries: 3
-
-  # Validation settings
-  min_width: 100
-  min_height: 100
-  min_megapixels: 0.01
-  max_aspect_ratio: 20.0
-  allowed_formats: [jpg, jpeg, png, webp, gif, bmp]
-
-  # Deduplication settings
-  remove_duplicates: true
-  duplicate_threshold: 10  # Perceptual hash hamming distance
-
-  # Output (uses outputs.scraped_dir: /mnt/storage/imagineer/scraped)
-  caption_on_scrape: false  # Caption later via labeling feature
+  training_data_repo: /home/jdubz/Development/training-data
