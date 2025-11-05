@@ -540,7 +540,7 @@ export function useAlbumDetailState(
 
       await Promise.all(
         Array.from(state.selectedImages).map((imageId) =>
-          fetch(getApiUrl(`/api/albums/${albumId}/images/${imageId}`), {
+          fetch(getApiUrl(`/albums/${albumId}/images/${imageId}`), {
             method: 'DELETE',
             credentials: 'include',
             signal,
@@ -578,7 +578,7 @@ export function useAlbumDetailState(
 
       try {
         const signal = abortControllerRef.current?.signal
-        const response = await fetch(getApiUrl(`/api/images/${imageId}/labels`), {
+        const response = await fetch(getApiUrl(`/images/${imageId}/labels`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -629,7 +629,7 @@ export function useAlbumDetailState(
 
       try {
         const signal = abortControllerRef.current?.signal
-        const response = await fetch(getApiUrl(`/api/images/${imageId}/labels/${labelId}`), {
+        const response = await fetch(getApiUrl(`/images/${imageId}/labels/${labelId}`), {
           method: 'DELETE',
           credentials: 'include',
           signal,
@@ -714,7 +714,7 @@ export function useAlbumDetailState(
 
     try {
       const signal = abortControllerRef.current?.signal
-      const response = await fetch(getApiUrl(`/api/images/${imageId}/labels/${labelId}`), {
+      const response = await fetch(getApiUrl(`/images/${imageId}/labels/${labelId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

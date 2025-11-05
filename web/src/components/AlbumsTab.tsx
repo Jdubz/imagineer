@@ -536,7 +536,7 @@ const AlbumThumbnailCarousel: React.FC<AlbumThumbnailCarouselProps> = memo(({ pr
   }
 
   const currentImage = previewImages[currentIndex]
-  const thumbnailUrl = getApiUrl(`/api/images/${currentImage.id}/thumbnail`)
+  const thumbnailUrl = getApiUrl(`/images/${currentImage.id}/thumbnail`)
 
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -768,8 +768,8 @@ const AlbumDetailView: React.FC<AlbumDetailViewProps> = memo(({
           const generatedImage: GeneratedImage = {
             id: imageId,
             filename: image.filename,
-            thumbnail_url: getApiUrl(`/api/images/${imageId}/thumbnail`),
-            download_url: getApiUrl(`/api/images/${imageId}/file`),
+            thumbnail_url: getApiUrl(`/images/${imageId}/thumbnail`),
+            download_url: getApiUrl(`/images/${imageId}/file`),
             is_nsfw: image.is_nsfw,
           }
 
