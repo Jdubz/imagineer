@@ -87,6 +87,7 @@ const QueueTab: React.FC = memo(() => {
     idleInterval: 30000,
     enabled: autoRefresh,
     pauseWhenHidden: true,
+    // Explicit for clarity: adaptive polling runs immediately by default
     runImmediately: true,
     getActivityLevel: (data) => {
       if (data?.current) return 'active'

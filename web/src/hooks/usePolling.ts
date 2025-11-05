@@ -7,8 +7,13 @@ interface BasePollingOptions {
   enabled?: boolean
   pauseWhenHidden?: boolean
   /**
-   * Invoke the callback as soon as the hook mounts.
-   * Defaults to `true` for adaptive polling and `false` for static polling.
+   * Invoke the callback as soon as the hook mounts or when the page becomes visible again.
+   *
+   * **Default Behavior:**
+   * - Adaptive polling: `true` (runs immediately to get initial data for activity level detection)
+   * - Static polling: `false` (waits for first interval to complete)
+   *
+   * Setting this explicitly overrides the default for either mode.
    */
   runImmediately?: boolean
 }
@@ -34,10 +39,33 @@ function isAdaptiveOptions<T>(options: UsePollingOptions<T>): options is Adaptiv
 /**
  * Shared polling hook that supports static intervals and adaptive intervals that respond to activity.
  *
- * Static mode: pass an `interval` (milliseconds) for a fixed cadence.
- * Adaptive mode: provide interval overrides plus a `getActivityLevel` function to choose the next delay.
+ * **Static mode:** Pass an `interval` (milliseconds) for a fixed cadence.
+ * - Default: Does NOT run immediately on mount; waits for first interval
+ * - Use `runImmediately: true` to fetch data immediately on mount
+ *
+ * **Adaptive mode:** Provide interval overrides plus a `getActivityLevel` function to choose the next delay.
+ * - Default: DOES run immediately on mount to get initial data for activity detection
+ * - Returns the latest polled data as state
+ * - Adjusts polling frequency based on activity level (active/medium/idle)
  *
  * The hook pauses automatically when the document becomes hidden (unless disabled) and always clears timers on unmount.
+ *
+ * @example
+ * // Static polling - runs every 5 seconds after initial delay
+ * usePolling(fetchData, { interval: 5000 })
+ *
+ * @example
+ * // Static polling - runs immediately, then every 5 seconds
+ * usePolling(fetchData, { interval: 5000, runImmediately: true })
+ *
+ * @example
+ * // Adaptive polling - runs immediately and adjusts based on activity
+ * const data = usePolling(fetchJobs, {
+ *   activeInterval: 2000,
+ *   mediumInterval: 10000,
+ *   idleInterval: 30000,
+ *   getActivityLevel: (jobs) => jobs?.current ? 'active' : 'idle'
+ * })
  */
 export function usePolling(callback: () => void | Promise<void>, options: StaticPollingOptions): void
 export function usePolling<T>(callback: () => Promise<T>, options: AdaptivePollingOptions<T>): T | null
