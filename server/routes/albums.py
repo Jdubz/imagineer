@@ -51,11 +51,20 @@ def list_albums():
     if album_type:
         query = query.filter(Album.album_type == album_type)
 
+    # Filter by source_type (replaces is_set_template filtering)
+    source_type = request.args.get("source_type")
+    if source_type:
+        query = query.filter(Album.source_type == source_type)
+
+    # DEPRECATED: is_set_template parameter (kept for backward compatibility)
+    # Templates are now in batch_templates table, not albums
     is_set_template_param = request.args.get("is_set_template")
     if is_set_template_param is not None:
         lowered = is_set_template_param.strip().lower()
         filter_value = lowered in {"1", "true", "yes", "on"}
-        query = query.filter(Album.is_set_template.is_(filter_value))
+        # If filtering for templates, return empty list (they're in batch_templates now)
+        if filter_value:
+            query = query.filter(Album.id.is_(None))  # Returns empty result
 
     pagination = query.paginate(page=page, per_page=per_page)
 

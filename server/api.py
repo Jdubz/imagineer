@@ -62,7 +62,9 @@ from server.database import (  # noqa: E402
     init_database,
 )
 from server.logging_config import configure_logging  # noqa: E402
-from server.services.template_seeder import ensure_default_set_templates  # noqa: E402
+
+# Template seeder disabled after migration to BatchTemplate model
+# from server.services.template_seeder import ensure_default_set_templates  # noqa: E402,F401
 from server.tasks.labeling import label_album_task, label_image_task  # noqa: E402
 
 # Frontend is now served by Firebase Hosting, not Flask
@@ -147,11 +149,13 @@ oauth, google = init_auth(app)
 # Initialize database
 init_database(app)
 
-# Ensure default template albums exist
-try:
-    ensure_default_set_templates(app)
-except Exception as exc:  # pragma: no cover - defensive guardrail
-    logger.error("Failed to ensure default set templates: %s", exc, exc_info=True)
+# NOTE: Template seeder disabled after migration to BatchTemplate model
+# Old Album-based templates replaced with BatchTemplate records
+# See: scripts/migrate_template_album_separation.py
+# try:
+#     ensure_default_set_templates(app)
+# except Exception as exc:  # pragma: no cover - defensive guardrail
+#     logger.error("Failed to ensure default set templates: %s", exc, exc_info=True)
 
 # Initialize trace ID middleware
 from server.middleware.trace_id import trace_id_middleware  # noqa: E402
@@ -166,6 +170,7 @@ celery = make_celery(app)
 # Register blueprints
 from server.routes.admin import admin_bp  # noqa: E402
 from server.routes.albums import albums_bp  # noqa: E402
+from server.routes.batch_templates import batch_templates_bp  # noqa: E402
 from server.routes.bug_reports import bug_reports_bp  # noqa: E402
 from server.routes.generation import generation_bp, get_generation_health  # noqa: E402
 from server.routes.images import images_bp  # noqa: E402
@@ -176,6 +181,7 @@ from server.routes.training import training_bp  # noqa: E402
 
 app.register_blueprint(images_bp)
 app.register_blueprint(albums_bp)
+app.register_blueprint(batch_templates_bp)
 app.register_blueprint(scraping_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(bug_reports_bp)

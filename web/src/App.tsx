@@ -26,6 +26,7 @@ const QueueTab = lazy(() => import('./components/QueueTab'))
 // Lazy load detail pages
 const AlbumDetailPage = lazy(() => import('./pages/AlbumDetailPage'))
 const ImageDetailPage = lazy(() => import('./pages/ImageDetailPage'))
+const BatchTemplatesPage = lazy(() => import('./pages/BatchTemplatesPage'))
 
 const AppContent: React.FC = () => {
   const location = useLocation()
@@ -38,6 +39,7 @@ const AppContent: React.FC = () => {
     { id: 'generate', label: 'Generate', icon: '✨' },
     { id: 'gallery', label: 'Gallery', icon: '🖼️' },
     { id: 'albums', label: 'Albums', icon: '📁' },
+    { id: 'batch-templates', label: 'Templates', icon: '📋' },
     { id: 'scraping', label: 'Scraping', icon: '🕷️' },
     { id: 'training', label: 'Training', icon: '🚀' },
     { id: 'queue', label: 'Queue', icon: '📋' },
@@ -172,6 +174,14 @@ const AppContent: React.FC = () => {
                 element={
                   <ErrorBoundaryWithReporting boundaryName="Albums Tab">
                     <AlbumsTab isAdmin={user?.role === 'admin'} />
+                  </ErrorBoundaryWithReporting>
+                }
+              />
+              <Route
+                path="/batch-templates"
+                element={
+                  <ErrorBoundaryWithReporting boundaryName="Batch Templates">
+                    <BatchTemplatesPage isAdmin={user?.role === 'admin'} />
                   </ErrorBoundaryWithReporting>
                 }
               />
