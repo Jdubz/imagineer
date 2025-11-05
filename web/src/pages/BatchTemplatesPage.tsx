@@ -78,10 +78,10 @@ const BatchTemplatesPage: React.FC<BatchTemplatesPageProps> = ({ isAdmin }) => {
           pollCount++
           const run = await api.batchTemplates.getRunStatus(templateId, runId)
 
-          const progress = run.items_completed || 0
-          const failed = run.items_failed || 0
-          const total = run.total_items
-          const percentComplete = Math.round((progress / total) * 100)
+          const progress = run.completed_items || 0
+          const failed = run.failed_items || 0
+          const total = run.total_items || 0
+          const percentComplete = total > 0 ? Math.round((progress / total) * 100) : 0
 
           // Update or create progress toast
           if (!progressToast) {

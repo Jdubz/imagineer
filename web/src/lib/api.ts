@@ -1163,7 +1163,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      const data = (await response.json()) as { run: BatchGenerationRun }
+      const data = (await response.json()) as { run: import('../types/models').BatchGenerationRun }
       return data.run
     },
   },

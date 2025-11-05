@@ -252,24 +252,24 @@ def _handle_batch_job_completion(job):
 
         # Update progress
         if job["status"] == "completed":
-            run.items_completed = (run.items_completed or 0) + 1
+            run.completed_items = (run.completed_items or 0) + 1
         elif job["status"] == "failed":
-            run.items_failed = (run.items_failed or 0) + 1
+            run.failed_items = (run.failed_items or 0) + 1
 
         run.updated_at = datetime.now(timezone.utc)
 
         # Check if all jobs are done
-        total_processed = (run.items_completed or 0) + (run.items_failed or 0)
+        total_processed = (run.completed_items or 0) + (run.failed_items or 0)
         if total_processed >= run.total_items:
             # All jobs complete - create album if at least one succeeded
-            if run.items_completed > 0:
+            if run.completed_items > 0:
                 run.status = "completed"
                 _create_album_from_batch_run(run)
             else:
                 run.status = "failed"
                 run.error_message = "All generation jobs failed"
             run.completed_at = datetime.now(timezone.utc)
-        elif run.items_failed > 0:
+        elif run.failed_items > 0:
             # Some jobs failed but batch still processing
             run.status = "partially_failed"
 
