@@ -15,11 +15,11 @@ describe('GenerateForm', () => {
     },
   }
 
-  const renderForm = (
+  const renderForm = async (
     overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {},
   ): Promise<ReturnType<typeof render>> => {
     let utils: ReturnType<typeof render>
-    return act(() => {
+    await act(async () => {
       utils = render(
         <BugReportProvider>
           <GenerateForm
@@ -31,7 +31,9 @@ describe('GenerateForm', () => {
           />
         </BugReportProvider>,
       )
-    }).then(() => utils!)
+      await Promise.resolve()
+    })
+    return utils!
   }
 
   beforeEach(() => {

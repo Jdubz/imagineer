@@ -73,10 +73,12 @@ describe('TrainingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  const renderTrainingTab = (isAdmin: boolean): Promise<void> =>
-    act(() => {
+  const renderTrainingTab = async (isAdmin: boolean): Promise<void> => {
+    await act(async () => {
       render(<TrainingTab isAdmin={isAdmin} />)
+      await Promise.resolve()
     })
+  }
 
   it('hides admin controls for non-admin users', async () => {
     await renderTrainingTab(false)

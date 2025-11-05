@@ -73,14 +73,16 @@ describe('ScrapingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  const renderScrapingTab = (isAdmin: boolean): Promise<void> =>
-    act(() => {
+  const renderScrapingTab = async (isAdmin: boolean): Promise<void> => {
+    await act(async () => {
       render(
         <BugReportProvider>
           <ScrapingTab isAdmin={isAdmin} />
         </BugReportProvider>
       )
+      await Promise.resolve()
     })
+  }
 
   it('requires admin access when viewer is not an admin', async () => {
     await renderScrapingTab(false)
