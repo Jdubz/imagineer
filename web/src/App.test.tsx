@@ -88,7 +88,15 @@ const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
       requestUrl = (url as { url: string }).url
     }
 
-    const handler = handlers[requestUrl]
+    if (requestUrl.startsWith('http://') || requestUrl.startsWith('https://')) {
+      const parsed = new URL(requestUrl)
+      requestUrl = `${parsed.pathname}${parsed.search}`
+    }
+
+    const lookupKey = requestUrl
+    const handler =
+      handlers[lookupKey] ??
+      handlers[lookupKey.split('?')[0] ?? lookupKey]
     if (handler) {
       return handler(options)
     }
@@ -101,6 +109,7 @@ const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
       return Promise.resolve(createResponse({}))
     }
 
+    console.warn('Unhandled API request in App.test mock:', requestUrl)
     return Promise.resolve(createResponse({}))
   })
 
@@ -115,7 +124,7 @@ describe('App', () => {
 
   it('renders the app title', () => {
     render(<App />)
-    expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
   })
 
   it('shows the viewer auth button when signed out', async () => {
@@ -238,7 +247,7 @@ describe('App', () => {
     render(<App />)
 
     // App should render without crashing
-    expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
 
     // Verify warning was logged about auth requirement
     await waitFor(() => {
@@ -260,7 +269,7 @@ describe('App', () => {
     render(<App />)
 
     // App should render without crashing
-    expect(screen.getByText(/imagineer/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
 
     // Verify warning was logged about auth requirement
     await waitFor(() => {

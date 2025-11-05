@@ -62,6 +62,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function normalizeFetchUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) {
+    return url
+  }
+
+  const baseOrigin =
+    (typeof window !== 'undefined' && window.location ? window.location.origin : undefined) ??
+    (import.meta.env?.VITE_TEST_BASE_URL as string | undefined) ??
+    'http://localhost'
+
+  try {
+    return new URL(url, baseOrigin).toString()
+  } catch {
+    return url
+  }
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
@@ -261,7 +278,7 @@ async function apiRequest<T>(
       ...options,
     }
 
-    const response = await fetch(url, requestOptions)
+    const response = await fetch(normalizeFetchUrl(url), requestOptions)
     const traceId = response.headers?.get?.('X-Trace-Id') ?? undefined
 
     // Parse Retry-After header if present (for 429 responses)

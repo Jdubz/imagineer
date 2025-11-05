@@ -114,14 +114,18 @@ describe('GenerateForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    const randomRadio = screen.getByRole('radio', { name: /random/i })
-    expect(randomRadio).toBeChecked()
+    const seedInput = screen.getByLabelText<HTMLInputElement>(/seed/i)
+    expect(seedInput).toBeDisabled()
 
-    const fixedRadio = screen.getByRole('radio', { name: /fixed/i })
-    await user.click(fixedRadio)
+    const fixedToggle = screen.getByRole('button', { name: /^Fixed$/i })
+    await user.click(fixedToggle)
 
-    expect(fixedRadio).toBeChecked()
-    expect(randomRadio).not.toBeChecked()
+    expect(seedInput).not.toBeDisabled()
+
+    const randomToggle = screen.getByRole('button', { name: /^Random$/i })
+    await user.click(randomToggle)
+
+    expect(seedInput).toBeDisabled()
   })
 
   it('includes seed in submission when fixed seed is selected', async () => {
@@ -129,10 +133,10 @@ describe('GenerateForm', () => {
     renderForm()
 
     await act(async () => {
-      await user.click(screen.getByLabelText(/fixed/i))
+      await user.click(screen.getByRole('button', { name: /^Fixed$/i }))
     })
 
-    const seedInput = screen.getByPlaceholderText(/enter seed or generate random/i)
+    const seedInput = screen.getByPlaceholderText(/enter a specific seed/i)
     await act(async () => {
       await user.type(seedInput, '12345')
     })
@@ -156,10 +160,10 @@ describe('GenerateForm', () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.click(screen.getByLabelText(/fixed/i))
+    await user.click(screen.getByRole('button', { name: /^Fixed$/i }))
 
-    const seedInput = screen.getByPlaceholderText<HTMLInputElement>(/enter seed or generate random/i)
-    const randomButton = screen.getByTitle(/generate random seed/i)
+    const seedInput = screen.getByPlaceholderText<HTMLInputElement>(/enter a specific seed/i)
+    const randomButton = screen.getByRole('button', { name: /randomize/i })
 
     await user.click(randomButton)
 

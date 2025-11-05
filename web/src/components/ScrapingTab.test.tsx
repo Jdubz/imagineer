@@ -4,6 +4,55 @@ import userEvent from '@testing-library/user-event'
 import ScrapingTab from './ScrapingTab'
 import { BugReportProvider } from '../contexts/BugReportContext'
 
+vi.mock('../hooks/usePolling', () => ({
+  usePolling: (
+    callback: () => void | Promise<void>,
+    options: { enabled?: boolean; runImmediately?: boolean } = {},
+  ) => {
+    if (options.enabled === false) {
+      return
+    }
+    if (options.runImmediately) {
+      void Promise.resolve(callback()).catch(() => {})
+    }
+  },
+}))
+
+vi.mock('@/components/ui/dialog', () => {
+  const React = require('react') as typeof import('react')
+  const Dialog = ({
+    open = false,
+    children,
+  }: {
+    open?: boolean
+    children?: React.ReactNode
+  }) => (open ? <div data-testid="dialog-root">{children}</div> : null)
+
+  const passthrough =
+    (role?: string) =>
+    ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      React.createElement(
+        'div',
+        { ...(role ? { role } : {}), ...props },
+        children,
+      )
+
+  return {
+    Dialog,
+    DialogContent: passthrough('dialog'),
+    DialogHeader: passthrough(),
+    DialogFooter: passthrough(),
+    DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) =>
+      React.createElement('h2', props, children),
+    DialogDescription: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) =>
+      React.createElement('p', props, children),
+    DialogTrigger: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogClose: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogPortal: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    DialogOverlay: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  }
+})
+
 const flushPromises = async (): Promise<void> => {
   await act(async () => {
     await Promise.resolve()
@@ -24,12 +73,18 @@ describe('ScrapingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  it('requires admin access when viewer is not an admin', () => {
-    render(
-      <BugReportProvider>
-        <ScrapingTab isAdmin={false} />
-      </BugReportProvider>
-    )
+  const renderScrapingTab = async (isAdmin: boolean): Promise<void> => {
+    await act(async () => {
+      render(
+        <BugReportProvider>
+          <ScrapingTab isAdmin={isAdmin} />
+        </BugReportProvider>
+      )
+    })
+  }
+
+  it('requires admin access when viewer is not an admin', async () => {
+    await renderScrapingTab(false)
     expect(screen.getByText(/admin access is required/i)).toBeInTheDocument()
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -85,11 +140,7 @@ describe('ScrapingTab', () => {
           }),
       })
 
-    render(
-      <BugReportProvider>
-        <ScrapingTab isAdmin />
-      </BugReportProvider>
-    )
+    await renderScrapingTab(true)
 
     await flushPromises()
     await waitFor(() => {
@@ -189,11 +240,7 @@ describe('ScrapingTab', () => {
           }),
       })
 
-    render(
-      <BugReportProvider>
-        <ScrapingTab isAdmin />
-      </BugReportProvider>
-    )
+    await renderScrapingTab(true)
     await flushPromises()
 
     await user.click(screen.getByRole('button', { name: /start new scrape/i }))
@@ -203,7 +250,7 @@ describe('ScrapingTab', () => {
     await flushPromises()
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/scraping/start',
+        expect.stringContaining('/api/scraping/start'),
         expect.objectContaining({
           method: 'POST',
         }),

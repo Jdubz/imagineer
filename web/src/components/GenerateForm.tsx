@@ -137,21 +137,23 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
               />
             </FormField>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <FormField
-                label={(
-                  <span className="flex items-center gap-2">
-                    Steps
-                    <span className="text-xs font-normal text-muted-foreground">{steps}</span>
-                    <span
-                      className="text-muted-foreground"
-                      title="Higher steps refine the result but take longer to render."
-                    >
-                      <Info className="h-4 w-4" aria-hidden="true" />
-                    </span>
+          <div className="grid gap-6 md:grid-cols-2">
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Steps
+                  <span className="text-xs font-normal text-muted-foreground">{steps}</span>
+                  <span
+                    className="text-muted-foreground"
+                    title="Higher steps refine the result but take longer to render."
+                    aria-hidden="true"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
                   </span>
-                )}
-                description="20–40 steps balance speed and quality for most prompts."
+                </span>
+              )}
+              description="20–40 steps balance speed and quality for most prompts."
+              htmlFor="steps"
               >
                 <input
                   type="range"
@@ -170,23 +172,26 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                   <span>Quality</span>
                   <span>75</span>
                 </div>
+                <p className="text-sm font-medium text-muted-foreground">Steps: {steps}</p>
               </FormField>
 
-              <FormField
-                label={(
-                  <span className="flex items-center gap-2">
-                    Guidance Scale
-                    <span className="text-xs font-normal text-muted-foreground">{guidanceScale}</span>
-                    <span
-                      className="text-muted-foreground"
-                      title="Higher guidance keeps the output closer to your prompt."
-                    >
-                      <Info className="h-4 w-4" aria-hidden="true" />
-                    </span>
+            <FormField
+              label={(
+                <span className="flex items-center gap-2">
+                  Guidance Scale
+                  <span className="text-xs font-normal text-muted-foreground">{guidanceScale}</span>
+                  <span
+                    className="text-muted-foreground"
+                    title="Higher guidance keeps the output closer to your prompt."
+                    aria-hidden="true"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
                   </span>
-                )}
-                description="Lower values encourage exploration; higher values follow the prompt strictly."
-              >
+                </span>
+              )}
+              description="Lower values encourage exploration; higher values follow the prompt strictly."
+              htmlFor="guidance"
+            >
                 <input
                   type="range"
                   id="guidance"
@@ -204,8 +209,11 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                   <span>Strict</span>
                   <span>20</span>
                 </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Guidance Scale: {guidanceScale}
+                </p>
               </FormField>
-            </div>
+          </div>
 
             <FormField
               label={(
@@ -215,6 +223,7 @@ const GenerateForm: React.FC<GenerateFormProps> = memo(({ onGenerate, loading, c
                 </span>
               )}
               description="Use a fixed seed to reproduce results or stay random for fresh variations."
+              htmlFor="seed"
             >
               <div className="space-y-3">
                 <div className="inline-flex items-center rounded-full border border-border bg-muted/40 p-1 text-xs font-medium shadow-sm">

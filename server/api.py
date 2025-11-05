@@ -704,3 +704,12 @@ def get_database_stats():
 
 
 CONFIG_PATH = _CONFIG_PATH
+
+# Development server entry point
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    host = os.environ.get("HOST", "127.0.0.1")
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    logger.info(f"Starting development server on {host}:{port} (debug={debug})")
+    app.run(host=host, port=port, debug=debug)

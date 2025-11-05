@@ -4,6 +4,7 @@ import { render, waitFor, renderHook, act } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { AuthProvider, useAuth } from './AuthContext'
 import type { AuthStatus } from '../types/shared'
+import type { ReactElement } from 'react'
 
 // Mock logger
 vi.mock('../lib/logger', () => ({
@@ -16,6 +17,23 @@ vi.mock('../lib/logger', () => ({
 
 describe('AuthContext', () => {
   let defaultFetchMock: ReturnType<typeof vi.fn>
+  const renderWithProvider = async (ui: ReactElement) => {
+    let result: ReturnType<typeof render>
+    await act(async () => {
+      result = render(ui)
+    })
+    return result!
+  }
+
+  const renderAuthHook = async () => {
+    let hookResult: ReturnType<typeof renderHook>
+    await act(async () => {
+      hookResult = renderHook(() => useAuth(), {
+        wrapper: AuthProvider,
+      })
+    })
+    return hookResult!
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -30,7 +48,7 @@ describe('AuthContext', () => {
 
   describe('AuthProvider', () => {
     it('renders children', async () => {
-      const { getByText } = render(
+      const { getByText } = await renderWithProvider(
         <AuthProvider>
           <div>Test Child</div>
         </AuthProvider>
@@ -50,9 +68,7 @@ describe('AuthContext', () => {
 
       const mockFetch = vi.fn()
       vi.stubGlobal('fetch', mockFetch)
-      mockFetch.mockResolvedValue({
-        status: 204,
-      })
+      mockFetch.mockReturnValue(new Promise(() => {}))
 
       const { getByText } = render(
         <AuthProvider>
@@ -72,16 +88,19 @@ describe('AuthContext', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      render(
+      await renderWithProvider(
         <AuthProvider>
           <div>Test</div>
         </AuthProvider>
       )
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
-          credentials: 'include',
-        }))
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/auth/me'),
+          expect.objectContaining({
+            credentials: 'include',
+          }),
+        )
       })
     })
 
@@ -97,7 +116,7 @@ describe('AuthContext', () => {
         return <div>{loading ? 'Loading' : 'Not Loading'}</div>
       }
 
-      const { getByText } = render(
+      const { getByText } = await renderWithProvider(
         <AuthProvider>
           <TestComponent />
         </AuthProvider>
@@ -117,9 +136,7 @@ describe('AuthContext', () => {
         status: 204,
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: AuthProvider,
-      })
+      const { result } = await renderAuthHook()
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
@@ -163,9 +180,7 @@ describe('AuthContext', () => {
         json: async () => mockUser,
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: AuthProvider,
-      })
+      const { result } = await renderAuthHook()
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
@@ -181,9 +196,7 @@ describe('AuthContext', () => {
         status: 204,
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: AuthProvider,
-      })
+      const { result } = await renderAuthHook()
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
@@ -199,9 +212,7 @@ describe('AuthContext', () => {
         status: 401,
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: AuthProvider,
-      })
+      const { result } = await renderAuthHook()
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
@@ -438,12 +449,15 @@ describe('AuthContext', () => {
       await waitFor(() => {
         expect(result.current.user).toBeNull()
       })
-      expect(fetch).toHaveBeenCalledWith('/api/auth/logout', {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/logout'),
+        {
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json',
+          },
         },
-      })
+      )
     })
 
     it('throws error on failed logout', async () => {

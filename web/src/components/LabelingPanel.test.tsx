@@ -56,7 +56,7 @@ describe('LabelingPanel', () => {
       await user.click(screen.getByRole('button', { name: /start labeling/i }))
     })
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/labeling/album/1',
+      expect.stringContaining('/api/labeling/album/1'),
       expect.objectContaining({
         method: 'POST',
       }),
@@ -67,7 +67,10 @@ describe('LabelingPanel', () => {
       await flushPromises()
     })
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/labeling/tasks/task-123', expect.any(Object))
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/labeling/tasks/task-123'),
+      expect.any(Object),
+    )
     expect(screen.getByText(/labeled 2 of 5 images/i)).toBeInTheDocument()
 
     await act(async () => {
