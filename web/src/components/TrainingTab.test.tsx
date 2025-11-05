@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import * as React from 'react'
 import userEvent from '@testing-library/user-event'
 import TrainingTab from './TrainingTab'
 
@@ -18,7 +19,6 @@ vi.mock('../hooks/usePolling', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => {
-  const React = require('react') as typeof import('react')
 
   const Dialog = ({
     open = false,
@@ -73,11 +73,10 @@ describe('TrainingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  const renderTrainingTab = async (isAdmin: boolean): Promise<void> => {
-    await act(async () => {
+  const renderTrainingTab = (isAdmin: boolean): Promise<void> =>
+    act(() => {
       render(<TrainingTab isAdmin={isAdmin} />)
     })
-  }
 
   it('hides admin controls for non-admin users', async () => {
     await renderTrainingTab(false)

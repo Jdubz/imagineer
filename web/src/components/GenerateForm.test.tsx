@@ -17,9 +17,9 @@ describe('GenerateForm', () => {
 
   const renderForm = (
     overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {},
-  ) => {
+  ): Promise<ReturnType<typeof render>> => {
     let utils: ReturnType<typeof render>
-    act(() => {
+    return act(() => {
       utils = render(
         <BugReportProvider>
           <GenerateForm
@@ -31,8 +31,7 @@ describe('GenerateForm', () => {
           />
         </BugReportProvider>,
       )
-    })
-    return utils!
+    }).then(() => utils!)
   }
 
   beforeEach(() => {
@@ -45,15 +44,15 @@ describe('GenerateForm', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the form with all inputs', () => {
-    renderForm()
+  it('renders the form with all inputs', async () => {
+    await renderForm()
 
     expect(screen.getByPlaceholderText(/describe the image/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /generate image/i })).toBeInTheDocument()
   })
 
-  it('shows loading state when generating', () => {
-    renderForm({ loading: true })
+  it('shows loading state when generating', async () => {
+    await renderForm({ loading: true })
 
     const generatingButton = screen.getByRole('button', { name: /generating/i })
     expect(generatingButton).toBeDisabled()
@@ -62,7 +61,7 @@ describe('GenerateForm', () => {
 
   it('submits form with prompt', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
     const input = screen.getByPlaceholderText(/describe the image/i)
     const button = screen.getByRole('button', { name: /generate image/i })
@@ -79,7 +78,7 @@ describe('GenerateForm', () => {
 
   it('does not submit with empty prompt', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
     const button = screen.getByRole('button', { name: /generate image/i })
     await user.click(button)
@@ -89,7 +88,7 @@ describe('GenerateForm', () => {
 
   it('clears prompt after submission', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
     const input = screen.getByPlaceholderText<HTMLInputElement>(/describe the image/i)
 
@@ -99,8 +98,8 @@ describe('GenerateForm', () => {
     expect(input.value).toBe('')
   })
 
-  it('displays steps slider with correct range', () => {
-    renderForm()
+  it('displays steps slider with correct range', async () => {
+    await renderForm()
 
     const stepsSlider = screen.getByLabelText<HTMLInputElement>(/steps/i)
     expect(stepsSlider).toBeInTheDocument()
@@ -108,8 +107,8 @@ describe('GenerateForm', () => {
     expect(stepsSlider.max).toBe('75')
   })
 
-  it('displays guidance scale slider with correct range', () => {
-    renderForm()
+  it('displays guidance scale slider with correct range', async () => {
+    await renderForm()
 
     const guidanceSlider = screen.getByLabelText<HTMLInputElement>(/guidance scale/i)
     expect(guidanceSlider).toBeInTheDocument()
@@ -119,25 +118,29 @@ describe('GenerateForm', () => {
 
   it('allows toggling between random and fixed seed', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
     const seedInput = screen.getByLabelText<HTMLInputElement>(/seed/i)
     expect(seedInput).toBeDisabled()
 
     const fixedToggle = screen.getByRole('button', { name: /^Fixed$/i })
-    await user.click(fixedToggle)
+    await act(async () => {
+      await user.click(fixedToggle)
+    })
 
     expect(seedInput).not.toBeDisabled()
 
     const randomToggle = screen.getByRole('button', { name: /^Random$/i })
-    await user.click(randomToggle)
+    await act(async () => {
+      await user.click(randomToggle)
+    })
 
     expect(seedInput).toBeDisabled()
   })
 
   it('includes seed in submission when fixed seed is selected', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: /^Fixed$/i }))
@@ -165,22 +168,26 @@ describe('GenerateForm', () => {
 
   it('generates random seed when button is clicked', async () => {
     const user = userEvent.setup()
-    renderForm()
+    await renderForm()
 
-    await user.click(screen.getByRole('button', { name: /^Fixed$/i }))
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /^Fixed$/i }))
+    })
 
     const seedInput = screen.getByPlaceholderText<HTMLInputElement>(/enter a specific seed/i)
     const randomButton = screen.getByRole('button', { name: /randomize/i })
 
-    await user.click(randomButton)
+    await act(async () => {
+      await user.click(randomButton)
+    })
 
     expect(seedInput.value).not.toBe('')
     expect(Number.parseInt(seedInput.value, 10)).toBeGreaterThan(0)
     expect(Number.parseInt(seedInput.value, 10)).toBeLessThanOrEqual(2147483647)
   })
 
-  it('updates steps value when slider is moved', () => {
-    renderForm()
+  it('updates steps value when slider is moved', async () => {
+    await renderForm()
 
     const stepsSlider = screen.getByLabelText(/steps/i)
 
@@ -190,8 +197,8 @@ describe('GenerateForm', () => {
     expect(stepsDisplay).toBeInTheDocument()
   })
 
-  it('updates guidance scale when slider is moved', () => {
-    renderForm()
+  it('updates guidance scale when slider is moved', async () => {
+    await renderForm()
 
     const guidanceSlider = screen.getByLabelText(/guidance scale/i)
 

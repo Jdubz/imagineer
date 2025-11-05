@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import * as React from 'react'
 import userEvent from '@testing-library/user-event'
 import ScrapingTab from './ScrapingTab'
 import { BugReportProvider } from '../contexts/BugReportContext'
@@ -19,7 +20,6 @@ vi.mock('../hooks/usePolling', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => {
-  const React = require('react') as typeof import('react')
   const Dialog = ({
     open = false,
     children,
@@ -73,15 +73,14 @@ describe('ScrapingTab', () => {
     globalThis.fetch = originalFetch
   })
 
-  const renderScrapingTab = async (isAdmin: boolean): Promise<void> => {
-    await act(async () => {
+  const renderScrapingTab = (isAdmin: boolean): Promise<void> =>
+    act(() => {
       render(
         <BugReportProvider>
           <ScrapingTab isAdmin={isAdmin} />
         </BugReportProvider>
       )
     })
-  }
 
   it('requires admin access when viewer is not an admin', async () => {
     await renderScrapingTab(false)
