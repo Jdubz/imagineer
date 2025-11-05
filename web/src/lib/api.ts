@@ -991,7 +991,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      const data = await response.json()
+      const data = await response.json() as { templates?: BatchTemplate[] }
       return data.templates || []
     },
 
@@ -1010,7 +1010,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      return response.json()
+      return response.json() as Promise<BatchTemplate>
     },
 
     /**
@@ -1037,7 +1037,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      return response.json()
+      return response.json() as Promise<BatchTemplate>
     },
 
     /**
@@ -1065,7 +1065,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      return response.json()
+      return response.json() as Promise<BatchTemplate>
     },
 
     /**
@@ -1087,7 +1087,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      return response.json()
+      return response.json() as Promise<{ message: string }>
     },
 
     /**
@@ -1115,7 +1115,7 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         )
       }
 
-      return response.json()
+      return response.json() as Promise<BatchGenerateResponse>
     },
 
     /**
