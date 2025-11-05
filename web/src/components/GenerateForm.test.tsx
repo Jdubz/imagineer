@@ -15,18 +15,25 @@ describe('GenerateForm', () => {
     },
   }
 
-  const renderForm = (overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {}) =>
-    render(
-      <BugReportProvider>
-        <GenerateForm
-          onGenerate={mockOnGenerate}
-          loading={false}
-          config={(mockConfig as Config) ?? null}
-          isAdmin={false}
-          {...overrides}
-        />
-      </BugReportProvider>,
-    )
+  const renderForm = (
+    overrides: Partial<React.ComponentProps<typeof GenerateForm>> = {},
+  ) => {
+    let utils: ReturnType<typeof render>
+    act(() => {
+      utils = render(
+        <BugReportProvider>
+          <GenerateForm
+            onGenerate={mockOnGenerate}
+            loading={false}
+            config={(mockConfig as Config) ?? null}
+            isAdmin={false}
+            {...overrides}
+          />
+        </BugReportProvider>,
+      )
+    })
+    return utils!
+  }
 
   beforeEach(() => {
     vi.restoreAllMocks()

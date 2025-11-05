@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method, @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor, renderHook, act } from '@testing-library/react'
+import { render, waitFor, renderHook, act, type RenderHookResult } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { AuthProvider, useAuth } from './AuthContext'
+import { AuthProvider, useAuth, type AuthContextValue } from './AuthContext'
 import type { AuthStatus } from '../types/shared'
 import type { ReactElement } from 'react'
 
@@ -25,10 +25,10 @@ describe('AuthContext', () => {
     return result!
   }
 
-  const renderAuthHook = async () => {
-    let hookResult: ReturnType<typeof renderHook>
+  const renderAuthHook = async (): Promise<RenderHookResult<AuthContextValue, undefined>> => {
+    let hookResult: RenderHookResult<AuthContextValue, undefined>
     await act(async () => {
-      hookResult = renderHook(() => useAuth(), {
+      hookResult = renderHook<AuthContextValue, undefined>(() => useAuth(), {
         wrapper: AuthProvider,
       })
     })
