@@ -230,6 +230,134 @@ def generate_random_theme():
     return ", ".join(components)
 
 
+def _handle_batch_job_completion(job):
+    """
+    Handle completion of a batch generation job.
+    Updates BatchGenerationRun progress and creates Album when all jobs complete.
+    """
+    from datetime import timezone
+
+    from server.api import app
+    from server.database import BatchGenerationRun, db
+
+    run_id = job.get("batch_generation_run_id")
+    if not run_id:
+        return
+
+    with app.app_context():
+        run = db.session.get(BatchGenerationRun, run_id)
+        if not run:
+            logger.warning(f"BatchGenerationRun {run_id} not found")
+            return
+
+        # Update progress
+        if job["status"] == "completed":
+            run.items_completed = (run.items_completed or 0) + 1
+        elif job["status"] == "failed":
+            run.items_failed = (run.items_failed or 0) + 1
+
+        run.updated_at = datetime.now(timezone.utc)
+
+        # Check if all jobs are done
+        total_processed = (run.items_completed or 0) + (run.items_failed or 0)
+        if total_processed >= run.total_items:
+            # All jobs complete - create album if at least one succeeded
+            if run.items_completed > 0:
+                run.status = "completed"
+                _create_album_from_batch_run(run)
+            else:
+                run.status = "failed"
+                run.error_message = "All generation jobs failed"
+            run.completed_at = datetime.now(timezone.utc)
+        elif run.items_failed > 0:
+            # Some jobs failed but batch still processing
+            run.status = "partially_failed"
+
+        db.session.commit()
+
+
+def _create_album_from_batch_run(run: "BatchGenerationRun"):  # noqa: F821
+    """Create Album from completed BatchGenerationRun and link all generated images."""
+    from datetime import timezone
+    from pathlib import Path
+
+    from server.database import Album, AlbumImage, Image, db
+
+    # Get all images from the batch output directory
+    output_dir = Path(run.output_directory)
+    if not output_dir.exists():
+        logger.error(f"Batch output directory not found: {output_dir}")
+        return
+
+    image_files = sorted(output_dir.glob("*.png"))
+    if not image_files:
+        logger.warning(f"No images found in batch directory: {output_dir}")
+        return
+
+    # Check if album already exists
+    existing_album = (
+        db.session.query(Album)
+        .filter(Album.source_type == "batch_generation", Album.source_id == run.id)
+        .one_or_none()
+    )
+
+    if existing_album:
+        logger.info(f"Album already exists for run {run.id}: {existing_album.id}")
+        run.album_id = existing_album.id
+        return
+
+    # Create new album
+    album = Album(
+        name=run.album_name,
+        description=(
+            f"Generated from template '{run.template.name}' " f"with theme: {run.user_theme}"
+        ),
+        source_type="batch_generation",
+        source_id=run.id,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.session.add(album)
+    db.session.flush()  # Get album ID
+
+    # Link images to album
+    images_linked = 0
+    for image_file in image_files:
+        # Find or create Image record
+        image = db.session.query(Image).filter(Image.filename == image_file.name).one_or_none()
+
+        if not image:
+            # Create Image record
+            metadata_file = image_file.with_suffix(".json")
+            metadata = {}
+            if metadata_file.exists():
+                try:
+                    metadata = json.loads(metadata_file.read_text())
+                except Exception as e:
+                    logger.warning(f"Failed to load metadata for {image_file.name}: {e}")
+
+            image = Image(
+                filename=image_file.name,
+                filepath=str(image_file.parent),
+                created=datetime.now(timezone.utc),
+                metadata=json.dumps(metadata) if metadata else None,
+            )
+            db.session.add(image)
+            db.session.flush()
+
+        # Link to album
+        album_image = AlbumImage(album_id=album.id, image_id=image.id)
+        db.session.add(album_image)
+        images_linked += 1
+
+    run.album_id = album.id
+    db.session.commit()
+
+    logger.info(
+        f"Created album '{album.name}' (ID: {album.id}) "
+        f"with {images_linked} images for run {run.id}"
+    )
+
+
 def process_jobs():  # noqa: C901
     """Background worker to process generation jobs."""
     global current_job
@@ -294,6 +422,11 @@ def process_jobs():  # noqa: C901
         job = _prune_none_fields(job)
         job_history.append(job)
         current_job = None
+
+        # Handle batch generation run completion
+        if job.get("batch_generation_run_id"):
+            _handle_batch_job_completion(job)
+
         job_queue.task_done()
 
 

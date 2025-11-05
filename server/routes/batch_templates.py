@@ -3,11 +3,17 @@ Batch template management endpoints
 """
 
 import json
+from datetime import datetime, timezone
+from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, request
 
 from server.auth import current_user, require_admin
+from server.config_loader import load_config
 from server.database import BatchGenerationRun, BatchTemplate, db
+
+# Import from generation routes for job queuing
+from server.routes import generation
 
 batch_templates_bp = Blueprint("batch_templates", __name__, url_prefix="/api/batch-templates")
 
@@ -196,7 +202,7 @@ def list_template_runs(template_id: int):
 
 
 @batch_templates_bp.route("/<int:template_id>/generate", methods=["POST"])
-def generate_from_template(template_id: int):
+def generate_from_template(template_id: int):  # noqa: C901
     """
     Generate a batch of images from a template
 
@@ -222,10 +228,76 @@ def generate_from_template(template_id: int):
         abort(400, description="Request body is required")
 
     # Validate required fields
-    if "album_name" not in data:
+    album_name = data.get("album_name", "").strip()
+    if not album_name:
         abort(400, description="Missing required field: album_name")
-    if "user_theme" not in data:
+    if len(album_name) > 200:
+        abort(400, description="album_name too long (max 200 chars)")
+
+    user_theme = data.get("user_theme", "").strip()
+    if not user_theme:
         abort(400, description="Missing required field: user_theme")
+    if len(user_theme) > 500:
+        abort(400, description="user_theme too long (max 500 chars)")
+
+    # Validate optional overrides
+    seed = data.get("seed")
+    if seed is not None:
+        try:
+            seed = int(seed)
+            if seed < 0 or seed > 2147483647:
+                abort(400, description="Seed must be between 0 and 2147483647")
+        except (ValueError, TypeError):
+            abort(400, description="Invalid seed value")
+
+    steps = data.get("steps")
+    if steps is not None:
+        try:
+            steps = int(steps)
+            if steps < 1 or steps > 150:
+                abort(400, description="Steps must be between 1 and 150")
+        except (ValueError, TypeError):
+            abort(400, description="Invalid steps value")
+
+    width = data.get("width")
+    if width is not None:
+        try:
+            width = int(width)
+            if width < 64 or width > 2048 or width % 8 != 0:
+                abort(400, description="Width must be between 64-2048 and divisible by 8")
+        except (ValueError, TypeError):
+            abort(400, description="Invalid width value")
+    else:
+        width = template.width  # Use template default
+
+    height = data.get("height")
+    if height is not None:
+        try:
+            height = int(height)
+            if height < 64 or height > 2048 or height % 8 != 0:
+                abort(400, description="Height must be between 64-2048 and divisible by 8")
+        except (ValueError, TypeError):
+            abort(400, description="Invalid height value")
+    else:
+        height = template.height  # Use template default
+
+    guidance_scale = data.get("guidance_scale")
+    if guidance_scale is not None:
+        try:
+            guidance_scale = float(guidance_scale)
+            if guidance_scale < 0 or guidance_scale > 30:
+                abort(400, description="Guidance scale must be between 0 and 30")
+        except (ValueError, TypeError):
+            abort(400, description="Invalid guidance scale value")
+
+    # Handle negative prompts (merge template and user overrides)
+    negative_prompt = data.get("negative_prompt", "").strip()
+    if negative_prompt and template.negative_prompt:
+        negative_prompt = f"{negative_prompt}, {template.negative_prompt}"
+    elif template.negative_prompt:
+        negative_prompt = template.negative_prompt
+    if negative_prompt and len(negative_prompt) > 2000:
+        abort(400, description="Negative prompt too long (max 2000 chars)")
 
     # Load CSV data
     try:
@@ -236,21 +308,36 @@ def generate_from_template(template_id: int):
     if not csv_items:
         abort(400, description="Template has no CSV items to generate")
 
-    # Create BatchGenerationRun record
-    from datetime import datetime, timezone
+    # Load LoRA config
+    loras = []
+    if template.lora_config:
+        try:
+            loras = json.loads(template.lora_config)
+        except json.JSONDecodeError:
+            pass  # If invalid, just skip LoRAs
 
+    # Create batch output directory
+    config = load_config()
+    batch_id = f"{album_name.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    batch_output_dir = Path(config["output"]["directory"]) / batch_id
+    batch_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create BatchGenerationRun record
     run = BatchGenerationRun(
         template_id=template_id,
-        album_name=data["album_name"],
-        user_theme=data["user_theme"],
-        steps=data.get("steps"),
-        seed=data.get("seed"),
-        width=data.get("width"),
-        height=data.get("height"),
-        guidance_scale=data.get("guidance_scale"),
-        negative_prompt=data.get("negative_prompt"),
+        album_name=album_name,
+        user_theme=user_theme,
+        steps=steps,
+        seed=seed,
+        width=width,
+        height=height,
+        guidance_scale=guidance_scale,
+        negative_prompt=negative_prompt,
         status="queued",
         total_items=len(csv_items),
+        items_completed=0,
+        batch_id=batch_id,
+        output_directory=str(batch_output_dir),
         created_by=current_user.email if current_user.is_authenticated else None,
         created_at=datetime.now(timezone.utc),
     )
@@ -258,17 +345,81 @@ def generate_from_template(template_id: int):
     db.session.add(run)
     db.session.commit()
 
-    # Return the run record
-    # NOTE: Actual job queuing and album creation will be implemented in Phase 2.2
-    # For now, this creates the run record and returns it
+    # Queue jobs for each CSV item
+    job_ids = []
+    for item in csv_items:
+        # Construct prompt using template
+        prompt = generation.construct_prompt(
+            base_prompt=template.base_prompt or "",
+            user_theme=user_theme,
+            csv_data=item,
+            prompt_template=template.prompt_template or "",
+            style_suffix=template.style_suffix or "",
+        )
+
+        # Determine item name for filename
+        if "value" in item and "suit" in item:
+            item_name = f"{item['value']}_of_{item['suit']}"
+        elif "name" in item:
+            item_name = item["name"]
+        elif "card" in item:
+            item_name = item["card"]
+        elif "sign" in item:
+            item_name = item["sign"]
+        else:
+            item_name = next(iter(item.values())) if item else "item"
+
+        # Get next job ID
+        job_id = generation._get_next_job_id()
+
+        # Create job dict
+        job = {
+            "id": job_id,
+            "prompt": prompt,
+            "status": "queued",
+            "submitted_at": datetime.now().isoformat(),
+            "batch_id": batch_id,
+            "batch_item_name": item_name,
+            "batch_item_data": item,
+            "output_dir": str(batch_output_dir),
+            "batch_generation_run_id": run.id,  # Link to run
+        }
+
+        # Add optional parameters
+        optional_fields = {
+            "seed": seed,
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "guidance_scale": guidance_scale,
+            "negative_prompt": negative_prompt,
+        }
+
+        # Add LoRA configuration
+        if loras:
+            optional_fields["lora_paths"] = [lora["path"] for lora in loras]
+            optional_fields["lora_weights"] = [lora["weight"] for lora in loras]
+
+        job.update(generation._prune_none_fields(optional_fields))
+
+        # Queue the job
+        generation.job_queue.put(job)
+        job_ids.append(job_id)
+
+    # Update run status to processing (jobs are now queued)
+    run.status = "processing"
+    run.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
     return (
         jsonify(
             {
                 "run": run.to_dict(),
                 "template": template.to_dict(),
-                "message": (
-                    "Batch generation run created. " "Job queuing to be implemented in Phase 2.2"
-                ),
+                "batch_id": batch_id,
+                "job_ids": job_ids,
+                "output_dir": str(batch_output_dir),
+                "message": f"Queued {len(job_ids)} generation jobs",
             }
         ),
         202,
