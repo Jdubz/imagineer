@@ -4,7 +4,6 @@ Additional pytest configuration for phase tests
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -103,44 +102,6 @@ def mock_claude_error():
 
 
 @pytest.fixture
-def admin_headers():
-    """Mock admin authentication headers"""
-    return {"Authorization": "Bearer admin_token"}
-
-
-@pytest.fixture
-def mock_admin_auth():
-    """Mock admin authentication"""
-    from unittest.mock import MagicMock
-
-    from server.auth import User
-
-    # Create a mock admin user
-    admin_user = User(email="admin@test.com", name="Admin User", picture="", role="admin")
-    admin_user.is_authenticated = True
-    admin_user.is_admin = MagicMock(return_value=True)
-
-    with patch("server.auth.current_user", admin_user):
-        yield admin_user
-
-
-@pytest.fixture
-def mock_public_auth():
-    """Mock public user authentication"""
-    from unittest.mock import MagicMock
-
-    from server.auth import User
-
-    # Create a mock public user
-    public_user = User(email="public@test.com", name="Public User", picture="", role=None)
-    public_user.is_authenticated = True
-    public_user.is_admin = MagicMock(return_value=False)
-
-    with patch("server.auth.current_user", public_user):
-        yield public_user
-
-
-@pytest.fixture
 def temp_upload_dir():
     """Create temporary upload directory for testing"""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -179,33 +140,3 @@ def clean_database(client):
         db.session.query(Image).delete()
         db.session.query(Album).delete()
         db.session.commit()
-
-
-@pytest.fixture
-def mock_file_operations():
-    """Mock file operations for testing"""
-    with patch("pathlib.Path.exists", return_value=True), patch("pathlib.Path.unlink"), patch(
-        "pathlib.Path.mkdir"
-    ), patch("flask.send_file") as mock_send:
-        mock_send.return_value = "file_data"
-        yield mock_send
-
-
-@pytest.fixture
-def mock_pil_operations():
-    """Mock PIL operations for testing"""
-    with patch("PIL.Image.open") as mock_open, patch("PIL.Image.new") as mock_new:
-
-        # Create mock image
-        mock_img = MagicMock()
-        mock_img.size = (100, 100)
-        mock_img.mode = "RGB"
-        mock_img.save = MagicMock()
-        mock_img.thumbnail = MagicMock()
-        mock_img.convert = MagicMock(return_value=mock_img)
-        mock_img.resize = MagicMock(return_value=mock_img)
-
-        mock_open.return_value.__enter__.return_value = mock_img
-        mock_new.return_value = mock_img
-
-        yield mock_img
