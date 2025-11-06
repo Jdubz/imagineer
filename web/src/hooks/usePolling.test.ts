@@ -1,281 +1,294 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { usePolling } from './usePolling';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+import { usePolling } from './usePolling'
+import { logger } from '../lib/logger'
+
+const flushMicrotasks = async () => {
+  await act(async () => {
+    await Promise.resolve()
+  })
+}
+
+const advanceTimers = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
 
 describe('usePolling', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-  });
+    vi.useFakeTimers()
+  })
 
   afterEach(() => {
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
+    vi.clearAllTimers()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
 
-  it('should call callback at specified interval', () => {
-    const callback = vi.fn();
-    const interval = 1000;
+  it('calls the callback on the configured static interval', async () => {
+    const callback = vi.fn()
 
-    renderHook(() => usePolling(callback, { interval }));
+    renderHook(() => usePolling(callback, { interval: 1000 }))
 
-    // Should not be called immediately by default
-    expect(callback).not.toHaveBeenCalled();
+    expect(callback).not.toHaveBeenCalled()
 
-    // Advance time by interval
-    vi.advanceTimersByTime(interval);
-    expect(callback).toHaveBeenCalledTimes(1);
+    await advanceTimers(1000)
+    expect(callback).toHaveBeenCalledTimes(1)
 
-    // Advance again
-    vi.advanceTimersByTime(interval);
-    expect(callback).toHaveBeenCalledTimes(2);
-  });
+    await advanceTimers(1000)
+    expect(callback).toHaveBeenCalledTimes(2)
+  })
 
-  it('should call callback immediately when runImmediately is true', () => {
-    const callback = vi.fn();
+  it('runs immediately when runImmediately is enabled', async () => {
+    const callback = vi.fn()
 
     renderHook(() =>
       usePolling(callback, {
         interval: 1000,
         runImmediately: true,
-      })
-    );
+      }),
+    )
 
-    expect(callback).toHaveBeenCalledTimes(1);
-  });
+    await flushMicrotasks()
+    expect(callback).toHaveBeenCalledTimes(1)
+  })
 
-  it('should not poll when enabled is false', () => {
-    const callback = vi.fn();
-
-    renderHook(() =>
-      usePolling(callback, {
-        interval: 1000,
-        enabled: false,
-      })
-    );
-
-    vi.advanceTimersByTime(5000);
-    expect(callback).not.toHaveBeenCalled();
-  });
-
-  it('should start polling when enabled changes to true', () => {
-    const callback = vi.fn();
-    let enabled = false;
+  it('respects the enabled flag', async () => {
+    const callback = vi.fn()
+    let enabled = false
 
     const { rerender } = renderHook(() =>
       usePolling(callback, {
         interval: 1000,
         enabled,
-      })
-    );
+      }),
+    )
 
-    // Should not poll initially
-    vi.advanceTimersByTime(1000);
-    expect(callback).not.toHaveBeenCalled();
+    await advanceTimers(1000)
+    expect(callback).not.toHaveBeenCalled()
 
-    // Enable polling
-    enabled = true;
-    rerender();
+    enabled = true
+    rerender()
 
-    // Should now poll
-    vi.advanceTimersByTime(1000);
-    expect(callback).toHaveBeenCalledTimes(1);
-  });
+    await advanceTimers(1000)
+    expect(callback).toHaveBeenCalledTimes(1)
 
-  it('should stop polling when enabled changes to false', () => {
-    const callback = vi.fn();
-    let enabled = true;
+    enabled = false
+    rerender()
 
-    const { rerender } = renderHook(() =>
-      usePolling(callback, {
-        interval: 1000,
-        enabled,
-      })
-    );
+    await advanceTimers(5000)
+    expect(callback).toHaveBeenCalledTimes(1)
+  })
 
-    // Should poll initially
-    vi.advanceTimersByTime(1000);
-    expect(callback).toHaveBeenCalledTimes(1);
+  it('cleans up timers on unmount', () => {
+    const callback = vi.fn()
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
 
-    // Disable polling
-    enabled = false;
-    rerender();
+    const { unmount } = renderHook(() => usePolling(callback, { interval: 1000 }))
 
-    // Should not poll anymore
-    vi.advanceTimersByTime(5000);
-    expect(callback).toHaveBeenCalledTimes(1);
-  });
+    unmount()
 
-  it('should cleanup interval on unmount', () => {
-    const callback = vi.fn();
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+  })
 
-    const { unmount } = renderHook(() =>
-      usePolling(callback, { interval: 1000 })
-    );
-
-    unmount();
-
-    expect(clearIntervalSpy).toHaveBeenCalled();
-  });
-
-  it('should handle callback updates without creating memory leaks', () => {
-    const callback1 = vi.fn(() => undefined)
-    const callback2 = vi.fn(() => undefined)
+  it('supports swapping callbacks without leaking timers', async () => {
+    const callbackA = vi.fn()
+    const callbackB = vi.fn()
 
     const { rerender } = renderHook(
       ({ cb }) => usePolling(cb, { interval: 1000 }),
-      {
-        initialProps: { cb: callback1 },
-      }
-    );
+      { initialProps: { cb: callbackA } },
+    )
 
-    // First callback should be called
-    vi.advanceTimersByTime(1000);
-    expect(callback1).toHaveBeenCalledTimes(1);
-    expect(callback2).not.toHaveBeenCalled();
+    await advanceTimers(1000)
+    expect(callbackA).toHaveBeenCalledTimes(1)
+    expect(callbackB).not.toHaveBeenCalled()
 
-    // Change callback
-    rerender({ cb: callback2 });
+    rerender({ cb: callbackB })
 
-    // New callback should be called, old one should not be called again
-    vi.advanceTimersByTime(1000);
-    expect(callback1).toHaveBeenCalledTimes(1); // Still 1
-    expect(callback2).toHaveBeenCalledTimes(1); // Now called
-  });
+    await advanceTimers(1000)
+    expect(callbackA).toHaveBeenCalledTimes(1)
+    expect(callbackB).toHaveBeenCalledTimes(1)
+  })
 
-  it('should restart interval when interval duration changes', () => {
-    const callback = vi.fn();
-    let interval = 1000;
+  it('restarts timers when the interval changes', async () => {
+    const callback = vi.fn()
+    let interval = 1000
 
-    const { rerender } = renderHook(() => usePolling(callback, { interval }));
+    const { rerender } = renderHook(() => usePolling(callback, { interval }))
 
-    vi.advanceTimersByTime(1000);
-    expect(callback).toHaveBeenCalledTimes(1);
+    await advanceTimers(1000)
+    expect(callback).toHaveBeenCalledTimes(1)
 
-    // Change interval
-    interval = 500;
-    rerender();
+    interval = 500
+    rerender()
 
-    // Should now use new interval
-    vi.advanceTimersByTime(500);
-    expect(callback).toHaveBeenCalledTimes(2);
+    await advanceTimers(500)
+    expect(callback).toHaveBeenCalledTimes(2)
+  })
 
-    vi.advanceTimersByTime(500);
-    expect(callback).toHaveBeenCalledTimes(3);
-  });
+  it('awaits async callbacks before scheduling the next poll', async () => {
+    const asyncCallback = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    })
 
-  it('should handle async callbacks without errors', async () => {
-    const asyncCallback = vi.fn(async (): Promise<void> => {
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
-    });
+    renderHook(() => usePolling(asyncCallback, { interval: 1000 }))
 
-    renderHook(() => usePolling(asyncCallback, { interval: 1000 }));
+    await advanceTimers(1000)
+    expect(asyncCallback).toHaveBeenCalledTimes(1)
 
-    vi.advanceTimersByTime(1000);
-    expect(asyncCallback).toHaveBeenCalledTimes(1);
+    await advanceTimers(100)
 
-    // Advance past async operation
-    await vi.advanceTimersByTimeAsync(100);
+    await advanceTimers(1000)
+    expect(asyncCallback).toHaveBeenCalledTimes(2)
+  })
 
-    vi.advanceTimersByTime(1000);
-    expect(asyncCallback).toHaveBeenCalledTimes(2);
-  });
+  describe('adaptive mode', () => {
+    it('returns latest data and adapts intervals to activity level', async () => {
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      const fetchMock = vi
+        .fn<[], Promise<{ level: 'active' | 'medium' | 'idle' }>>()
+        .mockResolvedValueOnce({ level: 'active' })
+        .mockResolvedValueOnce({ level: 'medium' })
+        .mockResolvedValueOnce({ level: 'idle' })
 
-  describe('Page Visibility API', () => {
-    let visibilityState: DocumentVisibilityState;
-    let visibilityListeners: Array<() => void> = [];
+      const { result } = renderHook(() =>
+        usePolling(fetchMock, {
+          activeInterval: 1000,
+          mediumInterval: 3000,
+          idleInterval: 5000,
+          getActivityLevel: (data) => data?.level ?? 'idle',
+          pauseWhenHidden: false,
+        }),
+      )
+
+      await flushMicrotasks()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result.current).toEqual({ level: 'active' })
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 1000)
+
+      await advanceTimers(1000)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(result.current).toEqual({ level: 'medium' })
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 3000)
+
+      await advanceTimers(3000)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(result.current).toEqual({ level: 'idle' })
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 5000)
+    })
+
+    it('falls back to the idle interval after an error', async () => {
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      vi.spyOn(logger, 'error').mockImplementation(() => {})
+      const error = new Error('boom')
+
+      const fetchMock = vi
+        .fn<[], Promise<{ level: 'active' | 'medium' | 'idle' }>>()
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce({ level: 'idle' })
+
+      renderHook(() =>
+        usePolling(fetchMock, {
+          activeInterval: 1000,
+          mediumInterval: 3000,
+          idleInterval: 5000,
+          getActivityLevel: (data) => data?.level ?? 'idle',
+        }),
+      )
+
+      await flushMicrotasks()
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 5000)
+
+      await advanceTimers(5000)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('page visibility handling', () => {
+    let visibilityState: DocumentVisibilityState
+    let listeners: Array<() => void>
 
     beforeEach(() => {
-      visibilityState = 'visible';
-      visibilityListeners = [];
+      visibilityState = 'visible'
+      listeners = []
 
-      // Mock document.visibilityState
       Object.defineProperty(document, 'visibilityState', {
-        get: () => visibilityState,
         configurable: true,
-      });
+        get: () => visibilityState,
+      })
 
-      // Mock addEventListener for visibilitychange
-      const originalAddEventListener = document.addEventListener.bind(document);
+      const originalAddEventListener = document.addEventListener.bind(document)
       vi.spyOn(document, 'addEventListener').mockImplementation((event, handler) => {
         if (event === 'visibilitychange' && typeof handler === 'function') {
-          visibilityListeners.push(handler as () => void);
+          listeners.push(handler as () => void)
         }
-        return originalAddEventListener(event, handler as EventListener);
-      });
-    });
+        return originalAddEventListener(event, handler as EventListener)
+      })
+    })
 
-    it('should pause polling when page is hidden', () => {
-      const callback = vi.fn();
-
-      renderHook(() =>
-        usePolling(callback, {
-          interval: 1000,
-          pauseWhenHidden: true,
-        })
-      );
-
-      // Poll once while visible
-      vi.advanceTimersByTime(1000);
-      expect(callback).toHaveBeenCalledTimes(1);
-
-      // Hide page
-      visibilityState = 'hidden';
-      visibilityListeners.forEach((listener) => listener());
-
-      // Should not poll while hidden
-      vi.advanceTimersByTime(5000);
-      expect(callback).toHaveBeenCalledTimes(1); // Still 1
-    });
-
-    it('should resume polling when page becomes visible again', () => {
-      const callback = vi.fn();
+    it('pauses polling while hidden', async () => {
+      const callback = vi.fn()
 
       renderHook(() =>
         usePolling(callback, {
           interval: 1000,
           pauseWhenHidden: true,
-        })
-      );
+        }),
+      )
 
-      // Poll once
-      vi.advanceTimersByTime(1000);
-      expect(callback).toHaveBeenCalledTimes(1);
+      await advanceTimers(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
 
-      // Hide page
-      visibilityState = 'hidden';
-      visibilityListeners.forEach((listener) => listener());
+      visibilityState = 'hidden'
+      listeners.forEach((listener) => listener())
 
-      // Show page again
-      visibilityState = 'visible';
-      visibilityListeners.forEach((listener) => listener());
+      await advanceTimers(5000)
+      expect(callback).toHaveBeenCalledTimes(1)
+    })
 
-      // Should resume polling
-      vi.advanceTimersByTime(1000);
-      expect(callback).toHaveBeenCalledTimes(2);
-    });
+    it('resumes polling when visible again', async () => {
+      const callback = vi.fn()
 
-    it('should not pause when pauseWhenHidden is false', () => {
-      const callback = vi.fn();
+      renderHook(() =>
+        usePolling(callback, {
+          interval: 1000,
+          pauseWhenHidden: true,
+        }),
+      )
+
+      await advanceTimers(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+
+      visibilityState = 'hidden'
+      listeners.forEach((listener) => listener())
+
+      visibilityState = 'visible'
+      listeners.forEach((listener) => listener())
+
+      await advanceTimers(1000)
+      expect(callback).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps polling when pauseWhenHidden is false', async () => {
+      const callback = vi.fn()
 
       renderHook(() =>
         usePolling(callback, {
           interval: 1000,
           pauseWhenHidden: false,
-        })
-      );
+        }),
+      )
 
-      // Poll once
-      vi.advanceTimersByTime(1000);
-      expect(callback).toHaveBeenCalledTimes(1);
+      await advanceTimers(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
 
-      // Hide page
-      visibilityState = 'hidden';
-      visibilityListeners.forEach((listener) => listener());
+      visibilityState = 'hidden'
+      listeners.forEach((listener) => listener())
 
-      // Should continue polling even when hidden
-      vi.advanceTimersByTime(1000);
-      expect(callback).toHaveBeenCalledTimes(2);
-    });
-  });
-});
+      await advanceTimers(1000)
+      expect(callback).toHaveBeenCalledTimes(2)
+    })
+  })
+})

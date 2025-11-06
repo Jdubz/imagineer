@@ -117,10 +117,11 @@ const setupFetchMock = (overrides: Partial<Handlers> = {}): void => {
 }
 
 describe('App', () => {
-  const renderApp = (): ReturnType<typeof render> => {
+  const renderApp = async (): Promise<ReturnType<typeof render>> => {
     let utils: ReturnType<typeof render>
-    act(() => {
+    await act(async () => {
       utils = render(<App />)
+      await Promise.resolve()
     })
     return utils!
   }
@@ -130,13 +131,13 @@ describe('App', () => {
     setupFetchMock()
   })
 
-  it('renders the app title', () => {
-    renderApp()
+  it('renders the app title', async () => {
+    await renderApp()
     expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
   })
 
   it('shows the viewer auth button when signed out', async () => {
-    renderApp()
+    await renderApp()
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /viewer/i })).toBeInTheDocument()
@@ -153,7 +154,7 @@ describe('App', () => {
         }),
       )
 
-    renderApp()
+    await renderApp()
 
     await waitFor(() => {
       expect(screen.getByLabelText(/open settings menu/i)).toBeInTheDocument()
@@ -185,7 +186,7 @@ describe('App', () => {
       }
     })()
 
-    renderApp()
+    await renderApp()
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/describe the image/i)).toBeInTheDocument()
@@ -214,7 +215,7 @@ describe('App', () => {
     handlers['/api/images'] = () => Promise.resolve(createImagesResponse())
     handlers['/api/generate'] = () => Promise.reject(new Error('Generation failed'))
 
-    renderApp()
+    await renderApp()
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/describe the image/i)).toBeInTheDocument()
@@ -236,7 +237,7 @@ describe('App', () => {
 
     handlers['/api/images'] = () => Promise.reject(new Error('Images failed'))
 
-    renderApp()
+    await renderApp()
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalled()
@@ -252,7 +253,7 @@ describe('App', () => {
     handlers['/api/config'] = () =>
       Promise.resolve(createResponse({ error: 'Unauthorized' }, { ok: false, status: 401 }))
 
-    renderApp()
+    await renderApp()
 
     // App should render without crashing
     expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
@@ -274,7 +275,7 @@ describe('App', () => {
     handlers['/api/config'] = () =>
       Promise.resolve(createResponse({ error: 'Forbidden' }, { ok: false, status: 403 }))
 
-    renderApp()
+    await renderApp()
 
     // App should render without crashing
     expect(screen.getByRole('heading', { name: /imagineer/i })).toBeInTheDocument()
@@ -313,7 +314,7 @@ describe('App', () => {
       )
     handlers['/api/bug-reports'] = bugReportHandler
 
-    renderApp()
+    await renderApp()
 
     await waitFor(() => expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument())
 

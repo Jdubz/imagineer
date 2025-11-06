@@ -272,7 +272,6 @@ def create_album():
         name=name,
         description=data.get("description", ""),
         album_type=album_type,
-        is_training_source=data.get("is_training_source", False),
         is_public=data.get("is_public", True),
         created_by=current_user.email,
         is_set_template=is_set_template,
@@ -297,8 +296,6 @@ def update_album(album_id):
         album.name = data["name"]
     if "description" in data:
         album.description = data["description"]
-    if "is_training_source" in data:
-        album.is_training_source = data["is_training_source"]
     if "is_public" in data:
         album.is_public = data["is_public"]
     if "album_type" in data:

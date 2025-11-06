@@ -201,6 +201,21 @@ def upload_images():
 
     files = request.files.getlist("files")
     album_id = request.form.get("album_id", type=int)
+    album_name = request.form.get("album_name", type=str)
+
+    # Support creating new album by name
+    if album_name and not album_id:
+        album = Album.query.filter_by(name=album_name).first()
+        if not album:
+            album = Album(
+                name=album_name,
+                album_type="manual",
+                source_type="manual",
+                description=f"Created via upload at {datetime.now().isoformat()}",
+            )
+            db.session.add(album)
+            db.session.flush()
+        album_id = album.id
 
     from server.api import load_config  # Local import to avoid circular dependency
 
@@ -310,6 +325,100 @@ def upload_images():
         jsonify({"success": True, "uploaded": len(uploaded_images), "images": uploaded_images}),
         201,
     )
+
+
+@images_bp.route("/bulk-upload", methods=["POST"])
+@require_admin
+def bulk_upload_images():
+    """
+    Initiate bulk image upload as background task (admin only).
+
+    Accepts multiple files via multipart/form-data and queues them
+    for processing in a Celery task. Returns job_id for monitoring progress.
+    """
+    if "files" not in request.files:
+        return jsonify({"error": "No files provided"}), 400
+
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "No files provided"}), 400
+
+    album_id = request.form.get("album_id", type=int)
+    album_name = request.form.get("album_name", type=str)
+
+    # Prepare file data for Celery task
+    files_data = []
+    for file in files:
+        if not file.filename:
+            continue
+        file_bytes = file.read()
+        files_data.append(
+            {
+                "filename": file.filename,
+                "content": list(file_bytes),  # Convert bytes to list for JSON serialization
+            }
+        )
+
+    if not files_data:
+        return jsonify({"error": "No valid files provided"}), 400
+
+    # Queue the bulk upload task
+    from server.tasks.images import bulk_upload_task
+
+    added_by = current_user.email if getattr(current_user, "is_authenticated", False) else None
+    task = bulk_upload_task.delay(files_data, album_id, album_name, added_by)
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "job_id": task.id,
+                "status": "queued",
+                "files_count": len(files_data),
+                "message": f"Bulk upload queued with {len(files_data)} files",
+            }
+        ),
+        202,
+    )
+
+
+@images_bp.route("/bulk-upload/<job_id>/status", methods=["GET"])
+@require_admin
+def get_bulk_upload_status(job_id: str):
+    """Get status of bulk upload job (admin only)."""
+    from server.celery_app import celery
+
+    task = celery.AsyncResult(job_id)
+
+    if task.state == "PENDING":
+        response = {
+            "state": task.state,
+            "status": "Task is waiting to be processed",
+        }
+    elif task.state == "PROGRESS":
+        response = {
+            "state": task.state,
+            "current": task.info.get("current", 0),
+            "total": task.info.get("total", 1),
+            "status": task.info.get("status", "Processing..."),
+        }
+    elif task.state == "SUCCESS":
+        response = {
+            "state": task.state,
+            "result": task.info,
+        }
+    elif task.state == "FAILURE":
+        response = {
+            "state": task.state,
+            "error": str(task.info),
+        }
+    else:
+        response = {
+            "state": task.state,
+            "status": "Unknown state",
+        }
+
+    return jsonify(response)
 
 
 @images_bp.route("/<int:image_id>", methods=["DELETE"])

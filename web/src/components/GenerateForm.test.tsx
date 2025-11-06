@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GenerateForm from './GenerateForm'
 import type { Config } from '../types/models'
@@ -71,10 +71,12 @@ describe('GenerateForm', () => {
     await user.type(input, 'a beautiful sunset')
     await user.click(button)
 
-    expect(mockOnGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: 'a beautiful sunset',
-      }),
+    await waitFor(() =>
+      expect(mockOnGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'a beautiful sunset',
+        }),
+      ),
     )
   })
 
@@ -97,7 +99,7 @@ describe('GenerateForm', () => {
     await user.type(input, 'test prompt')
     await user.click(screen.getByRole('button', { name: /generate image/i }))
 
-    expect(input.value).toBe('')
+    await waitFor(() => expect(input.value).toBe(''))
   })
 
   it('displays steps slider with correct range', async () => {
@@ -161,10 +163,12 @@ describe('GenerateForm', () => {
       await user.click(screen.getByRole('button', { name: /generate image/i }))
     })
 
-    expect(mockOnGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        seed: 12345,
-      }),
+    await waitFor(() =>
+      expect(mockOnGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seed: 12345,
+        }),
+      ),
     )
   })
 
@@ -183,9 +187,11 @@ describe('GenerateForm', () => {
       await user.click(randomButton)
     })
 
-    expect(seedInput.value).not.toBe('')
-    expect(Number.parseInt(seedInput.value, 10)).toBeGreaterThan(0)
-    expect(Number.parseInt(seedInput.value, 10)).toBeLessThanOrEqual(2147483647)
+    await waitFor(() => {
+      expect(seedInput.value).not.toBe('')
+      expect(Number.parseInt(seedInput.value, 10)).toBeGreaterThan(0)
+      expect(Number.parseInt(seedInput.value, 10)).toBeLessThanOrEqual(2147483647)
+    })
   })
 
   it('updates steps value when slider is moved', async () => {

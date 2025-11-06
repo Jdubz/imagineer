@@ -18,9 +18,6 @@
     "is_public": {
       "type": "boolean"
     },
-    "is_training_source": {
-      "type": "boolean"
-    },
     "generation_prompt": {
       "type": ["string", "null"]
     },
@@ -98,6 +95,18 @@
     },
     "source_id": {
       "type": ["integer", "null"]
+    },
+    "total_images": {
+      "type": "integer",
+      "description": "Total image count (training endpoints only)"
+    },
+    "labeled_images": {
+      "type": "integer",
+      "description": "Count of images with caption labels (training endpoints only)"
+    },
+    "ready_for_training": {
+      "type": "boolean",
+      "description": "Whether album has enough labeled images for training (training endpoints only)"
     }
   },
   "required": [
@@ -105,7 +114,6 @@
     "name",
     "album_type",
     "is_public",
-    "is_training_source",
     "image_count",
     "is_set_template",
     "template_item_count",

@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useRef, useState } from 'react'
 import { logger } from '../lib/logger'
 import { api } from '../lib/api'
-import { useAdaptivePolling } from '../hooks/useAdaptivePolling'
+import { usePolling } from '../hooks/usePolling'
 import type { JobsResponse } from '../types/models'
 import { formatErrorMessage, isAuthError } from '../lib/errorUtils'
 import Spinner from './Spinner'
@@ -81,12 +81,14 @@ const QueueTab: React.FC = memo(() => {
     }
   }, [showQueueError])
 
-  const queueData = useAdaptivePolling(fetchQueueData, {
+  const queueData = usePolling(fetchQueueData, {
     activeInterval: 2000,
     mediumInterval: 10000,
-    baseInterval: 30000,
+    idleInterval: 30000,
     enabled: autoRefresh,
     pauseWhenHidden: true,
+    // Explicit for clarity: adaptive polling runs immediately by default
+    runImmediately: true,
     getActivityLevel: (data) => {
       if (data?.current) return 'active'
       if (data?.queue && data.queue.length > 0) return 'medium'

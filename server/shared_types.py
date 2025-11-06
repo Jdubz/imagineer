@@ -16,7 +16,6 @@ class AlbumDetailResponseTypedDict(TypedDict, total=False):
     description: NotRequired[str | None]
     album_type: Required[str]
     is_public: Required[bool]
-    is_training_source: Required[bool]
     generation_prompt: NotRequired[str | None]
     generation_config: NotRequired[str | None]
     created_by: NotRequired[str | None]
@@ -53,7 +52,6 @@ class AlbumResponseTypedDict(TypedDict, total=False):
     description: NotRequired[str | None]
     album_type: Required[str]
     is_public: Required[bool]
-    is_training_source: Required[bool]
     generation_prompt: NotRequired[str | None]
     generation_config: NotRequired[str | None]
     created_by: NotRequired[str | None]
@@ -75,6 +73,9 @@ class AlbumResponseTypedDict(TypedDict, total=False):
     images: NotRequired[list[dict[str, Any]]]
     source_type: NotRequired[str | None]
     source_id: NotRequired[int | None]
+    total_images: NotRequired[int]
+    labeled_images: NotRequired[int]
+    ready_for_training: NotRequired[bool]
 
 
 class AuthStatusTypedDict(TypedDict, total=False):

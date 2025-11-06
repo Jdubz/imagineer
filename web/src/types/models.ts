@@ -206,11 +206,14 @@ export interface Album {
   updated_at?: string | null
   album_type?: string | null
   is_public?: boolean
-  is_training_source?: boolean
   created_by?: string | null
-  // Source tracking (NEW)
+  // Source tracking
   source_type?: 'manual' | 'batch_generation' | 'scrape'
   source_id?: number | null
+  // Training metadata (populated by GET /api/training/albums)
+  total_images?: number
+  labeled_images?: number
+  ready_for_training?: boolean
   // DEPRECATED: Set template fields (kept for backward compatibility)
   is_set_template?: boolean
   csv_data?: string | null

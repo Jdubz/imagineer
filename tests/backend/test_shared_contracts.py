@@ -251,7 +251,6 @@ def test_album_response_matches_schema(client) -> None:
             description="Album for contract testing",
             album_type="batch",
             is_public=True,
-            is_training_source=False,
             is_set_template=False,
         )
         db.session.add(album)
@@ -285,7 +284,6 @@ def test_album_detail_response_matches_schema(client) -> None:
             description="Album detail endpoint test",
             album_type="collection",
             is_public=True,
-            is_training_source=True,
             is_set_template=False,
         )
         image = Image(
@@ -514,7 +512,6 @@ def test_training_albums_response_matches_schema(client) -> None:
             description="Contract album for training endpoint",
             album_type="collection",
             is_public=True,
-            is_training_source=True,
         )
         db.session.add(album)
         db.session.commit()

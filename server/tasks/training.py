@@ -2,7 +2,6 @@
 LoRA training task integration
 """
 
-import hashlib
 import json
 import logging
 import os
@@ -435,11 +434,23 @@ def prepare_training_data(training_run):
     """
     Prepare training data from albums for LoRA training.
 
+    Creates a flat directory structure with paired image and caption files
+    as required by Stable Diffusion 1.5 training:
+        training_dir/
+        ├── image_0001.jpg
+        ├── image_0001.txt
+        ├── image_0002.png
+        └── image_0002.txt
+
     Args:
         training_run: TrainingRun instance
 
     Returns:
         Path to prepared training directory
+
+    Raises:
+        ValueError: If no albums specified, no captioned images found,
+                   or insufficient images for training
     """
     # Parse training config
     config = json.loads(training_run.training_config) if training_run.training_config else {}
@@ -448,7 +459,7 @@ def prepare_training_data(training_run):
     if not album_ids:
         raise ValueError("No albums specified for training")
 
-    # Create training directory
+    # Create flat training directory (SD 1.5 format)
     training_dir = (
         Path(training_run.dataset_path)
         if training_run.dataset_path
@@ -456,13 +467,10 @@ def prepare_training_data(training_run):
     )
     training_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create subdirectories for images and captions
-    images_dir = training_dir / "images"
-    captions_dir = training_dir / "captions"
-    images_dir.mkdir(exist_ok=True)
-    captions_dir.mkdir(exist_ok=True)
-
     total_images = 0
+    skipped_no_caption = 0
+    skipped_no_file = 0
+    image_counter = 1
 
     # Process each album
     for album_id in album_ids:
@@ -477,44 +485,70 @@ def prepare_training_data(training_run):
         )
 
         for image in album_images:
-            # Copy image file
+            # Get caption from labels - REQUIRED for training
+            caption_labels = [label for label in image.labels if label.label_type == "caption"]
+
+            if not caption_labels:
+                skipped_no_caption += 1
+                logger.debug(f"Skipping image {image.id}: no caption label found")
+                continue
+
+            caption_text = caption_labels[0].label_text
+
+            # Validate source file exists
             src_path = Path(image.file_path)
             if not src_path.exists():
+                skipped_no_file += 1
                 logger.warning(f"Image file not found: {src_path}")
                 continue
 
-            # Generate unique filename
-            file_hash = hashlib.md5(str(image.id).encode()).hexdigest()[:8]
-            dst_filename = f"{file_hash}_{image.filename}"
-            dst_path = images_dir / dst_filename
+            # Use sequential naming: image_0001.jpg, image_0001.txt
+            ext = src_path.suffix
+            base_name = f"image_{image_counter:04d}"
+            dst_image_path = training_dir / f"{base_name}{ext}"
+            dst_caption_path = training_dir / f"{base_name}.txt"
 
             try:
-                shutil.copy2(src_path, dst_path)
+                # Copy image file
+                shutil.copy2(src_path, dst_image_path)
+
+                # Write caption file (paired with image)
+                dst_caption_path.write_text(caption_text, encoding="utf-8")
+
                 total_images += 1
-
-                # Create caption file
-                caption_filename = dst_filename.rsplit(".", 1)[0] + ".txt"
-                caption_path = captions_dir / caption_filename
-
-                # Get caption from labels
-                caption_labels = [label for label in image.labels if label.label_type == "caption"]
-
-                if caption_labels:
-                    caption_text = caption_labels[0].label_text
-                else:
-                    # Fallback to prompt or filename
-                    caption_text = image.prompt or image.filename
-
-                caption_path.write_text(caption_text, encoding="utf-8")
+                image_counter += 1
 
             except Exception as e:
                 logger.error(f"Error processing image {image.id}: {e}")
+                # Clean up partial files
+                if dst_image_path.exists():
+                    dst_image_path.unlink()
+                if dst_caption_path.exists():
+                    dst_caption_path.unlink()
                 continue
 
+    # Validation
     if total_images == 0:
-        raise ValueError("No valid images found in specified albums")
+        raise ValueError(
+            f"No valid captioned images found in specified albums. "
+            f"Skipped: {skipped_no_caption} without captions, {skipped_no_file} missing files."
+        )
 
-    logger.info(f"Prepared {total_images} images for training in {training_dir}")
+    if total_images < 20:
+        logger.warning(
+            f"Training dataset has only {total_images} images. "
+            f"Minimum recommended: 20 images. Training quality may be poor."
+        )
+    elif total_images < 50:
+        logger.warning(
+            f"Training dataset has {total_images} images. "
+            f"Recommended: 50+ images for better quality."
+        )
+
+    logger.info(
+        f"Prepared {total_images} captioned images for training in {training_dir} "
+        f"(skipped {skipped_no_caption} without captions, {skipped_no_file} missing files)"
+    )
     return training_dir
 
 

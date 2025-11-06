@@ -24,7 +24,6 @@ describe('AlbumsTab admin listing', () => {
       description: 'Test description',
       album_type: 'manual',
       is_public: true,
-      is_training_source: false,
       image_count: 1,
       is_set_template: false,
       template_item_count: 0,
