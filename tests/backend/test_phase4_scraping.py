@@ -1,12 +1,9 @@
 """Simplified tests for Phase 4: Web Scraping."""
 
-from pathlib import Path
 from types import SimpleNamespace
 
-import server.api
 import server.routes.scraping_simple as scraping_routes
 from server.database import ScrapeJob, db
-from server.tasks import scraping
 
 
 class TestScrapeJobModel:
@@ -205,8 +202,8 @@ class TestScrapingAPI:
 
         storage_root = tmp_path / "scraped"
         storage_root.mkdir()
-        # Patch in the tasks module where get_scraped_output_path is defined
-        monkeypatch.setattr(scraping, "get_scraped_output_path", lambda: storage_root)
+        test_config = {"outputs": {"scraped_dir": str(storage_root)}}
+        monkeypatch.setattr("server.config_loader.load_config", lambda: test_config)
         total_bytes = 1024**4  # 1 TiB
         used_bytes = 400 * 1024**3
         free_bytes = total_bytes - used_bytes
@@ -231,56 +228,3 @@ class TestScrapingAPI:
         assert storage["used_gb"] == round(used_bytes / (1024**3), 2)
         assert storage["free_gb"] == round(free_bytes / (1024**3), 2)
         assert storage["free_percent"] == round((free_bytes / total_bytes) * 100, 2)
-
-
-class TestScrapingOutputPath:
-    """Ensure scrape output directories resolve predictably."""
-
-    def test_get_scraped_output_path_uses_configured_dir(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
-
-        configured = tmp_path / "configured"
-
-        def fake_load_config():
-            return {"outputs": {"scraped_dir": str(configured)}}
-
-        monkeypatch.setattr(server.api, "load_config", fake_load_config)
-
-        resolved = scraping.get_scraped_output_path()
-
-        assert resolved == configured
-        assert resolved.exists()
-
-    def test_get_scraped_output_path_falls_back_when_unwritable(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(scraping, "SCRAPED_OUTPUT_PATH", None)
-        # Set development mode to enable fallback behavior
-        # (production mode raises RuntimeError instead)
-        monkeypatch.setenv("FLASK_ENV", "development")
-
-        bad_path = Path("/root/unwritable/scraped")
-        fallback_base = tmp_path / "fallback"
-        fallback_expected = fallback_base / "scraped"
-
-        def fake_load_config():
-            return {
-                "outputs": {
-                    "scraped_dir": str(bad_path),
-                    "base_dir": str(fallback_base),
-                }
-            }
-
-        monkeypatch.setattr(server.api, "load_config", fake_load_config)
-
-        original_mkdir = Path.mkdir
-
-        def guarded_mkdir(self, *args, **kwargs):
-            if self == bad_path:
-                raise PermissionError("denied")
-            return original_mkdir.__get__(self, Path)(*args, **kwargs)
-
-        monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
-
-        resolved = scraping.get_scraped_output_path()
-
-        assert resolved == fallback_expected
-        assert resolved.exists()

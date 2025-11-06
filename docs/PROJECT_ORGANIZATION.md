@@ -11,7 +11,7 @@ imagineer/
 │       ├── cloudflared-config.yml
 │       ├── cloudflared-imagineer-api.service
 │       ├── imagineer-api.service
-│       └── nginx-imagineer.conf
+│       └── archive/             # Archived configs (nginx, etc.)
 ├── data/                        # Training data
 ├── docs/                        # Documentation
 │   ├── deployment/              # Deployment guides
@@ -60,8 +60,8 @@ imagineer/
 
 - **config/deployment/** - All deployment-related configuration files
   - `cloudflared-config.yml` - Cloudflare Tunnel routing rules
-  - `*.service` - systemd service definitions
-  - `nginx-imagineer.conf` - nginx web server configuration
+  - `*.service` - systemd service definitions (Gunicorn, Cloudflare Tunnel)
+  - `archive/` - Deprecated configs (nginx, etc.)
 
 ### Scripts (`scripts/`)
 
@@ -73,11 +73,11 @@ imagineer/
 ### Documentation (`docs/`)
 
 - **docs/deployment/** - Deployment guides and instructions
-  - `PRODUCTION_DEPLOYMENT_GUIDE.md` - Comprehensive deployment guide
-  - `DEPLOYMENT_QUICK_START.md` - 20-minute quick start
-  - `SETUP_INSTRUCTIONS.md` - Step-by-step setup
-  - `DEPLOYMENT_CHANGES_SUMMARY.md` - Summary of all deployment changes
-  - `DEPLOYMENT_STATUS_AND_NEXT_STEPS.md` - Status checklist
+  - `CURRENT_ARCHITECTURE.md` - Production architecture (Firebase + Cloudflare)
+  - `FIREBASE_SETUP.md` - Frontend deployment
+  - `CLOUDFLARE_TUNNEL_SETUP.md` - Backend tunnel setup
+  - `GOOGLE_OAUTH_SETUP.md` - Authentication configuration
+  - `archive/` - Obsolete docs (nginx-based deployment, historical)
 - **docs/plans/** - Project improvement plans
   - `REVISED_IMPROVEMENT_PLAN.md` - 5-phase roadmap (90-115 hours)
   - `COMPREHENSIVE_IMPROVEMENT_PLAN.md` - Initial audit-based plan
@@ -164,9 +164,8 @@ Large files are stored on an external drive at `/mnt/speedy/imagineer/`:
 
 ### systemd Services (Production)
 
-- **nginx** - Serves React frontend on port 8080
-- **imagineer-api** - Flask API on port 10050
-- **cloudflared-imagineer-api** - Cloudflare Tunnel
+- **imagineer-api** - Gunicorn WSGI server (Flask API on localhost:10050)
+- **cloudflared-imagineer-api** - Cloudflare Tunnel (routes to localhost:10050)
 
 Commands:
 ```bash
@@ -183,9 +182,9 @@ sudo journalctl -u <service> -f
 - `web/.env.production` - Frontend environment (API URL)
 
 ### Deployment Configuration
-- `config/deployment/cloudflared-config.yml` - Tunnel routing
-- `config/deployment/nginx-imagineer.conf` - Web server config
+- `config/deployment/cloudflared-config.yml` - Cloudflare Tunnel routing
 - `config/deployment/*.service` - systemd service definitions
+- Firebase Hosting configured via `firebase.json` and `.firebaserc`
 
 ### Infrastructure Configuration
 - `firebase.json` - Firebase Hosting (legacy, being deprecated)

@@ -165,22 +165,6 @@ def mock_training_subprocess_failure():
 
 
 @pytest.fixture
-def mock_file_operations():
-    """Mock file operations for training tests"""
-    with patch("pathlib.Path.exists", return_value=True), patch("shutil.copy2") as mock_copy, patch(
-        "shutil.rmtree"
-    ) as mock_rmtree, patch("pathlib.Path.write_text") as mock_write, patch(
-        "pathlib.Path.mkdir"
-    ) as mock_mkdir:
-        yield {
-            "copy": mock_copy,
-            "rmtree": mock_rmtree,
-            "write_text": mock_write,
-            "mkdir": mock_mkdir,
-        }
-
-
-@pytest.fixture
 def mock_checkpoint_creation():
     """Mock checkpoint file creation"""
     with patch("pathlib.Path.glob") as mock_glob:
@@ -238,14 +222,6 @@ def sample_training_runs(app):
 
         db.session.commit()
         yield runs
-
-
-@pytest.fixture
-def mock_admin_auth():
-    """Mock admin authentication"""
-    with patch("server.routes.training.require_admin") as mock_auth:
-        mock_auth.return_value = lambda f: f
-        yield mock_auth
 
 
 @pytest.fixture

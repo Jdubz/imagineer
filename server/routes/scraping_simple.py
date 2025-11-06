@@ -41,28 +41,28 @@ def _is_admin_user() -> bool:
 
 
 def process_scrape_jobs():
-    """
-    Background worker to process scraping jobs.
-    Runs in a separate thread, similar to image generation worker.
-    """
+    """Background worker using modern async internal scraping implementation."""
     global current_scrape_job_id
+    import asyncio
 
-    # Import here to avoid circular imports
     from server.api import app
-    from server.tasks.scraping import scrape_site_implementation
+    from server.tasks.scraping import _scrape_site_internal
 
     while True:
         job_id = scrape_queue.get()
-        if job_id is None:  # Shutdown signal
+        if job_id is None:
             break
-
         current_scrape_job_id = job_id
-
         try:
             with app.app_context():
                 try:
                     logger.info(f"Processing scrape job {job_id}")
-                    scrape_site_implementation(job_id)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(_scrape_site_internal(job_id))
+                    finally:
+                        loop.close()
                 except Exception as e:
                     logger.error(f"Error processing scrape job {job_id}: {e}", exc_info=True)
                     try:
@@ -311,9 +311,11 @@ def cleanup_job(job_id):
 def get_scraping_stats():
     """Get scraping statistics (public)"""
     try:
+        from pathlib import Path
+
         from sqlalchemy import func
 
-        from server.tasks.scraping import get_scraped_output_path
+        from server.config_loader import load_config
 
         # Get job counts by status
         status_counts = (
@@ -329,7 +331,8 @@ def get_scraping_stats():
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         recent_jobs = ScrapeJob.query.filter(ScrapeJob.created_at >= week_ago).count()
 
-        output_root = get_scraped_output_path()
+        config = load_config()
+        output_root = Path(config.get("outputs", {}).get("scraped_dir", "/tmp/imagineer/scraped"))
         storage: dict[str, object]
         try:
             usage = shutil.disk_usage(output_root)
