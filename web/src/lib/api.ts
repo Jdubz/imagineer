@@ -12,6 +12,7 @@ import type {
   Job,
   JobsResponse,
   LabelAnalytics,
+  Label,
   ScrapingJob,
   ScrapingStats,
   TrainingAlbum,
@@ -19,7 +20,12 @@ import type {
   TrainingLogResponse,
 } from '../types/models'
 import type { AuthStatus } from '../types/shared'
-import type { BugReportOptions, BugReportSubmissionResponse } from '../types/bugReport'
+import type {
+  BugReportDetail,
+  BugReportOptions,
+  BugReportSubmissionResponse,
+  BugReportSummary,
+} from '../types/bugReport'
 import * as schemas from './schemas'
 
 /**
@@ -117,6 +123,21 @@ function getErrorMessageFromBody(body: unknown, fallback: string): string {
 }
 
 type GeneratedImageContract = z.infer<typeof schemas.GeneratedImageSchema>
+type LabelContract = z.infer<typeof schemas.LabelSchema>
+
+function normalizeLabel(label: LabelContract): Label {
+  return {
+    id: label.id,
+    image_id: label.image_id,
+    label_text: label.label_text,
+    confidence: label.confidence ?? null,
+    label_type: label.label_type ?? null,
+    source_model: label.source_model ?? null,
+    source_prompt: label.source_prompt ?? null,
+    created_by: label.created_by ?? null,
+    created_at: label.created_at ?? null,
+  }
+}
 
 function toAbsoluteApiPath(path?: string | null): string | undefined {
   if (!path) {
@@ -199,6 +220,8 @@ function normalizeGeneratedImage(image: GeneratedImageContract): GeneratedImage 
     height: typeof image.height === 'number' ? image.height : null,
     is_nsfw: image.is_nsfw,
     is_public: image.is_public,
+    album_id: typeof image.album_id === 'number' ? image.album_id : null,
+    labels: Array.isArray(image.labels) ? image.labels.map(normalizeLabel) : undefined,
     metadata: buildMetadataFromImage(image),
   }
 }
@@ -266,11 +289,11 @@ export interface TrainingLogRequestOptions {
  * - Handles Retry-After header for rate limiting (429 responses)
  * - Runtime validation with Zod schemas
  */
-async function apiRequest<T>(
+async function apiRequest<TSchema extends z.ZodTypeAny>(
   url: string,
-  schema: z.ZodType<T>,
+  schema: TSchema,
   options?: RequestInit
-): Promise<T> {
+): Promise<z.infer<TSchema>> {
   try {
     // Ensure credentials are always included unless explicitly overridden
     const requestOptions: RequestInit = {
@@ -436,9 +459,14 @@ export const api = {
     /**
      * Fetch image by ID
      */
-    async getById(imageId: number, signal?: AbortSignal): Promise<GeneratedImage> {
+    async getById(
+      imageId: number,
+      options: { includeLabels?: boolean; signal?: AbortSignal } = {}
+    ): Promise<GeneratedImage> {
+      const { includeLabels = false, signal } = options
+      const includeQuery = includeLabels ? '?include=labels' : ''
       const response = await apiRequest(
-        getApiUrl(`/images/${imageId}`),
+        getApiUrl(`/images/${imageId}${includeQuery}`),
         schemas.GeneratedImageSchema,
         { signal }
       )
@@ -450,7 +478,12 @@ export const api = {
      */
     async update(
       imageId: number,
-      data: { prompt?: string; negative_prompt?: string },
+      data: {
+        prompt?: string | null
+        negative_prompt?: string | null
+        is_nsfw?: boolean
+        is_public?: boolean
+      },
       signal?: AbortSignal
     ): Promise<GeneratedImage> {
       const response = await apiRequest(
@@ -472,6 +505,80 @@ export const api = {
      */
     async delete(imageId: number, signal?: AbortSignal): Promise<void> {
       await fetch(getApiUrl(`/images/${imageId}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        signal,
+      })
+    },
+
+    /**
+     * List labels for an image
+     */
+    async getLabels(imageId: number, signal?: AbortSignal): Promise<Label[]> {
+      const response = await apiRequest(
+        getApiUrl(`/images/${imageId}/labels`),
+        schemas.LabelListSchema,
+        {
+          credentials: 'include',
+          signal,
+        }
+      )
+      return Array.isArray(response.labels) ? response.labels.map(normalizeLabel) : []
+    },
+
+    /**
+     * Create a new label for an image
+     */
+    async createLabel(
+      imageId: number,
+      payload: { text: string; type?: string },
+      signal?: AbortSignal
+    ): Promise<Label> {
+      const response = await apiRequest(
+        getApiUrl(`/images/${imageId}/labels`),
+        schemas.LabelSchema,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            text: payload.text,
+            type: payload.type ?? 'manual',
+          }),
+          signal,
+        }
+      )
+      return normalizeLabel(response)
+    },
+
+    /**
+     * Update an existing label
+     */
+    async updateLabel(
+      imageId: number,
+      labelId: number,
+      payload: { text?: string; type?: string },
+      signal?: AbortSignal
+    ): Promise<Label> {
+      const response = await apiRequest(
+        getApiUrl(`/images/${imageId}/labels/${labelId}`),
+        schemas.LabelSchema,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+          signal,
+        }
+      )
+      return normalizeLabel(response)
+    },
+
+    /**
+     * Delete a label from an image
+     */
+    async deleteLabel(imageId: number, labelId: number, signal?: AbortSignal): Promise<void> {
+      await fetch(getApiUrl(`/images/${imageId}/labels/${labelId}`), {
         method: 'DELETE',
         credentials: 'include',
         signal,
@@ -1200,6 +1307,40 @@ async getById(batchId: string, signal?: AbortSignal): Promise<{ batch_id: string
         credentials: 'include',
         body: JSON.stringify(requestPayload),
       })
+    },
+    async list(params?: { page?: number; perPage?: number }): Promise<{
+      reports: BugReportSummary[]
+      pagination: {
+        page: number
+        per_page: number
+        total: number
+        pages: number
+      }
+    }> {
+      const searchParams = new URLSearchParams()
+      if (params?.page && params.page > 0) {
+        searchParams.set('page', String(params.page))
+      }
+      if (params?.perPage && params.perPage > 0) {
+        searchParams.set('per_page', String(params.perPage))
+      }
+
+      const query = searchParams.size ? `?${searchParams.toString()}` : ''
+      return apiRequest(getApiUrl(`/bug-reports${query}`), schemas.BugReportListResponseSchema, {
+        method: 'GET',
+        credentials: 'include',
+      })
+    },
+    async get(reportId: string): Promise<BugReportDetail> {
+      const response = await apiRequest(
+        getApiUrl(`/bug-reports/${encodeURIComponent(reportId)}`),
+        schemas.BugReportDetailResponseSchema,
+        {
+          method: 'GET',
+          credentials: 'include',
+        },
+      )
+      return response.report
     },
   },
 }

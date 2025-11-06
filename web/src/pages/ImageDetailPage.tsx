@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import type { FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Save, X, Trash2, Loader2, Download, FolderOpen, Calendar, Hash, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -6,13 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import LabelingPanel from '@/components/LabelingPanel'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
 import { logger } from '../lib/logger'
 import { resolveImageSources } from '../lib/imageSources'
-import type { GeneratedImage } from '../types/models'
+import type { GeneratedImage, Label as ImageLabel } from '../types/models'
 
 interface ImageDetailPageProps {
   isAdmin: boolean
@@ -32,10 +36,22 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
   const [editedNegativePrompt, setEditedNegativePrompt] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [labels, setLabels] = useState<ImageLabel[]>([])
+  const [labelsLoading, setLabelsLoading] = useState(false)
+  const [labelsError, setLabelsError] = useState<string | null>(null)
+  const [newLabelText, setNewLabelText] = useState('')
+  const [addingLabel, setAddingLabel] = useState(false)
+  const [deletingLabelId, setDeletingLabelId] = useState<number | null>(null)
+  const [updatingNsfw, setUpdatingNsfw] = useState(false)
 
   const imageSources = useMemo(
     () => (image ? resolveImageSources(image) : null),
     [image]
+  )
+
+  const nsfwCheckboxId = useMemo(
+    () => (imageId ? `image-nsfw-${imageId}` : 'image-nsfw'),
+    [imageId]
   )
 
   const fetchImageDetails = useCallback(async () => {
@@ -43,10 +59,14 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
 
     setLoading(true)
     try {
-      const imageData = await api.images.getById(Number(imageId))
+      const imageData = await api.images.getById(Number(imageId), {
+        includeLabels: isAdmin,
+      })
       setImage(imageData)
       setEditedPrompt(imageData.prompt || '')
       setEditedNegativePrompt(imageData.negative_prompt || '')
+      setLabels(Array.isArray(imageData.labels) ? imageData.labels : [])
+      setLabelsError(null)
     } catch (error) {
       logger.error('Failed to fetch image details:', error)
       showErrorToast({
@@ -57,11 +77,38 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
     } finally {
       setLoading(false)
     }
-  }, [imageId, showErrorToast])
+  }, [imageId, isAdmin, showErrorToast])
 
   useEffect(() => {
     void fetchImageDetails()
   }, [fetchImageDetails])
+
+  const fetchLabels = useCallback(async () => {
+    if (!isAdmin || !imageId) {
+      return
+    }
+
+    setLabelsLoading(true)
+    try {
+      const labelList = await api.images.getLabels(Number(imageId))
+      setLabels(labelList)
+      setLabelsError(null)
+    } catch (error) {
+      logger.error('Failed to fetch image labels:', error)
+      setLabelsError('Unable to load labels')
+      showErrorToast({
+        title: 'Label Load Failed',
+        context: 'Failed to load labels',
+        error,
+      })
+    } finally {
+      setLabelsLoading(false)
+    }
+  }, [imageId, isAdmin, showErrorToast])
+
+  useEffect(() => {
+    void fetchLabels()
+  }, [fetchLabels])
 
   const handleSave = useCallback(async () => {
     if (!image) return
@@ -121,6 +168,98 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
       setIsDeleting(false)
     }
   }, [image, navigate, toast, showErrorToast])
+
+  const handleAddLabel = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (!image?.id) {
+        return
+      }
+
+      const text = newLabelText.trim()
+      if (text.length === 0) {
+        return
+      }
+
+      setAddingLabel(true)
+      try {
+        const created = await api.images.createLabel(image.id, { text, type: 'manual' })
+        setLabels((previous) => [...previous, created])
+        setNewLabelText('')
+        toast({
+          title: 'Label added',
+          description: `"${text}" was added to this image.`,
+        })
+      } catch (error) {
+        logger.error('Failed to add label:', error)
+        showErrorToast({
+          title: 'Add label failed',
+          context: 'Unable to add label',
+          error,
+        })
+      } finally {
+        setAddingLabel(false)
+      }
+    },
+    [image, newLabelText, showErrorToast, toast]
+  )
+
+  const handleDeleteLabel = useCallback(
+    async (labelId: number) => {
+      if (!image?.id) {
+        return
+      }
+      setDeletingLabelId(labelId)
+      try {
+        await api.images.deleteLabel(image.id, labelId)
+        setLabels((previous) => previous.filter((label) => label.id !== labelId))
+        toast({
+          title: 'Label removed',
+          description: 'The label has been removed from this image.',
+        })
+      } catch (error) {
+        logger.error('Failed to delete label:', error)
+        showErrorToast({
+          title: 'Delete label failed',
+          context: 'Unable to delete label',
+          error,
+        })
+      } finally {
+        setDeletingLabelId(null)
+      }
+    },
+    [image, showErrorToast, toast]
+  )
+
+  const handleNsfwCheckboxChange = useCallback(
+    async (value: boolean | 'indeterminate') => {
+      if (!image?.id) {
+        return
+      }
+      const nextValue = value === true
+      setUpdatingNsfw(true)
+      try {
+        await api.images.update(image.id, { is_nsfw: nextValue })
+        setImage((previous) => (previous ? { ...previous, is_nsfw: nextValue } : previous))
+        toast({
+          title: nextValue ? 'Marked as NSFW' : 'NSFW flag removed',
+          description: nextValue
+            ? 'This image will be hidden from non-admin viewers.'
+            : 'The image is now marked as safe.',
+        })
+      } catch (error) {
+        logger.error('Failed to update NSFW flag:', error)
+        showErrorToast({
+          title: 'Update failed',
+          context: 'Failed to update NSFW flag',
+          error,
+        })
+      } finally {
+        setUpdatingNsfw(false)
+      }
+    },
+    [image, showErrorToast, toast]
+  )
 
   const handleDownload = useCallback(() => {
     if (!imageSources) return
@@ -247,16 +386,33 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
                 </Badge>
               </div>
 
-              {/* Album Link */}
-              {image.album_id && (
-                <div className="pt-2 border-t">
-                  <Label className="text-sm text-muted-foreground mb-2 block">Album</Label>
-                  <Link to={`/albums/${image.album_id}`}>
-                    <Button variant="outline" size="sm">
-                      <FolderOpen className="h-4 w-4 mr-2" />
-                      View Album
-                    </Button>
-                  </Link>
+              {(image.album_id || isAdmin) && (
+                <div className="border-t pt-3 space-y-3">
+                  {image.album_id ? (
+                    <div>
+                      <Label className="text-sm text-muted-foreground mb-2 block">Album</Label>
+                      <Link to={`/albums/${image.album_id}`}>
+                        <Button variant="outline" size="sm">
+                          <FolderOpen className="h-4 w-4 mr-2" />
+                          View Album
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : null}
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={nsfwCheckboxId}
+                        checked={Boolean(image.is_nsfw)}
+                        onCheckedChange={handleNsfwCheckboxChange}
+                        disabled={updatingNsfw}
+                      />
+                      <Label htmlFor={nsfwCheckboxId} className="text-sm font-medium">
+                        Mark as NSFW
+                      </Label>
+                      {updatingNsfw ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </CardContent>
@@ -306,6 +462,70 @@ const ImageDetailPage: React.FC<ImageDetailPageProps> = ({ isAdmin }) => {
                     {JSON.stringify(JSON.parse(image.lora_config), null, 2)}
                   </pre>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Labels</CardTitle>
+                <CardDescription>Review and manage tags for this image.</CardDescription>
+              </div>
+              {isAdmin && image.id ? (
+                <LabelingPanel imageId={image.id} variant="compact" onComplete={fetchLabels} />
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isAdmin ? (
+                <form onSubmit={handleAddLabel} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    placeholder="e.g. portrait, sunset"
+                    value={newLabelText}
+                    onChange={(event) => setNewLabelText(event.target.value)}
+                    disabled={addingLabel}
+                  />
+                  <Button type="submit" disabled={addingLabel || newLabelText.trim().length === 0}>
+                    {addingLabel ? 'Adding...' : 'Add label'}
+                  </Button>
+                </form>
+              ) : null}
+              {labelsError ? <p className="text-sm text-destructive">{labelsError}</p> : null}
+              {labelsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading labels...
+                </div>
+              ) : labels.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {labels.map((label) => (
+                    <span
+                      key={label.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted px-3 py-1 text-xs font-medium"
+                    >
+                      {label.label_text}
+                      {isAdmin ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Delete label ${label.label_text}`}
+                          onClick={() => handleDeleteLabel(label.id)}
+                          disabled={deletingLabelId === label.id}
+                          className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                        >
+                          {deletingLabelId === label.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      ) : null}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No labels have been added yet.</p>
               )}
             </CardContent>
           </Card>

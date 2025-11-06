@@ -91,6 +91,11 @@ export const LabelSchema: ZodType<LabelContract> = z.object({
   created_at: z.string().nullable().optional(),
 })
 
+export const LabelListSchema = z.object({
+  image_id: z.number(),
+  labels: z.array(LabelSchema),
+})
+
 export const ImageResponseSchema: ZodType<ImageResponseContract> = z.object({
   id: z.number(),
   filename: z.string(),
@@ -602,6 +607,49 @@ export const JobsResponseSchema: ZodType<JobsResponse> = z.object({
 // ============================================
 // Bug Reports
 // ============================================
+
+export const BugReportSummarySchema = z.object({
+  report_id: z.string(),
+  trace_id: z.string().nullable().optional(),
+  submitted_by: z.string().nullable().optional(),
+  submitted_at: z.string().nullable().optional(),
+  description: z.string(),
+  expected_behavior: z.string().nullable().optional(),
+  actual_behavior: z.string().nullable().optional(),
+  steps_to_reproduce: z.array(z.unknown()).optional(),
+  status: z.string(),
+  automation_attempts: z.number().nullable().optional(),
+  screenshot_path: z.string().nullable().optional(),
+  screenshot_error: z.string().nullable().optional(),
+  resolution_notes: z.string().nullable().optional(),
+  resolution_commit_sha: z.string().nullable().optional(),
+  resolution_actor_id: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  completed_at: z.string().nullable().optional(),
+})
+
+export const BugReportListResponseSchema = z.object({
+  reports: z.array(BugReportSummarySchema),
+  pagination: z.object({
+    page: z.number(),
+    per_page: z.number(),
+    total: z.number(),
+    pages: z.number(),
+  }),
+})
+
+export const BugReportDetailSchema = BugReportSummarySchema.extend({
+  environment: z.record(z.string(), z.unknown()).optional(),
+  client_meta: z.record(z.string(), z.unknown()).optional(),
+  app_state: z.record(z.string(), z.unknown()).optional(),
+  recent_logs: z.unknown().optional(),
+  network_events: z.unknown().optional(),
+  events: z.unknown().optional(),
+})
+
+export const BugReportDetailResponseSchema = z.object({
+  report: BugReportDetailSchema,
+})
 
 export const BugReportResponseSchema = z.object({
   success: z.boolean(),

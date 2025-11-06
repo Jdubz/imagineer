@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import type { FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Save, X, Trash2, Loader2, ImageIcon, FolderOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -8,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import LabelingPanel from '@/components/LabelingPanel'
 import { useToast } from '../hooks/use-toast'
 import { useErrorToast } from '../hooks/use-error-toast'
 import { api } from '../lib/api'
@@ -34,21 +36,25 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
   const [editedDescription, setEditedDescription] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [labelInputs, setLabelInputs] = useState<Record<number, string>>({})
+  const [labelSaving, setLabelSaving] = useState<Record<number, boolean>>({})
+  const [labelDeleting, setLabelDeleting] = useState<Record<number, number | null>>({})
 
   const fetchAlbumDetails = useCallback(async () => {
     if (!albumId) return
 
     setLoading(true)
     try {
-      const albumData = await api.albums.getById(Number(albumId))
+      const albumData = await api.albums.getById(Number(albumId), true)
       setAlbum(albumData)
       setEditedName(albumData.name)
       setEditedDescription(albumData.description || '')
 
-      // Album API returns images as part of the album response
-      if (albumData.images) {
-        setImages(albumData.images)
-      }
+      const imageList = albumData.images ?? []
+      setImages(imageList)
+      setLabelInputs({})
+      setLabelSaving({})
+      setLabelDeleting({})
     } catch (error) {
       logger.error('Failed to fetch album details:', error)
       showErrorToast({
@@ -64,6 +70,35 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
   useEffect(() => {
     void fetchAlbumDetails()
   }, [fetchAlbumDetails])
+
+  const refreshImageLabels = useCallback(
+    async (imageId: number) => {
+      if (!isAdmin) {
+        return
+      }
+      try {
+        const labels = await api.images.getLabels(imageId)
+        setImages((previous) =>
+          previous.map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  labels,
+                }
+              : img
+          )
+        )
+      } catch (error) {
+        logger.error('Failed to refresh labels for image', error, { imageId })
+        showErrorToast({
+          title: 'Label refresh failed',
+          context: 'Failed to refresh image labels',
+          error,
+        })
+      }
+    },
+    [isAdmin, showErrorToast]
+  )
 
   const handleSave = useCallback(async () => {
     if (!album) return
@@ -115,6 +150,90 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
       setIsDeleting(false)
     }
   }, [album, navigate, toast, showErrorToast])
+
+  const handleAddLabel = useCallback(
+    async (imageId: number, event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      const text = (labelInputs[imageId] ?? '').trim()
+      if (!text) {
+        return
+      }
+
+      setLabelSaving((previous) => ({ ...previous, [imageId]: true }))
+      try {
+        const created = await api.images.createLabel(imageId, { text, type: 'manual' })
+        setImages((previous) =>
+          previous.map((img) =>
+            img.id === imageId
+              ? { ...img, labels: [...(img.labels ?? []), created] }
+              : img
+          )
+        )
+        setLabelInputs((previous) => ({ ...previous, [imageId]: '' }))
+        toast({
+          title: 'Label added',
+          description: `"${text}" was added to image #${imageId}.`,
+        })
+      } catch (error) {
+        logger.error('Failed to add label to image', error, { imageId, text })
+        showErrorToast({
+          title: 'Add label failed',
+          context: 'Unable to add label to image',
+          error,
+        })
+      } finally {
+        setLabelSaving((previous) => {
+          if (!(imageId in previous)) {
+            return previous
+          }
+          const next = { ...previous }
+          delete next[imageId]
+          return next
+        })
+      }
+    },
+    [labelInputs, showErrorToast, toast]
+  )
+
+  const handleDeleteLabel = useCallback(
+    async (imageId: number, labelId: number) => {
+      setLabelDeleting((previous) => ({ ...previous, [imageId]: labelId }))
+      try {
+        await api.images.deleteLabel(imageId, labelId)
+        setImages((previous) =>
+          previous.map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  labels: (img.labels ?? []).filter((label) => label.id !== labelId),
+                }
+              : img
+          )
+        )
+        toast({
+          title: 'Label removed',
+          description: `Label was removed from image #${imageId}.`,
+        })
+      } catch (error) {
+        logger.error('Failed to delete label from image', error, { imageId, labelId })
+        showErrorToast({
+          title: 'Delete label failed',
+          context: 'Unable to delete label',
+          error,
+        })
+      } finally {
+        setLabelDeleting((previous) => {
+          if (!(imageId in previous)) {
+            return previous
+          }
+          const next = { ...previous }
+          delete next[imageId]
+          return next
+        })
+      }
+    },
+    [showErrorToast, toast]
+  )
 
   if (loading) {
     return (
@@ -303,6 +422,99 @@ const AlbumDetailPage: React.FC<AlbumDetailPageProps> = ({ isAdmin }) => {
           )}
         </CardContent>
       </Card>
+
+      {images.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Image Labels</CardTitle>
+            <CardDescription>Manage training labels for each image in this album.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {images.map((image) => {
+              if (!image.id) {
+                return null
+              }
+              const imageId = image.id
+              const currentValue = labelInputs[imageId] ?? ''
+              const isSaving = Boolean(labelSaving[imageId])
+              const deletingLabelId = labelDeleting[imageId] ?? null
+              const labels = image.labels ?? []
+
+              return (
+                <div key={imageId} className="rounded-lg border border-border/60 p-4 space-y-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{image.filename}</p>
+                      <p className="text-xs text-muted-foreground">Image ID: {imageId}</p>
+                    </div>
+                    {isAdmin ? (
+                      <LabelingPanel
+                        imageId={imageId}
+                        variant="compact"
+                        onComplete={() => void refreshImageLabels(imageId)}
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {labels.length > 0 ? (
+                      labels.map((label) => (
+                        <span
+                          key={label.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted px-3 py-1 text-xs font-medium"
+                        >
+                          {label.label_text}
+                          {isAdmin ? (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`Delete label ${label.label_text}`}
+                              onClick={() => handleDeleteLabel(imageId, label.id)}
+                              disabled={deletingLabelId === label.id}
+                              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                            >
+                              {deletingLabelId === label.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </Button>
+                          ) : null}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No labels yet.</p>
+                    )}
+                  </div>
+
+                  {isAdmin ? (
+                    <form
+                      onSubmit={(event) => handleAddLabel(imageId, event)}
+                      className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                    >
+                      <Input
+                        placeholder="Add label"
+                        value={currentValue}
+                        onChange={(event) =>
+                          setLabelInputs((previous) => ({
+                            ...previous,
+                            [imageId]: event.target.value,
+                          }))
+                        }
+                        disabled={isSaving}
+                      />
+                      <Button type="submit" disabled={isSaving || currentValue.trim().length === 0}>
+                        {isSaving ? 'Adding...' : 'Add'}
+                      </Button>
+                    </form>
+                  ) : null}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Images Grid */}
       <Card>
