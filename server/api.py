@@ -178,7 +178,9 @@ def _resolve_runtime_port(flask_env: str) -> int:
         try:
             return int(port_value)
         except ValueError:
-            logger.warning("Environment variable PORT=%s is not a valid integer port.", port_value)
+            msg = f"Invalid PORT environment variable: {port_value!r} is not a valid integer."
+            logger.error(msg)
+            raise ValueError(msg)
 
     flask_run_port = os.environ.get("FLASK_RUN_PORT")
     if flask_run_port:
@@ -206,7 +208,12 @@ def _resolve_runtime_port(flask_env: str) -> int:
 
 
 def validate_environment():
-    """Validate environment configuration matches expectations."""
+    """
+    Validate environment configuration matches expectations.
+
+    Side effect: Sets ``FLASK_RUN_PORT`` to the resolved runtime port when it is not
+    already defined, keeping legacy workflows that read that variable in sync.
+    """
     flask_env = os.environ.get("FLASK_ENV", "development")
     port = _resolve_runtime_port(flask_env)
     os.environ.setdefault("FLASK_RUN_PORT", str(port))
