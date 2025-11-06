@@ -164,10 +164,59 @@ trace_id_middleware(app)
 
 
 # Environment validation
+def _resolve_runtime_port(flask_env: str) -> int:
+    """
+    Determine which port the application is expected to run on.
+
+    ``PORT`` is the canonical configuration key. We still honour
+    ``FLASK_RUN_PORT`` for backwards compatibility (and log a reminder),
+    but we no longer require both variables to be kept in sync.
+    """
+
+    port_value = os.environ.get("PORT")
+    if port_value:
+        try:
+            return int(port_value)
+        except ValueError:
+            msg = f"Invalid PORT environment variable: {port_value!r} is not a valid integer."
+            logger.error(msg)
+            raise ValueError(msg)
+
+    flask_run_port = os.environ.get("FLASK_RUN_PORT")
+    if flask_run_port:
+        try:
+            port = int(flask_run_port)
+            if flask_env != "production" and port == 10050:
+                logger.warning(
+                    "FLASK_RUN_PORT is set to the reserved production port (10050) "
+                    "while FLASK_ENV=%s. Falling back to 5000 for development.",
+                    flask_env,
+                )
+                return 5000
+            logger.debug(
+                "Using FLASK_RUN_PORT=%s as fallback; set PORT to silence this message.",
+                flask_run_port,
+            )
+            return port
+        except ValueError:
+            logger.warning(
+                "Environment variable FLASK_RUN_PORT=%s is not a valid integer port.",
+                flask_run_port,
+            )
+
+    return 10050 if flask_env == "production" else 5000
+
+
 def validate_environment():
-    """Validate environment configuration matches expectations."""
+    """
+    Validate environment configuration matches expectations.
+
+    Side effect: Sets ``FLASK_RUN_PORT`` to the resolved runtime port when it is not
+    already defined, keeping legacy workflows that read that variable in sync.
+    """
     flask_env = os.environ.get("FLASK_ENV", "development")
-    port = int(os.environ.get("PORT", 5000))
+    port = _resolve_runtime_port(flask_env)
+    os.environ.setdefault("FLASK_RUN_PORT", str(port))
 
     if flask_env == "production":
         # Production validation
