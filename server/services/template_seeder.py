@@ -189,7 +189,6 @@ def ensure_default_set_templates(app=None) -> dict[str, list[str]]:
                 album.description = definition.description
                 album.album_type = definition.config.get("album_type", "set")
                 album.is_public = bool(definition.config.get("is_public", True))
-                album.is_training_source = bool(definition.config.get("is_training_source", False))
                 album.created_by = (
                     definition.config.get("created_by") or album.created_by or "system"
                 )
@@ -209,7 +208,6 @@ def ensure_default_set_templates(app=None) -> dict[str, list[str]]:
                     description=definition.description,
                     album_type=definition.config.get("album_type", "set"),
                     is_public=bool(definition.config.get("is_public", True)),
-                    is_training_source=bool(definition.config.get("is_training_source", False)),
                     created_by=definition.config.get("created_by") or "system",
                     generation_prompt=definition.config.get("base_prompt"),
                     generation_config=generation_payload,

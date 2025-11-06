@@ -59,6 +59,9 @@ export interface AlbumResponse {
   images?: Array<Record<string, unknown>>;
   source_type?: string | null;
   source_id?: number | null;
+  total_images?: number;
+  labeled_images?: number;
+  ready_for_training?: boolean;
 }
 
 /** Response payload returned by /api/auth/me. */

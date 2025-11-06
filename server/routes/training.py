@@ -110,7 +110,7 @@ def _get_training_defaults() -> dict:
 
 def _validate_album_selection(album_ids: list[int]) -> None:
     """Validate that selected albums have sufficient labeled images for training."""
-    from server.database import Image, ImageLabel
+    from server.database import Image, Label
 
     total_images = 0
     total_labeled = 0
@@ -122,10 +122,10 @@ def _validate_album_selection(album_ids: list[int]) -> None:
 
         # Count labeled images in this album
         labeled_count = (
-            db.session.query(ImageLabel)
-            .join(ImageLabel.image)
+            db.session.query(Label)
+            .join(Label.image)
             .join(Image.album_images)
-            .filter(AlbumImage.album_id == album.id, ImageLabel.label_type == "caption")
+            .filter(AlbumImage.album_id == album.id, Label.label_type == "caption")
             .count()
         )
 
@@ -506,7 +506,7 @@ def list_available_albums():
     - labeled_images: Images with caption labels
     - ready_for_training: Whether album has enough labeled images (20+ recommended)
     """
-    from server.database import ImageLabel
+    from server.database import Label
 
     albums = Album.query.all()
 
@@ -514,10 +514,10 @@ def list_available_albums():
     for album in albums:
         # Count images with caption labels
         labeled_count = (
-            db.session.query(ImageLabel)
-            .join(ImageLabel.image)
+            db.session.query(Label)
+            .join(Label.image)
             .join(Image.album_images)
-            .filter(AlbumImage.album_id == album.id, ImageLabel.label_type == "caption")
+            .filter(AlbumImage.album_id == album.id, Label.label_type == "caption")
             .count()
         )
 

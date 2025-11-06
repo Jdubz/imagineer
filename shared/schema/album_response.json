@@ -95,6 +95,18 @@
     },
     "source_id": {
       "type": ["integer", "null"]
+    },
+    "total_images": {
+      "type": "integer",
+      "description": "Total image count (training endpoints only)"
+    },
+    "labeled_images": {
+      "type": "integer",
+      "description": "Count of images with caption labels (training endpoints only)"
+    },
+    "ready_for_training": {
+      "type": "boolean",
+      "description": "Whether album has enough labeled images for training (training endpoints only)"
     }
   },
   "required": [

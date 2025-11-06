@@ -218,7 +218,7 @@ class TestTrainingTasks:
         """Test training data preparation"""
         with app.app_context():
             # Create test album with images
-            album = Album(name="Test Album", is_training_source=True)
+            album = Album(name="Test Album")
             db.session.add(album)
             db.session.commit()
 
@@ -302,7 +302,7 @@ class TestTrainingTasks:
         """Test training data preparation with no valid images"""
         with app.app_context():
             # Create empty album
-            album = Album(name="Empty Album", is_training_source=True)
+            album = Album(name="Empty Album")
             db.session.add(album)
             db.session.commit()
 
@@ -317,7 +317,7 @@ class TestTrainingTasks:
             db.session.commit()
 
             with patch("pathlib.Path.exists", return_value=False):
-                with pytest.raises(ValueError, match="No valid images found"):
+                with pytest.raises(ValueError, match="No valid captioned images found"):
                     prepare_training_data(run)
 
     def test_cleanup_training_data(self, app):
@@ -459,9 +459,29 @@ class TestTrainingAPI:
     def test_create_training_run(self, client, app, mock_admin_user):
         """Test creating training run (admin)"""
         with app.app_context():
-            # Create test album
-            album = Album(name="Test Album", is_training_source=True)
+            # Create test album with labeled images for validation
+            album = Album(name="Test Album")
             db.session.add(album)
+            db.session.flush()
+
+            # Add 20+ labeled images to pass validation
+            for i in range(25):
+                image = Image(
+                    filename=f"test_{i}.jpg", file_path=f"/tmp/test_{i}.jpg", width=512, height=512
+                )
+                db.session.add(image)
+                db.session.flush()
+
+                # Add to album
+                album_image = AlbumImage(album_id=album.id, image_id=image.id, sort_order=i)
+                db.session.add(album_image)
+
+                # Add caption label (required for training)
+                label = Label(
+                    image_id=image.id, label_text=f"Test caption {i}", label_type="caption"
+                )
+                db.session.add(label)
+
             db.session.commit()
 
             data = {
@@ -609,8 +629,8 @@ class TestTrainingAPI:
     def test_list_available_albums(self, client, app):
         """Test listing albums available for training"""
         with app.app_context():
-            # Create training source album
-            album = Album(name="Training Album", is_training_source=True)
+            # Create album (no longer uses is_training_source flag)
+            album = Album(name="Training Album")
             db.session.add(album)
             db.session.commit()
 
@@ -618,8 +638,14 @@ class TestTrainingAPI:
             assert response.status_code == 200
 
             data = response.get_json()
-            assert len(data["albums"]) == 1
-            assert data["albums"][0]["name"] == "Training Album"
+            assert len(data["albums"]) >= 1
+            # Find our album in the list (may have other albums from other tests)
+            our_album = next((a for a in data["albums"] if a["name"] == "Training Album"), None)
+            assert our_album is not None
+            # Check that metadata fields are present
+            assert "total_images" in our_album
+            assert "labeled_images" in our_album
+            assert "ready_for_training" in our_album
 
     def test_list_trained_loras(self, client, app):
         """Test listing trained LoRAs"""

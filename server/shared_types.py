@@ -73,6 +73,9 @@ class AlbumResponseTypedDict(TypedDict, total=False):
     images: NotRequired[list[dict[str, Any]]]
     source_type: NotRequired[str | None]
     source_id: NotRequired[int | None]
+    total_images: NotRequired[int]
+    labeled_images: NotRequired[int]
+    ready_for_training: NotRequired[bool]
 
 
 class AuthStatusTypedDict(TypedDict, total=False):
