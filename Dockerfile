@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Base image with system dependencies
-FROM python:3.12-slim as base
+FROM python:3.12-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Python dependencies
-FROM base as builder
+FROM base AS builder
 
 WORKDIR /app
 
@@ -21,9 +21,10 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-# Use verbose output to keep CI logs active during large wheel downloads
+# Use verbose output to keep CI logs active during large wheel downloads; ignore root warnings in container builds
+ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install -v --no-cache-dir --upgrade pip && \
-    PIP_PROGRESS_BAR=ascii pip install -v --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install -v --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121 && \
     pip install -v --no-cache-dir -r requirements.txt
 
 # Stage 3: Production image
