@@ -9,7 +9,7 @@ APP_DIR="/home/jdubz/Development/imagineer"
 STACK_DIR="/srv/imagineer"
 COMPOSE_FILE="${STACK_DIR}/docker-compose.yml"
 IMAGE_TAG="ghcr.io/jdubz/imagineer/api:latest"
-SKIP_BUILD=${SKIP_BUILD:-false}
+SKIP_BUILD=${SKIP_BUILD:-true}
 HEALTH_URL="http://localhost:10050/api/health"
 MAX_ATTEMPTS=10
 SLEEP_SECONDS=3
@@ -36,7 +36,8 @@ if [[ "${SKIP_BUILD}" != "true" ]]; then
   log "Building API image ${IMAGE_TAG}..."
   docker build -t "${IMAGE_TAG}" .
 else
-  log "Skipping image build (SKIP_BUILD=true). Will use already-pushed tag ${IMAGE_TAG}."
+  log "Skipping local build (SKIP_BUILD=true); pulling ${IMAGE_TAG} from registry..."
+  docker pull "${IMAGE_TAG}"
 fi
 
 cd "${STACK_DIR}"
