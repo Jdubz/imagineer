@@ -224,6 +224,9 @@ jobs:
 
       - name: Build and push API image
         uses: docker/build-push-action@v6
+        timeout-minutes: 45
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           push: true

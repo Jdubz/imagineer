@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/jdubz/Development/imagineer}"
+APP_DIR="${APP_DIR:-/srv/imagineer}"
 STACK_DIR="/srv/imagineer"
 COMPOSE_FILE="${STACK_DIR}/docker-compose.yml"
 BUILD_TAG="${BUILD_TAG:-${GITHUB_SHA:-latest}}"
@@ -34,18 +34,36 @@ log "Starting backend release pipeline (containers)..."
 cd "${APP_DIR}"
 
 if [[ "${SKIP_BUILD}" != "true" ]]; then
-  log "Building API image ${IMAGE_TAG}..."
+  log "Building API image ${IMAGE_TAG} (local/manual deploy path)..."
   docker build -t "${IMAGE_TAG}" .
+  log "Pushing ${IMAGE_TAG} to registry..."
+  docker push "${IMAGE_TAG}"
 else
-  log "Skipping local build (SKIP_BUILD=true); pulling ${IMAGE_TAG} from registry..."
+  log "Skipping local build (SKIP_BUILD=true); assuming image was already built/pushed by CI. Pulling ${IMAGE_TAG}..."
   docker pull "${IMAGE_TAG}"
 fi
 
 cd "${STACK_DIR}"
 
-log "Pulling compose images (cloudflared/watchtower) and recreating api..."
-docker compose pull cloudflared watchtower || log "Pull skipped (not critical)."
-docker compose up -d api cloudflared watchtower
+# Discover available services in the stack to avoid referencing undefined ones
+services="$(docker compose config --services)" || abort "'docker compose config --services' failed."
+[[ -n "${services}" ]] || abort "No services defined in compose file at ${COMPOSE_FILE}."
+service_exists() {
+  echo "${services}" | grep -qFx "${1}"
+}
+
+pull_targets=(api)
+for svc in cloudflared watchtower; do
+  if service_exists "${svc}"; then
+    pull_targets+=("${svc}")
+  fi
+done
+
+log "Pulling compose images: ${pull_targets[*]} ..."
+docker compose pull "${pull_targets[@]}" || log "Pull skipped (not critical)."
+
+log "Recreating services: ${pull_targets[*]} ..."
+docker compose up -d "${pull_targets[@]}"
 
 log "Waiting for API health check at ${HEALTH_URL}..."
 for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
