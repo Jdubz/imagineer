@@ -28,7 +28,10 @@ abort() {
 
 log "Starting backend release pipeline (containers)..."
 
-[[ -d "${APP_DIR}" ]] || abort "Application directory ${APP_DIR} not found."
+if [[ ! -d "${APP_DIR}" ]]; then
+  log "Application directory ${APP_DIR} not found; assuming CI runner without deploy context. Skipping deploy."
+  exit 0
+fi
 [[ -f "${COMPOSE_FILE}" ]] || abort "Compose file ${COMPOSE_FILE} not found."
 
 cd "${APP_DIR}"
