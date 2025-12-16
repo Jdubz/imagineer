@@ -21,10 +21,12 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121 && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir gunicorn
+# Use verbose output to keep CI logs active during large wheel downloads
+ENV PIP_PROGRESS_BAR=ascii
+RUN pip install -v --no-cache-dir --upgrade pip && \
+    pip install -v --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install -v --no-cache-dir -r requirements.txt && \
+    pip install -v --no-cache-dir gunicorn
 
 # Stage 3: Production image
 FROM base
