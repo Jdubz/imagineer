@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Backend deployment helper invoked from CI over SSH.
-# Syncs main branch, refreshes dependencies, restarts the systemd service,
-# and waits for the health check to pass before exiting.
+# Backend deployment helper invoked from CI on the production host.
+# Builds/pulls the latest API image, restarts the docker-compose stack,
+# and waits for the health check to pass.
 
 set -euo pipefail
 
 APP_DIR="/home/jdubz/Development/imagineer"
-SERVICE_NAME="imagineer-api"
-VENV_DIR="${APP_DIR}/venv"
+STACK_DIR="/srv/imagineer"
+COMPOSE_FILE="${STACK_DIR}/docker-compose.yml"
+IMAGE_TAG="ghcr.io/jdubz/imagineer/api:latest"
+SKIP_BUILD=${SKIP_BUILD:-false}
 HEALTH_URL="http://localhost:10050/api/health"
-MAX_ATTEMPTS=5
+MAX_ATTEMPTS=10
 SLEEP_SECONDS=3
 
 log() {
@@ -23,34 +25,25 @@ abort() {
   exit 1
 }
 
-log "Starting backend release pipeline..."
+log "Starting backend release pipeline (containers)..."
 
-if [[ ! -d "${APP_DIR}" ]]; then
-  abort "Application directory ${APP_DIR} not found."
-fi
+[[ -d "${APP_DIR}" ]] || abort "Application directory ${APP_DIR} not found."
+[[ -f "${COMPOSE_FILE}" ]] || abort "Compose file ${COMPOSE_FILE} not found."
 
 cd "${APP_DIR}"
 
-log "Fetching latest changes from origin..."
-git fetch --prune origin
-git reset --hard origin/main
-
-log "Repository synced to commit $(git rev-parse --short HEAD)."
-
-if [[ ! -d "${VENV_DIR}" ]]; then
-  abort "Virtual environment missing at ${VENV_DIR}. Run scripts/deploy/setup-backend.sh first."
+if [[ "${SKIP_BUILD}" != "true" ]]; then
+  log "Building API image ${IMAGE_TAG}..."
+  docker build -t "${IMAGE_TAG}" .
+else
+  log "Skipping image build (SKIP_BUILD=true). Will use already-pushed tag ${IMAGE_TAG}."
 fi
 
-log "Activating virtual environment..."
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
+cd "${STACK_DIR}"
 
-log "Upgrading pip and project dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-log "Restarting systemd service ${SERVICE_NAME}..."
-sudo -n systemctl restart "${SERVICE_NAME}"
+log "Pulling compose images (cloudflared/watchtower) and recreating api..."
+docker compose pull cloudflared watchtower || log "Pull skipped (not critical)."
+docker compose up -d api cloudflared watchtower
 
 log "Waiting for API health check at ${HEALTH_URL}..."
 for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
@@ -64,9 +57,8 @@ for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
 done
 
 if [[ "${success:-false}" != true ]]; then
-  sudo -n systemctl status "${SERVICE_NAME}" --no-pager || true
-  sudo -n journalctl -u "${SERVICE_NAME}" -n 100 --no-pager || true
+  docker compose logs --tail=120 api || true
   abort "Service failed health checks after ${MAX_ATTEMPTS} attempts."
 fi
 
-log "Backend release completed successfully."
+log "Backend release completed successfully (compose)."
