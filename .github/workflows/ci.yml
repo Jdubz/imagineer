@@ -144,7 +144,7 @@ jobs:
         run: firebase deploy --only hosting --project static-sites-257923
 
   deploy-backend:
-    runs-on: [self-hosted, Linux, gpu]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
