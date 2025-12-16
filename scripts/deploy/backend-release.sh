@@ -34,19 +34,20 @@ log "Starting backend release pipeline (containers)..."
 cd "${APP_DIR}"
 
 if [[ "${SKIP_BUILD}" != "true" ]]; then
-  log "Building API image ${IMAGE_TAG}..."
+  log "Building API image ${IMAGE_TAG} (local/manual deploy path)..."
   docker build -t "${IMAGE_TAG}" .
   log "Pushing ${IMAGE_TAG} to registry..."
   docker push "${IMAGE_TAG}"
 else
-  log "Skipping local build (SKIP_BUILD=true); pulling ${IMAGE_TAG} from registry..."
+  log "Skipping local build (SKIP_BUILD=true); assuming image was already built/pushed by CI. Pulling ${IMAGE_TAG}..."
   docker pull "${IMAGE_TAG}"
 fi
 
 cd "${STACK_DIR}"
 
 # Discover available services in the stack to avoid referencing undefined ones
-services="$(docker compose config --services)"
+services="$(docker compose config --services)" || abort "'docker compose config --services' failed."
+[[ -n "${services}" ]] || abort "No services defined in compose file at ${COMPOSE_FILE}."
 service_exists() {
   echo "${services}" | grep -qFx "${1}"
 }

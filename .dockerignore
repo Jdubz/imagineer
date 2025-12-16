@@ -26,7 +26,6 @@ web/.turbo
 logs
 outputs
 models
-config.yaml
 config.development.yaml
 config.local.yaml
 data
