@@ -5,10 +5,11 @@
 
 set -euo pipefail
 
-APP_DIR="/home/jdubz/Development/imagineer"
+APP_DIR="${APP_DIR:-/home/jdubz/Development/imagineer}"
 STACK_DIR="/srv/imagineer"
 COMPOSE_FILE="${STACK_DIR}/docker-compose.yml"
-IMAGE_TAG="ghcr.io/jdubz/imagineer/api:latest"
+BUILD_TAG="${BUILD_TAG:-${GITHUB_SHA:-latest}}"
+IMAGE_TAG="ghcr.io/jdubz/imagineer/api:${BUILD_TAG}"
 SKIP_BUILD=${SKIP_BUILD:-true}
 HEALTH_URL="http://localhost:10050/api/health"
 MAX_ATTEMPTS=10
