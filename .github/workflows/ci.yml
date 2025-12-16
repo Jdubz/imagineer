@@ -70,6 +70,63 @@ jobs:
           IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
           IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
 
+  backend-integration-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run integration tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -v \
+            tests/backend/test_integration.py \
+            tests/backend/test_shared_contracts.py \
+            tests/backend/test_api.py
+        env:
+          IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
+          IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
+          IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
+
+  backend-e2e-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run end-to-end smoke tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -v tests/backend/test_phase1_security.py
+        env:
+          IMAGINEER_OUTPUTS_DIR: /tmp/imagineer/outputs
+          IMAGINEER_DATASET_ROOT: /tmp/imagineer/data/training
+          IMAGINEER_MODEL_CACHE_DIR: /tmp/imagineer/models
+
   deploy-frontend:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
