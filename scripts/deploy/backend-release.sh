@@ -48,7 +48,7 @@ cd "${STACK_DIR}"
 # Discover available services in the stack to avoid referencing undefined ones
 services="$(docker compose config --services)"
 service_exists() {
-  echo "${services}" | grep -q "^${1}$"
+  echo "${services}" | grep -qFx "${1}"
 }
 
 pull_targets=(api)

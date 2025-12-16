@@ -25,8 +25,7 @@ COPY requirements.txt .
 ENV PIP_PROGRESS_BAR=ascii
 RUN pip install -v --no-cache-dir --upgrade pip && \
     pip install -v --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121 && \
-    pip install -v --no-cache-dir -r requirements.txt && \
-    pip install -v --no-cache-dir gunicorn
+    pip install -v --no-cache-dir -r requirements.txt
 
 # Stage 3: Production image
 FROM base
